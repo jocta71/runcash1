@@ -1,4 +1,5 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
+import globalRouletteDataService from '@/services/GlobalRouletteDataService';
 import Cookies from 'js-cookie';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
@@ -61,9 +62,6 @@ class RESTSocketService {
   private pollingIntervals: Map<string, number> = new Map();
   private _isLoadingHistoricalData: boolean = false;
   private rouletteDataCache: Map<string, {data: any, timestamp: number}> = new Map();
-  private rouletteData: any[] = [];
-  private subscribers: Map<string, () => void> = new Map();
-  private isFetching: boolean = false;
   
   // Propriedade para simular estado de conexão
   public client?: any;
@@ -105,8 +103,8 @@ class RESTSocketService {
   // Manipular alterações de visibilidade da página
   private handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
-      console.log('[RESTSocketService] Página voltou a ficar visível, solicitando atualização');
-      this.fetchRouletteData();
+      console.log('[RESTSocketService] Página voltou a ficar visível, solicitando atualização via serviço global');
+      globalRouletteDataService.forceUpdate();
     }
   }
 
@@ -120,123 +118,55 @@ class RESTSocketService {
 
     this.connectionActive = true;
     
-    console.log('[RESTSocketService] Iniciando polling direto');
+    console.log('[RESTSocketService] Não criando timer próprio - usando serviço global centralizado');
     
-    // Buscar dados iniciais
-    this.fetchRouletteData();
+    // Registrar para receber atualizações do serviço global
+    globalRouletteDataService.subscribe('RESTSocketService-main', () => {
+      console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
+      // Reprocessar dados do serviço global quando houver atualização
+      const data = globalRouletteDataService.getAllRoulettes();
+      if (data && Array.isArray(data)) {
+        this.processDataAsEvents(data);
+      }
+    });
     
-    // Criar um timer para polling
+    // Processar dados iniciais se disponíveis
+    const initialData = globalRouletteDataService.getAllRoulettes();
+    if (initialData && initialData.length > 0) {
+      console.log('[RESTSocketService] Processando dados iniciais do serviço global');
+      this.processDataAsEvents(initialData);
+    }
+    
+    // Criar um timer de verificação para garantir que o serviço global está funcionando
     this.pollingTimer = window.setInterval(() => {
-      this.fetchRouletteData();
+      // Verificação simples para manter o timer ativo
+      this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
     }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
   }
   
   // Buscar dados da API REST
-  private async fetchRouletteData(): Promise<any[]> {
-    if (this.isFetching) {
-      console.log('[RESTSocketService] Já existe uma requisição em andamento');
-      return this.rouletteData;
-    }
-    
-    this.isFetching = true;
-    
+  private async fetchDataFromREST() {
     try {
       const startTime = Date.now();
-      console.log('[RESTSocketService] Buscando dados de roletas...');
+      console.log('[RESTSocketService] Obtendo dados através do serviço global centralizado');
       
-      // Importar axios para fazer a requisição
-      const axios = (await import('axios')).default;
-      const token = localStorage.getItem('token');
+      // Usar o serviço global centralizado em vez de fazer chamada direta à API
+      const data = await globalRouletteDataService.fetchRouletteData();
       
-      // Adicionar timestamp para evitar cache
-      const timestamp = Date.now();
-      const endpoints = [
-        `/api/ROULETTES?_t=${timestamp}`,
-        `/api/roulettes?_t=${timestamp}`,
-        `/api/roletas?_t=${timestamp}`
-      ];
-      
-      let response = null;
-      let successEndpoint = '';
-      
-      // Tentar cada endpoint em sequência
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`[RESTSocketService] Tentando endpoint: ${endpoint}`);
-          response = await axios.get(endpoint, {
-            headers: {
-              'Authorization': token ? `Bearer ${token}` : '',
-              'bypass-tunnel-reminder': 'true',
-              'cache-control': 'no-cache',
-              'pragma': 'no-cache'
-            },
-            timeout: 5000 // Timeout mais curto para evitar esperar muito tempo
-          });
-          
-          if (response.status === 200 && Array.isArray(response.data)) {
-            successEndpoint = endpoint;
-            break;
-          }
-        } catch (endpointError) {
-          console.warn(`[RESTSocketService] Falha ao acessar ${endpoint}:`, endpointError.message);
-          // Continuar para o próximo endpoint
-        }
+      if (!data || !Array.isArray(data)) {
+        throw new Error('Dados recebidos do serviço global não são válidos');
       }
       
-      if (response && response.status === 200 && Array.isArray(response.data)) {
-        console.log(`[RESTSocketService] Recebidos ${response.data.length} registros da API via ${successEndpoint}`);
-        
-        // Processar e armazenar os dados
-        this.rouletteData = response.data;
-        
-        // Salvar em cache para utilização offline
-        try {
-          localStorage.setItem('roulette_data_cache', JSON.stringify({
-            timestamp: Date.now(),
-            data: response.data
-          }));
-          console.log('[RESTSocketService] Dados salvos em cache para uso offline');
-        } catch (storageError) {
-          console.warn('[RESTSocketService] Erro ao salvar cache:', storageError);
-        }
-        
-        // Notificar assinantes
-        this.notifySubscribers();
-        
-        // Processar os dados como eventos
-        this.processDataAsEvents(response.data);
-        
-        const endTime = Date.now();
-        console.log(`[RESTSocketService] Dados obtidos em ${endTime - startTime}ms`);
-        
-        return response.data;
-      } else {
-        console.warn('[RESTSocketService] Resposta inesperada da API, tentando usar cache');
-        
-        // Tentar usar cache se disponível
-        try {
-          const cachedData = localStorage.getItem('roulette_data_cache');
-          if (cachedData) {
-            const parsedData = JSON.parse(cachedData);
-            this.rouletteData = parsedData.data || [];
-            
-            // Processar os dados em cache
-            this.processDataAsEvents(this.rouletteData);
-            
-            // Notificar assinantes
-            this.notifySubscribers();
-          }
-        } catch (cacheError) {
-          console.error('[RESTSocketService] Erro ao acessar cache:', cacheError);
-        }
-        
-        return this.rouletteData;
-      }
+      const endTime = Date.now();
+      console.log(`[RESTSocketService] Dados obtidos do serviço global em ${endTime - startTime}ms`);
+      
+      // Processar os dados como eventos
+      this.processDataAsEvents(data);
+      
+      return true;
     } catch (error) {
-      console.error('[RESTSocketService] Erro ao buscar dados:', error);
-      return this.rouletteData;
-    } finally {
-      this.isFetching = false;
+      console.error('[RESTSocketService] Erro ao obter dados do serviço global:', error);
+      return false;
     }
   }
   
@@ -383,11 +313,6 @@ class RESTSocketService {
       listeners.add(callback);
       console.log(`[RESTSocketService] Registrado listener para ${roletaNome}, total: ${listeners.size}`);
     }
-    
-    // Também registrar no mapa de subscribers se for uma função que não recebe argumentos
-    if (typeof callback === 'function' && callback.length === 0) {
-      this.subscribers.set(roletaNome, callback as () => void);
-    }
   }
 
   public unsubscribe(roletaNome: string, callback: any): void {
@@ -395,11 +320,6 @@ class RESTSocketService {
     if (listeners) {
       listeners.delete(callback);
       console.log(`[RESTSocketService] Listener removido para ${roletaNome}, restantes: ${listeners.size}`);
-    }
-    
-    // Também remover do mapa de subscribers se existir com esse ID
-    if (this.subscribers.has(roletaNome)) {
-      this.subscribers.delete(roletaNome);
     }
   }
 
@@ -468,7 +388,7 @@ class RESTSocketService {
       if (!this.pollingTimer) {
         console.warn('[RESTSocketService] Timer não foi criado na reconexão. Criando manualmente...');
         this.pollingTimer = window.setInterval(() => {
-          this.fetchRouletteData();
+          this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
         }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
       }
     }, 100); // Pequeno atraso para garantir que o timer anterior foi limpo
@@ -492,8 +412,15 @@ class RESTSocketService {
 
   public async requestRecentNumbers(): Promise<boolean> {
     try {
-      console.log('[RESTSocketService] Forçando atualização de dados');
-      await this.fetchRouletteData();
+      console.log('[RESTSocketService] Forçando atualização de dados via serviço global');
+      await globalRouletteDataService.forceUpdate();
+      
+      // Processar os dados atualizados
+      const data = globalRouletteDataService.getAllRoulettes();
+      if (data && Array.isArray(data)) {
+        this.processDataAsEvents(data);
+      }
+      
       return true;
     } catch (error) {
       console.error('[RESTSocketService] Erro ao atualizar dados:', error);
@@ -511,9 +438,11 @@ class RESTSocketService {
 
   public async requestRouletteNumbers(roletaId: string): Promise<boolean> {
     try {
-      console.log(`[RESTSocketService] Buscando números para roleta ${roletaId}`);
-      const data = await this.fetchRouletteData();
+      console.log(`[RESTSocketService] Buscando números para roleta ${roletaId} via serviço global`);
+      await globalRouletteDataService.forceUpdate();
       
+      // Processar os dados atualizados
+      const data = globalRouletteDataService.getAllRoulettes();
       if (data && Array.isArray(data)) {
         const roleta = data.find(r => r.id === roletaId);
         if (roleta && roleta.numero && Array.isArray(roleta.numero)) {
@@ -543,8 +472,8 @@ class RESTSocketService {
     try {
       this._isLoadingHistoricalData = true;
       
-      // Buscar dados detalhados
-      const data = await this.fetchRouletteData();
+      // Buscar dados detalhados pelo serviço global
+      const data = await globalRouletteDataService.fetchDetailedRouletteData();
       
       if (Array.isArray(data)) {
         // Processar os dados recebidos
@@ -604,7 +533,7 @@ class RESTSocketService {
       
       // Criar um novo timer
       this.pollingTimer = window.setInterval(() => {
-        this.fetchRouletteData();
+        this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
       }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
       
       // Não chamar reconnect() para evitar loop
@@ -627,15 +556,16 @@ class RESTSocketService {
 
   // Método para iniciar o polling do segundo endpoint (/api/ROULETTES sem parâmetro)
   private startSecondEndpointPolling() {
-    console.log('[RESTSocketService] Iniciando polling do segundo endpoint');
+    console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
+    
+    // Usar o GlobalRouletteDataService para obter dados
+    globalRouletteDataService.subscribe('RESTSocketService', () => {
+      console.log('[RESTSocketService] Recebendo dados do serviço centralizado');
+      this.processDataFromCentralService();
+    });
     
     // Executar imediatamente a primeira vez
     this.processDataFromCentralService();
-    
-    // Configurar intervalo para polling periódico
-    this.secondEndpointPollingTimer = window.setInterval(() => {
-      this.processDataFromCentralService();
-    }, this.centralServicePollingInterval) as unknown as NodeJSTimeout;
   }
   
   // Método para processar dados do serviço centralizado
@@ -644,8 +574,8 @@ class RESTSocketService {
       const startTime = Date.now();
       console.log('[RESTSocketService] Processando dados do serviço centralizado: ' + startTime);
       
-      // Usar os dados já buscados
-      const data = this.rouletteData;
+      // Obter dados do serviço global
+      const data = globalRouletteDataService.getAllRoulettes();
       
       if (!data || !Array.isArray(data) || data.length === 0) {
         console.log('[RESTSocketService] Sem dados disponíveis no serviço centralizado, aguardando...');
@@ -795,46 +725,6 @@ class RESTSocketService {
     // Independente do resultado, continuar com a inicialização do polling
     console.log('[RESTSocketService] Continuando inicialização do polling');
   }
-
-  // Método para obter todas as roletas
-  public getAllRoulettes(): any[] {
-    return this.rouletteData;
-  }
-
-  // Método para buscar dados detalhados
-  public async fetchDetailedRouletteData(): Promise<any[]> {
-    return this.fetchRouletteData();
-  }
-
-  // Método para obter dados detalhados
-  public getAllDetailedRoulettes(): any[] {
-    return this.rouletteData;
-  }
-
-  // Método para obter uma roleta por nome
-  public getRouletteByName(rouletteName: string): any {
-    return this.rouletteData.find(roulette => {
-      const name = roulette.nome || roulette.name || '';
-      return name.toLowerCase() === rouletteName.toLowerCase();
-    });
-  }
-
-  // Método para forçar atualização
-  public forceUpdate(): void {
-    console.log('[RESTSocketService] Forçando atualização de dados');
-    this.fetchRouletteData();
-  }
-
-  // Método para notificar subscribers
-  private notifySubscribers(): void {
-    this.subscribers.forEach((callback, id) => {
-      try {
-        callback();
-      } catch (error) {
-        console.error(`[RESTSocketService] Erro ao notificar subscriber ${id}:`, error);
-      }
-    });
-  }
 }
 
-export default RESTSocketService;
+export default RESTSocketService; 

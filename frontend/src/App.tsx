@@ -15,7 +15,6 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import SoundManager from "./components/SoundManager";
 import { LoginModalProvider, useLoginModal } from "./context/LoginModalContext";
-import { ErrorBoundary as AppErrorBoundary } from 'react-error-boundary';
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -146,34 +145,6 @@ const AuthStateManager = () => {
   return null; // Este componente não renderiza nada
 };
 
-// Componente para quando o ThemeProvider falhar
-const ThemeErrorFallback = ({ error, resetErrorBoundary }) => {
-  // Logar o erro para diagnóstico
-  console.error('Erro no ThemeProvider:', error);
-  
-  return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
-      <h2>Erro de Tema</h2>
-      <p>Ocorreu um erro ao carregar o tema da aplicação.</p>
-      <div style={{ marginTop: '20px' }}>
-        <button 
-          onClick={resetErrorBoundary}
-          style={{
-            padding: '8px 16px',
-            background: '#4a90e2',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Tentar Novamente
-        </button>
-      </div>
-    </div>
-  );
-};
-
 // Componente principal da aplicação
 const App = () => {
   // Criar uma única instância do QueryClient com useRef para mantê-la durante re-renders
@@ -211,173 +182,163 @@ const App = () => {
   return (
     <ErrorBoundary FallbackComponent={ErrorPage}>
       <QueryClientProvider client={queryClient.current}>
-        <AppErrorBoundary
-          FallbackComponent={ThemeErrorFallback}
-          onReset={() => {
-            // Quando o erro é resetado, podemos fazer algo aqui
-            console.log('Tentando recuperar de erro no ThemeProvider...');
-            // Por exemplo, podemos forçar uma recarga de dados
-            window.location.reload();
-          }}
-        >
-          <ThemeProvider defaultTheme="system" storageKey="runcash-theme">
-            <TooltipProvider>
-              <AuthProvider>
-                <SubscriptionProvider>
-                  <NotificationsProvider>
-                    <SoundManager>
-                      <BrowserRouter>
-                        <GoogleAuthHandler />
-                        <LoginModalProvider>
-                          <AuthStateManager />
-                          <Routes>
-                            {/* Remover rota explícita de login e sempre usar o modal */}
-                            
-                            {/* Páginas principais - Acessíveis mesmo sem login, mas mostram modal se necessário */}
-                            <Route index element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <Index />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            {/* Rota para a página de teste de assinatura */}
-                            <Route path="/teste-assinatura" element={
+        <ThemeProvider defaultTheme="system" storageKey="runcash-theme">
+          <TooltipProvider>
+            <AuthProvider>
+              <SubscriptionProvider>
+                <NotificationsProvider>
+                  <SoundManager>
+                    <BrowserRouter>
+                      <GoogleAuthHandler />
+                      <LoginModalProvider>
+                        <AuthStateManager />
+                        <Routes>
+                          {/* Remover rota explícita de login e sempre usar o modal */}
+                          
+                          {/* Páginas principais - Acessíveis mesmo sem login, mas mostram modal se necessário */}
+                          <Route index element={
+                            <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
-                                <TestAssinaturaPage />
+                                <Index />
                               </Suspense>
-                            } />
-                            
-                            {/* Removidas as rotas: /roulettes, /history, /analysis, /strategies, /strategy/:id */}
-                            
-                            <Route path="/profile" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <ProfilePage />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            {/* Página de detalhes da assinatura - agora redirecionando para /billing */}
-                            <Route path="/minha-conta/assinatura" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <MinhaContaAssinaturaRedirect />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            {/* Rota para /minha-conta que redireciona para /minha-conta/assinatura */}
-                            <Route path="/minha-conta" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <MinhaContaRedirect />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            {/* Redirecionamento da rota /account (usada após pagamento) */}
-                            <Route path="/account" element={
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Rota para a página de teste de assinatura */}
+                          <Route path="/teste-assinatura" element={
+                            <Suspense fallback={<LoadingScreen />}>
+                              <TestAssinaturaPage />
+                            </Suspense>
+                          } />
+                          
+                          {/* Removidas as rotas: /roulettes, /history, /analysis, /strategies, /strategy/:id */}
+                          
+                          <Route path="/profile" element={
+                            <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
-                                <AccountRouteRedirect />
+                                <ProfilePage />
                               </Suspense>
-                            } />
-                            
-                            <Route path="/billing" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <BillingPage />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            <Route path="/planos" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <PlansPage />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            <Route path="/pagamento" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <PaymentPage />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            <Route path="/pagamento/:planId" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <PaymentPage />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            <Route path="/payment-success" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <PaymentSuccessPage />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            <Route path="/pagamento/sucesso" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <PaymentSuccessPage />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            <Route path="/pagamento/cancelado" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <PaymentCanceled />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            <Route path="/live" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <LiveRoulettePage />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            
-                            {/* Rota para a página de teste do Asaas - DESATIVADA */}
-                            {/* 
-                            <Route path="/asaas-test" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <AsaasTestPage />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                            */}
-                            
-                            {/* Rota para página não encontrada */}
-                            <Route path="*" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <NotFound />
-                                </Suspense>
-                              </ProtectedRoute>
-                            } />
-                          </Routes>
-                        </LoginModalProvider>
-                        <Toaster />
-                      </BrowserRouter>
-                    </SoundManager>
-                  </NotificationsProvider>
-                </SubscriptionProvider>
-              </AuthProvider>
-            </TooltipProvider>
-          </ThemeProvider>
-        </AppErrorBoundary>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Página de detalhes da assinatura - agora redirecionando para /billing */}
+                          <Route path="/minha-conta/assinatura" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <MinhaContaAssinaturaRedirect />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Rota para /minha-conta que redireciona para /minha-conta/assinatura */}
+                          <Route path="/minha-conta" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <MinhaContaRedirect />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Redirecionamento da rota /account (usada após pagamento) */}
+                          <Route path="/account" element={
+                            <Suspense fallback={<LoadingScreen />}>
+                              <AccountRouteRedirect />
+                            </Suspense>
+                          } />
+                          
+                          <Route path="/billing" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <BillingPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/planos" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PlansPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/pagamento" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PaymentPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/pagamento/:planId" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PaymentPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/payment-success" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PaymentSuccessPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/pagamento/sucesso" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PaymentSuccessPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/pagamento/cancelado" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PaymentCanceled />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/live" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <LiveRoulettePage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Rota para a página de teste do Asaas - DESATIVADA */}
+                          {/* 
+                          <Route path="/asaas-test" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <AsaasTestPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          */}
+                          
+                          {/* Rota para página não encontrada */}
+                          <Route path="*" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <NotFound />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                        </Routes>
+                      </LoginModalProvider>
+                      <Toaster />
+                    </BrowserRouter>
+                  </SoundManager>
+                </NotificationsProvider>
+              </SubscriptionProvider>
+            </AuthProvider>
+          </TooltipProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );
