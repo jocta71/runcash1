@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import RouletteNumber from './RouletteNumber';
-import { Box, Grid, Typography, Card, CardContent, Skeleton, Tooltip as MuiTooltip } from '@mui/material';
+import { Box, Grid, Typography, Card, CardContent, Skeleton, Tooltip as MuiTooltip, Button } from '@mui/material';
 import { formatDateTime } from '@/utils/formatters';
-import LinkButton from './LinkButton';
 import RESTSocketService from '@/services/RESTSocketService';
 import { styled } from '@mui/material/styles';
 import clsx from 'clsx';
@@ -221,9 +220,15 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
           </Typography>
           <Typography color="error">{error}</Typography>
           {showRefreshButton && (
-            <LinkButton onClick={handleRefresh} disabled={isRefreshing}>
+            <Button 
+              variant="text" 
+              color="primary" 
+              onClick={handleRefresh} 
+              disabled={isRefreshing}
+              size="small"
+            >
               Tentar novamente
-            </LinkButton>
+            </Button>
           )}
         </CardContent>
       </StyledCard>
@@ -259,9 +264,15 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
                   {roletaNome || 'Roleta'}
                 </Typography>
                 {showControls && showRefreshButton && (
-                  <LinkButton onClick={handleRefresh} disabled={isRefreshing}>
+                  <Button 
+                    variant="text" 
+                    color="primary" 
+                    onClick={handleRefresh} 
+                    disabled={isRefreshing}
+                    size="small"
+                  >
                     {isRefreshing ? 'Atualizando...' : 'Atualizar'}
-                  </LinkButton>
+                  </Button>
                 )}
               </Box>
             )}
