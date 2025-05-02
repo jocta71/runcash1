@@ -111,38 +111,45 @@ class RESTSocketService {
 
   // Iniciar polling da API REST
   private startPolling() {
-    // Limpar qualquer timer existente
+    console.log('[RESTSocketService] Iniciando polling');
+    
+    // Limpar timer anterior se existir
     if (this.pollingTimer) {
       window.clearInterval(this.pollingTimer);
       this.pollingTimer = null;
     }
-
+    
+    // Carregar dados do cache se disponível
+    this.loadCachedData();
+    
+    // Buscar dados imediatamente
+    this.fetchDataFromREST()
+      .then(success => {
+        console.log(`[RESTSocketService] Inicialização ${success ? 'bem-sucedida' : 'falhou'}`);
+      })
+      .catch(error => {
+        console.error('[RESTSocketService] Erro na inicialização:', error);
+      });
+    
+    // Configurar polling regular
+    this._lastCreatedTimerId = window.setInterval(() => {
+      this.fetchDataFromREST()
+        .catch(error => {
+          console.error('[RESTSocketService] Erro no polling:', error);
+        });
+    }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
+    
+    // Armazenar referência
+    this.pollingTimer = this._lastCreatedTimerId;
     this.connectionActive = true;
     
-    console.log('[RESTSocketService] Não criando timer próprio - usando serviço global centralizado');
+    // Iniciar polling do segundo endpoint
+    this.startSecondEndpointPolling();
     
-    // Registrar para receber atualizações do serviço global
-    EventService.on('roulette:data-updated', () => {
-      console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
-      // Reprocessar dados do serviço global quando houver atualização
-      const data = globalRouletteDataService.getAllRoulettes();
-      if (data && Array.isArray(data)) {
-        this.processDataAsEvents(data);
-      }
-    });
-    
-    // Processar dados iniciais se disponíveis
-    const initialData = globalRouletteDataService.getAllRoulettes();
-    if (initialData && initialData.length > 0) {
-      console.log('[RESTSocketService] Processando dados iniciais do serviço global');
-      this.processDataAsEvents(initialData);
-    }
-    
-    // Criar um timer de verificação para garantir que o serviço global está funcionando
-    this.pollingTimer = window.setInterval(() => {
-      // Verificação simples para manter o timer ativo
-      this.lastReceivedData.set('heartbeat', { timestamp: Date.now(), data: null });
-    }, this.defaultPollingInterval) as unknown as NodeJSTimeout;
+    // Configurar verificação de saúde
+    window.setInterval(() => {
+      this.checkTimerHealth();
+    }, 30000);
   }
   
   // Buscar dados da API REST
@@ -559,7 +566,7 @@ class RESTSocketService {
   private startSecondEndpointPolling() {
     console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
     
-    // Usar o GlobalRouletteDataService para obter dados
+    // Usar o EventService para escutar eventos de atualização de dados
     EventService.on('roulette:data-updated', () => {
       console.log('[RESTSocketService] Recebendo dados do serviço centralizado');
       this.processDataFromCentralService();
