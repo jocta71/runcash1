@@ -488,213 +488,135 @@ export default class RouletteFeedService {
    * @returns Promise com os dados mais recentes
    */
   public fetchLatestData(): Promise<any> {
-    // Verificar antes se o usuário tem assinatura ativa, utilizando o apiService
-    return import('axios').then(axiosModule => {
-      const axios = axiosModule.default;
-      const token = localStorage.getItem('token');
-      const API_URL = window.location.origin;
-      
-      if (!token) {
-        return { hasSubscription: false };
+    // Verificar se podemos fazer a requisição
+    if (!this.canMakeRequest()) {
+      logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
+      return Promise.resolve(this.roulettes);
+    }
+    
+    // Atualizar estado
+    this.IS_FETCHING_DATA = true;
+    window._requestInProgress = true;
+    
+    // Criar ID único para esta requisição
+    const requestId = this.generateRequestId();
+    
+    // Registrar requisição pendente para monitoramento
+    if (typeof window !== 'undefined') {
+      if (!window._pendingRequests) {
+        window._pendingRequests = {};
       }
       
-      return axios.get(`${API_URL}/subscription/status?_t=${Date.now()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }).then(response => {
-        const data = response.data || {};
+      window._pendingRequests[requestId] = {
+        timestamp: Date.now(),
+        url: '/api/ROULETTES-via-centralService',
+        service: 'RouletteFeed'
+      };
+    }
+    
+    logger.debug(`📡 Buscando dados mais recentes através do serviço centralizado (ID: ${requestId})`);
+    
+    // Usar o serviço global para obter os dados
+    return globalRouletteDataService.fetchRouletteData()
+      .then(data => {
+        // Atualizar estatísticas e estado
+        this.requestStats.total++;
+        this.requestStats.success++;
+        this.lastSuccessfulResponse = Date.now();
+        this.lastCacheUpdate = this.lastSuccessfulResponse;
+        this.IS_FETCHING_DATA = false;
         
-        // Verificar se o usuário tem assinatura ativa baseado nos dados recebidos
-        const status = data.subscription?.status?.toLowerCase() || '';
-        const hasActiveSubscription = !!(
-          data.success && 
-          data.hasSubscription && 
-          (status === 'active' || status === 'ativo' || 
-           status === 'received' || status === 'recebido' || 
-           status === 'confirmed' || status === 'confirmado')
-        );
-        
-        return { 
-          hasSubscription: hasActiveSubscription,
-          subscription: data.subscription
-        };
-      }).catch(() => {
-        return { hasSubscription: false };
-      });
-    }).then(({ hasSubscription }) => {
-      if (!hasSubscription) {
-        logger.debug('⛔ Requisição a api/roulettes bloqueada - usuário sem assinatura');
-        
-        // Verificar se já enviamos um evento recentemente
-        const now = Date.now();
-        const lastEventTime = window._lastSubscriptionEventTime || 0;
-        const cooldownPeriod = 15000; // 15 segundos
-        
-        if (now - lastEventTime < cooldownPeriod) {
-          logger.debug(`⏱️ Evento de assinatura em cooldown (${Math.round((now - lastEventTime) / 1000)}s / ${cooldownPeriod / 1000}s)`);
-          return this.roulettes;
+        // Se era a primeira requisição, marcar como feita
+        if (!this.hasFetchedInitialData) {
+          this.hasFetchedInitialData = true;
         }
         
-        // Verificar se o modal foi fechado recentemente pelo usuário
-        try {
-          const modalClosedTime = localStorage.getItem('subscription_modal_closed');
-          if (modalClosedTime) {
-            const closedAt = parseInt(modalClosedTime, 10);
-            const timeSinceClosed = now - closedAt;
-            
-            // Se o usuário fechou o modal nos últimos 2 minutos, não mostrar novamente
-            if (timeSinceClosed < 2 * 60 * 1000) {
-              logger.debug('🔒 Modal fechado pelo usuário nos últimos 2 minutos, não mostrando novamente');
-              return this.roulettes;
+        // Limpar a requisição pendente
+        if (typeof window !== 'undefined' && window._pendingRequests) {
+          delete window._pendingRequests[requestId];
+        }
+        
+        // Liberar a trava global
+        window._requestInProgress = false;
+        
+        // Processar os dados recebidos
+        if (data && Array.isArray(data)) {
+          // Transformar dados para o formato esperado
+          const liveTables: { [key: string]: any } = {};
+          data.forEach(roleta => {
+            if (roleta && roleta.id) {
+              // Certifique-se de que estamos lidando corretamente com o campo numero
+              // Na API, o 'numero' é um array de objetos com propriedade 'numero'
+              const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+              
+              liveTables[roleta.id] = {
+                GameID: roleta.id,
+                Name: roleta.name || roleta.nome,
+                ativa: roleta.ativa,
+                // Manter a estrutura do campo numero exatamente como está na API
+                numero: numeroArray,
+                // Incluir outras propriedades da roleta
+                ...roleta
+              };
             }
-          }
-        } catch (e) {
-          logger.error('❌ Erro ao verificar estado de fechamento do modal:', e);
-        }
-        
-        // Atualizar o timestamp do último evento
-        window._lastSubscriptionEventTime = now;
-        
-        // Disparar evento para exibir modal de assinatura
-        logger.debug('📲 Disparando evento subscription:required');
-        window.dispatchEvent(new CustomEvent('subscription:required', { 
-          detail: {
-            error: 'SUBSCRIPTION_REQUIRED',
-            message: 'Para acessar os dados de roletas, é necessário ter uma assinatura ativa.'
-          }
-        }));
-        
-        return this.roulettes;
-      }
-      
-      // Usuário tem assinatura, continuar com a busca normal
-      // Verificar se podemos fazer a requisição
-      if (!this.canMakeRequest()) {
-        logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
-        return this.roulettes;
-      }
-      
-      // Atualizar estado
-      this.IS_FETCHING_DATA = true;
-      window._requestInProgress = true;
-      
-      // Criar ID único para esta requisição
-      const requestId = this.generateRequestId();
-      
-      // Registrar requisição pendente para monitoramento
-      if (typeof window !== 'undefined') {
-        if (!window._pendingRequests) {
-          window._pendingRequests = {};
-        }
-        
-        window._pendingRequests[requestId] = {
-          timestamp: Date.now(),
-          url: '/api/ROULETTES-via-centralService',
-          service: 'RouletteFeed'
-        };
-      }
-      
-      logger.debug(`📡 Buscando dados mais recentes através do serviço centralizado (ID: ${requestId})`);
-      
-      // Usar o serviço global para obter os dados
-      return globalRouletteDataService.fetchRouletteData()
-        .then(data => {
-          // Atualizar estatísticas e estado
-          this.requestStats.total++;
-          this.requestStats.success++;
-          this.lastSuccessfulResponse = Date.now();
-          this.lastCacheUpdate = this.lastSuccessfulResponse;
-          this.IS_FETCHING_DATA = false;
+          });
           
-          // Se era a primeira requisição, marcar como feita
-          if (!this.hasFetchedInitialData) {
-            this.hasFetchedInitialData = true;
-          }
+          // Atualizar cache
+          this.lastUpdateTime = Date.now();
+          this.hasCachedData = true;
+          this.roulettes = liveTables;
           
-          // Limpar a requisição pendente
-          if (typeof window !== 'undefined' && window._pendingRequests) {
-            delete window._pendingRequests[requestId];
-          }
+          // Sinalizar melhora na saúde do sistema
+          GLOBAL_SYSTEM_HEALTH = true;
+          this.consecutiveSuccesses++;
+          this.consecutiveErrors = 0;
+          this.lastSuccessTimestamp = Date.now();
           
-          // Liberar a trava global
-          window._requestInProgress = false;
+          // Notificar sobre atualizações via evento global
+          EventService.emit('roulette:feed-updated', {
+            timestamp: Date.now(),
+            source: 'RouletteFeed',
+            data: liveTables
+          });
           
-          // Processar os dados recebidos
-          if (data && Array.isArray(data)) {
-            // Transformar dados para o formato esperado
-            const liveTables: { [key: string]: any } = {};
-            data.forEach(roleta => {
-              if (roleta && roleta.id) {
-                // Certifique-se de que estamos lidando corretamente com o campo numero
-                // Na API, o 'numero' é um array de objetos com propriedade 'numero'
-                const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-                
-                liveTables[roleta.id] = {
-                  GameID: roleta.id,
-                  Name: roleta.name || roleta.nome,
-                  ativa: roleta.ativa,
-                  // Manter a estrutura do campo numero exatamente como está na API
-                  numero: numeroArray,
-                  // Incluir outras propriedades da roleta
-                  ...roleta
-                };
-              }
-            });
-            
-            // Atualizar cache
-            this.lastUpdateTime = Date.now();
-            this.hasCachedData = true;
-            this.roulettes = liveTables;
-            
-            // Sinalizar melhora na saúde do sistema
-            GLOBAL_SYSTEM_HEALTH = true;
-            this.consecutiveSuccesses++;
-            this.consecutiveErrors = 0;
-            this.lastSuccessTimestamp = Date.now();
-            
-            // Notificar que temos novos dados
-            this.notifySubscribers(liveTables);
-            
-            // Notificar outros serviços
-            this.notifyDataUpdate();
-            
-            return liveTables;
-          } else {
-            logger.warn('⚠️ Resposta inválida do serviço global');
-            return this.roulettes;
-          }
-        })
-        .catch(error => {
-          // Atualizar estatísticas e estado
-          this.requestStats.total++;
-          this.requestStats.failed++;
-          this.IS_FETCHING_DATA = false;
+          // Notificar outros serviços
+          this.notifyDataUpdate();
           
-          // Limpar a requisição pendente
-          if (typeof window !== 'undefined' && window._pendingRequests) {
-            delete window._pendingRequests[requestId];
-          }
-          
-          // Liberar a trava global
-          window._requestInProgress = false;
-          
-          // Registrar erro
-          logger.error(`❌ Erro ao buscar dados mais recentes: ${error.message || 'Desconhecido'}`);
-          
-          // Atualizar contadores de erro
-          this.consecutiveErrors++;
-          this.consecutiveSuccesses = 0;
-          
-          // Se houver um erro grave de conectividade, atualizar saúde do sistema
-          if (this.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-            GLOBAL_SYSTEM_HEALTH = false;
-          }
-          
-          // Retornar dados em cache se existirem
+          return liveTables;
+        } else {
+          logger.warn('⚠️ Resposta inválida do serviço global');
           return this.roulettes;
-        });
-    });
+        }
+      })
+      .catch(error => {
+        // Atualizar estatísticas e estado
+        this.requestStats.total++;
+        this.requestStats.failed++;
+        this.IS_FETCHING_DATA = false;
+        
+        // Limpar a requisição pendente
+        if (typeof window !== 'undefined' && window._pendingRequests) {
+          delete window._pendingRequests[requestId];
+        }
+        
+        // Liberar a trava global
+        window._requestInProgress = false;
+        
+        // Registrar erro
+        logger.error(`❌ Erro ao buscar dados mais recentes: ${error.message || 'Desconhecido'}`);
+        
+        // Atualizar contadores de erro
+        this.consecutiveErrors++;
+        this.consecutiveSuccesses = 0;
+        
+        // Se houver um erro grave de conectividade, atualizar saúde do sistema
+        if (this.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          GLOBAL_SYSTEM_HEALTH = false;
+        }
+        
+        // Retornar dados em cache se existirem
+        return this.roulettes;
+      });
   }
 
   /**
@@ -1644,9 +1566,7 @@ export default class RouletteFeedService {
     }, 30000);
   }
 
-  /**
-   * Notifica outras instâncias sobre atualização de dados
-   */
+  // Método modificado para usar EventService em vez de subscribers
   private notifyDataUpdate(): void {
     try {
       // Salvar informação de atualização no localStorage
@@ -1659,35 +1579,20 @@ export default class RouletteFeedService {
     }
   }
 
-  // Método para notificar assinantes
+  // Método modificado para usar EventService em vez de subscribers
   private notifySubscribers(data: any): void {
     try {
-      // Implementação do método para notificar assinantes sobre atualizações
-      if (this.subscribers && this.subscribers.length > 0) {
-        this.subscribers.forEach(callback => {
-          try {
-            callback(data);
-          } catch (error) {
-            logger.error('❌ Erro ao notificar assinante:', error);
-          }
-        });
-        logger.debug(`🔔 Notificados ${this.subscribers.length} assinantes sobre atualização de dados`);
-      }
+      // Emitir evento global para todos os componentes interessados
+      EventService.emit('roulette:feed-updated', {
+        timestamp: Date.now(),
+        source: 'RouletteFeedService',
+        count: Object.keys(data).length
+      });
+      
+      logger.debug('🔔 Evento emitido para notificar componentes sobre atualização de dados');
     } catch (error) {
-      logger.error('❌ Erro ao notificar assinantes:', error);
+      logger.error('❌ Erro ao emitir evento de notificação:', error);
     }
-  }
-
-  // Método para adicionar assinante
-  public subscribe(callback: (data: any) => void): void {
-    this.subscribers.push(callback);
-    logger.debug('➕ Novo assinante adicionado ao serviço RouletteFeedService');
-  }
-
-  // Método para remover assinante
-  public unsubscribe(callback: (data: any) => void): void {
-    this.subscribers = this.subscribers.filter(cb => cb !== callback);
-    logger.debug('➖ Assinante removido do serviço RouletteFeedService');
   }
 
   // Função auxiliar para gerar IDs de requisição únicos

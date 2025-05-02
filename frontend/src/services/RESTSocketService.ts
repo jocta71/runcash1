@@ -1,6 +1,7 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
 import Cookies from 'js-cookie';
+import EventService from '@/services/EventService';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -121,7 +122,7 @@ class RESTSocketService {
     console.log('[RESTSocketService] Não criando timer próprio - usando serviço global centralizado');
     
     // Registrar para receber atualizações do serviço global
-    globalRouletteDataService.subscribe('RESTSocketService-main', () => {
+    EventService.on('roulette:data-updated', () => {
       console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
       // Reprocessar dados do serviço global quando houver atualização
       const data = globalRouletteDataService.getAllRoulettes();
@@ -559,7 +560,7 @@ class RESTSocketService {
     console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
     
     // Usar o GlobalRouletteDataService para obter dados
-    globalRouletteDataService.subscribe('RESTSocketService', () => {
+    EventService.on('roulette:data-updated', () => {
       console.log('[RESTSocketService] Recebendo dados do serviço centralizado');
       this.processDataFromCentralService();
     });
@@ -687,43 +688,6 @@ class RESTSocketService {
     }
     
     return mergedNumbers;
-  }
-
-  // Usar o apiService para verificar a assinatura (aproveitando o mecanismo de cache)
-  async checkSubscriptionBeforeInit(): Promise<void> {
-    try {
-      console.log('[RESTSocketService] Verificando status da assinatura antes de iniciar polling');
-
-      // Verificar se o usuário tem autenticação
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.log('[RESTSocketService] Usuário não autenticado, continuando sem verificar assinatura');
-        return;
-      }
-
-      // Importar axios para fazer a requisição diretamente
-      const axios = (await import('axios')).default;
-      const API_URL = window.location.origin;
-
-      // Fazer a requisição para verificar o status da assinatura
-      const response = await axios.get(`${API_URL}/subscription/status?_t=${Date.now()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      // Checar se a resposta é válida
-      if (response.data && response.data.success) {
-        console.log('[RESTSocketService] Status da assinatura verificado com sucesso');
-      } else {
-        console.log('[RESTSocketService] Verificação de assinatura retornou status inválido');
-      }
-    } catch (apiError) {
-      console.error('[RESTSocketService] Erro ao verificar assinatura via axios:', apiError);
-    }
-
-    // Independente do resultado, continuar com a inicialização do polling
-    console.log('[RESTSocketService] Continuando inicialização do polling');
   }
 }
 
