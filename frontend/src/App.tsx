@@ -25,6 +25,7 @@ const PlansPage = lazy(() => import("@/pages/PlansPage"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
+const AuthPage = lazy(() => import("@/pages/AuthPage"));
 // Comentando a importação da página de teste do Asaas
 // const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 // Importação da nossa nova página de teste de assinatura
@@ -188,6 +189,13 @@ const App = () => {
                     <LoginModalProvider>
                       <AuthStateManager />
                       <Routes>
+                        {/* Adicionar rota de autenticação explícita */}
+                        <Route path="/auth" element={
+                          <Suspense fallback={<LoadingScreen />}>
+                            <AuthPage />
+                          </Suspense>
+                        } />
+                        
                         {/* Remover rota explícita de login e sempre usar o modal */}
                         
                         {/* Páginas principais - Acessíveis mesmo sem login, mas mostram modal se necessário */}

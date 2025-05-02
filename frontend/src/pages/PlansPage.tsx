@@ -75,50 +75,26 @@ const PlansPage: React.FC = () => {
   const [userSubscription, setUserSubscription] = useState<any>(null);
   const navigate = useNavigate();
 
-  // Verificar se o usuário está autenticado
-  const isAuthenticated = (): boolean => {
-    return !!localStorage.getItem('token');
-  };
-
-  // Função para lidar com login/signup
-  const handleAuthNavigation = () => {
-    // Armazenar o current path para redirecionamento após login
-    localStorage.setItem('redirectAfterLogin', '/planos');
-    
-    // Redirecionar para página de autenticação
-    navigate('/auth');
-  };
-
   // Buscar planos disponíveis e status da assinatura do usuário
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
         // Buscar planos disponíveis
-        try {
-          const plansResponse = await axios.get('/api/assinatura/planos');
-          if (plansResponse.data && plansResponse.data.success) {
-            setPlans(plansResponse.data.data.planos);
-          }
-        } catch (plansError) {
-          console.error('Erro ao carregar planos:', plansError);
-          // Não exibir erro, pois estamos usando planos padrão
+        const plansResponse = await axios.get('/api/assinatura/planos');
+        if (plansResponse.data && plansResponse.data.success) {
+          setPlans(plansResponse.data.data.planos);
         }
 
         // Buscar status da assinatura do usuário (se estiver logado)
-        if (isAuthenticated()) {
-          try {
-            const token = localStorage.getItem('token');
-            const subscriptionResponse = await axios.get('/api/assinatura/status', {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            
-            if (subscriptionResponse.data && subscriptionResponse.data.success) {
-              setUserSubscription(subscriptionResponse.data.data);
-            }
-          } catch (subscriptionError) {
-            console.error('Erro ao carregar status da assinatura:', subscriptionError);
-            // Não exibir erro para o usuário
+        const token = localStorage.getItem('token');
+        if (token) {
+          const subscriptionResponse = await axios.get('/api/assinatura/status', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (subscriptionResponse.data && subscriptionResponse.data.success) {
+            setUserSubscription(subscriptionResponse.data.data);
           }
         }
       } catch (err: any) {
@@ -136,43 +112,29 @@ const PlansPage: React.FC = () => {
   const handleCheckout = async (planId: string) => {
     try {
       setLoading(true);
+      const token = localStorage.getItem('token');
       
-      if (!isAuthenticated()) {
-        // Salvar plano selecionado para uso após login
-        localStorage.setItem('selectedPlan', planId);
-        
-        // Redirecionar para login/registro
-        handleAuthNavigation();
+      if (!token) {
+        // Redirecionar para login se não estiver autenticado
+        navigate('/auth?redirect=plans');
         return;
       }
 
       // Solicitar criação de checkout ao backend
-      try {
-        const token = localStorage.getItem('token');
-        const response = await axios.post('/api/assinatura/checkout', 
-          { planoId: planId },
-          { headers: { Authorization: `Bearer ${token}` }}
-        );
+      const response = await axios.post('/api/assinatura/checkout', 
+        { planoId: planId },
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
 
-        if (response.data && response.data.success && response.data.checkoutUrl) {
-          // Redirecionar para o checkout do Asaas
-          window.location.href = response.data.checkoutUrl;
-        } else {
-          setError('Não foi possível iniciar o checkout. Tente novamente.');
-        }
-      } catch (checkoutError: any) {
-        console.error('Erro ao iniciar checkout:', checkoutError);
-        
-        if (checkoutError.response?.status === 404) {
-          // Se a API de checkout não existir, mostrar uma mensagem mais amigável
-          setError('Sistema de pagamento temporariamente indisponível. Por favor, tente novamente mais tarde.');
-        } else {
-          setError(checkoutError.response?.data?.message || 'Erro ao processar a solicitação');
-        }
+      if (response.data && response.data.success && response.data.checkoutUrl) {
+        // Redirecionar para o checkout do Asaas
+        window.location.href = response.data.checkoutUrl;
+      } else {
+        setError('Não foi possível iniciar o checkout. Tente novamente.');
       }
     } catch (err: any) {
-      console.error('Erro ao processar checkout:', err);
-      setError('Ocorreu um erro inesperado. Por favor, tente novamente.');
+      console.error('Erro ao iniciar checkout:', err);
+      setError(err.response?.data?.message || 'Erro ao processar a solicitação');
     } finally {
       setLoading(false);
     }
@@ -190,14 +152,6 @@ const PlansPage: React.FC = () => {
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
           <span className="block sm:inline">{error}</span>
-          <button 
-            type="button" 
-            className="absolute top-0 right-0 px-4 py-3"
-            onClick={() => setError(null)}
-          >
-            <span className="sr-only">Fechar</span>
-            <span className="text-xl">&times;</span>
-          </button>
         </div>
       )}
 
