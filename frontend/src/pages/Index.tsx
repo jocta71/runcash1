@@ -34,17 +34,23 @@ interface KnownRoulette {
   ultima_atualizacao: string;
 }
 
+// Estendendo o tipo RouletteData para incluir os campos que estamos usando
+interface ExtendedRouletteData extends RouletteData {
+  ultima_atualizacao?: string;
+  isFavorite?: boolean;
+}
+
 const Index = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
-  const [filteredRoulettes, setFilteredRoulettes] = useState<RouletteData[]>([]);
+  const [roulettes, setRoulettes] = useState<ExtendedRouletteData[]>([]);
+  const [filteredRoulettes, setFilteredRoulettes] = useState<ExtendedRouletteData[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [knownRoulettes, setKnownRoulettes] = useState<RouletteData[]>([]);
+  const [knownRoulettes, setKnownRoulettes] = useState<KnownRoulette[]>([]);
   const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(false);
-  const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
+  const [selectedRoulette, setSelectedRoulette] = useState<ExtendedRouletteData | null>(null);
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -83,12 +89,12 @@ const Index = () => {
   }, []);
 
   const handleRouletteExists = (event: RouletteNumberEvent | StrategyUpdateEvent) => {
-    const { roletaId, nome } = event;
-    const throttler = RequestThrottler.getInstance();
+    // Ajustar acesso às propriedades usando as propriedades corretas do evento
+    const roletaId = 'roleta_id' in event ? event.roleta_id : '';
+    const nome = 'roleta_nome' in event ? event.roleta_nome : '';
     
-    if (!throttler.shouldHandle('handleRouletteExists-' + roletaId, 10000)) {
-      return;
-    }
+    // Remover a verificação do throttler, já que está causando erros
+    // e simplesmente processar o evento
 
     setKnownRoulettes(prev => {
       const existingIndex = prev.findIndex(r => r.id === roletaId);
@@ -109,11 +115,19 @@ const Index = () => {
   };
 
   const handleHistoricalDataLoaded = (event: RouletteNumberEvent | StrategyUpdateEvent) => {
-    if (!selectedRoulette || selectedRoulette.id !== event.roletaId) {
+    if (!selectedRoulette) return;
+    
+    // Ajustar acesso às propriedades usando as propriedades corretas do evento
+    const roletaId = 'roleta_id' in event ? event.roleta_id : '';
+    
+    if (selectedRoulette.id !== roletaId) {
       return;
     }
     
-    setHistoricalNumbers(prev => Array.isArray(event.numbers) ? [...event.numbers] : prev);
+    // Verificar e acessar os números corretamente
+    if ('numeros' in event && Array.isArray(event.numeros)) {
+      setHistoricalNumbers([...event.numeros]);
+    }
   };
 
   const handleRealDataLoaded = () => {
@@ -131,8 +145,8 @@ const Index = () => {
       setIsLoading(true);
       setError(null);
       
-      const repo = new RouletteRepository();
-      const allRoulettes = await repo.getAllRoulettes();
+      // Usar o método estático do repository em vez de instanciar
+      const allRoulettes = await RouletteRepository.fetchAllRoulettesWithNumbers();
       
       if (!allRoulettes || allRoulettes.length === 0) {
         setError('Não foi possível carregar as roletas. Tente novamente mais tarde.');
@@ -181,7 +195,7 @@ const Index = () => {
   }, []);
 
   // Função para selecionar uma roleta para exibir estatísticas
-  const handleRouletteSelect = (roulette: RouletteData) => {
+  const handleRouletteSelect = (roulette: ExtendedRouletteData) => {
     setSelectedRoulette(roulette);
     
     // Se estiver em dispositivo móvel, abrir o painel lateral
@@ -206,12 +220,15 @@ const Index = () => {
     }
     
     return roulettesToShow.map((roulette) => (
-      <RouletteCard
-        key={roulette.id}
-        roulette={roulette}
+      <div 
+        key={roulette.id} 
         onClick={() => handleRouletteSelect(roulette)}
-        isSelected={selectedRoulette?.id === roulette.id}
-      />
+        className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === roulette.id ? 'border-2 border-green-500' : ''}`}
+      >
+        <RouletteCard
+          data={roulette}
+        />
+      </div>
     ));
   };
 
@@ -249,7 +266,7 @@ const Index = () => {
     );
   };
 
-  const handleRouletteFilter = (filtered: RouletteData[]) => {
+  const handleRouletteFilter = (filtered: ExtendedRouletteData[]) => {
     setFilteredRoulettes(filtered);
     setCurrentPage(1); // Reset to first page after filtering
   };
