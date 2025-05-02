@@ -1,7 +1,8 @@
 // Importações iniciais e configuração do Express
 const express = require('express');
-const app = express();
-const mongoose = require('mongoose');
+const cors = require('cors');
+const morgan = require('morgan');
+const helmet = require('helmet');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
@@ -14,13 +15,15 @@ console.log("=== RunCash Server Iniciando ===");
 console.log("Versão do Node:", process.version);
 console.log("Ambiente:", process.env.NODE_ENV || 'development');
 
-// Configuração MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash';
-const DB_NAME = process.env.MONGODB_DB_NAME || 'runcash';
+// Configurações
+const app = express();
+const PORT = process.env.PORT || 8000;
 
-// IMPORTANTE: Configure o middleware de parse JSON ANTES das rotas
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Middlewares
+app.use(helmet()); // Segurança
+app.use(cors()); // CORS
+app.use(morgan('dev')); // Logging
+app.use(express.json()); // Parse JSON
 
 // Adicionar middleware para salvar body bruto para webhooks
 app.use((req, res, next) => {
@@ -40,12 +43,10 @@ app.use((req, res, next) => {
 
 // Rota inicial de diagnóstico (disponível imediatamente)
 app.get('/', (req, res) => {
-  res.json({ 
-    status: 'online', 
-    service: 'RunCash Unified Server', 
-    timestamp: new Date().toISOString(),
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    readyState: mongoose.connection.readyState
+  res.json({
+    name: 'RunCash API',
+    version: '1.0.0',
+    status: 'online'
   });
 });
 
@@ -63,12 +64,12 @@ app.post('/api/webhooks/asaas-test', (req, res) => {
 async function initializeServer() {
   try {
     // Inicializar conexão com o MongoDB - Agora usando uma abordagem global e consistente
-    console.log("Inicializando conexão com MongoDB:", MONGODB_URI.replace(/:.*@/, ':****@'));
+    console.log("Inicializando conexão com MongoDB:", process.env.MONGODB_URI.replace(/:.*@/, ':****@'));
     
     try {
       // Conectar com Mongoose diretamente (conexão principal)
-      await mongoose.connect(MONGODB_URI, { 
-        dbName: DB_NAME,
+      await mongoose.connect(process.env.MONGODB_URI, { 
+        dbName: process.env.MONGODB_DB_NAME,
         useNewUrlParser: true,
         useUnifiedTopology: true,
         autoIndex: true,
@@ -103,8 +104,8 @@ async function initializeServer() {
       console.log("Tentando conectar via mongoInitializer como fallback...");
       
       // Tentar via inicializador como fallback
-      await mongoInitializer.initialize(MONGODB_URI, { 
-        dbName: DB_NAME,
+      await mongoInitializer.initialize(process.env.MONGODB_URI, { 
+        dbName: process.env.MONGODB_DB_NAME,
         autoIndex: true
       });
     }
@@ -149,7 +150,6 @@ async function initializeServer() {
     configureRoutes();
     
     // Iniciar servidor
-    const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
       console.log(`=== RunCash Server Iniciado na porta ${PORT} ===`);
       console.log(`Webhook URL: ${process.env.PUBLIC_WEBHOOK_URL || 'não configurada'}`);
@@ -428,6 +428,16 @@ function configureRoutes() {
   
   console.log("Configuração de rotas concluída com sucesso");
 }
+
+// Middleware de tratamento de erros
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Erro interno no servidor',
+    error: process.env.NODE_ENV === 'production' ? null : err.message
+  });
+});
 
 // Iniciar o servidor
 initializeServer().catch(error => {

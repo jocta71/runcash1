@@ -8,9 +8,11 @@ const { promisify } = require('util');
 const User = require('../models/User');
 const config = require('../config/config');
 const { Usuario } = require('../models');
+const { ObjectId } = require('mongodb');
+const getDb = require('../services/database');
 
 // Configuração do JWT - deve ser obtida do arquivo de configuração
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'sua_chave_secreta_jwt';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 /**
@@ -347,4 +349,48 @@ exports.requireAdmin = (req, res, next) => {
   }
   
   next();
-}; 
+};
+
+/**
+ * Middleware para verificar autenticação via JWT
+ */
+const authMiddleware = async (req, res, next) => {
+  try {
+    // Verificar se há token no header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Não autorizado: token ausente'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+      // Verificar o token
+      const decoded = jwt.verify(token, JWT_SECRET);
+      
+      // Adicionar usuário ao objeto de requisição
+      req.user = {
+        id: decoded.id,
+        email: decoded.email
+      };
+      
+      next();
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Não autorizado: token inválido'
+      });
+    }
+  } catch (error) {
+    console.error('Erro no middleware de autenticação:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro interno no servidor'
+    });
+  }
+};
+
+module.exports = authMiddleware; 
