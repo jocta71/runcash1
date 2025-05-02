@@ -12,6 +12,9 @@ const asaasProcessedWebhooks = require('./models/asaasProcessedWebhooks');
 // Importar o inicializador do MongoDB
 const mongoInitializer = require('./utils/mongoInitializer');
 
+// Importar rotas da API
+const apiRoutes = require('./routes/api');
+
 // Logs para monitorar o carregamento da aplicação
 console.log("=== RunCash Server Iniciando ===");
 console.log("Versão do Node:", process.version);
@@ -59,6 +62,17 @@ app.post('/api/webhooks/asaas-test', (req, res) => {
     success: true, 
     message: 'Webhook recebido na rota de emergência',
     timestamp: new Date().toISOString()
+  });
+});
+
+// Rota para verificar o status do servidor
+app.get('/api/status', (req, res) => {
+  res.json({
+    status: 'online',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    service: 'backend-api',
+    version: process.env.npm_package_version || '1.0.0'
   });
 });
 
@@ -150,6 +164,9 @@ async function initializeServer() {
     
     // Configurar rotas da API após a conexão ser estabelecida
     configureRoutes();
+    
+    // Adicionar roteador à URL base '/api'
+    app.use('/api', apiRoutes);
     
     // Iniciar servidor
     const PORT = process.env.PORT || 5000;
