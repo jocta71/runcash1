@@ -8,7 +8,6 @@ const { promisify } = require('util');
 const User = require('../models/User');
 const config = require('../config/config');
 const { Usuario } = require('../models');
-const getDb = require('../services/database');
 
 // Configuração do JWT - deve ser obtida do arquivo de configuração
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -265,101 +264,74 @@ exports.limitarRequisicoes = (maxRequests = 100, windowMs = 60 * 1000) => {
 
 /**
  * Middleware de autenticação
- * Verifica o token JWT e adiciona informações do usuário à requisição
+ * @param {Object} options - Opções de configuração
+ * @param {Boolean} options.required - Se true, bloqueia acesso sem autenticação
+ * @returns {Function} Middleware Express
  */
-const verifyToken = async (req, res, next) => {
-  try {
-    // Obter token do cabeçalho Authorization
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-    
-    if (!token) {
-      // Token não fornecido, continuar mas req.user será undefined
-      console.log('[Auth] Token não fornecido, continuando como anônimo');
-      return next();
-    }
-    
+exports.authenticate = (options = { required: true }) => {
+  return async (req, res, next) => {
     try {
-      // Verificar token
-      const decoded = jwt.verify(token, JWT_SECRET);
+      // Verificar se há token no header de autorização
+      const authHeader = req.headers.authorization;
       
-      // Buscar informações atualizadas do usuário no banco
-      const db = await getDb();
-      const user = await db.collection('users').findOne({ _id: decoded.id });
-      
-      if (!user) {
-        console.warn(`[Auth] Usuário não encontrado para ID: ${decoded.id}`);
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        // Se autenticação é obrigatória, retorna erro
+        if (options.required) {
+          return res.status(401).json({
+            success: false,
+            message: 'Acesso negado. Autenticação necessária'
+          });
+        }
+        
+        // Se não é obrigatória, continua sem usuário autenticado
+        req.user = null;
         return next();
       }
       
-      // Adicionar informações do usuário à requisição
-      req.user = {
-        id: user._id.toString(),
-        username: user.username || user.email,
-        email: user.email,
-        name: user.name,
-        roles: user.roles || ['user'],
-        asaasCustomerId: user.asaasCustomerId // ID do cliente no Asaas
-      };
+      // Extrai token do header
+      const token = authHeader.split(' ')[1];
       
-      console.log(`[Auth] Usuário autenticado: ${req.user.username}`);
+      // Verifica e decodifica o token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
       
-      // Continuar com a requisição
+      // Busca usuário no banco de dados
+      const user = await User.findById(decoded.userId).select('-password');
+      
+      if (!user) {
+        if (options.required) {
+          return res.status(401).json({
+            success: false,
+            message: 'Token inválido ou usuário não encontrado'
+          });
+        }
+        
+        req.user = null;
+        return next();
+      }
+      
+      // Adiciona informações do usuário ao request
+      req.user = user;
       next();
+      
     } catch (error) {
-      // Token inválido, continuar sem req.user
-      console.warn('[Auth] Token inválido:', error.message);
-      next();
-    }
-  } catch (error) {
-    console.error('[Auth] Erro ao verificar token:', error);
-    // Em caso de erro, permitir requisição mas sem autenticação
-    next();
-  }
-};
-
-/**
- * Middleware para exigir autenticação
- * Retorna erro 401 se o usuário não estiver autenticado
- */
-const requireAuth = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      message: 'Autenticação necessária',
-      code: 'AUTH_REQUIRED'
-    });
-  }
-  next();
-};
-
-/**
- * Middleware para verificar roles do usuário
- * @param {string[]} allowedRoles - Roles permitidos
- */
-const checkRole = (allowedRoles) => {
-  return (req, res, next) => {
-    // Primeiro verificar se está autenticado
-    if (!req.user) {
-      return res.status(401).json({
+      if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+        if (options.required) {
+          return res.status(401).json({
+            success: false,
+            message: 'Token inválido ou expirado'
+          });
+        }
+        
+        req.user = null;
+        return next();
+      }
+      
+      console.error('Erro de autenticação:', error);
+      return res.status(500).json({
         success: false,
-        message: 'Autenticação necessária',
-        code: 'AUTH_REQUIRED'
+        message: 'Erro interno no servidor durante autenticação'
       });
     }
-    
-    // Verificar se o usuário tem algum dos roles permitidos
-    const hasAllowedRole = req.user.roles.some(role => allowedRoles.includes(role));
-    
-    if (!hasAllowedRole) {
-      return res.status(403).json({
-        success: false,
-        message: 'Permissão negada',
-        code: 'PERMISSION_DENIED'
-      });
-    }
-    
-    next();
   };
 };
 
@@ -375,10 +347,4 @@ exports.requireAdmin = (req, res, next) => {
   }
   
   next();
-};
-
-module.exports = {
-  verifyToken,
-  requireAuth,
-  checkRole
 }; 

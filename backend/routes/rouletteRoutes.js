@@ -7,11 +7,16 @@ const express = require('express');
 const router = express.Router();
 
 // Importar middlewares
-const { verifyToken } = require('../middlewares/authMiddleware');
-const { checkActiveSubscription, addSubscriptionInfo } = require('../middlewares/subscriptionMiddleware');
+const { verifyTokenAndSubscription, requireResourceAccess } = require('../middlewares/asaasAuthMiddleware');
+const authMiddleware = require('../middleware/authMiddleware');
+const { checkSubscription, requireSubscription } = require('../middleware/subscriptionMiddleware');
 
 // Importar controller
 const rouletteController = require('../controllers/rouletteController');
+
+// Aplicar middleware de autenticação e verificação de assinatura em todas as rotas
+router.use(authMiddleware);
+router.use(checkSubscription);
 
 /**
  * @route   GET /api/roulettes
@@ -19,19 +24,7 @@ const rouletteController = require('../controllers/rouletteController');
  * @access  Público com limitações
  */
 router.get('/roulettes', 
-  verifyToken, // Autenticação
-  addSubscriptionInfo, // Adiciona info de assinatura, mas não bloqueia
-  rouletteController.listRoulettes
-);
-
-/**
- * @route   GET /api/roulettes/premium
- * @desc    Lista todas as roletas disponíveis (acesso premium)
- * @access  Privado - Requer assinatura
- */
-router.get('/roulettes/premium', 
-  verifyToken, // Autenticação
-  checkActiveSubscription, // Verifica assinatura ativa
+  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
   rouletteController.listRoulettes
 );
 
@@ -50,8 +43,7 @@ router.get('/roulettes/:id/basic',
  * @access  Público com limitações
  */
 router.get('/roulettes/:id/recent', 
-  verifyToken, // Autenticação
-  addSubscriptionInfo, // Adiciona info de assinatura, mas não bloqueia
+  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
   rouletteController.getRecentNumbers
 );
 
@@ -61,8 +53,11 @@ router.get('/roulettes/:id/recent',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/detailed', 
-  verifyToken, // Autenticação
-  checkActiveSubscription, // Verifica assinatura ativa
+  verifyTokenAndSubscription({ 
+    required: true,
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
+  }),
+  requireResourceAccess('standard_stats'),
   rouletteController.getDetailedRouletteData
 );
 
@@ -72,8 +67,11 @@ router.get('/roulettes/:id/detailed',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/stats', 
-  verifyToken, // Autenticação
-  checkActiveSubscription, // Verifica assinatura ativa
+  verifyTokenAndSubscription({
+    required: true,
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
+  }),
+  requireResourceAccess('standard_stats'),
   rouletteController.getRouletteStatistics
 );
 
@@ -82,20 +80,12 @@ router.get('/roulettes/:id/stats',
  * @desc    Obtém dados históricos avançados (para assinantes premium)
  * @access  Privado - Requer assinatura premium
  */
-router.get('/roulettes/:id/historical', 
-  verifyToken, // Autenticação
-  checkActiveSubscription, // Verifica assinatura ativa
-  // Verificar se o plano do usuário é premium (adicional)
-  (req, res, next) => {
-    if (req.userPlan && req.userPlan.type === 'PREMIUM') {
-      return next();
-    }
-    return res.status(403).json({
-      success: false,
-      message: 'Este recurso requer uma assinatura premium',
-      code: 'PREMIUM_REQUIRED'
-    });
-  },
+router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical', 
+  verifyTokenAndSubscription({ 
+    required: true,
+    allowedPlans: ['PREMIUM']
+  }),
+  requireResourceAccess('historical_data'),
   rouletteController.getHistoricalData
 );
 
@@ -105,8 +95,11 @@ router.get('/roulettes/:id/historical',
  * @access  Privado - Requer assinatura
  */
 router.get('/roulettes/:id/batch', 
-  verifyToken, // Autenticação
-  checkActiveSubscription, // Verifica assinatura ativa
+  verifyTokenAndSubscription({
+    required: true,
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
+  }),
+  requireResourceAccess('standard_stats'),
   rouletteController.getNumbersBatch
 );
 

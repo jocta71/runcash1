@@ -94,15 +94,6 @@ if (fs.existsSync(apiIndexPath)) {
     } catch (err) {
       console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
     }
-    
-    // Carregar rotas de webhook do Asaas
-    try {
-      const asaasWebhookRoutes = require('./routes/asaasWebhookRoutes');
-      app.use('/api', asaasWebhookRoutes);
-      console.log('Rotas de webhook do Asaas carregadas com sucesso');
-    } catch (err) {
-      console.log('Erro ao carregar rotas de webhook do Asaas:', err.message);
-    }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
   }
@@ -230,6 +221,5 @@ server.listen(PORT, () => {
   console.log('[Server] Endpoints disponíveis:');
   console.log('- / (status do servidor)');
   console.log('- /api (rotas da API principal)');
-  console.log('- /api/webhooks/asaas (webhook Asaas para assinaturas)');
   console.log('- /emit-event (compatibilidade com WebSocket, se ativado)');
 });
