@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSubscription } from '@/hooks/useSubscription';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { api } from '@/lib/api';
 import { PlanType } from '@/types/plans';
 

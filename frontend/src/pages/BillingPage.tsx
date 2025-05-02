@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { CreditCard, ExternalLink } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { useSubscription } from '@/hooks/useSubscription';
+import { useSubscription } from '@/context/SubscriptionContext';
 import ProfileSubscription from './ProfileSubscription';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
