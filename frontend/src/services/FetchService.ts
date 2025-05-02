@@ -567,8 +567,10 @@ class FetchService {
     // Função para buscar dados da roleta
     const fetchRouletteData = async () => {
       try {
-        const endpoint = `${config.API_URL}/api/ROULETTES`;
-        logger.debug(`Buscando dados da roleta ${roletaId} em ${endpoint}`);
+        // Usar API diretamente do backend no Railway em vez do proxy local
+        const RAILWAY_API_URL = 'https://backendapi-production-36b5.up.railway.app';
+        const endpoint = `${RAILWAY_API_URL}/api/roulettes`;
+        logger.debug(`Buscando dados da roleta ${roletaId} diretamente em ${endpoint}`);
         
         const data = await this.fetchData<any[]>(endpoint);
         
@@ -624,7 +626,8 @@ class FetchService {
       logger.debug('Buscando todas as roletas disponíveis');
       
       // Construir URL com base nas configurações
-      const url = `${this.apiBaseUrl}/ROULETTES`;
+      const RAILWAY_API_URL = 'https://backendapi-production-36b5.up.railway.app';
+      const url = `${RAILWAY_API_URL}/api/roulettes`;
       
       const response = await fetch(url);
       
