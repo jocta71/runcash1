@@ -15,7 +15,6 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import SoundManager from "./components/SoundManager";
 import { LoginModalProvider, useLoginModal } from "./context/LoginModalContext";
-import SubscriptionRequired from './components/SubscriptionRequired';
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -193,7 +192,6 @@ const App = () => {
                       <GoogleAuthHandler />
                       <LoginModalProvider>
                         <AuthStateManager />
-                        <SubscriptionRequired />
                         <Routes>
                           {/* Remover rota explícita de login e sempre usar o modal */}
                           

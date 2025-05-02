@@ -21,7 +21,6 @@ import {
   SubscriptionResponse
 } from '@/integrations/asaas/client';
 import { useSubscription } from '@/context/SubscriptionContext';
-import SubscriptionRequired from '@/components/SubscriptionRequired';
 
 
 
