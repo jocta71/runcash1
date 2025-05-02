@@ -1,7 +1,11 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const checkoutSchema = new Schema({
+/**
+ * Esquema para o modelo de Checkout
+ * Armazena detalhes de processos de checkout do Asaas
+ */
+const CheckoutSchema = new Schema({
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
@@ -16,48 +20,55 @@ const checkoutSchema = new Schema({
   },
   paymentId: {
     type: String,
-    sparse: true,
     index: true
   },
   subscriptionId: {
     type: String,
-    sparse: true,
     index: true
   },
   value: {
     type: Number,
-    required: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-    index: true
-  },
-  paidAt: {
-    type: Date,
-    sparse: true,
-    index: true
+    default: 0
   },
   status: {
     type: String,
-    enum: ['PENDING', 'PAID', 'CANCELED', 'EXPIRED'],
+    enum: ['PENDING', 'PAID', 'CANCELLED', 'EXPIRED'],
     default: 'PENDING',
     index: true
   },
   billingType: {
     type: String,
     enum: ['CREDIT_CARD', 'BOLETO', 'PIX'],
-    required: true
+    default: 'CREDIT_CARD'
+  },
+  paidAt: {
+    type: Date
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    index: true
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   },
   metadata: {
-    type: Object,
-    default: {}
+    type: Schema.Types.Mixed
   }
 });
 
 // Índice composto para encontrar checkouts pelo usuário e valor
-checkoutSchema.index({ userId: 1, value: 1, createdAt: -1 });
+CheckoutSchema.index({ userId: 1, value: 1, createdAt: -1 });
 
-const Checkout = mongoose.model('Checkout', checkoutSchema);
+// Garantir que o esquema seja registrado apenas uma vez
+let Checkout;
+try {
+  Checkout = mongoose.model('Checkout');
+  console.log('[MODEL] Modelo Checkout já existente obtido');
+} catch (e) {
+  Checkout = mongoose.model('Checkout', CheckoutSchema);
+  console.log('[MODEL] Modelo Checkout registrado');
+}
 
 module.exports = Checkout; 

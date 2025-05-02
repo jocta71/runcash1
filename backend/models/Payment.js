@@ -1,7 +1,11 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const paymentSchema = new Schema({
+/**
+ * Esquema para o modelo de Pagamento
+ * Armazena detalhes de pagamentos de usuários no Asaas
+ */
+const PaymentSchema = new Schema({
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
@@ -16,40 +20,36 @@ const paymentSchema = new Schema({
   },
   checkoutId: {
     type: String,
-    sparse: true,
     index: true
   },
   subscriptionId: {
     type: String,
-    sparse: true,
     index: true
   },
   value: {
     type: Number,
-    required: true
+    default: 0
   },
   netValue: {
     type: Number
   },
   status: {
     type: String,
-    enum: ['PENDING', 'RECEIVED', 'CONFIRMED', 'OVERDUE', 'REFUNDED', 'CANCELED'],
+    enum: ['PENDING', 'RECEIVED', 'CONFIRMED', 'OVERDUE', 'CANCELLED', 'REFUNDED'],
     default: 'PENDING',
     index: true
-  },
-  billingType: {
-    type: String,
-    enum: ['CREDIT_CARD', 'BOLETO', 'PIX'],
-    required: true
   },
   dueDate: {
     type: Date,
     index: true
   },
   confirmedDate: {
-    type: Date,
-    sparse: true,
-    index: true
+    type: Date
+  },
+  billingType: {
+    type: String,
+    enum: ['CREDIT_CARD', 'BOLETO', 'PIX'],
+    default: 'CREDIT_CARD'
   },
   invoiceUrl: {
     type: String
@@ -59,15 +59,26 @@ const paymentSchema = new Schema({
     default: Date.now,
     index: true
   },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  },
   metadata: {
-    type: Object,
-    default: {}
+    type: Schema.Types.Mixed
   }
 });
 
 // Índice composto para encontrar pagamentos pelo usuário e valor
-paymentSchema.index({ userId: 1, value: 1, createdAt: -1 });
+PaymentSchema.index({ userId: 1, value: 1, createdAt: -1 });
 
-const Payment = mongoose.model('Payment', paymentSchema);
+// Garantir que o esquema seja registrado apenas uma vez
+let Payment;
+try {
+  Payment = mongoose.model('Payment');
+  console.log('[MODEL] Modelo Payment já existente obtido');
+} catch (e) {
+  Payment = mongoose.model('Payment', PaymentSchema);
+  console.log('[MODEL] Modelo Payment registrado');
+}
 
 module.exports = Payment; 

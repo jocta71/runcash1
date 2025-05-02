@@ -1,7 +1,11 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const webhookEventSchema = new Schema({
+/**
+ * Esquema para o modelo de Evento de Webhook
+ * Armazena todos os eventos de webhook recebidos para garantir idempotência
+ */
+const WebhookEventSchema = new Schema({
   // ID único do evento (calculado com base nos dados do evento)
   eventId: {
     type: String,
@@ -18,13 +22,11 @@ const webhookEventSchema = new Schema({
   // ID da origem (pode ser paymentId, checkoutId, subscriptionId)
   sourceId: {
     type: String,
-    required: true,
     index: true
   },
   // Payload completo do evento
   payload: {
-    type: Object,
-    required: true
+    type: Schema.Types.Mixed
   },
   // Status do processamento
   status: {
@@ -34,7 +36,7 @@ const webhookEventSchema = new Schema({
     index: true
   },
   // Mensagem de erro (se houver)
-  errorMessage: {
+  processingError: {
     type: String
   },
   // Data de criação
@@ -45,9 +47,17 @@ const webhookEventSchema = new Schema({
   }
 });
 
-// Índice composto para consultas de eventos por tipo e ID de origem
-webhookEventSchema.index({ event: 1, sourceId: 1, createdAt: -1 });
+// Índice composto para consultas eficientes
+WebhookEventSchema.index({ event: 1, createdAt: -1 });
 
-const WebhookEvent = mongoose.model('WebhookEvent', webhookEventSchema);
+// Garantir que o esquema seja registrado apenas uma vez
+let WebhookEvent;
+try {
+  WebhookEvent = mongoose.model('WebhookEvent');
+  console.log('[MODEL] Modelo WebhookEvent já existente obtido');
+} catch (e) {
+  WebhookEvent = mongoose.model('WebhookEvent', WebhookEventSchema);
+  console.log('[MODEL] Modelo WebhookEvent registrado');
+}
 
 module.exports = WebhookEvent; 
