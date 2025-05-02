@@ -503,35 +503,11 @@ class FetchService {
     // Função para buscar dados da roleta
     const fetchRouletteData = async () => {
       try {
-        // Usar API diretamente do backend no Railway em vez do proxy local
-        const RAILWAY_API_URL = 'https://backendapi-production-36b5.up.railway.app';
-        const endpoint = `${RAILWAY_API_URL}/api/roulettes`;
-        logger.debug(`Buscando dados da roleta ${roletaId} diretamente em ${endpoint}`);
-        
-        const data = await this.fetchData<any[]>(endpoint);
-        
-        if (!Array.isArray(data)) {
-          logger.warn(`Resposta inválida para roleta ${roletaId}: não é um array`);
-          return;
-        }
-        
-        // Encontrar a roleta específica
-        const roleta = data.find(r => r.id === roletaId || r._id === roletaId);
-        
-        if (roleta) {
-          logger.debug(`Dados obtidos para roleta ${roleta.nome || roletaId}`);
-          
-          // Emitir evento sinalizando que os dados foram carregados com sucesso
-          EventService.emitGlobalEvent('roulettes_loaded', {
-            success: true,
-            count: data.length,
-            timestamp: new Date().toISOString()
-          });
-          
-          callback(roleta);
-        } else {
-          logger.warn(`Roleta ${roletaId} não encontrada na resposta`);
-        }
+        // Endpoint de roletas está desativado
+        logger.warn(`Método fetchRouletteData no startPolling está descontinuado para roleta ${roletaId}`);
+        // Não há mais chamadas ao endpoint de roletas
+        // Avisar o callback que não há dados
+        callback(null);
       } catch (error) {
         logger.error(`Erro ao buscar dados da roleta ${roletaId}: ${error.message}`);
       }
