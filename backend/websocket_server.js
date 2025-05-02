@@ -111,6 +111,47 @@ app.get('/', (req, res) => {
   });
 });
 
+// Middleware genérico para bloquear todas as variantes do endpoint roulettes sem autenticação
+app.use((req, res, next) => {
+  const path = req.originalUrl || req.url;
+  const method = req.method;
+  
+  // Ignorar requisições OPTIONS
+  if (method === 'OPTIONS') {
+    return next();
+  }
+  
+  // Verificar se é uma variante do endpoint de roletas
+  const isRouletteVariant = (
+    /\/api\/ROULETTES.*/.test(path) || 
+    /\/api\/roulettes.*/.test(path) ||
+    /\/api\/roletas.*/.test(path)
+  );
+  
+  if (isRouletteVariant) {
+    const requestId = req.requestId || Math.random().toString(36).substring(2, 15);
+    console.log(`[GLOBAL ${requestId}] Interceptando variante de roleta: ${path}`);
+    
+    // Se já foi processada por autenticação, deixar passar
+    if (req.hasOwnProperty('usuario') && req.hasOwnProperty('subscription')) {
+      console.log(`[GLOBAL ${requestId}] Requisição já autenticada, continuando...`);
+      return next();
+    }
+    
+    // Tentar iniciar a verificação de autenticação aqui se não estiver definida
+    console.log(`[GLOBAL ${requestId}] Variante de roleta não autenticada: ${path}`);
+    return res.status(401).json({
+      success: false,
+      message: 'Acesso negado - Autenticação necessária',
+      code: 'GLOBAL_BLOCKER',
+      path: path,
+      requestId: requestId
+    });
+  }
+  
+  next();
+});
+
 // Endpoint para receber eventos do scraper Python
 app.post('/emit-event', (req, res) => {
   try {
@@ -1144,4 +1185,70 @@ app.get('/api/auth-test',
     );
     
     res.json(info);
+});
+
+// Adicionar rotas específicas para todas as variantes observadas
+// Variante: roletas?_I
+app.get('/api/roletas', verifyTokenAndSubscription({ 
+  required: true, 
+  allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
+}));
+
+// Variante: ROULETTES7_I
+app.get('/api/ROULETTES7_*', verifyTokenAndSubscription({ 
+  required: true, 
+  allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
+}));
+
+// Variante: ROULETTES com qualquer sufixo
+app.get('/api/ROULETTES*', verifyTokenAndSubscription({ 
+  required: true, 
+  allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
+}));
+
+// Variante: roulettes com qualquer sufixo
+app.get('/api/roulettes*', verifyTokenAndSubscription({ 
+  required: true, 
+  allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
+}));
+
+// Handler específico para requisições com _I
+app.get('*', (req, res, next) => {
+  // Verificar se a URL contém o parâmetro _I=
+  const originalUrl = req.originalUrl || req.url;
+  
+  if (originalUrl.includes('_I=')) {
+    const requestId = req.requestId || Math.random().toString(36).substring(2, 15);
+    console.log(`[I-PARAM ${requestId}] Detectado parâmetro _I= na requisição: ${originalUrl}`);
+    
+    // Verificar se a URL também contém 'roulettes', 'ROULETTES', ou 'roletas'
+    const isRouletteEndpoint = (
+      originalUrl.includes('/api/roulettes') || 
+      originalUrl.includes('/api/ROULETTES') || 
+      originalUrl.includes('/api/roletas')
+    );
+    
+    if (isRouletteEndpoint) {
+      console.log(`[I-PARAM ${requestId}] Interceptando requisição com _I= para endpoint de roletas`);
+      
+      // Se já tiver passado pela autenticação, deixar prosseguir
+      if (req.hasOwnProperty('usuario') && req.hasOwnProperty('subscription') && req.subscription) {
+        console.log(`[I-PARAM ${requestId}] Requisição já autenticada, permitindo acesso`);
+        return next();
+      }
+      
+      // Caso contrário, bloquear a requisição
+      console.log(`[I-PARAM ${requestId}] Bloqueando requisição não autenticada com _I=`);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso não autorizado - Autenticação obrigatória',
+        code: 'I_PARAM_BLOCKER',
+        path: originalUrl,
+        requestId: requestId
+      });
+    }
+  }
+  
+  // Se não contém _I= ou não é um endpoint de roletas, continuar
+  next();
 });

@@ -12,23 +12,52 @@ const SUBSCRIPTION_PROTECTED_ROUTES = [
   '/api/ROULETTES',
   '/api/roulettes/historico',
   '/api/ROULETTES/historico',
-  '/api/numbers/byid'
+  '/api/numbers/byid',
+  '/api/roletas'
 ];
 
 /**
- * Verificar se a rota está na lista de rotas protegidas 
+ * Lista de prefixos de rota que devem ser protegidos
+ * Para capturar variações como /api/ROULETTES7_I.
+ * @type {Array<string>}
+ */
+const PROTECTED_ROUTE_PREFIXES = [
+  '/api/roulettes',
+  '/api/ROULETTES',
+  '/api/roletas'
+];
+
+/**
+ * Verificar se a rota está na lista de rotas protegidas, ignorando parâmetros de consulta
  * @param {string} path - Caminho da URL
  * @returns {boolean} Verdadeiro se a rota estiver protegida
  */
 function isProtectedRoute(path) {
+  // Remover parâmetros de consulta para comparar apenas o path
+  const pathWithoutQuery = path.split('?')[0];
+  
   // Verificar correspondência exata
-  if (SUBSCRIPTION_PROTECTED_ROUTES.includes(path)) {
+  if (SUBSCRIPTION_PROTECTED_ROUTES.includes(pathWithoutQuery)) {
     return true;
   }
   
   // Verificar rotas com parâmetros
   for (const route of SUBSCRIPTION_PROTECTED_ROUTES) {
-    if (route.endsWith('byid') && path.startsWith(route)) {
+    if (route.endsWith('byid') && pathWithoutQuery.startsWith(route)) {
+      return true;
+    }
+  }
+  
+  // Verificar prefixos de rota (para capturar variações)
+  for (const prefix of PROTECTED_ROUTE_PREFIXES) {
+    // Verificar variantes como /api/ROULETTES7_I=...
+    if (pathWithoutQuery.startsWith(prefix) && 
+        (pathWithoutQuery === prefix || 
+         pathWithoutQuery.includes('_I=') || 
+         pathWithoutQuery.includes('?_I=') ||
+         /\/api\/ROULETTES\d+/.test(pathWithoutQuery) ||
+         /\/api\/roulettes\d+/.test(pathWithoutQuery) ||
+         /\/api\/roletas\d+/.test(pathWithoutQuery))) {
       return true;
     }
   }
@@ -42,7 +71,7 @@ function isProtectedRoute(path) {
  */
 function securityEnforcer() {
   return (req, res, next) => {
-    const path = req.path;
+    const path = req.originalUrl || req.url || req.path; // Usa URL completa incluindo query string
     const requestId = req.requestId || Math.random().toString(36).substring(2, 15);
     
     // Ignorar requisições OPTIONS

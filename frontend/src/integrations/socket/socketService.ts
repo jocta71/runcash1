@@ -372,10 +372,30 @@ class SocketService {
       const apiBaseUrl = getApiBaseUrl();
       console.log(`[SocketService] Carregando dados históricos das roletas`);
       
-      // Buscar todas as roletas de uma vez usando o endpoint único
-      const rouletteResponse = await fetch(`${apiBaseUrl}/ROULETTES`);
+      // Obter token de autenticação do localStorage
+      const authToken = localStorage.getItem('auth_token');
+      if (!authToken) {
+        console.warn('[SocketService] Sem token de autenticação! Acessando endpoint com autenticação obrigatória.');
+      }
+      
+      // Adicionar cabeçalhos de autenticação
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Adicionar token de autenticação se existir
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
+      // Usar o endpoint padrão com minúsculas, conforme recomendado
+      const rouletteResponse = await fetch(`${apiBaseUrl}/roulettes`, {
+        method: 'GET',
+        headers: headers
+      });
       
       if (!rouletteResponse.ok) {
+        console.error(`[SocketService] Falha ao buscar lista de roletas: ${rouletteResponse.status} - ${rouletteResponse.statusText}`);
         throw new Error(`Falha ao buscar lista de roletas: ${rouletteResponse.status}`);
       }
       
@@ -438,10 +458,30 @@ class SocketService {
       const apiBaseUrl = getApiBaseUrl();
       console.log(`[SocketService] Tentando endpoints alternativos para dados históricos`);
       
-      // Tentar o endpoint principal novo
-      const response = await fetch(`${apiBaseUrl}/ROULETTES`);
+      // Obter token de autenticação do localStorage
+      const authToken = localStorage.getItem('auth_token');
+      if (!authToken) {
+        console.warn('[SocketService] Sem token de autenticação para endpoint alternativo!');
+      }
+      
+      // Adicionar cabeçalhos de autenticação
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Adicionar token de autenticação se existir
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
+      // Tentar o endpoint principal novo (minúsculas)
+      const response = await fetch(`${apiBaseUrl}/roulettes`, {
+        method: 'GET',
+        headers: headers
+      });
       
       if (!response.ok) {
+        console.error(`[SocketService] Endpoint alternativo também falhou: ${response.status} - ${response.statusText}`);
         throw new Error(`Falha ao buscar dados históricos alternativos: ${response.status}`);
       }
       

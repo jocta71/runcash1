@@ -20,7 +20,7 @@ function requestLogger() {
     
     // Informações básicas da requisição
     const method = req.method;
-    const path = req.path;
+    const path = req.originalUrl || req.url;
     const query = Object.keys(req.query).length ? JSON.stringify(req.query) : '';
     const userIp = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('User-Agent') || 'desconhecido';
@@ -31,6 +31,27 @@ function requestLogger() {
     console.log(`[REQ ${requestId}] ${method} ${path} ${query ? '?' + query : ''}`);
     console.log(`[REQ ${requestId}] IP: ${userIp}, Agente: ${userAgent.substring(0, 50)}...`);
     console.log(`[REQ ${requestId}] Content-Type: ${contentType}, Auth: ${hasAuth ? 'Sim' : 'Não'}`);
+    
+    // BLOQUEIO DE EMERGÊNCIA: Bloquear qualquer variante de requisição para endpoints de roleta sem autenticação
+    const isRouletteEndpoint = (
+      (path.includes('/api/roulettes') || 
+       path.includes('/api/ROULETTES') || 
+       path.includes('/api/roletas')) && 
+      method === 'GET'
+    );
+    
+    // Se for endpoint de roleta e estiver sem autenticação, bloquear imediatamente
+    if (isRouletteEndpoint && !hasAuth) {
+      console.log(`[REQ ${requestId}] BLOQUEIO DE EMERGÊNCIA! Acesso sem autenticação a rota de roleta: ${path}`);
+      res.status(401).json({
+        success: false,
+        message: 'Autenticação necessária para acessar este recurso',
+        code: 'EMERGENCY_BLOCK',
+        path: path,
+        requestId: requestId
+      });
+      return; // Não chama next() para não prosseguir
+    }
     
     // Capturar resposta para logging
     const originalSend = res.send;
