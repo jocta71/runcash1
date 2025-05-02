@@ -13,7 +13,7 @@ import {
 } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { CheckCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 
 // Estilos
 import '../styles/plans.css';
@@ -89,26 +89,6 @@ const PlansPage: React.FC = () => {
       setLoading(false);
     }
   };
-  
-  // Tentar novamente, se houver erro
-  const handleRetry = () => {
-    setError(null);
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const plansResponse = await axios.get('/api/assinatura/planos');
-        if (plansResponse.data && plansResponse.data.success) {
-          setPlans(plansResponse.data.data.planos);
-        }
-      } catch (err: any) {
-        console.error('Erro ao carregar dados de planos:', err);
-        setError('Não foi possível carregar os planos disponíveis. Tente novamente mais tarde.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  };
 
   return (
     <div className="container mx-auto py-12 px-4 max-w-7xl">
@@ -119,29 +99,20 @@ const PlansPage: React.FC = () => {
         </p>
       </div>
 
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+
       {loading && !plans.length ? (
         <div className="flex justify-center my-12">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
         </div>
-      ) : error ? (
-        <div className="max-w-md mx-auto my-16 text-center">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-8 shadow-sm">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-red-700 mb-4">Não foi possível carregar os planos disponíveis.</h2>
-            <p className="text-gray-600 mb-6">Tente novamente mais tarde.</p>
-            <Button 
-              onClick={handleRetry} 
-              variant="outline" 
-              className="mx-auto"
-            >
-              Tentar Novamente
-            </Button>
-          </div>
-        </div>
       ) : (
         <div className="grid md:grid-cols-3 gap-8 mt-8">
           {plans.map((plan) => (
-            <Card key={plan.id} className={`flex flex-col border-2 ${plan.id === 'trimestral' ? 'border-primary shadow-lg' : 'border-border'} transition-all duration-300 hover:shadow-md`}>
+            <Card key={plan.id} className={`flex flex-col border-2 ${plan.id === 'trimestral' ? 'border-primary shadow-lg' : 'border-border'}`}>
               {plan.id === 'trimestral' && (
                 <div className="bg-primary text-primary-foreground text-center py-1 font-medium text-sm">
                   MAIS POPULAR
@@ -160,7 +131,7 @@ const PlansPage: React.FC = () => {
                 </div>
                 
                 {plan.economia && (
-                  <Badge variant="outline" className="mb-4 bg-green-50 text-green-700 border-green-200">
+                  <Badge variant="outline" className="mb-4 bg-green-50">
                     {plan.economia}
                   </Badge>
                 )}
@@ -168,7 +139,7 @@ const PlansPage: React.FC = () => {
                 <ul className="space-y-2 mt-6">
                   {plan.recursos.map((recurso: string, index: number) => (
                     <li key={index} className="flex items-center gap-2">
-                      <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                      <CheckCircle className="h-5 w-5 text-green-500" />
                       <span>{recurso}</span>
                     </li>
                   ))}

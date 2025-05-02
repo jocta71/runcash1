@@ -6,85 +6,22 @@
   transition: transform 0.2s ease-in-out;
 }
 
-/* Animações para entrada dos cards */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Aplicar animação aos cards */
-.grid > .card {
-  animation: fadeInUp 0.4s ease-out forwards;
-  opacity: 0;
-}
-
-.grid > .card:nth-child(1) {
-  animation-delay: 0.1s;
-}
-
-.grid > .card:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.grid > .card:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
 /* Destaque para o plano recomendado */
 .plan-recommended {
   position: relative;
   overflow: hidden;
 }
 
-/* Badge de economia com efeito de pulsar */
-.badge {
-  transition: all 0.3s ease;
-}
-
-.badge:hover {
-  transform: scale(1.05);
-}
-
-@keyframes pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.2);
-  }
-  70% {
-    box-shadow: 0 0 0 6px rgba(22, 163, 74, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
-  }
+/* Badge de economia */
+.plan-savings {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.5rem;
 }
 
 /* Efeito de hover nos cards */
-.card {
-  transition: all 0.3s ease-in-out;
-}
-
-.card:hover {
+.plan-card:hover {
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-  transform: translateY(-5px);
-}
-
-/* Card de erro e mensagem de carregamento */
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  border-color: hsl(var(--primary));
 }
 
 /* Estilos para lista de recursos */
@@ -96,12 +33,6 @@
   display: flex;
   align-items: flex-start;
   margin-bottom: 0.75rem;
-  opacity: 0.9;
-  transition: opacity 0.2s ease;
-}
-
-.feature-list li:hover {
-  opacity: 1;
 }
 
 .feature-list .icon {
@@ -110,22 +41,8 @@
   color: hsl(var(--primary));
 }
 
-/* Botão de tentar novamente */
-button.mx-auto {
-  transition: all 0.3s ease;
-}
-
-button.mx-auto:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
 /* Responsividade */
 @media (max-width: 768px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-  
   .plan-card {
     margin-bottom: 1.5rem;
   }
