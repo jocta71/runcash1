@@ -945,9 +945,28 @@ export function useRouletteData(
           setError('Não foi possível carregar as roletas');
           setLoading(false);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Erro ao carregar dados iniciais:', error);
-        setError('Erro ao carregar dados');
+        
+        // Verificar se o erro é devido à falta de assinatura
+        if (error.response && error.response.status === 403 && 
+            error.response.data && 
+            (error.response.data.error === 'NO_VALID_SUBSCRIPTION' || 
+             error.response.data.error === 'NO_SUBSCRIPTION_FOUND' ||
+             error.response.data.error === 'SUBSCRIPTION_TYPE_NOT_ALLOWED')) {
+          
+          setError('Acesso restrito. É necessário ter uma assinatura ativa para acessar os dados das roletas.');
+          
+          // Mostrar diálogo para redirecionar à página de planos após 2 segundos
+          setTimeout(() => {
+            if (confirm('É necessário ter uma assinatura ativa para acessar os dados das roletas. Deseja conhecer nossos planos?')) {
+              window.location.href = '/plans';
+            }
+          }, 2000);
+        } else {
+          setError('Erro ao carregar dados');
+        }
+        
         setLoading(false);
       }
     };

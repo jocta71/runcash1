@@ -4,25 +4,24 @@
 
 const express = require('express');
 const router = express.Router();
-const subscriptionController = require('../controllers/subscriptionController');
-const authMiddleware = require('../middleware/authMiddleware');
 
-// Verificar planos disponíveis (público)
-router.get('/plans', subscriptionController.listPlans);
+// Importar middlewares
+const { authenticate } = require('../middlewares/authMiddleware');
+const { verificarPlano } = require('../middlewares/unifiedSubscriptionMiddleware');
+const subscriptionVerifier = require('../middlewares/subscriptionVerifier');
 
-// Rotas que requerem autenticação
-router.use(authMiddleware);
+// Rotas para verificação de assinatura
+/**
+ * @route   GET /api/subscription/status
+ * @desc    Verifica e retorna o status da assinatura do usuário
+ * @access  Público / Autenticação Opcional
+ */
+router.get('/status', 
+  authenticate({ required: false }),
+  subscriptionVerifier.getSubscriptionStatus
+);
 
-// Criar checkout para um plano
-router.post('/checkout', subscriptionController.createCheckout);
-
-// Verificar status da assinatura atual
-router.get('/status', subscriptionController.checkSubscriptionStatus);
-
-// Cancelar assinatura
-router.post('/cancel', subscriptionController.cancelSubscription);
-
-// Webhook do Asaas (esta rota NÃO usa authMiddleware)
-router.post('/asaas/webhook', express.json(), subscriptionController.handleAsaasWebhook);
+// Outras rotas existentes...
+// ... existing code ...
 
 module.exports = router; 

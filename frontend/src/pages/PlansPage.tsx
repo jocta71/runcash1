@@ -1,160 +1,175 @@
-import { useState } from 'react';
-import { useSubscription } from '@/hooks/useSubscription';
-import { Check, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/context/AuthContext';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Layout from '@/components/Layout';
+import axios from 'axios';
 
-const PlansPage = () => {
-  const { availablePlans, currentPlan, loading } = useSubscription();
-  const { user } = useAuth();
-  const { toast } = useToast();
+// Componentes UI
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { CheckCircle } from 'lucide-react';
+
+// Estilos
+import '../styles/plans.css';
+
+const PlansPage: React.FC = () => {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [userSubscription, setUserSubscription] = useState<any>(null);
   const navigate = useNavigate();
-  const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  
-  const handleSelectPlan = (planId: string) => {
-    // Se já for o plano atual, apenas mostrar mensagem
-    if (currentPlan?.id === planId) {
-      toast({
-        title: "Plano já ativo",
-        description: "Você já está inscrito neste plano.",
-      });
-      return;
+
+  // Buscar planos disponíveis e status da assinatura do usuário
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Buscar planos disponíveis
+        const plansResponse = await axios.get('/api/assinatura/planos');
+        if (plansResponse.data && plansResponse.data.success) {
+          setPlans(plansResponse.data.data.planos);
+        }
+
+        // Buscar status da assinatura do usuário (se estiver logado)
+        const token = localStorage.getItem('token');
+        if (token) {
+          const subscriptionResponse = await axios.get('/api/assinatura/status', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (subscriptionResponse.data && subscriptionResponse.data.success) {
+            setUserSubscription(subscriptionResponse.data.data);
+          }
+        }
+      } catch (err: any) {
+        console.error('Erro ao carregar dados de planos:', err);
+        setError('Não foi possível carregar os planos disponíveis. Tente novamente mais tarde.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Iniciar checkout do Asaas
+  const handleCheckout = async (planId: string) => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        // Redirecionar para login se não estiver autenticado
+        navigate('/auth?redirect=plans');
+        return;
+      }
+
+      // Solicitar criação de checkout ao backend
+      const response = await axios.post('/api/assinatura/checkout', 
+        { planoId: planId },
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
+
+      if (response.data && response.data.success && response.data.checkoutUrl) {
+        // Redirecionar para o checkout do Asaas
+        window.location.href = response.data.checkoutUrl;
+      } else {
+        setError('Não foi possível iniciar o checkout. Tente novamente.');
+      }
+    } catch (err: any) {
+      console.error('Erro ao iniciar checkout:', err);
+      setError(err.response?.data?.message || 'Erro ao processar a solicitação');
+    } finally {
+      setLoading(false);
     }
-    
-    if (!user) {
-      toast({
-        title: "Login necessário",
-        description: "Você precisa estar logado para assinar um plano.",
-        variant: "destructive"
-      });
-      navigate('/', { state: { showLoginModal: true } });
-      return;
-    }
-    
-    // Mostrar toast informando que a funcionalidade de pagamento foi desativada
-    toast({
-      title: "Funcionalidade desativada",
-      description: "A página de pagamentos foi desativada nesta versão do aplicativo.",
-      variant: "default"
-    });
-    
-    // Redirecionar para o dashboard/início
-    navigate('/');
   };
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      </Layout>
-    );
-  }
-
-  // Filtrar apenas os planos Profissional (49,90) e Premium (99,90)
-  const filteredPlans = availablePlans
-    .filter(plan => (plan.price === 49.90 || plan.price === 99.90) && plan.interval === 'monthly');
-
   return (
-    <Layout>
-      <div className="container py-8 space-y-8">
-        <h1 className="text-3xl font-bold text-center mb-2">Escolha o plano ideal para você</h1>
-        <p className="text-gray-400 text-center mb-10">
-          Assine e tenha acesso a todos os recursos da plataforma.
+    <div className="container mx-auto py-12 px-4 max-w-7xl">
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-bold mb-4">Planos e Preços</h1>
+        <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+          Escolha o plano ideal para acessar os dados das roletas em tempo real e maximizar suas oportunidades.
         </p>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {filteredPlans.map(plan => (
-            <div 
-              key={plan.id}
-              className={`border rounded-lg p-6 flex flex-col ${
-                currentPlan?.id === plan.id 
-                  ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
-                  : plan.id === 'pro' 
-                    ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
-                    : 'border-gray-700 bg-vegas-black/40'
-              }`}
-            >
-              {plan.id === 'pro' && (
-                <div className="absolute right-0 top-0 bg-vegas-gold text-black text-xs px-4 py-1 transform translate-x-2 translate-y-3 rotate-45">
-                  Popular
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+
+      {loading && !plans.length ? (
+        <div className="flex justify-center my-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-3 gap-8 mt-8">
+          {plans.map((plan) => (
+            <Card key={plan.id} className={`flex flex-col border-2 ${plan.id === 'trimestral' ? 'border-primary shadow-lg' : 'border-border'}`}>
+              {plan.id === 'trimestral' && (
+                <div className="bg-primary text-primary-foreground text-center py-1 font-medium text-sm">
+                  MAIS POPULAR
                 </div>
               )}
               
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold">{plan.name}</h3>
-                {currentPlan?.id === plan.id && (
-                  <span className="bg-vegas-gold text-black text-xs px-2 py-1 rounded-full">
-                    Plano Atual
-                  </span>
+              <CardHeader>
+                <CardTitle className="text-2xl">{plan.nome}</CardTitle>
+                <CardDescription>{plan.descricao}</CardDescription>
+              </CardHeader>
+              
+              <CardContent className="flex-grow">
+                <div className="mb-6">
+                  <span className="text-4xl font-bold">R$ {plan.valor.toFixed(2).replace('.', ',')}</span>
+                  <span className="text-muted-foreground">/{plan.intervalo}</span>
+                </div>
+                
+                {plan.economia && (
+                  <Badge variant="outline" className="mb-4 bg-green-50">
+                    {plan.economia}
+                  </Badge>
                 )}
-              </div>
+                
+                <ul className="space-y-2 mt-6">
+                  {plan.recursos.map((recurso: string, index: number) => (
+                    <li key={index} className="flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span>{recurso}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
               
-              <div className="mt-4 mb-2">
-                <span className="text-3xl font-bold">
-                  R$ {plan.price.toFixed(2)}
-                </span>
-                <span className="text-sm text-gray-400">
-                  /mês
-                </span>
-              </div>
-              
-              <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
-              
-              <ul className="space-y-3 mb-6 flex-grow">
-                {plan.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-start">
-                    <Check className="h-5 w-5 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-              
-              <Button
-                onClick={() => handleSelectPlan(plan.id)}
-                className={
-                  currentPlan?.id === plan.id 
-                    ? "bg-gray-700 hover:bg-gray-600" 
-                    : plan.id === 'pro'
-                      ? "bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-                      : "bg-vegas-gold/80 hover:bg-vegas-gold text-black"
-                }
-                disabled={currentPlan?.id === plan.id}
-              >
-                {currentPlan?.id === plan.id 
-                  ? "Plano Atual" 
-                  : "Assinar Agora"}
-              </Button>
-            </div>
+              <CardFooter>
+                <Button 
+                  className="w-full" 
+                  variant={plan.id === 'trimestral' ? 'default' : 'outline'}
+                  disabled={loading || (userSubscription?.possuiAssinatura && userSubscription?.plano === plan.id)}
+                  onClick={() => handleCheckout(plan.id)}
+                >
+                  {userSubscription?.possuiAssinatura && userSubscription?.plano === plan.id
+                    ? 'Plano Atual'
+                    : 'Assinar Agora'}
+                </Button>
+              </CardFooter>
+            </Card>
           ))}
         </div>
-        
-        <div className="mt-12 bg-vegas-black/30 p-6 rounded-lg border border-gray-800 max-w-4xl mx-auto">
-          <h2 className="text-xl font-bold mb-4">Dúvidas Frequentes</h2>
-          
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-semibold mb-2">Como funciona o sistema de assinatura?</h3>
-              <p className="text-sm text-gray-400">
-                Nossas assinaturas são cobradas mensalmente e o pagamento é processado via PIX através da plataforma Asaas.
-              </p>
-            </div>
-            
-            <div>
-              <h3 className="font-semibold mb-2">Posso cancelar a qualquer momento?</h3>
-              <p className="text-sm text-gray-400">
-                Sim, você pode cancelar sua assinatura a qualquer momento. O acesso aos recursos premium permanecerá ativo até o final do período pago.
-              </p>
-            </div>
-          </div>
-        </div>
+      )}
+      
+      <div className="mt-12 text-center text-muted-foreground">
+        <p>
+          Pagamentos processados de forma segura através do Asaas. <br />
+          Você pode cancelar sua assinatura a qualquer momento.
+        </p>
       </div>
-    </Layout>
+    </div>
   );
 };
 

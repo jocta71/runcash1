@@ -8,23 +8,20 @@ const router = express.Router();
 
 // Importar middlewares
 const { verifyTokenAndSubscription, requireResourceAccess } = require('../middlewares/asaasAuthMiddleware');
-const authMiddleware = require('../middleware/authMiddleware');
-const { checkSubscription, requireSubscription } = require('../middleware/subscriptionMiddleware');
 
 // Importar controller
 const rouletteController = require('../controllers/rouletteController');
 
-// Aplicar middleware de autenticação e verificação de assinatura em todas as rotas
-router.use(authMiddleware);
-router.use(checkSubscription);
-
 /**
  * @route   GET /api/roulettes
  * @desc    Lista todas as roletas disponíveis (limitado por plano)
- * @access  Público com limitações
+ * @access  Privado - Requer assinatura ativa
  */
 router.get('/roulettes', 
-  verifyTokenAndSubscription({ required: false }), // Autenticação opcional
+  verifyTokenAndSubscription({ 
+    required: true,
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
+  }),
   rouletteController.listRoulettes
 );
 
@@ -80,7 +77,7 @@ router.get('/roulettes/:id/stats',
  * @desc    Obtém dados históricos avançados (para assinantes premium)
  * @access  Privado - Requer assinatura premium
  */
-router.get('/roulettes/7d3c2c9f-2850-f642-861f-5bb4daf1806a/historical', 
+router.get('/roulettes/:id/historical', 
   verifyTokenAndSubscription({ 
     required: true,
     allowedPlans: ['PREMIUM']
