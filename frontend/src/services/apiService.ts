@@ -154,7 +154,9 @@ class ApiService {
       const hasActiveSubscription = !!(
         data.success && 
         data.hasSubscription && 
-        (status === 'active' || status === 'received' || status === 'confirmed')
+        (status === 'active' || status === 'ativo' || 
+         status === 'received' || status === 'recebido' || 
+         status === 'confirmed' || status === 'confirmado')
       );
       
       console.log(`[API] Status da assinatura: ${hasActiveSubscription ? 'ATIVA' : 'INATIVA/INEXISTENTE'}`);

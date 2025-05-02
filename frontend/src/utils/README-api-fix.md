@@ -1,79 +1,51 @@
-# Correção da API de Roletas
+# Correção de Problemas na API de Roletas
 
-Este documento explica as mudanças feitas para resolver o problema de exibição dos números das roletas na aplicação.
+Este documento explica os problemas identificados na integração com a API de roletas e as correções aplicadas.
 
-## Problema Identificado
+## Problemas Identificados
 
-Descobrimos que vários componentes tinham suas requisições à API de roletas desativadas através de comentários no código. Esses bloqueios foram implementados em múltiplos lugares:
+1. **Requisições Desativadas**: Várias funções que deveriam buscar dados da API de roletas estavam desativadas ou retornando arrays vazios.
 
-1. `frontend/src/services/RESTSocketService.ts` - Método `startSecondEndpointPolling()`
-2. `frontend/src/services/api/rouletteApi.ts` - Método `fetchAllRoulettes()`
-3. `frontend/src/integrations/api/rouletteService.ts` - Função `fetchRoulettes()`
-4. `frontend/src/services/FetchService.ts` - Métodos `fetchAllRoulettes()` e `fetchRouletteNumbers()`
+2. **Verificação de Assinatura**:
+   - O endpoint `/subscription/status` estava retornando HTML em vez de JSON
+   - O sistema não estava reconhecendo corretamente os status de assinatura "RECEIVED" e "CONFIRMED"
 
-Além disso, havia problemas com a validação de status de assinatura, onde apenas o status 'active' estava sendo aceito, enquanto 'RECEIVED' e 'CONFIRMED' deveriam também ser válidos.
+3. **Endpoints com Erro**:
+   - 404 para `/api/subscription/status`
+   - Falha em requisições para `/api/ROULETTES`
 
-## Alterações Realizadas
+## Mudanças Implementadas
 
-### 1. Reativação das Requisições à API
+1. **Reativação das Requisições à API**:
+   - Foram reativadas todas as funções que buscam dados da API de roletas, eliminando os `return []` que bloqueavam as requisições.
 
-Reativamos as chamadas à API nos seguintes arquivos:
+2. **Melhorias na Verificação de Assinatura**:
+   - Atualizada a função `checkSubscriptionStatus` para reconhecer status de assinatura "active", "received" e "confirmed" (bem como suas versões em português)
+   - O interceptor de resposta foi verificado para garantir que ele já reconhece erros de tipo "NO_VALID_SUBSCRIPTION"
 
-- `frontend/src/services/RESTSocketService.ts` - Descomentamos o código original no método `startSecondEndpointPolling()`
-- `frontend/src/services/api/rouletteApi.ts` - Reativamos o método `fetchAllRoulettes()`
-- `frontend/src/integrations/api/rouletteService.ts` - Reativamos a função `fetchRoulettes()`
+3. **Ferramentas de Diagnóstico**:
+   - Foi criada uma página HTML (`api-check.html`) para verificar o status de autenticação, assinatura e acesso à API
+   - Foi implementado um script de verificação (`api-check.js`) para diagnóstico programático
 
-### 2. Correção do Status de Assinatura
+## Como Verificar se as Correções Funcionaram
 
-Anteriormente, modificamos o arquivo `apiService.ts` para aceitar os status 'RECEIVED' e 'CONFIRMED', além de 'active'.
+1. **Verifique os logs do console**:
+   - Você não deve mais ver a mensagem: "[RESTSocketService] Requisições a api/roulettes foram desativadas"
+   - O status da assinatura deve aparecer como "ATIVA" se o usuário tiver uma assinatura nos status aceitos
 
-### 3. Ferramentas de Diagnóstico
+2. **Use a Ferramenta de Diagnóstico**:
+   - Acesse `../utils/api-check.html`
+   - Clique em "Verificar Tudo" para fazer uma verificação completa
 
-Criamos duas ferramentas para ajudar a diagnosticar problemas de API:
+3. **Testes Manuais**:
+   - Verifique se os cartões de roleta estão exibindo números
+   - Confirme que não há erros 403 (Forbidden) nos logs do console
 
-- `frontend/src/utils/api-check.js` - Script para verificar programaticamente o acesso à API
-- `frontend/src/utils/api-check.html` - Interface web para testar o acesso à API
+Se problemas persistirem, pode ser necessário verificar os endpoints da API diretamente com o servidor.
 
-## Como Verificar as Alterações
+## Logs para Reportar Problemas
 
-### Usando a Interface de Verificação
-
-1. Navegue até a URL: `http://seu-dominio/src/utils/api-check.html`
-2. Clique em "Verificar Tudo" para executar uma verificação completa 
-3. Verifique se a autenticação, assinatura e API de roletas estão funcionando
-
-### Console do Navegador
-
-Durante o uso normal da aplicação, observe os logs no console do navegador:
-
-- Você não deve mais ver a mensagem: "[RESTSocketService] Requisições a api/roulettes foram desativadas"
-- Devem aparecer mensagens como: "[API] Buscando todas as roletas disponíveis"
-
-### Verificando Visualmente
-
-1. Faça login na aplicação
-2. Navegue para a página de roletas
-3. Verifique se os cartões de roleta estão exibindo números
-4. Verifique se novos números aparecem quando são adicionados
-
-## Possíveis Problemas Remanescentes
-
-Se os problemas persistirem, verifique:
-
-1. **Endpoints corretos**: Confirme se a aplicação está chamando os endpoints corretos. As URLs devem ser:
-   - `/api/ROULETTES`
-   - `/subscription/status`
-
-2. **CORS**: Verifique se há erros de CORS no console do navegador
-
-3. **Autenticação**: Confirme se o token está sendo enviado corretamente nas requisições
-
-4. **Configuração da API**: Verifique se a URL base da API está configurada corretamente em `config/constants.ts`
-
-## Próximos Passos
-
-Se as alterações não resolverem completamente o problema, considere:
-
-1. Verificar se o backend está respondendo corretamente aos endpoints
-2. Revisar a lógica de polling no `GlobalRouletteDataService` 
-3. Depurar as chamadas de rede usando a aba Network do DevTools do navegador 
+Se os problemas continuarem, por favor inclua:
+1. Screenshot dos logs do console 
+2. Resultado da verificação da ferramenta de diagnóstico
+3. Status atual da assinatura do usuário (na página de perfil) 
