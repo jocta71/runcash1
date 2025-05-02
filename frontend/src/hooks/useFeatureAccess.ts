@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useSubscription } from '@/context/SubscriptionContext';
 import { api } from '@/lib/api';
 
 interface UseFeatureAccessOptions {
@@ -17,17 +16,20 @@ export function useFeatureAccess<T>({
   fetchOnMount = false,
   mockDataFallback
 }: UseFeatureAccessOptions) {
-  const { hasFeatureAccess } = useSubscription();
   const [data, setData] = useState<T | null>(null);
   const [mockData, setMockData] = useState<any>(mockDataFallback || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   
-  const hasAccess = hasFeatureAccess(featureId);
+  // Função que sempre retorna true para permitir acesso a todas as features
+  const hasFeatureAccess = (featureId: string): boolean => {
+    console.log(`[useFeatureAccess] Feature ${featureId} solicitada - acesso concedido (subscription check removido)`);
+    return true;
+  };
   
   // Função para buscar dados protegidos do servidor
   const fetchProtectedData = async (endpoint: string) => {
-    if (!hasAccess) {
+    if (!hasFeatureAccess(featureId)) {
       return null;
     }
     
@@ -48,7 +50,7 @@ export function useFeatureAccess<T>({
   
   // Função para gerar dados fictícios para exibição quando o acesso é negado
   const generateMockData = (template: any) => {
-    if (hasAccess) {
+    if (hasFeatureAccess(featureId)) {
       return;
     }
     
@@ -57,18 +59,20 @@ export function useFeatureAccess<T>({
   
   // Efeito para buscar dados automaticamente na montagem, se solicitado
   useEffect(() => {
-    if (fetchOnMount && hasAccess) {
+    if (fetchOnMount && hasFeatureAccess(featureId)) {
       fetchProtectedData(`/api/features/${featureId}`);
     }
-  }, [fetchOnMount, hasAccess, featureId]);
+  }, [fetchOnMount, hasFeatureAccess, featureId]);
   
   return {
     data,
     mockData,
     loading,
     error,
-    hasAccess,
+    hasFeatureAccess,
     fetchProtectedData,
     generateMockData
   };
-} 
+}
+
+export default useFeatureAccess; 
