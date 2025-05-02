@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import RouletteNumber from './RouletteNumber';
 import { Box, Grid, Typography, Card, CardContent, Skeleton, Tooltip as MuiTooltip, Button } from '@mui/material';
-import { formatDateTime } from '@/utils/formatters';
-import RESTSocketService from '@/services/RESTSocketService';
+import { formatDateTime } from '../utils/formatters';
+import RESTSocketService from '../services/RESTSocketService';
 import { styled } from '@mui/material/styles';
 import clsx from 'clsx';
 
