@@ -1616,32 +1616,39 @@ app.post('/api/liveFeed/GetLiveTables',
     console.log(`[LIVE-FEED ${requestId}] Nova requisição POST para LiveFeed`);
     console.log(`[LIVE-FEED ${requestId}] Body: ${JSON.stringify(req.body)}`);
     
-    // Aplicar cabeçalhos semelhantes ao exemplo
+    // Aplicar cabeçalhos EXATAMENTE como no exemplo fornecido
     res.header('access-control-allow-origin', '*');
     res.header('access-control-expose-headers', 'current-client-request-ip');
+    res.header('cache-control', 'public, max-age=0, must-revalidate');
     res.header('content-type', 'application/json; charset=utf-8');
+    res.header('date', new Date().toUTCString());
     res.header('vary', 'Accept-Encoding');
-    res.header('x-cdn', 'RunCashh-CDN');
-    res.header('serverid', '01');
+    res.header('x-cdn', 'Imperva');
+    res.header('serverid', '02');
     
-    // Gerar data para resposta (semelhante ao exemplo)
-    const date = new Date();
-    date.setDate(date.getDate() + 1); // Adicionar um dia para simular expiração futura
-    res.header('date', date.toUTCString());
+    // Configurar cookies exatamente como no exemplo, ajustados para nosso domínio
+    const domainBase = req.hostname.split('.').slice(-2).join('.');
+    const expiryDate = new Date();
+    expiryDate.setFullYear(expiryDate.getFullYear() + 1); // Expira em 1 ano
     
-    // Configurar cookies (similar ao exemplo)
-    const sessionId = Math.random().toString(36).substring(2, 15);
-    const visitorId = `visitor_${Math.random().toString(36).substring(2, 15)}`;
-    res.cookie('visitor_id', visitorId, { 
-      expires: new Date(Date.now() + 365*24*60*60*1000), 
-      httpOnly: true, 
-      path: '/', 
-      domain: req.hostname 
+    const visitorId = `visid_incap_${Math.floor(Math.random() * 10000000)}`;
+    const sessionId = `incap_ses_${Math.floor(Math.random() * 1000)}_${Math.floor(Math.random() * 10000000)}`;
+    
+    res.cookie(visitorId, generateRandomString(32), {
+      expires: expiryDate,
+      httpOnly: true,
+      path: '/',
+      domain: `.${domainBase}`
     });
-    res.cookie('session_id', sessionId, { 
-      path: '/', 
-      domain: req.hostname 
+    
+    res.cookie(sessionId, generateRandomString(32), {
+      path: '/',
+      domain: `.${domainBase}`
     });
+
+    // Adicionar cabeçalho com informações do cliente (como no x-iinfo do exemplo)
+    const clientInfo = `${Math.floor(Math.random() * 100)}-${Math.floor(Math.random() * 100000000)}-${Math.floor(Math.random() * 100000000)} NNNY CT(${Math.floor(Math.random() * 1000)} ${Math.floor(Math.random() * 1000)} 0) RT(${Date.now()} ${Math.floor(Math.random() * 1000)}) q(0 0 0 1) r(2 2) U24`;
+    res.header('x-iinfo', clientInfo);
     
     try {
       if (!isConnected || !collection) {
@@ -1718,9 +1725,12 @@ app.post('/api/liveFeed/GetLiveTables',
 
 // Manipulador para método GET no mesmo endpoint - retornar erro similar ao exemplo
 app.get('/api/liveFeed/GetLiveTables', (req, res) => {
-  // Aplicar cabeçalhos CORS
+  // Aplicar cabeçalhos CORS e cache-control iguais ao exemplo
   res.header('access-control-allow-origin', '*');
+  res.header('access-control-expose-headers', 'current-client-request-ip');
+  res.header('cache-control', 'public, max-age=0, must-revalidate');
   res.header('content-type', 'application/json; charset=utf-8');
+  res.header('vary', 'Accept-Encoding');
   
   // Retornar erro específico como no exemplo
   res.status(405).json({
@@ -1732,12 +1742,24 @@ app.get('/api/liveFeed/GetLiveTables', (req, res) => {
 app.options('/api/liveFeed/GetLiveTables', (req, res) => {
   console.log('[CORS] Requisição OPTIONS recebida para /api/liveFeed/GetLiveTables');
   
-  // Aplicar cabeçalhos CORS necessários
+  // Aplicar cabeçalhos CORS necessários compatíveis com o exemplo
   res.header('access-control-allow-origin', '*');
   res.header('access-control-allow-methods', 'POST, OPTIONS');
-  res.header('access-control-allow-headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('access-control-allow-headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, User-Agent');
   res.header('access-control-max-age', '86400'); // Cache por 24 horas
   
   // Responder imediatamente com sucesso
   res.status(204).end();
 });
+
+// Função utilitária para gerar strings aleatórias para cookies (similar aos do exemplo)
+function generateRandomString(length) {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let result = '';
+  
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  
+  return result;
+}

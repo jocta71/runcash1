@@ -276,6 +276,7 @@ export function getAuthToken(): string | null {
 
 /**
  * Função para obter dados das roletas em tempo real
+ * Usa exatamente os mesmos cabeçalhos e parâmetros vistos em cgp.safe-iplay.com
  * @returns Dados de todas as roletas ativas
  */
 export async function getLiveTables(): Promise<any> {
@@ -289,18 +290,31 @@ export async function getLiveTables(): Promise<any> {
       throw new Error('Token de autenticação é obrigatório');
     }
     
-    // Criar form data (application/x-www-form-urlencoded)
+    // Criar form data (application/x-www-form-urlencoded) com os mesmos campos do exemplo
     const formData = new URLSearchParams();
     formData.append('ClientTime', Date.now().toString());
     formData.append('ClientId', 'runcashh-web');
     formData.append('SessionId', localStorage.getItem('sessionId') || 'new-session');
+    formData.append('RequestId', Math.random().toString(36).substring(2, 15));
+    formData.append('locale', 'pt-BR');
     
-    // Fazer requisição com formato específico
+    // Fazer requisição com EXATAMENTE os mesmos cabeçalhos do exemplo
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
+        'accept': '*/*',
+        'accept-language': 'pt-BR,pt;q=0.9,en;q=0.8,es;q=0.7',
+        'origin': window.location.origin,
+        'referer': window.location.origin,
+        'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': 'Windows',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'cross-site',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
       },
       body: formData
     });
@@ -315,11 +329,29 @@ export async function getLiveTables(): Promise<any> {
     // Armazenar session ID se existir no cookie de resposta
     const cookies = response.headers.get('set-cookie');
     if (cookies) {
-      const sessionMatch = cookies.match(/session_id=([^;]+)/);
-      if (sessionMatch && sessionMatch[1]) {
-        localStorage.setItem('sessionId', sessionMatch[1]);
+      // Extrair todos os cookies relevantes como no exemplo
+      const visitorIdMatch = cookies.match(/visid_incap_\d+=([^;]+)/);
+      const sessionMatch = cookies.match(/incap_ses_\d+_\d+=([^;]+)/);
+      
+      if (visitorIdMatch && visitorIdMatch[0]) {
+        const [cookieName, cookieValue] = visitorIdMatch[0].split('=');
+        localStorage.setItem('visitorId', cookieName);
+      }
+      
+      if (sessionMatch && sessionMatch[0]) {
+        const [cookieName, cookieValue] = sessionMatch[0].split('=');
+        localStorage.setItem('sessionId', cookieName);
       }
     }
+    
+    // Obter cabeçalhos de resposta para logs
+    const headers: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+    
+    // Log detalhado dos cabeçalhos recebidos (para debug)
+    console.log('[API] Cabeçalhos da resposta LiveFeed:', headers);
     
     // Retornar dados
     return await response.json();
