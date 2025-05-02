@@ -113,7 +113,7 @@ async function handleWebhook(req, res) {
               { subscription_id: subscriptionId },
               { 
                 $set: { 
-                  status: webhookData.payment.status === 'CONFIRMED' ? 'ACTIVE' : webhookData.payment.status,
+                  status: webhookData.payment.status === 'CONFIRMED' || webhookData.payment.status === 'RECEIVED' ? 'ACTIVE' : webhookData.payment.status,
                   updated_at: new Date()
                 },
                 $push: {
