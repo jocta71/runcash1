@@ -15,7 +15,8 @@ const { verifyAsaasSubscription } = require('../middlewares/premiumVerifier');
 const subscriptionRoutes = require('../routes/subscriptionRoutes');
 const { createCheckout } = require('./checkout/create');
 const asaasWebhookRoutes = require('../routes/asaasWebhookRoutes');
-const { handleAsaasWebhook } = require('../controllers/asaasWebhookHandler');
+const { processWebhook } = require('../controllers/asaasWebhookController');
+const asaasWebhookAuth = require('../middlewares/asaasWebhookAuthMiddleware');
 
 // Aplicar middleware para todas as rotas
 router.use(express.json());
@@ -52,7 +53,45 @@ router.use('/webhooks/asaas', asaasWebhookRoutes);
 router.use('/asaas-webhook', asaasWebhookRoutes);
 
 // Endpoint específico para webhook do Asaas no formato antigo
-router.post('/asaas-webhook', express.json(), handleAsaasWebhook);
+// Adicionando configuração de logging para depuração
+router.post('/asaas-webhook', express.json(), 
+  // Middleware de log para debug
+  (req, res, next) => {
+    console.log('[Asaas Webhook Direct] Recebido webhook:', JSON.stringify({
+      headers: req.headers,
+      body: req.body,
+      path: req.path,
+      method: req.method
+    }, null, 2));
+    next();
+  },
+  // Proteção opcional de webhook
+  asaasWebhookAuth({ checkToken: false, checkIp: false }),
+  // Processamento do webhook
+  processWebhook
+);
+
+// Endpoint para compatibilidade com URL raiz do webhook
+router.post('/webhooks/asaas', express.json(), 
+  (req, res, next) => {
+    console.log('[Asaas Webhook Root] Recebido webhook:', JSON.stringify({
+      event: req.body?.event,
+      id: req.body?.id
+    }, null, 2));
+    next();
+  },
+  asaasWebhookAuth({ checkToken: false, checkIp: false }),
+  processWebhook
+);
+
+// Rota de verificação de status de webhook
+router.get('/webhooks/asaas/status', (req, res) => {
+  res.status(200).json({
+    status: 'online',
+    timestamp: new Date().toISOString(),
+    message: 'Webhook endpoint está ativo e recebendo eventos'
+  });
+});
 
 // Rota de criação de checkout
 router.post('/checkout/create', protect, createCheckout);

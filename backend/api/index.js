@@ -1,8 +1,16 @@
+/**
+ * Ponto de entrada principal da API
+ * Registra rotas, middlewares e inicia o servidor
+ */
+
 const express = require('express');
 const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
+const morgan = require('morgan');
+const compression = require('compression');
+const helmet = require('helmet');
 require('dotenv').config();
 
 // Importar modelos antes de tudo
@@ -65,7 +73,9 @@ connectToMongoDB();
 // Criar aplicação Express para a API
 const apiApp = express();
 
-// Configuração CORS básica
+// Configurar middlewares gerais
+apiApp.use(helmet()); // Segurança
+apiApp.use(compression()); // Compressão
 apiApp.use(cors({
   origin: [
     'https://runcashh11.vercel.app',
@@ -83,9 +93,9 @@ apiApp.use(cors({
   credentials: true,
   optionsSuccessStatus: 200
 }));
-
-// Middleware
-apiApp.use(express.json());
+apiApp.use(morgan('dev')); // Logs
+apiApp.use(express.json()); // Parsing de JSON
+apiApp.use(express.urlencoded({ extended: true })); // Parsing de formulários
 apiApp.use(cookieParser());
 
 // Disponibilizar o banco de dados para os roteadores

@@ -49,6 +49,8 @@ const PLAN_MAPPING = {
 const createCheckout = async (req, res) => {
   try {
     console.log('[Checkout] Iniciando criação de checkout com dados:', req.body);
+    console.log('[Debug] URL da requisição:', req.originalUrl);
+    console.log('[Debug] Headers da requisição:', req.headers);
     
     // Verificar se o usuário está autenticado
     if (!req.usuario || !req.usuario.id) {
