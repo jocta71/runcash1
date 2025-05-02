@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
+const cors = require('cors');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -73,14 +74,27 @@ app.use((req, res, next) => {
 const { verifyTokenAndSubscription, requireResourceAccess } = require('./middlewares/asaasAuthMiddleware');
 const requestLogger = require('./middlewares/requestLogger');
 const securityEnforcer = require('./middlewares/securityEnforcer');
+const blockBrowserAccess = require('./middlewares/browserBlockMiddleware');
+const apiProtectionShield = require('./middlewares/apiProtectionShield');
 
-// Aplicar middleware de log para todas as requisições (antes de outros middlewares)
-app.use(requestLogger());
-console.log('Middleware de log de requisições configurado');
+// Middlewares globais
+app.use(express.json());
+app.use(cors());
+app.use(requestLogger()); // Middleware de log
 
-// Aplicar middleware de segurança para garantir que rotas protegidas sejam verificadas
+// Aplicar proteção avançada (rate limiting, verificação de token, etc)
+app.use(apiProtectionShield({
+  ipRateLimit: 60,           // 60 requisições por minuto por IP
+  tokenRateLimit: 120,       // 120 requisições por minuto por token
+  userAgentRateLimit: 150,   // 150 requisições por minuto por User-Agent
+  strictTokenTimeCheck: true // Verificação rigorosa do tempo do token
+}));
+
+// Aplicar bloqueio de acesso direto via navegador para todas as rotas de roleta
+app.use(['/api/roulettes', '/api/ROULETTES', '/api/roletas'], blockBrowserAccess());
+
+// Security enforcer para rotas protegidas
 app.use(securityEnforcer());
-console.log('Middleware de segurança configurado');
 
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
@@ -488,6 +502,54 @@ app.get('/api/status', (req, res) => {
 
 // Rota para listar todas as roletas (endpoint em inglês)
 app.get('/api/roulettes', 
+  (req, res, next) => {
+    // VALIDAÇÃO EXTREMA: Verificar token JWT antes de qualquer coisa
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[ULTRA-SECURE ${requestId}] Validação bruta no próprio endpoint /api/roulettes`);
+    
+    // Verificar se há token de autorização
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Sem token de autorização válido`);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Token de autenticação obrigatório',
+        code: 'ENDPOINT_LEVEL_BLOCK',
+        requestId
+      });
+    }
+    
+    // Extrair e verificar o token JWT diretamente
+    try {
+      const token = authHeader.slice(7); // Remove 'Bearer '
+      const jwt = require('jsonwebtoken');
+      const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
+      
+      // Verificar token - isto lança erro se inválido
+      const decoded = jwt.verify(token, secret);
+      
+      if (!decoded || !decoded.id) {
+        console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
+        return res.status(401).json({
+          success: false,
+          message: 'Acesso negado - Token de autenticação inválido',
+          code: 'ENDPOINT_LEVEL_BLOCK',
+          requestId
+        });
+      }
+      
+      console.log(`[ULTRA-SECURE ${requestId}] ✓ Token JWT validado para usuário ${decoded.id}`);
+      next();
+    } catch (error) {
+      console.error(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Erro na validação JWT:`, error.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Token de autenticação inválido ou expirado',
+        code: 'ENDPOINT_LEVEL_JWT_ERROR',
+        requestId
+      });
+    }
+  },
   verifyTokenAndSubscription({ 
     required: true, 
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
@@ -562,7 +624,55 @@ app.get('/api/roulettes',
 });
 
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
-app.get('/api/ROULETTES', 
+app.get('/api/ROULETTES',
+  (req, res, next) => {
+    // VALIDAÇÃO EXTREMA: Verificar token JWT antes de qualquer coisa
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[ULTRA-SECURE ${requestId}] Validação bruta no próprio endpoint /api/ROULETTES`);
+    
+    // Verificar se há token de autorização
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Sem token de autorização válido`);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Token de autenticação obrigatório',
+        code: 'ENDPOINT_LEVEL_BLOCK',
+        requestId
+      });
+    }
+    
+    // Extrair e verificar o token JWT diretamente
+    try {
+      const token = authHeader.slice(7); // Remove 'Bearer '
+      const jwt = require('jsonwebtoken');
+      const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
+      
+      // Verificar token - isto lança erro se inválido
+      const decoded = jwt.verify(token, secret);
+      
+      if (!decoded || !decoded.id) {
+        console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
+        return res.status(401).json({
+          success: false,
+          message: 'Acesso negado - Token de autenticação inválido',
+          code: 'ENDPOINT_LEVEL_BLOCK',
+          requestId
+        });
+      }
+      
+      console.log(`[ULTRA-SECURE ${requestId}] ✓ Token JWT validado para usuário ${decoded.id}`);
+      next();
+    } catch (error) {
+      console.error(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Erro na validação JWT:`, error.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Token de autenticação inválido ou expirado',
+        code: 'ENDPOINT_LEVEL_JWT_ERROR',
+        requestId
+      });
+    }
+  },
   verifyTokenAndSubscription({ 
     required: true, 
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
@@ -1336,4 +1446,162 @@ app.get('*', (req, res, next) => {
   
   // Se não contém _I= ou não é um endpoint de roletas, continuar
   next();
+});
+
+// Adicionar headers anti-cache para TODAS as rotas de roleta
+app.use(['/api/roulettes*', '/api/ROULETTES*', '/api/roletas*'], (req, res, next) => {
+  // Definir cabeçalhos anti-cache extremamente rigorosos
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  
+  // Adicionar cabeçalho único para evitar cache
+  res.setHeader('X-No-Cache', Date.now().toString());
+  
+  // Continuar para o próximo middleware
+  next();
+});
+
+// Adicionar verificação de token JWT para TODAS as rotas de roleta (verificação tripla)
+app.use(['/api/roulettes*', '/api/ROULETTES*', '/api/roletas*'], (req, res, next) => {
+  const requestId = Math.random().toString(36).substring(2, 12);
+  
+  // Se o método for OPTIONS, pular verificação (pre-flight CORS)
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+  
+  console.log(`[TRIPLE-CHECK ${requestId}] Verificação tripla para ${req.method} ${req.originalUrl}`);
+  
+  // Verificar cabeçalho de autorização
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log(`[TRIPLE-CHECK ${requestId}] Falha na verificação tripla: sem token de autorização`);
+    return res.status(401).json({
+      success: false,
+      message: 'Acesso negado - Token de autenticação é obrigatório',
+      code: 'TRIPLE_CHECK_NO_TOKEN',
+      requestId
+    });
+  }
+  
+  // Extrair e verificar o token JWT
+  try {
+    const token = authHeader.slice(7); // Remove 'Bearer '
+    const jwt = require('jsonwebtoken');
+    const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
+    
+    // Verificar token
+    const decoded = jwt.verify(token, secret);
+    
+    if (!decoded || !decoded.id) {
+      console.log(`[TRIPLE-CHECK ${requestId}] Falha na verificação tripla: token JWT inválido`);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Token de autenticação inválido',
+        code: 'TRIPLE_CHECK_INVALID_TOKEN',
+        requestId
+      });
+    }
+    
+    console.log(`[TRIPLE-CHECK ${requestId}] ✓ Verificação tripla: token válido para usuário ${decoded.id}`);
+    next();
+  } catch (error) {
+    console.error(`[TRIPLE-CHECK ${requestId}] Falha na verificação tripla: erro no JWT:`, error.message);
+    return res.status(401).json({
+      success: false,
+      message: 'Acesso negado - Token de autenticação inválido ou expirado',
+      code: 'TRIPLE_CHECK_JWT_ERROR',
+      requestId,
+      error: error.message
+    });
+  }
+});
+
+// Endpoint de status detalhado do servidor
+app.get('/api/server-status', async (req, res) => {
+  const requestId = Math.random().toString(36).substring(2, 12);
+  console.log(`[STATUS ${requestId}] Verificação de status do servidor`);
+  
+  // Verificar status do MongoDB
+  let mongoStatus = 'offline';
+  let dbLatency = null;
+  
+  if (isConnected && collection) {
+    try {
+      const startTime = Date.now();
+      // Ping rápido ao MongoDB
+      await client.db("admin").command({ ping: 1 });
+      dbLatency = Date.now() - startTime;
+      mongoStatus = 'online';
+    } catch (error) {
+      console.error(`[STATUS ${requestId}] Erro ao verificar MongoDB:`, error);
+      mongoStatus = 'error';
+    }
+  }
+  
+  // Coletar estatísticas do servidor
+  const os = require('os');
+  const serverInfo = {
+    platform: os.platform(),
+    arch: os.arch(),
+    cpus: os.cpus().length,
+    freeMemory: Math.round(os.freemem() / 1024 / 1024) + 'MB',
+    totalMemory: Math.round(os.totalmem() / 1024 / 1024) + 'MB',
+    uptime: Math.round(os.uptime() / 60 / 60) + ' horas',
+    loadAvg: os.loadavg()
+  };
+  
+  // Coletar informações da versão do Node.js
+  const nodeInfo = {
+    version: process.version,
+    modules: process.versions,
+  };
+  
+  // Retornar resposta detalhada
+  res.json({
+    status: 'online',
+    timestamp: new Date().toISOString(),
+    requestId,
+    server: {
+      environment: process.env.NODE_ENV || 'production',
+      processUptime: Math.round(process.uptime() / 60 / 60 * 10) / 10 + ' horas',
+      ...serverInfo
+    },
+    database: {
+      status: mongoStatus,
+      latency: dbLatency ? `${dbLatency}ms` : null
+    },
+    node: nodeInfo
+  });
+});
+
+// Middleware de tratamento de erros global
+// IMPORTANTE: Este middleware deve ser adicionado APÓS todas as outras rotas
+app.use((err, req, res, next) => {
+  const requestId = Math.random().toString(36).substring(2, 12);
+  console.error(`[ERROR ${requestId}] Erro não tratado:`, err);
+  
+  // Log detalhado para depuração
+  console.error(`[ERROR ${requestId}] Stack:`, err.stack);
+  console.error(`[ERROR ${requestId}] URL: ${req.method} ${req.originalUrl}`);
+  console.error(`[ERROR ${requestId}] Parâmetros:`, {
+    query: req.query,
+    body: req.body,
+    params: req.params
+  });
+  
+  // Evitar que o cache armazene respostas de erro
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  
+  // Retornar resposta de erro formatada
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Erro interno do servidor',
+    code: err.code || 'INTERNAL_SERVER_ERROR',
+    requestId,
+    timestamp: new Date().toISOString()
+  });
 });
