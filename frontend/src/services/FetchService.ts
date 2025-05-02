@@ -15,6 +15,7 @@ const logger = getLogger('FetchService');
 // Configurações
 const POLLING_INTERVAL = 5000; // 5 segundos entre cada verificação
 const MAX_RETRIES = 3; // Número máximo de tentativas antes de desistir
+const RETRY_INTERVAL = 2000; // 2 segundos entre tentativas de retry
 const ALLOWED_ROULETTES = ROLETAS_PERMITIDAS;
 
 // Mapear nomes para IDs canônicos
