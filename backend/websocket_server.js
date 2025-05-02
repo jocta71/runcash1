@@ -23,6 +23,52 @@ console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 // Inicializar Express
 const app = express();
 
+// Middleware para bloquear ABSOLUTAMENTE TODAS as requisições a endpoints de roleta sem autenticação válida
+// Este middleware é executado ANTES de qualquer outro para garantir que requisições sem autenticação
+// nem sequer cheguem aos middlewares específicos
+app.use((req, res, next) => {
+  // Obter caminho da requisição
+  const path = req.originalUrl || req.url || req.path;
+  const requestId = Math.random().toString(36).substring(2, 15);
+  
+  // Verificar se é um endpoint de roleta (qualquer variação possível)
+  const isRouletteEndpoint = (
+    path.includes('/api/roulettes') || 
+    path.includes('/api/ROULETTES') || 
+    path.includes('/api/roletas') ||
+    /\/api\/roulettes.*/.test(path) ||
+    /\/api\/ROULETTES.*/.test(path) ||
+    /\/api\/roletas.*/.test(path)
+  );
+  
+  // Se não for endpoint de roleta, ou se for uma requisição OPTIONS, deixar passar
+  if (!isRouletteEndpoint || req.method === 'OPTIONS') {
+    return next();
+  }
+  
+  // Registrar a interceptação
+  console.log(`[BLOQUEIO-GLOBAL ${requestId}] Interceptada requisição para endpoint de roleta: ${path}`);
+  console.log(`[BLOQUEIO-GLOBAL ${requestId}] Método: ${req.method}`);
+  console.log(`[BLOQUEIO-GLOBAL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+  
+  // Verificar se há token de autorização
+  const hasAuth = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
+  if (!hasAuth) {
+    console.log(`[BLOQUEIO-GLOBAL ${requestId}] BLOQUEIO ABSOLUTO: Requisição sem token para endpoint de roleta`);
+    return res.status(401).json({
+      success: false,
+      message: 'Acesso negado - Autenticação obrigatória',
+      code: 'GLOBAL_ABSOLUTE_BLOCK',
+      path: path,
+      requestId: requestId
+    });
+  }
+  
+  // Se tiver autorização, deixar passar para o middleware de verificação completa
+  console.log(`[BLOQUEIO-GLOBAL ${requestId}] Requisição com authorization header, continuando para verificação completa`);
+  next();
+});
+
 // Importar middlewares
 const { verifyTokenAndSubscription, requireResourceAccess } = require('./middlewares/asaasAuthMiddleware');
 const requestLogger = require('./middlewares/requestLogger');
@@ -91,6 +137,72 @@ app.get('/cors-test', (req, res) => {
   });
 });
 
+// FIREWALL ABSOLUTO: Última linha de defesa para endpoints de roleta
+// Esta função verifica E BLOQUEIA absolutamente QUALQUER tentativa não autenticada de acessar endpoints de roleta
+// Ela é deliberadamente redundante como medida de segurança extra
+app.use((req, res, next) => {
+  // Obter caminho completo incluindo parâmetros de consulta
+  const fullPath = req.originalUrl || req.url || req.path;
+  const requestId = Math.random().toString(36).substring(2, 15);
+  
+  // Verificar TODAS as possíveis variações de endpoints de roleta, incluindo parâmetros de consulta
+  const isRouletteRequest = (
+    fullPath.includes('/api/roulettes') || 
+    fullPath.includes('/api/ROULETTES') || 
+    fullPath.includes('/api/roletas') ||
+    /\/api\/roulettes.*/.test(fullPath) ||
+    /\/api\/ROULETTES.*/.test(fullPath) ||
+    /\/api\/roletas.*/.test(fullPath) ||
+    // Verificação especial para parâmetros _I, _t e qualquer outro
+    fullPath.match(/\/api\/.*_[It]=/) ||
+    // Verificação para variações numéricas
+    fullPath.match(/\/api\/.*roulettes\d+/) ||
+    fullPath.match(/\/api\/.*ROULETTES\d+/) ||
+    fullPath.match(/\/api\/.*roletas\d+/)
+  );
+  
+  // Se não for endpoint de roleta ou for OPTIONS, permitir
+  if (!isRouletteRequest || req.method === 'OPTIONS') {
+    return next();
+  }
+  
+  // Verificar autenticação (requisição deve ter o cabeçalho Authorization e estar autenticada)
+  const hasAuthHeader = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
+  const isAuthenticated = req.hasOwnProperty('usuario') && req.hasOwnProperty('subscription') && req.subscription;
+  
+  // Se não houver cabeçalho de autorização ou não estiver autenticado, bloquear IMEDIATAMENTE
+  if (!hasAuthHeader || !isAuthenticated) {
+    console.log(`[FIREWALL ${requestId}] 🚫 BLOQUEIO ABSOLUTO: Endpoint protegido sem autenticação adequada: ${fullPath}`);
+    console.log(`[FIREWALL ${requestId}] Método: ${req.method}`);
+    console.log(`[FIREWALL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[FIREWALL ${requestId}] Tem header Auth: ${hasAuthHeader}, Está autenticado: ${isAuthenticated}`);
+    
+    return res.status(401).json({
+      success: false,
+      message: 'Acesso negado - Autenticação completa obrigatória',
+      code: 'ABSOLUTE_FIREWALL',
+      path: fullPath,
+      requestId: requestId
+    });
+  }
+  
+  // Verificação final de segurança
+  if (!req.subscription) {
+    console.log(`[FIREWALL ${requestId}] 🚫 BLOQUEIO ABSOLUTO: Acesso sem assinatura verificada: ${fullPath}`);
+    return res.status(403).json({
+      success: false,
+      message: 'Acesso negado - Assinatura ativa obrigatória',
+      code: 'ABSOLUTE_FIREWALL',
+      path: fullPath,
+      requestId: requestId
+    });
+  }
+  
+  // Se passou por todas as verificações, continuar
+  console.log(`[FIREWALL ${requestId}] ✅ Permitido: Acesso autenticado com assinatura válida: ${fullPath}`);
+  next();
+});
+
 app.use(express.json());
 
 // Add a status endpoint to check if the server is working
@@ -109,47 +221,6 @@ app.get('/', (req, res) => {
     service: 'RunCash WebSocket Server',
     timestamp: new Date().toISOString()
   });
-});
-
-// Middleware genérico para bloquear todas as variantes do endpoint roulettes sem autenticação
-app.use((req, res, next) => {
-  const path = req.originalUrl || req.url;
-  const method = req.method;
-  
-  // Ignorar requisições OPTIONS
-  if (method === 'OPTIONS') {
-    return next();
-  }
-  
-  // Verificar se é uma variante do endpoint de roletas
-  const isRouletteVariant = (
-    /\/api\/ROULETTES.*/.test(path) || 
-    /\/api\/roulettes.*/.test(path) ||
-    /\/api\/roletas.*/.test(path)
-  );
-  
-  if (isRouletteVariant) {
-    const requestId = req.requestId || Math.random().toString(36).substring(2, 15);
-    console.log(`[GLOBAL ${requestId}] Interceptando variante de roleta: ${path}`);
-    
-    // Se já foi processada por autenticação, deixar passar
-    if (req.hasOwnProperty('usuario') && req.hasOwnProperty('subscription')) {
-      console.log(`[GLOBAL ${requestId}] Requisição já autenticada, continuando...`);
-      return next();
-    }
-    
-    // Tentar iniciar a verificação de autenticação aqui se não estiver definida
-    console.log(`[GLOBAL ${requestId}] Variante de roleta não autenticada: ${path}`);
-    return res.status(401).json({
-      success: false,
-      message: 'Acesso negado - Autenticação necessária',
-      code: 'GLOBAL_BLOCKER',
-      path: path,
-      requestId: requestId
-    });
-  }
-  
-  next();
 });
 
 // Endpoint para receber eventos do scraper Python
@@ -429,26 +500,33 @@ app.get('/api/roulettes',
     console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
     console.log(`[API ${requestId}] Query: ${JSON.stringify(req.query)}`);
     
-    // IMPORTANTE: Verificação rigorosa de autenticação e assinatura
-    if (!req.usuario) {
-      console.log(`[API ${requestId}] BLOQUEIO DE SEGURANÇA: Usuário não autenticado`);
+    // VERIFICAÇÃO DUPLA: Se o middleware falhar, verificar novamente aqui
+    if (!req.usuario || !req.subscription) {
+      console.log(`[API ${requestId}] BLOQUEIO SECUNDÁRIO: Acesso não autenticado ou sem assinatura detectado`);
       return res.status(401).json({
         success: false,
-        message: 'Autenticação necessária para acessar este recurso',
-        code: 'AUTH_REQUIRED',
+        message: 'Acesso negado - Autenticação e assinatura são obrigatórias',
+        code: 'DOUBLE_VERIFICATION_FAILED',
         requestId: requestId
       });
     }
     
-    // Verificação rigorosa de assinatura válida
-    if (!req.subscription) {
-      console.log(`[API ${requestId}] BLOQUEIO DE SEGURANÇA: Assinatura não encontrada`);
-      return res.status(403).json({
-        success: false,
-        message: 'Você precisa de uma assinatura ativa para acessar este recurso',
-        code: 'SUBSCRIPTION_REQUIRED',
-        requestId: requestId
-      });
+    // VERIFICAÇÃO TRIPLA: Verificar se a assinatura é válida
+    try {
+      // Verificar data de validade da assinatura
+      const validUntil = req.subscription.validade || req.subscription.expiresAt || req.subscription.nextDueDate;
+      if (validUntil && new Date(validUntil) < new Date()) {
+        console.log(`[API ${requestId}] BLOQUEIO TERCIÁRIO: Assinatura expirada`);
+        return res.status(403).json({
+          success: false,
+          message: 'Sua assinatura expirou. Por favor, renove para continuar acessando este recurso.',
+          code: 'SUBSCRIPTION_EXPIRED',
+          requestId: requestId,
+          expiryDate: validUntil
+        });
+      }
+    } catch (error) {
+      console.error(`[API ${requestId}] Erro ao verificar data de validade da assinatura:`, error);
     }
     
     // Aplicar cabeçalhos CORS explicitamente para esta rota
@@ -497,26 +575,33 @@ app.get('/api/ROULETTES',
     console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
     console.log(`[API ${requestId}] Query params: ${JSON.stringify(req.query)}`);
     
-    // IMPORTANTE: Verificação rigorosa de autenticação e assinatura
-    if (!req.usuario) {
-      console.log(`[API ${requestId}] BLOQUEIO DE SEGURANÇA: Usuário não autenticado`);
+    // VERIFICAÇÃO DUPLA: Se o middleware falhar, verificar novamente aqui
+    if (!req.usuario || !req.subscription) {
+      console.log(`[API ${requestId}] BLOQUEIO SECUNDÁRIO: Acesso não autenticado ou sem assinatura detectado`);
       return res.status(401).json({
         success: false,
-        message: 'Autenticação necessária para acessar este recurso',
-        code: 'AUTH_REQUIRED',
+        message: 'Acesso negado - Autenticação e assinatura são obrigatórias',
+        code: 'DOUBLE_VERIFICATION_FAILED',
         requestId: requestId
       });
     }
     
-    // Verificação rigorosa de assinatura válida
-    if (!req.subscription) {
-      console.log(`[API ${requestId}] BLOQUEIO DE SEGURANÇA: Assinatura não encontrada`);
-      return res.status(403).json({
-        success: false,
-        message: 'Você precisa de uma assinatura ativa para acessar este recurso',
-        code: 'SUBSCRIPTION_REQUIRED',
-        requestId: requestId
-      });
+    // VERIFICAÇÃO TRIPLA: Verificar se a assinatura é válida
+    try {
+      // Verificar data de validade da assinatura
+      const validUntil = req.subscription.validade || req.subscription.expiresAt || req.subscription.nextDueDate;
+      if (validUntil && new Date(validUntil) < new Date()) {
+        console.log(`[API ${requestId}] BLOQUEIO TERCIÁRIO: Assinatura expirada`);
+        return res.status(403).json({
+          success: false,
+          message: 'Sua assinatura expirou. Por favor, renove para continuar acessando este recurso.',
+          code: 'SUBSCRIPTION_EXPIRED',
+          requestId: requestId,
+          expiryDate: validUntil
+        });
+      }
+    } catch (error) {
+      console.error(`[API ${requestId}] Erro ao verificar data de validade da assinatura:`, error);
     }
     
     // Aplicar cabeçalhos CORS explicitamente para esta rota
