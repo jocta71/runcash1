@@ -14,6 +14,7 @@ const { verifyAsaasSubscription } = require('../middlewares/premiumVerifier');
 // Importar controllers
 const subscriptionRoutes = require('../routes/subscriptionRoutes');
 const { createCheckout } = require('./checkout/create');
+const asaasWebhookRoutes = require('../routes/asaasWebhookRoutes');
 
 // Aplicar middleware para todas as rotas
 router.use(express.json());
@@ -23,6 +24,9 @@ router.use(express.json());
 
 // Rotas de assinatura
 router.use('/subscription', subscriptionRoutes);
+
+// Rota para webhooks do Asaas (sem proteção)
+router.use('/webhooks/asaas', asaasWebhookRoutes);
 
 // Rota de criação de checkout
 router.post('/checkout/create', protect, createCheckout);
