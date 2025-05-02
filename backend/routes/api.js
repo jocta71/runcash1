@@ -17,21 +17,8 @@ try {
   };
 }
 
-// Rota para redirecionamento de webhook
-router.all('/asaas-webhook', (req, res) => {
-  console.log('[API] Redirecionando webhook recebido na URL antiga');
-  return webhookRedirector(req, res);
-});
 
-// Rota de status para verificações de saúde
-router.get('/status', (req, res) => {
-  res.json({
-    status: 'online',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    service: 'api-gateway'
-  });
-});
+
 
 // Exportar o router
 module.exports = router; 

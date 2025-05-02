@@ -4,7 +4,6 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/events", "destination": "/api/proxy?path=/api/events" },
-    { "source": "/api/roulettes", "destination": "/api/proxy?path=/api/roulettes" },
     { "source": "/api/strategies", "destination": "/api/proxy?path=/api/strategies" },
     { "source": "/emit-event", "destination": "/api/proxy?path=/emit-event" },
     { "source": "/test-cors", "destination": "/api/proxy?path=/test-cors" },

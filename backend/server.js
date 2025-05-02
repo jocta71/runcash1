@@ -65,17 +65,6 @@ app.post('/api/webhooks/asaas-test', (req, res) => {
   });
 });
 
-// Rota para verificar o status do servidor
-app.get('/api/status', (req, res) => {
-  res.json({
-    status: 'online',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    service: 'backend-api',
-    version: process.env.npm_package_version || '1.0.0'
-  });
-});
-
 // Inicializar MongoDB antes de configurar as rotas
 async function initializeServer() {
   try {
