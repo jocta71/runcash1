@@ -6,6 +6,8 @@
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const config = require('../config/config');
+const getDb = require('../services/database');
+const { ObjectId } = require('mongodb');
 
 // Configuração do Asaas API
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
@@ -28,25 +30,16 @@ exports.verifyTokenAndSubscription = (options = {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         if (options.required) {
-          console.log('Acesso sem token - permitido após modificação');
-          
-          // Atribuir plano premium mesmo sem token
-          req.userPlan = { type: 'PREMIUM' };
-          req.subscription = {
-            status: 'ACTIVE',
-            plan: 'PREMIUM'
-          };
-          
-          return next();
+          console.log('Acesso negado - token não fornecido');
+          return res.status(401).json({
+            success: false,
+            message: 'Autenticação necessária para acessar este recurso',
+            code: 'AUTH_REQUIRED'
+          });
         } else {
           // Token não é obrigatório, continuar sem autenticação
-          // Atribuir plano premium mesmo sem token
-          req.userPlan = { type: 'PREMIUM' };
-          req.subscription = {
-            status: 'ACTIVE',
-            plan: 'PREMIUM'
-          };
-          
+          req.userPlan = { type: 'FREE' };
+          req.subscription = null;
           return next();
         }
       }
@@ -60,58 +53,111 @@ exports.verifyTokenAndSubscription = (options = {
 
         // Verificar se o payload tem as informações necessárias
         if (!decoded.id) {
-          console.log('Token inválido - permitindo acesso após modificação');
-          
-          // Atribuir plano premium mesmo com token inválido
-          req.userPlan = { type: 'PREMIUM' };
-          req.subscription = {
-            status: 'ACTIVE',
-            plan: 'PREMIUM'
-          };
-          
-          return next();
+          console.log('Token inválido - acesso negado');
+          return res.status(401).json({
+            success: false,
+            message: 'Token inválido ou mal formado',
+            code: 'INVALID_TOKEN'
+          });
         }
 
         // Adicionar informações do usuário à requisição
         req.usuario = decoded;
         
-        // Atribuir plano premium para todos os usuários
-        req.userPlan = { type: 'PREMIUM' };
-        req.subscription = {
-          status: 'ACTIVE',
-          plan: 'PREMIUM'
-        };
+        // Buscar assinatura do usuário no banco de dados
+        const db = await getDb();
+        const userSubscription = await db.collection('subscriptions').findOne({
+          user_id: decoded.id,
+          status: { $in: ['active', 'ACTIVE', 'ativa'] }
+        });
+        
+        // Se não encontrar assinatura no formato das collections, tentar o modelo mongoose
+        if (!userSubscription) {
+          // Verificar em modelos mongoose se não encontrou na collection
+          const assinatura = await db.collection('assinaturas').findOne({
+            usuario: ObjectId.isValid(decoded.id) ? new ObjectId(decoded.id) : decoded.id,
+            status: 'ativa',
+            validade: { $gt: new Date() }
+          });
+
+          // Se não encontrou assinatura e é obrigatória
+          if (!assinatura && options.required) {
+            return res.status(403).json({
+              success: false,
+              message: 'Você precisa de uma assinatura ativa para acessar este recurso',
+              code: 'SUBSCRIPTION_REQUIRED'
+            });
+          }
+
+          // Se encontrou assinatura, verificar o plano
+          if (assinatura && options.allowedPlans && options.allowedPlans.length > 0) {
+            // Mapear plano do modelo mongoose para o formato esperado
+            const planoMap = {
+              'mensal': 'BASIC',
+              'trimestral': 'PRO',
+              'anual': 'PREMIUM'
+            };
+            
+            const userPlanType = planoMap[assinatura.plano] || 'BASIC';
+            
+            if (!options.allowedPlans.includes(userPlanType)) {
+              return res.status(403).json({
+                success: false,
+                message: `É necessário um plano superior para acessar este recurso. Planos permitidos: ${options.allowedPlans.join(', ')}`,
+                code: 'PLAN_UPGRADE_REQUIRED'
+              });
+            }
+            
+            // Definir plano do usuário
+            req.userPlan = { type: userPlanType };
+            req.subscription = assinatura;
+          } else if (!options.required) {
+            // Assinatura não encontrada, mas não é obrigatória
+            req.userPlan = { type: 'FREE' };
+            req.subscription = null;
+          }
+          
+          return next();
+        }
+        
+        // Verificar se o plano do usuário está entre os permitidos
+        if (options.allowedPlans && options.allowedPlans.length > 0) {
+          const userPlanType = userSubscription.plan_id || 'BASIC';
+          
+          if (!options.allowedPlans.includes(userPlanType)) {
+            return res.status(403).json({
+              success: false,
+              message: `É necessário um plano superior para acessar este recurso. Planos permitidos: ${options.allowedPlans.join(', ')}`,
+              code: 'PLAN_UPGRADE_REQUIRED'
+            });
+          }
+        }
+        
+        // Definir plano do usuário
+        req.userPlan = { type: userSubscription.plan_id || 'BASIC' };
+        req.subscription = userSubscription;
         
         // Continuar com o middleware seguinte
         return next();
         
       } catch (jwtError) {
-        // Erro na verificação do JWT - permitindo acesso mesmo assim
-        console.log('Erro JWT - permitindo acesso após modificação:', jwtError.message);
-        
-        // Atribuir plano premium mesmo com erro JWT
-        req.userPlan = { type: 'PREMIUM' };
-        req.subscription = {
-          status: 'ACTIVE',
-          plan: 'PREMIUM'
-        };
-        
-        return next();
+        // Erro na verificação do JWT
+        console.log('Erro JWT - acesso negado:', jwtError.message);
+        return res.status(401).json({
+          success: false,
+          message: 'Token inválido ou expirado',
+          error: jwtError.message,
+          code: 'INVALID_TOKEN'
+        });
       }
     } catch (error) {
       console.error('Erro na verificação de token e assinatura:', error);
-      
-      // Permitir acesso mesmo com erro interno
-      console.log('Erro interno - permitindo acesso após modificação');
-      
-      // Atribuir plano premium mesmo com erro interno
-      req.userPlan = { type: 'PREMIUM' };
-      req.subscription = {
-        status: 'ACTIVE',
-        plan: 'PREMIUM'
-      };
-      
-      return next();
+      return res.status(500).json({
+        success: false,
+        message: 'Erro interno ao verificar autenticação',
+        error: error.message,
+        code: 'INTERNAL_ERROR'
+      });
     }
   };
 };
@@ -123,15 +169,30 @@ exports.verifyTokenAndSubscription = (options = {
  */
 exports.requireResourceAccess = (resourceType) => {
   return async (req, res, next) => {
-    // Após modificação, permitir acesso a qualquer recurso
-    console.log(`Permitindo acesso ao recurso: ${resourceType} após modificação`);
+    // Verificar se o usuário está autenticado e tem assinatura
+    if (!req.usuario || !req.subscription) {
+      return res.status(401).json({
+        success: false,
+        message: 'Autenticação e assinatura necessárias para acessar este recurso',
+        code: 'AUTH_SUBSCRIPTION_REQUIRED'
+      });
+    }
     
-    // Garantir que o usuário tenha acesso a todos os recursos
-    req.userPlan = { type: 'PREMIUM' };
-    req.subscription = {
-      status: 'ACTIVE',
-      plan: 'PREMIUM'
-    };
+    // Verificar se o plano do usuário permite acesso ao recurso solicitado
+    const db = await getDb();
+    
+    // Buscar recursos permitidos para o plano do usuário
+    const planoUsuario = req.userPlan?.type || 'FREE';
+    const plano = await db.collection('plans').findOne({ type: planoUsuario });
+    
+    if (!plano || !plano.allowedFeatures || !plano.allowedFeatures.includes(resourceType)) {
+      return res.status(403).json({
+        success: false,
+        message: `Seu plano atual não permite acesso a este recurso. Faça upgrade para um plano superior.`,
+        requiredResource: resourceType,
+        code: 'RESOURCE_ACCESS_DENIED'
+      });
+    }
     
     return next();
   };

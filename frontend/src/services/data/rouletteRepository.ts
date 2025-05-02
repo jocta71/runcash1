@@ -45,6 +45,7 @@ export const RouletteRepository = {
   /**
    * Busca todas as roletas disponíveis com seus números
    * @returns Array de objetos de roleta padronizados
+   * @throws Error com mensagem formatada quando ocorre erro de autenticação ou assinatura
    */
   async fetchAllRoulettesWithNumbers(): Promise<RouletteData[]> {
     try {
@@ -68,19 +69,33 @@ export const RouletteRepository = {
       logger.info('Buscando todas as roletas com seus números');
       
       // Criar nova requisição e armazenar a promessa
-      const requestPromise = new Promise<RouletteData[]>(async (resolve) => {
+      const requestPromise = new Promise<RouletteData[]>(async (resolve, reject) => {
         try {
           // Buscar dados da API
-          const rawData = await RouletteApi.fetchAllRoulettes();
+          const response = await RouletteApi.fetchAllRoulettes();
           
-          if (!Array.isArray(rawData)) {
-            logger.error('Resposta inválida da API:', rawData);
-            resolve([]);
+          // Verificar se há erro na resposta
+          if (response.error) {
+            logger.error(`Erro na API: ${response.code} - ${response.message}`);
+            
+            // Se for um erro de autenticação ou assinatura, rejeitar com erro formatado
+            if (response.statusCode === 401) {
+              reject(new Error(`Você precisa estar logado para acessar as roletas.`));
+              return;
+            }
+            
+            if (response.statusCode === 403) {
+              reject(new Error(`${response.message} Faça uma assinatura para acessar as roletas.`));
+              return;
+            }
+            
+            // Para outros erros
+            reject(new Error(response.message));
             return;
           }
           
           // Transformar dados para o formato padronizado
-          const transformedData = rawData.map(roulette => {
+          const transformedData = response.data.map(roulette => {
             // Chamar o transformador para cada roleta
             const transformed = transformRouletteData(roulette);
             
@@ -105,7 +120,7 @@ export const RouletteRepository = {
           resolve(transformedData);
         } catch (error) {
           logger.error('Erro ao buscar roletas:', error);
-          resolve([]);
+          reject(error);
         } finally {
           // Remover do mapa de requisições pendentes após conclusão
           pendingRequests.delete(cacheKey);
@@ -118,7 +133,7 @@ export const RouletteRepository = {
       return requestPromise;
     } catch (error) {
       logger.error('Erro ao buscar roletas:', error);
-      return [];
+      throw error;
     }
   },
   

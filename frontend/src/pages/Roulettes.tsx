@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useMultipleRoulettes } from '../hooks/useRoulette';
 import RouletteCard from '../services/ui/components/RouletteCard';
 import { RouletteRepository } from '../services/data/rouletteRepository';
+import { Link } from 'react-router-dom';
 import './Roulettes.css';
 
 /**
@@ -10,7 +11,7 @@ import './Roulettes.css';
 const RoulettesPage: React.FC = () => {
   const [allRouletteIds, setAllRouletteIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{message: string, isSubscriptionError?: boolean} | null>(null);
   
   // Carregar todas as IDs de roletas disponíveis
   useEffect(() => {
@@ -20,10 +21,20 @@ const RoulettesPage: React.FC = () => {
         const roulettes = await RouletteRepository.fetchAllRoulettesWithNumbers();
         setAllRouletteIds(roulettes.map(r => r.id));
         setError(null);
-      } catch (err) {
+      } catch (err: any) {
         const errorMsg = err instanceof Error ? err.message : 'Erro ao carregar roletas';
         console.error('Erro ao carregar roletas:', err);
-        setError(errorMsg);
+        
+        // Verificar se é erro de assinatura
+        const isSubscriptionError = 
+          errorMsg.includes('assinatura') || 
+          errorMsg.includes('Faça uma assinatura') ||
+          errorMsg.includes('plano');
+        
+        setError({
+          message: errorMsg,
+          isSubscriptionError
+        });
       } finally {
         setLoading(false);
       }
@@ -46,9 +57,25 @@ const RoulettesPage: React.FC = () => {
         </div>
       )}
       
-      {(error || roulettesError) && (
+      {error && (
+        <div className={`error-message ${error.isSubscriptionError ? 'subscription-error' : ''}`}>
+          <h2>{error.isSubscriptionError ? '🔒 Acesso restrito' : 'Erro ao carregar roletas'}</h2>
+          <p>{error.message}</p>
+          
+          {error.isSubscriptionError && (
+            <div className="subscription-cta">
+              <p>Para ter acesso completo às roletas e estatísticas, faça uma assinatura agora:</p>
+              <Link to="/assinatura" className="btn-subscription">
+                Ver planos de assinatura
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {roulettesError && !error && (
         <div className="error-message">
-          <p>Erro: {error || roulettesError}</p>
+          <p>Erro: {roulettesError}</p>
         </div>
       )}
       

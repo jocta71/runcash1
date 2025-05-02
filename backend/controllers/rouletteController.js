@@ -15,18 +15,8 @@ const listRoulettes = async (req, res) => {
     const db = await getDb();
     const roulettes = await db.collection('roulettes').find({}).toArray();
     
-    // Se não for usuário autenticado ou não tiver plano, mostrar apenas uma amostra
-    if (!req.user) {
-      return res.json({
-        success: true,
-        message: 'Lista limitada de roletas (modo amostra)',
-        data: roulettes.slice(0, 3), // Apenas 3 roletas para visitantes
-        limited: true
-      });
-    }
-    
-    // Se for usuário autenticado, verificar plano
-    let limit = 5; // Padrão para plano gratuito
+    // Como o middleware já verificou a assinatura, sabemos que req.userPlan existe
+    let limit = 5; // Padrão para plano básico
     let limited = true;
     
     // Ajustar limite com base no plano
@@ -36,12 +26,14 @@ const listRoulettes = async (req, res) => {
           limit = 15;
           break;
         case 'PRO':
+          limit = 50;
+          break;
         case 'PREMIUM':
           limit = Infinity; // Sem limite
           limited = false;
           break;
         default:
-          limit = 5; // FREE
+          limit = 5; // Plano básico padrão
       }
     }
     
@@ -50,7 +42,8 @@ const listRoulettes = async (req, res) => {
       data: limited ? roulettes.slice(0, limit) : roulettes,
       limited,
       totalCount: roulettes.length,
-      availableCount: limited ? limit : roulettes.length
+      availableCount: limited ? limit : roulettes.length,
+      userPlan: req.userPlan.type
     });
   } catch (error) {
     console.error('Erro ao listar roletas:', error);
