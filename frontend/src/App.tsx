@@ -22,9 +22,6 @@ const ProfileSubscription = lazy(() => import("@/pages/ProfileSubscription"));
 const AccountRedirect = lazy(() => import("@/pages/AccountRedirect"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const PlansPage = lazy(() => import("@/pages/PlansPage"));
-const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
-const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
-const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
@@ -260,46 +257,6 @@ const App = () => {
                           </ProtectedRoute>
                         } />
                         
-                        <Route path="/pagamento" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PaymentPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/pagamento/:planId" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PaymentPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/payment-success" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PaymentSuccessPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/pagamento/sucesso" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PaymentSuccessPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
-                        <Route path="/pagamento/cancelado" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <PaymentCanceled />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        
                         <Route path="/live" element={
                           <ProtectedRoute>
                             <Suspense fallback={<LoadingScreen />}>
@@ -307,17 +264,6 @@ const App = () => {
                             </Suspense>
                           </ProtectedRoute>
                         } />
-                        
-                        {/* Rota para a página de teste do Asaas - DESATIVADA */}
-                        {/* 
-                        <Route path="/asaas-test" element={
-                          <ProtectedRoute>
-                            <Suspense fallback={<LoadingScreen />}>
-                              <AsaasTestPage />
-                            </Suspense>
-                          </ProtectedRoute>
-                        } />
-                        */}
                         
                         {/* Rota para página não encontrada */}
                         <Route path="*" element={

@@ -31,12 +31,19 @@ const PlansPage = () => {
         description: "Você precisa estar logado para assinar um plano.",
         variant: "destructive"
       });
-      navigate('/login', { state: { returnUrl: `/pagamento/${planId}` } });
+      navigate('/', { state: { showLoginModal: true } });
       return;
     }
     
-    // Redirecionar para a página de pagamento
-    navigate(`/pagamento/${planId}`);
+    // Mostrar toast informando que a funcionalidade de pagamento foi desativada
+    toast({
+      title: "Funcionalidade desativada",
+      description: "A página de pagamentos foi desativada nesta versão do aplicativo.",
+      variant: "default"
+    });
+    
+    // Redirecionar para o dashboard/início
+    navigate('/');
   };
 
   if (loading) {
