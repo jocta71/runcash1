@@ -11,5 +11,10 @@
     { "source": "/historico/:roletaId", "destination": "/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
- 
+  "env": {
+    "VITE_WS_URL": "https://runcash1-production.up.railway.app",
+    "VITE_SSE_SERVER_URL": "https://runcash1-production.up.railway.app/api/events",
+    "VITE_API_BASE_URL": "https://runcash5.vercel.app/api",
+    "BACKEND_URL": "https://runcash1-production.up.railway.app"
+  }
 }
