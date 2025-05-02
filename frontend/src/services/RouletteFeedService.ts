@@ -1,6 +1,5 @@
 import EventService from './EventService';
 import { getLogger } from './utils/logger';
-import globalRouletteDataService from './GlobalRouletteDataService';
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');
@@ -412,74 +411,73 @@ export default class RouletteFeedService {
    * Busca os dados iniciais das roletas (se não estiverem em cache)
    */
   public async fetchInitialData(): Promise<{ [key: string]: any }> {
-    // Se já buscamos dados iniciais, retornar os dados em cache
-    if (RouletteFeedService.INITIAL_DATA_FETCHED) {
-      logger.info('📋 Dados iniciais já foram buscados anteriormente, usando cache');
-      return this.roulettes;
-    }
-    
-    logger.info('🔄 Buscando dados iniciais através do serviço global centralizado');
-    
     try {
-      // Usar exclusivamente o serviço global para buscar dados
-      const globalRoulettes = await globalRouletteDataService.fetchRouletteData();
+      if (this.initialRequestDone) {
+        return this.roulettes;
+      }
       
-    if (globalRoulettes && globalRoulettes.length > 0) {
-        logger.info(`📋 Recebidos ${globalRoulettes.length} roletas do serviço global centralizado`);
+      logger.info('Buscando dados iniciais das roletas...');
       
-      // Transformar dados para o formato esperado
-      const liveTables: { [key: string]: any } = {};
-      globalRoulettes.forEach(roleta => {
-        if (roleta && roleta.id) {
-          // Certifique-se de que estamos lidando corretamente com o campo numero
-          // Na API, o 'numero' é um array de objetos com propriedade 'numero'
-          const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+      // Verificar cache primeiro
+      const cachedData = localStorage.getItem('RouletteFeedServiceCache');
+      if (cachedData) {
+        try {
+          const parsed = JSON.parse(cachedData);
+          const cacheTime = parsed.timestamp || 0;
           
-          liveTables[roleta.id] = {
-            GameID: roleta.id,
-            Name: roleta.name || roleta.nome,
-            ativa: roleta.ativa,
-            // Manter a estrutura do campo numero exatamente como está na API
-            numero: numeroArray,
-            // Incluir outras propriedades da roleta
-            ...roleta
-          };
+          // Se o cache for válido (menos de 5 minutos), usar cache
+          if (Date.now() - cacheTime < 5 * 60 * 1000) {
+            logger.info('Usando dados em cache para inicialização rápida');
+            this.roulettes = parsed.data || {};
+            this.hasCachedData = true;
+            this.lastUpdateTime = cacheTime;
+            
+            // Retornar dados do cache, mas continuar carregando dados frescos em segundo plano
+            setTimeout(() => {
+              this.fetchRouletteData().then(data => {
+                logger.info('Dados frescos carregados em segundo plano');
+              }).catch(err => {
+                logger.error('Erro ao carregar dados frescos:', err);
+              });
+            }, 1000);
+            
+            return this.roulettes;
+          }
+        } catch (e) {
+          logger.error('Erro ao analisar dados em cache:', e);
         }
-      });
+      }
       
-      // Armazenar os dados
-      this.lastUpdateTime = Date.now();
-      this.hasCachedData = true;
-      this.roulettes = liveTables;
+      // Se não houver cache válido, buscar dados diretamente
+      const data = await this.fetchRouletteData();
       
-      // Sinalizar que dados iniciais foram carregados globalmente
-      RouletteFeedService.INITIAL_DATA_FETCHED = true;
-      
-      // Notificar que temos novos dados
-      this.notifySubscribers(liveTables);
-      
-        // Ajustar intervalo de polling baseado no sucesso
-        this.adjustPollingInterval(false);
+      if (Array.isArray(data)) {
+        // Converter array para objeto
+        this.roulettes = {};
+        data.forEach(roulette => {
+          if (roulette && roulette.id) {
+            this.roulettes[roulette.id] = roulette;
+          }
+        });
         
-        return this.roulettes;
+        this.initialRequestDone = true;
+        this.lastUpdateTime = Date.now();
+        
+        // Salvar em cache para uso futuro
+        try {
+          localStorage.setItem('RouletteFeedServiceCache', JSON.stringify({
+            timestamp: Date.now(),
+            data: this.roulettes
+          }));
+        } catch (e) {
+          logger.error('Erro ao salvar dados em cache:', e);
+        }
       }
       
-      // Se não conseguiu dados do serviço global, tentar usar cache existente
-      if (this.hasCachedData) {
-        logger.info('⚠️ Não foi possível obter dados do serviço global, usando cache local');
-        return this.roulettes;
-      }
-      
-      logger.warn('⚠️ Não foi possível obter dados iniciais');
-      return {};
+      return this.roulettes;
     } catch (error) {
-      logger.error(`❌ Erro ao buscar dados iniciais: ${error.message || 'Desconhecido'}`);
-      
-      // Ajustar intervalo em caso de erro
-      this.adjustPollingInterval(true);
-      
-      // Retornar dados em cache se existirem, ou objeto vazio
-      return this.roulettes || {};
+      logger.error('Erro ao buscar dados iniciais:', error);
+      return {};
     }
   }
 
@@ -598,7 +596,7 @@ export default class RouletteFeedService {
       logger.debug(`📡 Buscando dados mais recentes através do serviço centralizado (ID: ${requestId})`);
       
       // Usar o serviço global para obter os dados
-      return globalRouletteDataService.fetchRouletteData()
+      return this.fetchRouletteData()
         .then(data => {
           // Atualizar estatísticas e estado
           this.requestStats.total++;
@@ -1081,35 +1079,28 @@ export default class RouletteFeedService {
   /**
    * Método para fins de teste: forçar uma atualização imediata
    */
-  public forceUpdate(): Promise<any> {
-    logger.info('🔄 Forçando atualização imediata');
-    
-    // Limpar qualquer timer existente
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
+  public async forceUpdate(): Promise<any> {
+    try {
+      // Checar se é possível fazer requisição
+      if (!this.canMakeRequest()) {
+        logger.warn('Não é possível forçar atualização agora, muitas requisições recentes');
+        return Promise.resolve({ success: false, message: 'Limite de taxa excedido' });
+      }
+      
+      // Forçar atualização por meio de chamada direta
+      const data = await this.fetchRouletteData();
+      
+      if (Array.isArray(data)) {
+        logger.info(`Atualização forçada concluída, recebidos ${data.length} roletas`);
+        return { success: true, data };
+      } else {
+        logger.warn('Atualização forçada retornou dados inválidos');
+        return { success: false, message: 'Dados inválidos recebidos' };
+      }
+    } catch (error) {
+      logger.error('Erro ao forçar atualização:', error);
+      return { success: false, error };
     }
-    
-    // Verificar trava global
-    if (!this.checkAndReleaseGlobalLock()) {
-      logger.info('⛔ Trava global ativa, não é possível forçar atualização');
-      return Promise.resolve(this.roulettes);
-    }
-    
-    // Resetar flags para permitir a requisição
-    this.isFetching = false;
-    this.hasPendingRequest = false;
-    GLOBAL_IS_FETCHING = false;
-    
-    // Buscar dados e reiniciar o timer
-    const promise = this.fetchLatestData();
-    
-    // Reiniciar o timer se o polling estiver ativo
-    if (this.isPollingActive && !this.isPaused) {
-      this.restartPollingTimer();
-    }
-    
-    return promise;
   }
   
   /**
@@ -1775,38 +1766,12 @@ export default class RouletteFeedService {
    * Esta função centraliza o registro de todos os event listeners necessários
    */
   private registerGlobalEventListeners(): void {
-    logger.info('Registrando ouvintes para eventos globais');
-    
-    // Ouvinte para atualizações globais de dados
-    const globalDataUpdateHandler = () => {
-      logger.info('Recebida atualização do serviço global de roletas');
-      this.fetchLatestData();
-    };
-    
-    // Inscrever no serviço global se disponível
-    if (typeof globalRouletteDataService !== 'undefined') {
-      try {
-        globalRouletteDataService.subscribe('RouletteFeedService', globalDataUpdateHandler);
-      } catch (error) {
-        logger.warn('Não foi possível registrar no globalRouletteDataService:', error);
-      }
+    try {
+      // Registrar para eventos de números para atualização interna
+      this.socketService?.subscribe('*', this.updateCacheWithNewNumber.bind(this));
+    } catch (e) {
+      logger.error('Erro ao registrar event listeners:', e);
     }
-    
-    // Ouvinte para mudanças na visibilidade da página
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', this.handleVisibilityChange);
-    }
-    
-    // Ouvinte para quando novos números são recebidos
-    EventService.on('roulette:new-number', (event) => {
-      logger.debug('Novo número recebido via evento:', event);
-      // Atualizar o cache com o novo número
-      if (event && event.roleta_id) {
-        this.updateCacheWithNewNumber(event);
-      }
-    });
-    
-    logger.info('Ouvintes de eventos globais registrados');
   }
 
   /**
@@ -1844,5 +1809,83 @@ export default class RouletteFeedService {
     // Números vermelhos na roleta europeia
     const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
     return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
+  }
+
+  /**
+   * Tentativa de buscar roulette data, agora implementando diretamente
+   * em vez de depender do serviço global de dados
+   */
+  public async fetchRouletteData(): Promise<any[]> {
+    try {
+      // Importar axios para fazer a requisição HTTP diretamente
+      const axios = (await import('axios')).default;
+      const token = localStorage.getItem('token');
+      
+      // Adicionar timestamp para evitar cache
+      const timestamp = Date.now();
+      const endpoints = [
+        `/api/ROULETTES?_t=${timestamp}`,
+        `/api/roulettes?_t=${timestamp}`,
+        `/api/roletas?_t=${timestamp}`
+      ];
+      
+      let response = null;
+      let successEndpoint = '';
+      
+      // Tentar cada endpoint em sequência
+      for (const endpoint of endpoints) {
+        try {
+          logger.debug(`Tentando endpoint: ${endpoint}`);
+          response = await axios.get(endpoint, {
+            headers: {
+              'Authorization': token ? `Bearer ${token}` : '',
+              'bypass-tunnel-reminder': 'true',
+              'cache-control': 'no-cache',
+              'pragma': 'no-cache'
+            },
+            timeout: 5000 // Timeout mais curto para evitar esperar muito tempo
+          });
+          
+          if (response.status === 200 && Array.isArray(response.data)) {
+            successEndpoint = endpoint;
+            break;
+          }
+        } catch (endpointError) {
+          logger.warn(`Falha ao acessar ${endpoint}:`, endpointError.message);
+          // Continuar para o próximo endpoint
+        }
+      }
+      
+      if (response && response.status === 200 && Array.isArray(response.data)) {
+        logger.info(`Recebidos ${response.data.length} registros da API via ${successEndpoint}`);
+        
+        // Processar e armazenar os dados no cache local
+        this.updateRouletteCache(response.data);
+        
+        // Incrementar contadores de sucesso
+        this.consecutiveErrors = 0;
+        this.consecutiveSuccesses++;
+        
+        // Ajustar intervalo de polling
+        this.adjustPollingInterval(false);
+        
+        // Notificar assinantes sobre novos dados
+        this.notifySubscribers(response.data);
+        
+        return response.data;
+      } else {
+        logger.warn('Resposta inesperada da API');
+        this.consecutiveErrors++;
+        this.consecutiveSuccesses = 0;
+        this.adjustPollingInterval(true);
+        return this.roulettesList;
+      }
+    } catch (error) {
+      logger.error('Erro ao buscar dados:', error);
+      this.consecutiveErrors++;
+      this.consecutiveSuccesses = 0;
+      this.adjustPollingInterval(true);
+      return this.roulettesList;
+    }
   }
 } 
