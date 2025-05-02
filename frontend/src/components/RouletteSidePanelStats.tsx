@@ -556,6 +556,9 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const isInitialRequestDone = useRef(false);
   const subscriberId = useRef(uniqueId('roulette_stats_subscriber_'));
   
+  // Adicionar estado para rouletteData
+  const [rouletteData, setRouletteData] = useState<any>(null);
+  
   // Estados para os filtros avançados
   const [hasActiveFilters, setHasActiveFilters] = useState(false);
   const [selectedColor, setSelectedColor] = useState('todas');
