@@ -701,26 +701,22 @@ class RESTSocketService {
         return;
       }
       
-      // Verificar com o backend se o usuário tem plano
-      const API_URL = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${API_URL}/subscription/status`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        console.log('[RESTSocketService] Erro ao verificar assinatura, iniciando polling padrão');
+      // Usar o apiService para verificar a assinatura (aproveitando o mecanismo de cache)
+      try {
+        // Importação dinâmica para evitar dependência circular
+        const apiServiceModule = await import('./apiService');
+        const apiService = apiServiceModule.default;
+        
+        await apiService.checkSubscriptionStatus();
+        
+        // Iniciar polling completo independente do status da assinatura
+        console.log('[RESTSocketService] Iniciando polling padrão');
         this.startPolling();
-        return;
+        this.startSecondEndpointPolling();
+      } catch (apiError) {
+        console.error('[RESTSocketService] Erro ao verificar assinatura via apiService:', apiError);
+        this.startPolling();
       }
-      
-      const data = await response.json();
-      
-      // Iniciar polling completo independente do status da assinatura
-      console.log('[RESTSocketService] Iniciando polling padrão');
-      this.startPolling();
-      this.startSecondEndpointPolling();
     } catch (error) {
       console.error('[RESTSocketService] Erro ao verificar assinatura:', error);
       this.startPolling();

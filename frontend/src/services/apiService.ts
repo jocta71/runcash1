@@ -8,6 +8,14 @@ class ApiService {
   private api: AxiosInstance;
   private lastSubscriptionEventTime: number = 0;
   private subscriptionEventCooldown: number = 10000; // 10 segundos de cooldown entre eventos
+  private subscriptionStatusCache: {
+    data: any;
+    timestamp: number;
+    expiresAt: number;
+  } | null = null;
+  private subscriptionStatusCacheTTL: number = 3 * 60 * 1000; // 3 minutos - tempo de validade do cache
+  private checkingSubscription: boolean = false; // Flag para evitar chamadas simultâneas
+  private subscriptionCheckPromise: Promise<any> | null = null; // Para reusar a promessa enquanto estiver em andamento
   
   constructor() {
     this.api = axios.create({
@@ -136,64 +144,137 @@ class ApiService {
   
   /**
    * Verifica se o usuário possui assinatura ativa
+   * @param forceRefresh Força uma nova requisição ao servidor, ignorando o cache
    * @returns Promise com o status da assinatura
    */
-  public async checkSubscriptionStatus(): Promise<{ hasSubscription: boolean; subscription?: any }> {
+  public async checkSubscriptionStatus(forceRefresh: boolean = false): Promise<{ hasSubscription: boolean; subscription?: any }> {
     try {
-      console.log('[API] Verificando status da assinatura...');
-      const response = await this.get<any>('/subscription/status');
-      // Extrair diretamente os dados da resposta
-      const data = response.data || {};
+      const now = Date.now();
       
-      // Log detalhado para diagnóstico
-      console.log('[API] Resposta da verificação de assinatura:', JSON.stringify(data, null, 2));
-      
-      // Verificar se o usuário tem assinatura ativa baseado nos dados recebidos
-      // Aceitar status 'active', 'received' ou 'confirmed'
-      const status = data.subscription?.status?.toLowerCase() || '';
-      const hasActiveSubscription = !!(
-        data.success && 
-        data.hasSubscription && 
-        (status === 'active' || status === 'ativo' || 
-         status === 'received' || status === 'recebido' || 
-         status === 'confirmed' || status === 'confirmado')
-      );
-      
-      console.log(`[API] Status da assinatura: ${hasActiveSubscription ? 'ATIVA' : 'INATIVA/INEXISTENTE'}`);
-      if (data.subscription) {
-        console.log(`[API] Tipo do plano: ${data.subscription.plan}, Status: ${data.subscription.status}`);
+      // Verificar se já temos uma requisição em andamento - reusar a mesma promessa
+      if (this.checkingSubscription && this.subscriptionCheckPromise) {
+        console.log('[API] Já existe uma verificação de assinatura em andamento, reusando a mesma requisição');
+        return this.subscriptionCheckPromise;
       }
       
-      return {
-        hasSubscription: hasActiveSubscription,
-        subscription: data.subscription
-      };
-    } catch (error) {
-      console.error('[API] Erro ao verificar status da assinatura:', error);
+      // Verificar cache para evitar múltiplas requisições
+      if (!forceRefresh && this.subscriptionStatusCache && now < this.subscriptionStatusCache.expiresAt) {
+        console.log('[API] Usando cache de status da assinatura, válido por mais', 
+          Math.round((this.subscriptionStatusCache.expiresAt - now) / 1000), 'segundos');
+        
+        const data = this.subscriptionStatusCache.data;
+        
+        // Verificar se o usuário tem assinatura ativa baseado nos dados em cache
+        const status = data.subscription?.status?.toLowerCase() || '';
+        const hasActiveSubscription = !!(
+          data.success && 
+          data.hasSubscription && 
+          (status === 'active' || status === 'ativo' || 
+           status === 'received' || status === 'recebido' || 
+           status === 'confirmed' || status === 'confirmado')
+        );
+        
+        return {
+          hasSubscription: hasActiveSubscription,
+          subscription: data.subscription
+        };
+      }
       
-      // Tentar usar dados do contexto local como fallback
-      try {
-        // Importação dinâmica para evitar dependência circular
-        const { useSubscription } = await import('../context/SubscriptionContext');
-        if (typeof useSubscription === 'function') {
-          // Não podemos usar hooks diretamente, então verificamos localStorage
-          const storedSubscription = localStorage.getItem('user_subscription_cache');
-          if (storedSubscription) {
-            const subData = JSON.parse(storedSubscription);
-            const isActive = subData.status?.toLowerCase() === 'active' || 
-                           subData.status?.toLowerCase() === 'ativo';
-            
-            console.log('[API] Usando dados de assinatura em cache:', isActive ? 'ATIVA' : 'INATIVA');
-            return { 
-              hasSubscription: isActive,
-              subscription: subData
-            };
+      // Marcar que estamos verificando para evitar múltiplas chamadas simultâneas
+      this.checkingSubscription = true;
+      
+      // Criar uma única promessa para ser compartilhada
+      this.subscriptionCheckPromise = new Promise(async (resolve) => {
+        try {
+          console.log('[API] Verificando status da assinatura no servidor...');
+          
+          // Adicionar timestamp para evitar cache do navegador
+          const response = await this.get<any>(`/subscription/status?_t=${Date.now()}`);
+          const data = response.data || {};
+          
+          // Log detalhado para diagnóstico
+          console.log('[API] Resposta da verificação de assinatura:', JSON.stringify(data, null, 2));
+          
+          // Verificar se o usuário tem assinatura ativa baseado nos dados recebidos
+          const status = data.subscription?.status?.toLowerCase() || '';
+          const hasActiveSubscription = !!(
+            data.success && 
+            data.hasSubscription && 
+            (status === 'active' || status === 'ativo' || 
+             status === 'received' || status === 'recebido' || 
+             status === 'confirmed' || status === 'confirmado')
+          );
+          
+          console.log(`[API] Status da assinatura: ${hasActiveSubscription ? 'ATIVA' : 'INATIVA/INEXISTENTE'}`);
+          if (data.subscription) {
+            console.log(`[API] Tipo do plano: ${data.subscription.plan || 'N/A'}, Status: ${data.subscription.status}`);
           }
+          
+          // Atualizar o cache
+          this.subscriptionStatusCache = {
+            data: data,
+            timestamp: now,
+            expiresAt: now + this.subscriptionStatusCacheTTL
+          };
+          
+          // Armazenar também no localStorage como fallback
+          localStorage.setItem('api_subscription_cache', JSON.stringify({
+            data: data,
+            timestamp: now,
+            expiresAt: now + this.subscriptionStatusCacheTTL
+          }));
+          
+          resolve({
+            hasSubscription: hasActiveSubscription,
+            subscription: data.subscription
+          });
+        } catch (error) {
+          console.error('[API] Erro ao verificar status da assinatura:', error);
+          
+          // Tentar usar dados do cache local como fallback
+          try {
+            const cachedData = localStorage.getItem('api_subscription_cache');
+            if (cachedData) {
+              const cache = JSON.parse(cachedData);
+              
+              // Verificar se o cache ainda é válido
+              if (cache.expiresAt && cache.expiresAt > now) {
+                console.log('[API] Usando cache localStorage como fallback');
+                
+                const data = cache.data;
+                const status = data.subscription?.status?.toLowerCase() || '';
+                const isActive = !!(
+                  data.success && 
+                  data.hasSubscription && 
+                  (status === 'active' || status === 'ativo' || 
+                   status === 'received' || status === 'recebido' || 
+                   status === 'confirmed' || status === 'confirmado')
+                );
+                
+                resolve({ 
+                  hasSubscription: isActive,
+                  subscription: data.subscription
+                });
+                return;
+              }
+            }
+          } catch (fallbackError) {
+            console.error('[API] Erro ao usar fallback de assinatura do localStorage:', fallbackError);
+          }
+          
+          resolve({ hasSubscription: false });
+        } finally {
+          // Reset das flags de controle após timeout para permitir novas verificações
+          setTimeout(() => {
+            this.checkingSubscription = false;
+            this.subscriptionCheckPromise = null;
+          }, 500);
         }
-      } catch (fallbackError) {
-        console.error('[API] Erro ao usar fallback de assinatura:', fallbackError);
-      }
+      });
       
+      return this.subscriptionCheckPromise;
+    } catch (globalError) {
+      console.error('[API] Erro global ao verificar status da assinatura:', globalError);
       return { hasSubscription: false };
     }
   }
@@ -228,6 +309,15 @@ class ApiService {
     
     // Usuário com assinatura - fazer a requisição normal
     return this.get<T>(`/roulettes/${id}/${dataType}`);
+  }
+  
+  /**
+   * Limpa o cache de status da assinatura, forçando uma nova verificação na próxima chamada
+   */
+  public clearSubscriptionCache(): void {
+    console.log('[API] Limpando cache de status da assinatura');
+    this.subscriptionStatusCache = null;
+    localStorage.removeItem('api_subscription_cache');
   }
   
   /**
