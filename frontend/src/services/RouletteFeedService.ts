@@ -194,6 +194,9 @@ export default class RouletteFeedService {
   private isError: boolean = false;
   private errorMessage: string = '';
 
+  // Adicionar nova propriedade para armazenar manipuladores de limpeza
+  private cleanupHandlers: Array<() => void> = [];
+
   /**
    * O construtor configura os parâmetros iniciais e inicia o serviço
    * @param options Opções de configuração para o serviço
@@ -284,7 +287,7 @@ export default class RouletteFeedService {
         // que a aplicação funcione com dados mockados ou em cache
         
         // Registrar ouvintes para eventos do serviço global
-        this.registerGlobalEventListeners();
+        this.registerGlobalEventHandlers();
         
         // Iniciar o monitoramento de saúde do serviço
         this.startHealthMonitoring();
@@ -1676,78 +1679,68 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Registra ouvintes para eventos globais relacionados às roletas
-   * Esta função centraliza o registro de todos os event listeners necessários
+   * Registra manipuladores para eventos globais
    */
-  private registerGlobalEventListeners(): void {
-    logger.info('Registrando ouvintes para eventos globais');
-    
-    // Ouvinte para atualizações globais de dados
-    const globalDataUpdateHandler = () => {
-      logger.info('Recebida atualização do serviço global de roletas');
-      this.fetchLatestData();
-    };
-    
-    // Inscrever no serviço global se disponível
+  private registerGlobalEventHandlers(): void {
+    // Registrar manipulador para eventos do globalRouletteDataService
     if (typeof globalRouletteDataService !== 'undefined') {
       try {
-        globalRouletteDataService.subscribe('RouletteFeedService', globalDataUpdateHandler);
+        // Usar o EventService para escutar eventos de atualização de dados
+        const globalDataUpdateHandler = () => {
+          logger.debug('Recebendo atualização do serviço de dados global');
+          // Buscar dados mais recentes quando o serviço central atualizar
+          this.fetchLatestData();
+        };
+        
+        // Registrar no EventService
+        EventService.on('roulette:data-updated', globalDataUpdateHandler);
+        
+        // Registrar na lista de limpeza para desmontar
+        this.cleanupHandlers.push(() => {
+          EventService.off('roulette:data-updated', globalDataUpdateHandler);
+        });
+        
+        logger.info('Registrado manipulador de eventos para o serviço global de dados');
       } catch (error) {
-        logger.warn('Não foi possível registrar no globalRouletteDataService:', error);
+        logger.warn('Não foi possível registrar no EventService:', error);
       }
     }
+  }
+
+  /**
+   * Limpa todos os recursos ao destruir o serviço
+   */
+  public dispose(): void {
+    logger.info('💤 Liberando recursos do RouletteFeedService');
     
-    // Ouvinte para mudanças na visibilidade da página
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    // Limpar timers
+    if (this.pollingTimer) {
+      window.clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
     }
     
-    // Ouvinte para quando novos números são recebidos
-    EventService.on('roulette:new-number', (event) => {
-      logger.debug('Novo número recebido via evento:', event);
-      // Atualizar o cache com o novo número
-      if (event && event.roleta_id) {
-        this.updateCacheWithNewNumber(event);
+    if (this.syncUpdateTimer) {
+      window.clearInterval(this.syncUpdateTimer);
+      this.syncUpdateTimer = null;
+    }
+    
+    // Remover listeners de eventos
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    }
+    
+    // Executar todos os manipuladores de limpeza registrados
+    this.cleanupHandlers.forEach(handler => {
+      try {
+        handler();
+      } catch (error) {
+        logger.error('Erro ao executar manipulador de limpeza:', error);
       }
     });
     
-    logger.info('Ouvintes de eventos globais registrados');
-  }
-
-  /**
-   * Atualiza o cache com um novo número recebido via evento
-   */
-  private updateCacheWithNewNumber(event: any): void {
-    // Verificar se temos a roleta no cache
-    const roletaId = event.roleta_id;
-    if (!roletaId || !this.roulettes[roletaId]) return;
+    // Limpar a lista de manipuladores
+    this.cleanupHandlers = [];
     
-    // Criar o objeto do novo número
-    const newNumber = {
-      numero: event.numero,
-      cor: this.determinarCorNumero(event.numero),
-      timestamp: event.timestamp || new Date().toISOString()
-    };
-    
-    // Adicionar o novo número ao início do array
-    const roleta = this.roulettes[roletaId];
-    if (!roleta.numero) roleta.numero = [];
-    
-    // Adicionar no início (mais recente)
-    roleta.numero.unshift(newNumber);
-    
-    // Notificar os assinantes sobre a atualização
-    this.notifyDataUpdate();
-  }
-
-  /**
-   * Função auxiliar para determinar a cor de um número
-   */
-  private determinarCorNumero(numero: number): string {
-    if (numero === 0) return 'verde';
-    
-    // Números vermelhos na roleta europeia
-    const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
+    logger.info('✓ RouletteFeedService encerrado e recursos liberados');
   }
 } 

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useRouletteSettingsStore } from '@/stores/rouletteSettingsStore';
 import { cn } from '@/lib/utils';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
+import EventService from '@/services/EventService';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -18,71 +19,6 @@ const debugLog = (...args: any[]) => {
     console.log(...args);
   }
 };
-
-// Modificando a classe GlobalRouletteDataManager para usar o serviço global
-class GlobalRouletteDataManager {
-  private static instance: GlobalRouletteDataManager | null = null;
-  private updateCallbacks: Map<string, (data: any) => void> = new Map();
-  private initialDataLoaded: boolean = false;
-  
-  private constructor() {
-    console.log('[RouletteCard] Inicializando gerenciador de dados');
-  }
-  
-  public static getInstance(): GlobalRouletteDataManager {
-    if (!GlobalRouletteDataManager.instance) {
-      GlobalRouletteDataManager.instance = new GlobalRouletteDataManager();
-    }
-    return GlobalRouletteDataManager.instance;
-  }
-  
-  public subscribe(id: string, callback: (data: any) => void): () => void {
-    console.log(`[RouletteCard] Novo assinante registrado: ${id}`);
-    this.updateCallbacks.set(id, callback);
-    
-    // Usar o globalRouletteDataService para obter dados
-    const currentData = globalRouletteDataService.getAllRoulettes();
-    
-    // Se já temos dados, notificar imediatamente
-    if (currentData && currentData.length > 0) {
-      callback(currentData);
-      this.initialDataLoaded = true;
-    } else {
-      // Forçar uma atualização usando o serviço global
-      globalRouletteDataService.forceUpdate();
-    }
-    
-    // Registrar callback no serviço global para receber atualizações
-    globalRouletteDataService.subscribe(id, () => {
-      const rouletteData = globalRouletteDataService.getAllRoulettes();
-      if (rouletteData && rouletteData.length > 0) {
-        callback(rouletteData);
-      }
-    });
-    
-    // Retornar função para cancelar inscrição
-    return () => {
-      this.updateCallbacks.delete(id);
-      globalRouletteDataService.unsubscribe(id);
-      console.log(`[RouletteCard] Assinante removido: ${id}`);
-    };
-  }
-
-  // Obter dados mais recentes (sem garantia de atualização)
-  public getData(): any[] {
-    return globalRouletteDataService.getAllRoulettes();
-  }
-  
-  // Obter timestamp da última atualização
-  public getLastUpdateTime(): number {
-    return Date.now(); // Usar o timestamp atual como fallback
-  }
-
-  // Verificar se os dados iniciais foram carregados
-  public isInitialized(): boolean {
-    return this.initialDataLoaded;
-  }
-}
 
 interface RouletteCardProps {
   data: RouletteData;
@@ -124,12 +60,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   // ID único para este componente
   const componentId = useRef(`roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`).current;
   
-  // Referência ao gerenciador global
-  const dataManager = useMemo(() => GlobalRouletteDataManager.getInstance(), []);
-  
   // Função para lidar com atualizações de dados
-  const handleDataUpdate = useCallback((allRoulettes: any[]) => {
-    if (!allRoulettes || !Array.isArray(allRoulettes) || allRoulettes.length === 0) return;
+  const handleDataUpdate = useCallback(() => {
+    debugLog(`[${componentId}] Recebida atualização via EventService`);
+    
+    // Obter todos os dados das roletas do serviço global
+    const allRoulettes = globalRouletteDataService.getAllRoulettes();
+    
+    if (!allRoulettes || !Array.isArray(allRoulettes) || allRoulettes.length === 0) {
+      debugLog(`[${componentId}] Sem dados ou dados inválidos recebidos`);
+      return;
+    }
     
     // Armazenar todas as roletas
     setAllRoulettesData(allRoulettes);
@@ -144,8 +85,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     
     if (!myRoulette) {
       console.warn(`[${componentId}] Roleta com ID ${safeData.id} não encontrada na resposta`);
-        return;
-      }
+      return;
+    }
       
     // Salvar dados brutos para uso posterior
     setRawRouletteData(myRoulette);
@@ -154,35 +95,41 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     processApiData(myRoulette);
         
     // Atualizar timestamp e contador
-        setLastUpdateTime(Date.now());
-        setUpdateCount(prev => prev + 1);
+    setLastUpdateTime(Date.now());
+    setUpdateCount(prev => prev + 1);
     setError(null);
     setLoading(false);
-  }, [safeData.id, safeData.name]);
+  }, [safeData.id, safeData.name, componentId]);
   
-  // Efeito para iniciar a busca de dados
+  // Efeito para iniciar a escuta de eventos de atualização
   useEffect(() => {
-    // Configurar loading inicial
+    // Inicializar como carregando
     setLoading(true);
     
-    // Assinar atualizações do gerenciador global
-    const unsubscribe = dataManager.subscribe(componentId, handleDataUpdate);
+    debugLog(`[${componentId}] Iniciando escuta de eventos para ${safeData.name}`);
     
-    // Limpar inscrição ao desmontar o componente
+    // Registrar no EventService para receber atualizações
+    EventService.on('roulette:data-updated', handleDataUpdate);
+    
+    // Executar a função de atualização logo ao montar
+    // para processar os dados iniciais
+    handleDataUpdate();
+    
+    // Limpar ao desmontar o componente
     return () => {
-      unsubscribe();
+      debugLog(`[${componentId}] Removendo ouvinte de eventos para ${safeData.name}`);
+      EventService.off('roulette:data-updated', handleDataUpdate);
       
-      // Certificar-se de limpar qualquer outro recurso de requisição
+      // Remover qualquer timer pendente
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [dataManager, componentId, handleDataUpdate]);
+  }, [safeData.name, handleDataUpdate, componentId]);
   
-  // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
-  // Console.log para verificar se há apenas uma fonte de requisições:
-  console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas GlobalRouletteDataManager para obter dados da API.');
+  // Console.log para verificação
+  console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas EventService para receber atualizações de dados.');
   
   // Função para verificar e processar números novos da API
   const processApiData = (apiRoulette: any) => {
