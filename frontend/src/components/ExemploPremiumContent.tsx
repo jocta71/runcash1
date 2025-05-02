@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { usePremiumContent } from '@/hooks/usePremiumContent';
-import { useSubscription } from '@/context/SubscriptionContext';
+import { useSubscription } from '@/hooks/useSubscription';
 import PremiumContent from './PremiumContent';
 import BlurredPremiumContent from './BlurredPremiumContent';
 import { PlanType } from '@/types/plans';

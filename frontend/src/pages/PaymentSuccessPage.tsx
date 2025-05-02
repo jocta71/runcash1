@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from '@/context/AuthContext';
 import { useLoginModal } from '@/context/LoginModalContext';
+import { useSubscription } from '@/hooks/useSubscription';
 
 /**
  * Página de sucesso após confirmação do pagamento

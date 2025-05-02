@@ -20,7 +20,7 @@ import {
   checkPaymentStatus,
   SubscriptionResponse
 } from '@/integrations/asaas/client';
-import { useSubscription } from '@/context/SubscriptionContext';
+import { useSubscription } from '@/hooks/useSubscription';
 
 
 

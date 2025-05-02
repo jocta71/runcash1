@@ -1,5 +1,5 @@
 import React, { ReactNode, useState } from 'react';
-import { useSubscription } from '@/context/SubscriptionContext';
+import { useSubscription } from '@/hooks/useSubscription';
 import { LockKeyhole, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 

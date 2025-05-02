@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSubscription } from '@/context/SubscriptionContext';
+import { useSubscription } from '@/hooks/useSubscription';
 import { Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';

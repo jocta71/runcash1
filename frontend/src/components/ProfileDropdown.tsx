@@ -15,7 +15,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useSubscription } from "@/context/SubscriptionContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 

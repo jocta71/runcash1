@@ -1,5 +1,5 @@
 import React from 'react';
-import { useSubscription } from '@/context/SubscriptionContext';
+import { useSubscription } from '@/hooks/useSubscription';
 import { LockKeyhole } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 

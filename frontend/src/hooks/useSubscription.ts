@@ -11,7 +11,8 @@ export const useSubscription = () => {
     price: 0,
     interval: 'monthly',
     features: ['Todas as funcionalidades'],
-    allowedFeatures: ['*']
+    allowedFeatures: ['*'],
+    description: 'Acesso a todas as funcionalidades premium'
   };
 
   // Função que sempre retorna true para permitir acesso a todas as features
