@@ -16,7 +16,7 @@ O sistema já possui um endpoint configurado para receber webhooks do Asaas:
 https://seudominio.com/api/webhooks/asaas
 ```
 
-Este endpoint processa eventos como `CHECKOUT_PAID`, `PAYMENT_RECEIVED`, `SUBSCRIPTION_CREATED` e mais.
+Este endpoint processa eventos como `CHECKOUT_PAID`, `PAYMENT_CREATED`, `PAYMENT_RECEIVED`, `SUBSCRIPTION_CREATED` e mais.
 
 ## 2. Configurando o webhook no Asaas
 
@@ -26,8 +26,9 @@ Este endpoint processa eventos como `CHECKOUT_PAID`, `PAYMENT_RECEIVED`, `SUBSCR
 4. Preencha as informações:
    - **URL**: https://seudominio.com/api/webhooks/asaas
    - **Descrição**: Webhooks de Checkout e Pagamentos
-   - **Eventos**: Selecione os eventos desejados:
+   - **Eventos**: Selecione os eventos desejados (é importante marcar todos estes):
      - CHECKOUT_PAID (Checkout pago)
+     - PAYMENT_CREATED (Pagamento criado) **[IMPORTANTE]**
      - PAYMENT_RECEIVED (Pagamento recebido)
      - PAYMENT_CONFIRMED (Pagamento confirmado)
      - SUBSCRIPTION_CREATED (Assinatura criada)
@@ -35,6 +36,8 @@ Este endpoint processa eventos como `CHECKOUT_PAID`, `PAYMENT_RECEIVED`, `SUBSCR
      - SUBSCRIPTION_UPDATED (Assinatura atualizada)
      - SUBSCRIPTION_PAYMENT_CONFIRMED (Pagamento de assinatura confirmado)
 5. Clique em **Salvar**
+
+> **ATENÇÃO**: É fundamental incluir o evento `PAYMENT_CREATED` para que o sistema possa correlacionar corretamente os pagamentos com os checkouts. Atualmente, o Asaas não envia o ID do checkout no evento `PAYMENT_CREATED`, então nosso sistema precisa fazer essa correlação com base no cliente, valor e timestamp.
 
 ## 3. Testando o webhook
 
@@ -61,7 +64,30 @@ Para verificar os logs de webhooks no Asaas:
 1. No painel do Asaas, vá para **Integrações > Log de Webhooks**
 2. Você verá todos os webhooks enviados, seu status e detalhes
 
-## 5. Resolução de Problemas
+Adicionalmente, nosso sistema agora mantém um registro detalhado de cada evento de webhook recebido. Esses registros podem ser consultados no banco de dados na coleção `webhookevents`.
+
+## 5. Como o sistema correlaciona Checkouts, Pagamentos e Assinaturas
+
+Nosso sistema implementa uma lógica de correlação entre checkouts, pagamentos e assinaturas:
+
+1. **Quando um checkout é pago (CHECKOUT_PAID):**
+   - Registramos o checkout como pago
+   - Se houver ID de assinatura, atualizamos ou criamos a assinatura
+   - Se houver ID de pagamento, associamos ao checkout
+
+2. **Quando um pagamento é criado (PAYMENT_CREATED):**
+   - Tentamos localizar um checkout recente do mesmo usuário, com o mesmo valor
+   - Associamos o pagamento a este checkout
+   - Se o checkout tiver uma assinatura, atualizamos a assinatura
+
+3. **Quando um pagamento é confirmado/recebido (PAYMENT_CONFIRMED/PAYMENT_RECEIVED):**
+   - Atualizamos o status do pagamento
+   - Se o pagamento estiver associado a uma assinatura, atualizamos a assinatura para ativa
+   - Se o pagamento estiver associado a um checkout, marcamos o checkout como pago
+
+Esta lógica resolve o problema do Asaas não enviar o ID do checkout no evento PAYMENT_CREATED, permitindo uma correlação confiável mesmo quando múltiplos checkouts são criados.
+
+## 6. Resolução de Problemas
 
 ### Fila de Webhooks Pausada
 
@@ -90,7 +116,7 @@ Se a fila de webhooks estiver pausada no Asaas, pode ser devido a um dos seguint
 2. **Implemente idempotência**: Um mesmo webhook pode ser enviado mais de uma vez em caso de falhas
 3. **Mantenha logs adequados**: Registre todos os webhooks recebidos para facilitar o diagnóstico de problemas
 
-## 6. Eventos Disponíveis
+## 7. Eventos Disponíveis
 
 O Asaas oferece diversos eventos para configuração de webhooks:
 

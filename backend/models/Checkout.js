@@ -1,20 +1,20 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const paymentSchema = new Schema({
+const checkoutSchema = new Schema({
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
     index: true
   },
-  paymentId: {
+  checkoutId: {
     type: String,
     required: true,
     unique: true,
     index: true
   },
-  checkoutId: {
+  paymentId: {
     type: String,
     sparse: true,
     index: true
@@ -28,12 +28,19 @@ const paymentSchema = new Schema({
     type: Number,
     required: true
   },
-  netValue: {
-    type: Number
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    index: true
+  },
+  paidAt: {
+    type: Date,
+    sparse: true,
+    index: true
   },
   status: {
     type: String,
-    enum: ['PENDING', 'RECEIVED', 'CONFIRMED', 'OVERDUE', 'REFUNDED', 'CANCELED'],
+    enum: ['PENDING', 'PAID', 'CANCELED', 'EXPIRED'],
     default: 'PENDING',
     index: true
   },
@@ -42,32 +49,15 @@ const paymentSchema = new Schema({
     enum: ['CREDIT_CARD', 'BOLETO', 'PIX'],
     required: true
   },
-  dueDate: {
-    type: Date,
-    index: true
-  },
-  confirmedDate: {
-    type: Date,
-    sparse: true,
-    index: true
-  },
-  invoiceUrl: {
-    type: String
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-    index: true
-  },
   metadata: {
     type: Object,
     default: {}
   }
 });
 
-// Índice composto para encontrar pagamentos pelo usuário e valor
-paymentSchema.index({ userId: 1, value: 1, createdAt: -1 });
+// Índice composto para encontrar checkouts pelo usuário e valor
+checkoutSchema.index({ userId: 1, value: 1, createdAt: -1 });
 
-const Payment = mongoose.model('Payment', paymentSchema);
+const Checkout = mongoose.model('Checkout', checkoutSchema);
 
-module.exports = Payment; 
+module.exports = Checkout; 
