@@ -92,8 +92,8 @@ export class EventService {
     this.eventListeners = {};
     this.globalEventListeners = {};
     
-    // Verificar assinatura antes de inicializar
-    this.checkSubscriptionBeforeInit();
+    // Usar socket service diretamente em vez de verificar assinatura
+    this.useSocketServiceAsFallback();
     
     // Adicionar listener para visibilidade da página
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
@@ -634,49 +634,6 @@ export class EventService {
           console.error(`[EventService] Erro ao executar callback para ${eventName}:`, error);
         }
       });
-    }
-  }
-
-  // Novo método para verificar assinatura antes de inicialização completa
-  private async checkSubscriptionBeforeInit(): Promise<void> {
-    try {
-      debugLog('[EventService] Verificando assinatura antes de inicializar serviço');
-      
-      // Verificar localmente se o usuário está autenticado
-      const token = localStorage.getItem('auth_token_backup') || Cookies.get('auth_token');
-      
-      if (!token) {
-        debugLog('[EventService] Usuário não autenticado, usando modo limitado');
-        this.useSocketServiceWithLimits();
-        return;
-      }
-      
-      // Verificar com o backend se o usuário tem plano
-      const API_URL = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${API_URL}/subscription/status`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        debugLog('[EventService] Erro ao verificar assinatura, usando modo limitado');
-        this.useSocketServiceWithLimits();
-        return;
-      }
-      
-      const data = await response.json();
-      
-      if (data.success && data.subscription && data.subscription.status === 'active') {
-        debugLog('[EventService] Usuário com plano ativo, usando serviço completo');
-        this.useSocketServiceAsFallback();
-      } else {
-        debugLog('[EventService] Usuário sem plano ativo, usando modo limitado');
-        this.useSocketServiceWithLimits();
-      }
-    } catch (error) {
-      debugLog(`[EventService] Erro ao verificar assinatura: ${error}`);
-      this.useSocketServiceWithLimits();
     }
   }
 
