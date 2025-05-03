@@ -71,7 +71,38 @@ def get_roulettes():
         "message": "Esta rota foi desativada por razões de segurança.",
         "code": "ROUTE_DISABLED",
         "requestId": request_id,
-        "alternativeEndpoints": ["/api/roletas", "/api/ROULETTES"],
+        "alternativeEndpoints": ["/api/roletas"],
+        "timestamp": datetime.now().isoformat()
+    })
+    
+    # Configurar cabeçalhos CORS explicitamente para esta resposta
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+    response.status_code = 403
+    
+    return response
+
+@app.route('/api/ROULETTES', methods=['GET'])
+def get_roulettes_uppercase():
+    """Rota desativada (versão maiúscula) - Retorna 403 Forbidden por questões de segurança"""
+    # Gerar um ID único para rastreamento nos logs
+    request_id = str(uuid.uuid4())
+    
+    # Registrar tentativa de acesso à rota bloqueada
+    logger.warning(f"[FIREWALL {request_id}] Bloqueando acesso à rota desativada: /api/ROULETTES")
+    logger.warning(f"[FIREWALL {request_id}] Headers: {request.headers}")
+    logger.warning(f"[FIREWALL {request_id}] IP: {request.remote_addr}")
+    logger.warning(f"[FIREWALL {request_id}] User-Agent: {request.user_agent}")
+    logger.warning(f"[FIREWALL {request_id}] Timestamp: {datetime.now().isoformat()}")
+    
+    # Retornar resposta 403 Forbidden com mensagem clara
+    response = jsonify({
+        "success": False,
+        "message": "Esta rota foi desativada por razões de segurança.",
+        "code": "ROUTE_DISABLED",
+        "requestId": request_id,
+        "alternativeEndpoints": ["/api/roletas"],
         "timestamp": datetime.now().isoformat()
     })
     

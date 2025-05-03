@@ -39,14 +39,20 @@ const app = express();
 app.use((req, res, next) => {
   // Verificar se o caminho é exatamente /api/roulettes (completo ou normalizado)
   const path = req.originalUrl || req.url;
+  const pathLower = path.toLowerCase();
   
-  if (path === '/api/roulettes' || path === '/api/roulettes/' ||
-      path.toLowerCase() === '/api/roulettes' || path.toLowerCase() === '/api/roulettes/') {
+  // Verificar todas as variações possíveis da rota (case insensitive)
+  if (pathLower === '/api/roulettes' || 
+      pathLower === '/api/roulettes/' ||
+      pathLower.startsWith('/api/roulettes?') ||
+      path === '/api/ROULETTES' ||
+      path === '/api/ROULETTES/' ||
+      path.startsWith('/api/ROULETTES?')) {
     // Gerar ID único para rastreamento do log
     const requestId = crypto.randomUUID();
     
     // Registrar tentativa de acesso à rota bloqueada com detalhes máximos
-    console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO ABSOLUTO: Acesso à rota desativada /api/roulettes`);
+    console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO ABSOLUTO: Acesso à rota desativada ${path}`);
     console.log(`[FIREWALL ROOT ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
     console.log(`[FIREWALL ROOT ${requestId}] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress}`);
     console.log(`[FIREWALL ROOT ${requestId}] User-Agent: ${req.headers['user-agent']}`);
@@ -65,8 +71,7 @@ app.use((req, res, next) => {
       code: 'ROOT_FIREWALL_BLOCK',
       requestId: requestId,
       alternativeEndpoints: [
-        '/api/roletas',
-        '/api/ROULETTES'
+        '/api/roletas'
       ],
       timestamp: new Date().toISOString()
     });
