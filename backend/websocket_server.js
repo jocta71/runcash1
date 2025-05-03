@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const jwt = require('jsonwebtoken'); // Adicionado para corrigir o problema de autenticação WebSocket
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -13,6 +14,7 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
+const JWT_SECRET = process.env.JWT_SECRET || 'runcashh_secret_key'; // Definido globalmente para uso consistente
 
 // Informações de configuração
 console.log('==== Configuração do Servidor WebSocket ====');
@@ -20,6 +22,7 @@ console.log(`PORT: ${PORT}`);
 console.log(`MONGODB_URI: ${MONGODB_URI ? MONGODB_URI.replace(/:.*@/, ':****@') : 'Não definida'}`);
 console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
 console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
+console.log(`JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'}`);
 
 // Inicializar Express
 const app = express();
@@ -357,6 +360,9 @@ const io = new Server(server, {
   connectTimeout: 45000 // Aumentar tempo limite de conexão
 });
 
+// Verificar se o middleware de autenticação está sendo registrado corretamente
+console.log('[Socket.IO] Registrando middleware de autenticação JWT...');
+
 // Adicionar middleware de autenticação global para todas as conexões Socket.io
 io.use((socket, next) => {
   try {
@@ -367,14 +373,14 @@ io.use((socket, next) => {
       return next(new Error('Autenticação necessária. Token não fornecido.'));
     }
     
-    // Verificar JWT
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'runcashh_secret_key');
+    // Verificar JWT com a constante global JWT_SECRET
+    const decoded = jwt.verify(token, JWT_SECRET);
     
     // Guardar dados do usuário no socket
     socket.user = decoded;
     socket.isAuthenticated = true;
     
-    console.log(`[WebSocket Middleware] Conexão autorizada: ${socket.id} - Usuário: ${decoded.username || decoded.email || 'usuário'}`);
+    console.log(`[WebSocket Middleware] Conexão autorizada: ${socket.id} - Usuário: ${decoded.username || decoded.email || decoded.id || 'usuário'}`);
     return next();
   } catch (error) {
     console.log(`[WebSocket Middleware] Conexão rejeitada: ${socket.id} - Erro: ${error.message}`);
@@ -382,6 +388,7 @@ io.use((socket, next) => {
   }
 });
 
+console.log('[Socket.IO] Middleware de autenticação JWT registrado com sucesso');
 console.log('[Socket.IO] Inicializado com configuração CORS para aceitar todas as origens');
 
 // Status e números das roletas
@@ -629,11 +636,10 @@ app.get('/api/roulettes',
     // Extrair e verificar o token JWT diretamente
     try {
       const token = authHeader.slice(7); // Remove 'Bearer '
-      const jwt = require('jsonwebtoken');
-      const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
+      // Usar a constante global JWT_SECRET em vez de definir localmente
       
       // Verificar token - isto lança erro se inválido
-      const decoded = jwt.verify(token, secret);
+      const decoded = jwt.verify(token, JWT_SECRET);
       
       if (!decoded || !decoded.id) {
         console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
@@ -752,11 +758,10 @@ app.get('/api/ROULETTES',
     // Extrair e verificar o token JWT diretamente
     try {
       const token = authHeader.slice(7); // Remove 'Bearer '
-      const jwt = require('jsonwebtoken');
-      const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
+      // Usar a constante global JWT_SECRET em vez de definir localmente
       
       // Verificar token - isto lança erro se inválido
-      const decoded = jwt.verify(token, secret);
+      const decoded = jwt.verify(token, JWT_SECRET);
       
       if (!decoded || !decoded.id) {
         console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
@@ -1249,47 +1254,34 @@ app.options('/api/ROULETTES/historico', (req, res) => {
 
 // Socket.IO connection handler
 io.on('connection', async (socket) => {
-  // Verificar token de autenticação
-  const token = socket.handshake.query.token || socket.handshake.headers.authorization?.split(' ')[1];
-  console.log(`[WebSocket] Nova tentativa de conexão: ${socket.id}, token: ${token ? 'presente' : 'ausente'}`);
-  
-  if (!token) {
-    console.log(`[WebSocket] Conexão rejeitada: ${socket.id} - Token ausente`);
-    socket.emit('error', { message: 'Autenticação necessária. Token não fornecido.' });
-    return socket.disconnect(true);
+  // Verificar se o socket já foi autenticado pelo middleware
+  if (!socket.isAuthenticated) {
+    console.log(`[WebSocket] Tentativa de uso sem autenticação: ${socket.id}`);
+    socket.emit('error', { message: 'Autenticação necessária para usar este serviço.' });
+    socket.disconnect(true);
+    return;
   }
   
-  // Verificar JWT
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'runcashh_secret_key');
-    console.log(`[WebSocket] Usuário autenticado: ${decoded.username || decoded.email || 'usuário'} (${socket.id})`);
-    
-    // Armazenar informações do usuário no objeto socket
-    socket.user = decoded;
-    socket.isAuthenticated = true;
-    
-    // Enviar dados iniciais para o cliente
-    if (isConnected) {
-      socket.emit('connection_success', { 
-        status: 'connected',
-        user: {
-          username: decoded.username || decoded.email,
-          plan: decoded.userPlan?.type || 'FREE'
-        }
-      });
+  console.log(`[WebSocket] Nova conexão autenticada: ${socket.id}, usuário: ${socket.user.username || socket.user.email || socket.user.id || 'usuário'}`);
+  
+  // Enviar confirmação de conexão com informações do usuário
+  socket.emit('connection_success', { 
+    status: 'connected',
+    user: {
+      username: socket.user.username || socket.user.email || socket.user.id,
+      plan: socket.user.userPlan?.type || 'FREE',
+      id: socket.user.id
+    },
+    socket_id: socket.id,
+    timestamp: new Date().toISOString()
+  });
       
-      // Enviar os últimos números conhecidos para cada roleta
-      socket.emit('initial_data', rouletteStatus);
-      
-      console.log('Enviados dados iniciais para o cliente autenticado');
-    } else {
-      socket.emit('connection_error', { status: 'MongoDB not connected' });
-    }
-    
-  } catch (error) {
-    console.log(`[WebSocket] Conexão rejeitada: ${socket.id} - Token inválido: ${error.message}`);
-    socket.emit('error', { message: 'Token inválido ou expirado. Por favor, autentique-se novamente.' });
-    return socket.disconnect(true);
+  // Enviar os últimos números conhecidos para cada roleta
+  if (isConnected) {
+    socket.emit('initial_data', rouletteStatus);
+    console.log('Enviados dados iniciais para o cliente autenticado');
+  } else {
+    socket.emit('connection_error', { status: 'MongoDB not connected' });
   }
   
   // Subscrever a uma roleta específica
@@ -1643,11 +1635,10 @@ app.use(['/api/roulettes*', '/api/ROULETTES*', '/api/roletas*'], (req, res, next
   // Extrair e verificar o token JWT
   try {
     const token = authHeader.slice(7); // Remove 'Bearer '
-    const jwt = require('jsonwebtoken');
-    const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
+    // Usar a constante global JWT_SECRET em vez de definir localmente
     
     // Verificar token
-    const decoded = jwt.verify(token, secret);
+    const decoded = jwt.verify(token, JWT_SECRET);
     
     if (!decoded || !decoded.id) {
       console.log(`[TRIPLE-CHECK ${requestId}] Falha na verificação tripla: token JWT inválido`);
