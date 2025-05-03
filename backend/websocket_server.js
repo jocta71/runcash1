@@ -103,6 +103,42 @@ app.use(securityEnforcer());
 app.use('/api/simple-auth', simpleAuthRoutes);
 console.log('Rotas de autenticação simplificada configuradas em /api/simple-auth');
 
+// Adicionar um endpoint de health check acessível sem autenticação
+app.get('/api/health', (req, res) => {
+  const requestId = Math.random().toString(36).substring(2, 15);
+  console.log(`[HEALTH ${requestId}] Verificação de saúde da API solicitada`);
+  
+  // Verificar origem da requisição
+  const origin = req.headers.origin || req.headers.referer || 'desconhecida';
+  console.log(`[HEALTH ${requestId}] Origem da requisição: ${origin}`);
+  
+  // Configurar CORS para esta requisição
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Retornar informações úteis para diagnóstico
+  res.json({
+    status: 'online',
+    service: 'RunCash API',
+    environment: process.env.NODE_ENV || 'production',
+    server_time: new Date().toISOString(),
+    request_id: requestId,
+    endpoints: {
+      authentication: '/api/simple-auth/login',
+      protected: '/api/protected',
+      admin: '/api/admin',
+      roulettes: '/api/jwt-roulettes'
+    },
+    cors_enabled: true,
+    headers_received: {
+      origin: req.headers.origin,
+      referer: req.headers.referer,
+      user_agent: req.headers['user-agent']
+    }
+  });
+});
+
 // Exemplo de rota protegida usando o novo middleware de autenticação JWT
 app.get('/api/protected', 
   authenticateToken({ required: true }), 

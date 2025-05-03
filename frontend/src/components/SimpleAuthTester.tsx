@@ -56,8 +56,11 @@ const SimpleAuthTester: React.FC = () => {
     setError(null);
     setMessage(null);
     
+    const apiUrl = `${getApiBaseUrl()}/simple-auth/login`;
+    console.log(`Tentando login em: ${apiUrl}`);
+    
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/simple-auth/login`, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -65,7 +68,9 @@ const SimpleAuthTester: React.FC = () => {
         body: JSON.stringify({ username, password })
       });
       
+      console.log(`Resposta do servidor - Status: ${response.status}`);
       const data: AuthResponse = await response.json();
+      console.log('Dados da resposta:', data);
       
       if (response.ok && data.success && data.token) {
         // Armazenar token e dados do usuário
@@ -117,7 +122,7 @@ const SimpleAuthTester: React.FC = () => {
     setMessage(null);
     
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/protected`, {
+      const response = await fetch(`${getApiBaseUrl()}/protected`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -152,7 +157,7 @@ const SimpleAuthTester: React.FC = () => {
     setMessage(null);
     
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/admin`, {
+      const response = await fetch(`${getApiBaseUrl()}/admin`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -187,7 +192,7 @@ const SimpleAuthTester: React.FC = () => {
     setMessage(null);
     
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/simple-auth/verify`, {
+      const response = await fetch(`${getApiBaseUrl()}/simple-auth/verify`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -226,14 +231,20 @@ const SimpleAuthTester: React.FC = () => {
     setError(null);
     setMessage(null);
     
+    const apiUrl = `${getApiBaseUrl()}/jwt-roulettes`;
+    console.log(`Tentando acessar roletas JWT em: ${apiUrl}`);
+    console.log(`Token de autorização: ${token.substring(0, 20)}...`);
+    
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/jwt-roulettes`, {
+      const response = await fetch(apiUrl, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
+      console.log(`Resposta do servidor - Status: ${response.status}`);
       const data = await response.json();
+      console.log('Dados da resposta:', data);
       
       if (response.ok) {
         setProtectedData(JSON.stringify(data, null, 2));
@@ -243,6 +254,37 @@ const SimpleAuthTester: React.FC = () => {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  /**
+   * Função para verificar o status da API
+   */
+  const checkApiStatus = async () => {
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+    
+    const apiUrl = `${getApiBaseUrl()}/health`;
+    console.log(`Verificando status da API em: ${apiUrl}`);
+    
+    try {
+      const response = await fetch(apiUrl);
+      console.log(`Resposta do servidor - Status: ${response.status}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Dados da resposta:', data);
+        setProtectedData(JSON.stringify(data, null, 2));
+        setMessage('API está online e funcionando corretamente!');
+      } else {
+        setError(`API não respondeu corretamente: HTTP ${response.status}`);
+      }
+    } catch (err) {
+      console.error('Erro ao verificar status da API:', err);
+      setError(err instanceof Error ? err.message : 'Não foi possível conectar à API');
     } finally {
       setLoading(false);
     }
@@ -307,6 +349,22 @@ const SimpleAuthTester: React.FC = () => {
       {/* Exibir mensagens */}
       {error && <div style={errorStyle}>{error}</div>}
       {message && <div style={successStyle}>{message}</div>}
+      
+      {/* Diagnóstico */}
+      <div style={cardStyle}>
+        <h2>Diagnóstico</h2>
+        <div>
+          <p><strong>URL Base da API:</strong> {getApiBaseUrl()}</p>
+          <p><strong>Ambiente:</strong> {import.meta.env.MODE || 'development'}</p>
+          <button 
+            style={buttonStyle} 
+            onClick={checkApiStatus}
+            disabled={loading}
+          >
+            Verificar Status da API
+          </button>
+        </div>
+      </div>
       
       {/* Formulário de login ou informações do usuário */}
       <div style={cardStyle}>
