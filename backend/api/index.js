@@ -77,6 +77,9 @@ apiApp.use('/roulettes/history', rouletteHistoryRouter);
 apiApp.use('/strategies', strategiesRouter);
 apiApp.use('/auth', authRouter);
 
+// Adicionar rota para o webhook do Asaas
+apiApp.use('/asaas-webhook', require('./payment/asaas-webhook'));
+
 // Adicionar mapeamento de nomes para IDs de roletas conhecidas
 const NOME_PARA_ID = {
   "Speed Roulette": "2330046",
