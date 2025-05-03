@@ -127,31 +127,6 @@ module.exports = async (req, res) => {
       payment_data: JSON.stringify(asaasSubscription)
     });
 
-    // Também registrar na coleção userSubscriptions
-    try {
-      // Mapear o tipo de plano para o formato esperado
-      let planType = 'basic';
-      if (planId === 'pro' || planId === 'PRO') planType = 'pro';
-      if (planId === 'premium' || planId === 'PREMIUM') planType = 'premium';
-
-      // Criar registro na userSubscriptions
-      await db.collection('userSubscriptions').insertOne({
-        userId: userId,
-        asaasCustomerId: customerId,
-        asaasSubscriptionId: asaasSubscription.id,
-        status: 'pending',
-        planType: planType.toLowerCase(),
-        nextDueDate: nextDueDate, // Usar a mesma data definida para a assinatura
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-
-      console.log(`[CREATE-SUBSCRIPTION] Registro criado na coleção userSubscriptions para a assinatura ${asaasSubscription.id}`);
-    } catch (error) {
-      console.error(`[CREATE-SUBSCRIPTION] Erro ao criar registro na userSubscriptions: ${error.message}`);
-      // Não interromper o fluxo se houver erro nessa parte
-    }
-
     return res.json({
       success: true,
       subscriptionId: asaasSubscription.id,
