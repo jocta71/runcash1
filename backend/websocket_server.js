@@ -5,6 +5,7 @@ const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const jwt = require('jsonwebtoken'); // Adicionado para corrigir o problema de autenticação WebSocket
+const crypto = require('crypto');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -27,69 +28,33 @@ console.log(`JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'}`);
 // Inicializar Express
 const app = express();
 
-// FIREWALL DE SEGURANÇA: Bloqueio absoluto da rota /api/roulettes
-// Este middleware é executado ANTES de qualquer outro middleware
-// para garantir que a rota seja bloqueada independentemente de outras configurações
+// Middleware para bloquear especificamente a rota /api/roulettes
 app.use((req, res, next) => {
-  // Verificar exatamente se o caminho é /api/roulettes ou /api/roulettes/
-  const path = req.originalUrl || req.url || req.path;
+  const path = req.path.toLowerCase();
   
   if (path === '/api/roulettes' || path === '/api/roulettes/') {
-    // Gerar ID único para rastreamento do log
-    const requestId = Math.random().toString(36).substring(2, 15);
+    // Gerar ID de requisição único para rastreamento
+    const requestId = crypto.randomUUID();
     
-    // Registrar tentativa de acesso à rota bloqueada
-    console.log(`[FIREWALL ${requestId}] 🛑 Bloqueando acesso à rota desativada /api/roulettes`);
-    console.log(`[FIREWALL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
-    console.log(`[FIREWALL ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
+    // Log detalhado do bloqueio
+    console.log(`[FIREWALL] Blocking access to disabled route: ${req.path}`);
+    console.log(`[FIREWALL] Request ID: ${requestId}`);
+    console.log(`[FIREWALL] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[FIREWALL] IP: ${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`);
     
-    // Aplicar cabeçalhos CORS explicitamente
+    // Configurar cabeçalhos CORS para a resposta
     res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Credentials', true);
     
-    // Retornar resposta 403 Forbidden com mensagem clara
+    // Responder com 403 Forbidden
     return res.status(403).json({
       success: false,
-      message: 'Esta rota foi desativada por motivos de segurança',
-      code: 'ENDPOINT_DISABLED',
+      message: 'Esta rota foi desativada por razões de segurança.',
+      code: 'ROUTE_DISABLED',
       requestId: requestId,
-      alternativeEndpoints: [
-        '/api/roletas',
-        '/api/ROULETTES'
-      ],
-      timestamp: new Date().toISOString()
-    });
-  }
-  
-  // Se não for a rota específica, continuar para o próximo middleware
-  next();
-});
-
-// Middleware específico para bloquear APENAS a rota /api/roulettes
-app.use((req, res, next) => {
-  // Verificar se é exatamente a rota que queremos bloquear
-  if (req.path === '/api/roulettes' || req.path === '/api/roulettes/') {
-    const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[FIREWALL ${requestId}] Bloqueando acesso à rota desativada /api/roulettes`);
-    console.log(`[FIREWALL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
-    console.log(`[FIREWALL ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
-    
-    // Aplicar cabeçalhos CORS explicitamente para esta rota
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    
-    // Retornar resposta indicando que a rota foi desativada
-    return res.status(403).json({
-      success: false,
-      message: 'Esta rota foi desativada por motivos de segurança',
-      code: 'ENDPOINT_DISABLED',
-      requestId: requestId,
-      alternativeEndpoints: [
-        '/api/roletas',
-        '/api/ROULETTES'
-      ],
+      alternativeEndpoints: ['/api/roletas', '/api/ROULETTES'],
       timestamp: new Date().toISOString()
     });
   }
