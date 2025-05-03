@@ -1879,3 +1879,305 @@ app.get('/api/jwt-roulettes',
     }
   }
 );
+
+// ===== MODIFICAÇÃO PARA BLOQUEAR ACESSO DIRETO A ENDPOINT DE ROLETAS =====
+// Middleware simplificado para bloqueio absoluto de acesso sem JWT
+const blockDirectAccess = (req, res, next) => {
+  // Gerar ID de requisição para rastreamento
+  const requestId = Math.random().toString(36).substring(2, 15);
+  console.log(`[BLOQUEIO-ABSOLUTO ${requestId}] Verificando acesso a: ${req.originalUrl}`);
+  
+  // Verificar cabeçalho de autorização
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log(`[BLOQUEIO-ABSOLUTO ${requestId}] Acesso bloqueado: Token ausente`);
+    return res.status(401).json({ 
+      error: "Acesso negado - Token JWT ausente", 
+      requestId 
+    });
+  }
+  
+  try {
+    // Extrair e verificar o token
+    const token = authHeader.split(" ")[1];
+    const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
+    const jwt = require('jsonwebtoken');
+    
+    // Verificar se o token é válido - lança erro se inválido
+    const decoded = jwt.verify(token, secret);
+    if (!decoded || !decoded.id) {
+      console.log(`[BLOQUEIO-ABSOLUTO ${requestId}] Acesso bloqueado: Token malformado`);
+      return res.status(403).json({ 
+        error: "Acesso negado - Token JWT inválido", 
+        requestId 
+      });
+    }
+    
+    // Verificar User-Agent para identificar navegadores
+    const userAgent = req.headers['user-agent'] || '';
+    const isDirectBrowserAccess = (
+      userAgent.includes('Mozilla') || 
+      userAgent.includes('Chrome') || 
+      userAgent.includes('Safari') || 
+      userAgent.includes('Firefox') || 
+      userAgent.includes('Edge') ||
+      userAgent.includes('Opera')
+    );
+    
+    // Bloquear acesso direto via navegador (exceto em ambiente de desenvolvimento)
+    if (isDirectBrowserAccess && process.env.NODE_ENV !== 'development') {
+      console.log(`[BLOQUEIO-ABSOLUTO ${requestId}] Acesso bloqueado: Navegador detectado - ${userAgent}`);
+      return res.status(403).json({ 
+        error: "Acesso direto via navegador não permitido", 
+        requestId 
+      });
+    }
+    
+    // Se passar por todas as verificações, permitir o acesso
+    req.user = decoded;
+    console.log(`[BLOQUEIO-ABSOLUTO ${requestId}] Acesso permitido para usuário: ${decoded.id}`);
+    next();
+  } catch (error) {
+    console.log(`[BLOQUEIO-ABSOLUTO ${requestId}] Acesso bloqueado: ${error.message}`);
+    return res.status(403).json({ 
+      error: "Acesso negado - " + error.message, 
+      requestId 
+    });
+  }
+};
+
+// Aplicar o middleware de bloqueio em TODAS as rotas de roletas, sobrepondo configurações anteriores
+// IMPORTANTE: Este middleware será executado ANTES de qualquer rota definida após esta linha
+app.use([
+  '/api/roulettes', 
+  '/api/ROULETTES', 
+  '/api/roletas',
+  '/api/roulettes/*', 
+  '/api/ROULETTES/*', 
+  '/api/roletas/*'
+], blockDirectAccess);
+
+// Redefinir a rota /api/roulettes com uma implementação mais simples
+app.get('/api/roulettes', async (req, res) => {
+  const requestId = Math.random().toString(36).substring(2, 15);
+  console.log(`[API ${requestId}] Requisição autenticada para /api/roulettes`);
+  console.log(`[API ${requestId}] Usuário: ${req.user?.id}`);
+  
+  try {
+    if (!isConnected || !collection) {
+      console.log(`[API ${requestId}] MongoDB não conectado, retornando array vazio`);
+      return res.json([]);
+    }
+    
+    // Obter roletas únicas da coleção
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
+    
+    console.log(`[API ${requestId}] Retornando ${roulettes.length} roletas para usuário ${req.user?.id}`);
+    res.json(roulettes);
+  } catch (error) {
+    console.error(`[API ${requestId}] Erro ao listar roletas:`, error);
+    res.status(500).json({ 
+      error: 'Erro interno ao buscar roletas',
+      message: error.message,
+      requestId: requestId 
+    });
+  }
+});
+
+// Também redefinir a rota em maiúsculas
+app.get('/api/ROULETTES', async (req, res) => {
+  const requestId = Math.random().toString(36).substring(2, 15);
+  console.log(`[API ${requestId}] Requisição autenticada para /api/ROULETTES`);
+  
+  try {
+    if (!isConnected || !collection) {
+      return res.json([]);
+    }
+    
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
+    
+    res.json(roulettes);
+  } catch (error) {
+    console.error(`[API ${requestId}] Erro:`, error);
+    res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+  }
+});
+
+// Adicionar um middleware de verificação de JWT obrigatório para TODAS as rotas de roleta
+// Este middleware será aplicado ANTES de qualquer definição de rota
+app.use([
+  '/api/roulettes*', 
+  '/api/ROULETTES*', 
+  '/api/roletas*'
+], (req, res, next) => {
+  // Se for uma requisição OPTIONS, deixar passar para o handler de CORS
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+  
+  const requestId = Math.random().toString(36).substring(2, 15);
+  console.log(`[BLOQUEIO-JWT ${requestId}] Verificando JWT para: ${req.originalUrl}`);
+  
+  // Verificar se há token de autorização válido
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log(`[BLOQUEIO-JWT ${requestId}] Acesso bloqueado: Token ausente`);
+    
+    // Verificar se é um navegador para retornar resposta apropriada
+    const userAgent = req.headers['user-agent'] || '';
+    const isBrowser = userAgent.includes('Mozilla') || userAgent.includes('Chrome') || 
+                      userAgent.includes('Safari') || userAgent.includes('Firefox');
+    
+    // Se for navegador, retornar página HTML com instruções
+    if (isBrowser) {
+      return res.status(401).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Acesso Negado | API RunCashh</title>
+          <style>
+            body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; }
+            h1 { color: #e53935; }
+            pre { background: #f5f5f5; padding: 1rem; border-radius: 4px; }
+            .info { background: #e3f2fd; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+          </style>
+        </head>
+        <body>
+          <h1>⛔ Acesso Direto Não Permitido</h1>
+          <p>Este endpoint requer autenticação com token JWT válido e não pode ser acessado diretamente pelo navegador.</p>
+          
+          <div class="info">
+            <strong>Detalhes da requisição:</strong>
+            <ul>
+              <li>URL: ${req.originalUrl}</li>
+              <li>Método: ${req.method}</li>
+              <li>ID: ${requestId}</li>
+              <li>Timestamp: ${new Date().toISOString()}</li>
+            </ul>
+          </div>
+          
+          <p>Para acessar este endpoint, você precisa:</p>
+          <ol>
+            <li>Fazer login na aplicação</li>
+            <li>Obter um token JWT válido</li>
+            <li>Incluir o token no cabeçalho Authorization</li>
+          </ol>
+          
+          <p>Exemplo de requisição válida:</p>
+          <pre>
+fetch('${req.protocol}://${req.get('host')}${req.originalUrl}', {
+  headers: {
+    'Authorization': 'Bearer SEU_TOKEN_JWT_AQUI'
+  }
+})
+          </pre>
+        </body>
+        </html>
+      `);
+    }
+    
+    // Se não for navegador, retornar JSON com erro
+    return res.status(401).json({
+      success: false,
+      message: 'Acesso negado - Token de autenticação obrigatório',
+      code: 'JWT_REQUIRED',
+      requestId
+    });
+  }
+  
+  // Verificar a validade do token JWT
+  try {
+    const token = authHeader.slice(7); // Remove 'Bearer '
+    const jwt = require('jsonwebtoken');
+    const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
+    
+    const decoded = jwt.verify(token, secret);
+    
+    if (!decoded || !decoded.id) {
+      console.log(`[BLOQUEIO-JWT ${requestId}] Acesso bloqueado: Token inválido`);
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado - Token inválido ou malformado',
+        code: 'INVALID_JWT',
+        requestId
+      });
+    }
+    
+    // Adicionar dados do usuário à requisição
+    req.user = decoded;
+    console.log(`[BLOQUEIO-JWT ${requestId}] JWT válido para usuário ${decoded.id || decoded.username}`);
+    
+    // Continuar para o próximo middleware
+    next();
+  } catch (error) {
+    console.error(`[BLOQUEIO-JWT ${requestId}] Erro ao verificar JWT: ${error.message}`);
+    return res.status(403).json({
+      success: false,
+      message: `Acesso negado - ${error.message}`,
+      code: 'JWT_ERROR',
+      requestId
+    });
+  }
+});
+
+// NOVA definição para /api/roulettes
+app.get('/api/roulettes', async (req, res) => {
+  const requestId = Math.random().toString(36).substring(2, 15);
+  console.log(`[API ${requestId}] Requisição autenticada para /api/roulettes`);
+  console.log(`[API ${requestId}] Usuário: ${req.user.id}`);
+  
+  // Definir headers anti-cache rigorosos
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('X-No-Cache', Date.now().toString());
+  
+  try {
+    if (!isConnected || !collection) {
+      console.log(`[API ${requestId}] MongoDB não conectado, retornando array vazio`);
+      return res.json([]);
+    }
+    
+    // Obter roletas únicas da coleção
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
+    
+    console.log(`[API ${requestId}] Retornando ${roulettes.length} roletas para usuário ${req.user.id}`);
+    
+    // Adicionar informações para debug
+    return res.json({
+      success: true,
+      requestId,
+      timestamp: new Date().toISOString(),
+      user: {
+        id: req.user.id,
+        username: req.user.username
+      },
+      data: roulettes
+    });
+  } catch (error) {
+    console.error(`[API ${requestId}] Erro ao listar roletas:`, error);
+    return res.status(500).json({ 
+      success: false,
+      error: 'Erro interno ao buscar roletas',
+      message: error.message,
+      requestId
+    });
+  }
+});
+
+// NOVA definição para /api/ROULETTES (maiúsculas para compatibilidade)
+app.get('/api/ROULETTES', (req, res) => {
+  // Simplesmente redirecionar para a rota padrão
+  req.url = '/api/roulettes';
+  app.handle(req, res);
+});
