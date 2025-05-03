@@ -357,6 +357,31 @@ const io = new Server(server, {
   connectTimeout: 45000 // Aumentar tempo limite de conexão
 });
 
+// Adicionar middleware de autenticação global para todas as conexões Socket.io
+io.use((socket, next) => {
+  try {
+    const token = socket.handshake.query.token || socket.handshake.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      console.log(`[WebSocket Middleware] Conexão rejeitada: ${socket.id} - Token ausente`);
+      return next(new Error('Autenticação necessária. Token não fornecido.'));
+    }
+    
+    // Verificar JWT
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'runcashh_secret_key');
+    
+    // Guardar dados do usuário no socket
+    socket.user = decoded;
+    socket.isAuthenticated = true;
+    
+    console.log(`[WebSocket Middleware] Conexão autorizada: ${socket.id} - Usuário: ${decoded.username || decoded.email || 'usuário'}`);
+    return next();
+  } catch (error) {
+    console.log(`[WebSocket Middleware] Conexão rejeitada: ${socket.id} - Erro: ${error.message}`);
+    return next(new Error('Token inválido ou expirado. Por favor, autentique-se novamente.'));
+  }
+});
+
 console.log('[Socket.IO] Inicializado com configuração CORS para aceitar todas as origens');
 
 // Status e números das roletas
@@ -1224,22 +1249,55 @@ app.options('/api/ROULETTES/historico', (req, res) => {
 
 // Socket.IO connection handler
 io.on('connection', async (socket) => {
-  console.log(`Novo cliente conectado: ${socket.id}`);
+  // Verificar token de autenticação
+  const token = socket.handshake.query.token || socket.handshake.headers.authorization?.split(' ')[1];
+  console.log(`[WebSocket] Nova tentativa de conexão: ${socket.id}, token: ${token ? 'presente' : 'ausente'}`);
   
-  // Enviar dados iniciais para o cliente
-  if (isConnected) {
-    socket.emit('connection_success', { status: 'connected' });
+  if (!token) {
+    console.log(`[WebSocket] Conexão rejeitada: ${socket.id} - Token ausente`);
+    socket.emit('error', { message: 'Autenticação necessária. Token não fornecido.' });
+    return socket.disconnect(true);
+  }
+  
+  // Verificar JWT
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'runcashh_secret_key');
+    console.log(`[WebSocket] Usuário autenticado: ${decoded.username || decoded.email || 'usuário'} (${socket.id})`);
     
-    // Enviar os últimos números conhecidos para cada roleta
-    socket.emit('initial_data', rouletteStatus);
+    // Armazenar informações do usuário no objeto socket
+    socket.user = decoded;
+    socket.isAuthenticated = true;
     
-    console.log('Enviados dados iniciais para o cliente');
-  } else {
-    socket.emit('connection_error', { status: 'MongoDB not connected' });
+    // Enviar dados iniciais para o cliente
+    if (isConnected) {
+      socket.emit('connection_success', { 
+        status: 'connected',
+        user: {
+          username: decoded.username || decoded.email,
+          plan: decoded.userPlan?.type || 'FREE'
+        }
+      });
+      
+      // Enviar os últimos números conhecidos para cada roleta
+      socket.emit('initial_data', rouletteStatus);
+      
+      console.log('Enviados dados iniciais para o cliente autenticado');
+    } else {
+      socket.emit('connection_error', { status: 'MongoDB not connected' });
+    }
+    
+  } catch (error) {
+    console.log(`[WebSocket] Conexão rejeitada: ${socket.id} - Token inválido: ${error.message}`);
+    socket.emit('error', { message: 'Token inválido ou expirado. Por favor, autentique-se novamente.' });
+    return socket.disconnect(true);
   }
   
   // Subscrever a uma roleta específica
   socket.on('subscribe', (roletaNome) => {
+    if (!socket.isAuthenticated) {
+      return socket.emit('error', { message: 'Autenticação necessária para se inscrever em uma roleta.' });
+    }
+    
     if (typeof roletaNome === 'string' && roletaNome.trim()) {
       socket.join(roletaNome);
       console.log(`Cliente ${socket.id} subscrito à roleta: ${roletaNome}`);
@@ -1248,6 +1306,10 @@ io.on('connection', async (socket) => {
   
   // Cancelar subscrição a uma roleta específica
   socket.on('unsubscribe', (roletaNome) => {
+    if (!socket.isAuthenticated) {
+      return socket.emit('error', { message: 'Autenticação necessária para cancelar inscrição em uma roleta.' });
+    }
+    
     if (typeof roletaNome === 'string' && roletaNome.trim()) {
       socket.leave(roletaNome);
       console.log(`Cliente ${socket.id} cancelou subscrição à roleta: ${roletaNome}`);
@@ -1256,6 +1318,11 @@ io.on('connection', async (socket) => {
   
   // Handler para novo número
   socket.on('new_number', async (data) => {
+    // Verificar autenticação
+    if (!socket.isAuthenticated) {
+      return socket.emit('error', { message: 'Autenticação necessária para enviar novos números.' });
+    }
+    
     try {
       console.log('[WebSocket] Recebido novo número:', data);
       
@@ -1284,6 +1351,11 @@ io.on('connection', async (socket) => {
   
   // Handler para solicitar histórico completo de uma roleta
   socket.on('request_history', async (data) => {
+    // Verificar autenticação
+    if (!socket.isAuthenticated) {
+      return socket.emit('error', { message: 'Autenticação necessária para solicitar histórico.' });
+    }
+    
     try {
       if (!historyModel) {
         await initializeModels();
