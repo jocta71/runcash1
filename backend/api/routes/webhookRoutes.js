@@ -10,7 +10,7 @@ const dbName = 'runcash';
  * Rota para receber webhooks do Asaas
  * Processa eventos relacionados a assinaturas e atualiza o banco de dados
  */
-router.post('/api/asaas-webhook', async (req, res) => {
+router.post('/asaas-webhook', async (req, res) => {
   console.log('Webhook recebido do Asaas:', req.body);
   
   try {

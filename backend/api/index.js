@@ -77,7 +77,7 @@ apiApp.locals.db = db;
 apiApp.use('/roulettes/history', rouletteHistoryRouter);
 apiApp.use('/strategies', strategiesRouter);
 apiApp.use('/auth', authRouter);
-apiApp.use('/', webhookRouter);
+apiApp.use('/api', webhookRouter);
 
 // Adicionar mapeamento de nomes para IDs de roletas conhecidas
 const NOME_PARA_ID = {
