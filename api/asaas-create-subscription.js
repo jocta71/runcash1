@@ -319,21 +319,21 @@ module.exports = async (req, res) => {
           customer_id: customerId,
           plan_id: planId,
           payment_id: paymentId,
-          status: subscription.status.toLowerCase(), // Usar o status retornado pelo Asaas
-          original_asaas_status: subscription.status, // Manter o status original para referência
+          status: "pending", // Forçando o status inicial como pending
+          original_asaas_status: subscription.status, // Mantendo o status original para referência
           billing_type: billingType,
           value: subscriptionValue, // Usar o valor oficial
           created_at: new Date(),
           status_history: [
             {
-              status: subscription.status.toLowerCase(),
+              status: "pending",
               timestamp: new Date(),
               source: "initial_creation"
             }
           ]
         });
         
-        console.log(`Assinatura registrada no MongoDB com status ${subscription.status.toLowerCase()} (original: ${subscription.status})`);
+        console.log('Assinatura registrada no MongoDB com status inicial "pending"');
       } catch (dbError) {
         console.error('Erro ao registrar assinatura no MongoDB:', dbError.message);
       }
