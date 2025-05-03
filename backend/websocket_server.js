@@ -25,28 +25,30 @@ console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
 console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 console.log(`JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'}`);
 
-// Inicializar Express
+// Criar aplicação Express
 const app = express();
 
-// Middleware para bloquear especificamente a rota /api/roulettes
+// Middleware para bloquear explicitamente a rota /api/roulettes
 app.use((req, res, next) => {
-  const path = req.path.toLowerCase();
-  
-  if (path === '/api/roulettes' || path === '/api/roulettes/') {
+  // Verificar se a requisição é para a rota /api/roulettes
+  if (req.path.toLowerCase() === '/api/roulettes' || req.path.toLowerCase() === '/api/roulettes/') {
     // Gerar ID de requisição único para rastreamento
     const requestId = crypto.randomUUID();
     
     // Log detalhado do bloqueio
-    console.log(`[FIREWALL] Blocking access to disabled route: ${req.path}`);
+    console.log(`[FIREWALL] Bloqueando acesso à rota desativada: ${req.path}`);
     console.log(`[FIREWALL] Request ID: ${requestId}`);
+    console.log(`[FIREWALL] Method: ${req.method}`);
     console.log(`[FIREWALL] Headers: ${JSON.stringify(req.headers)}`);
-    console.log(`[FIREWALL] IP: ${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`);
+    console.log(`[FIREWALL] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown'}`);
+    console.log(`[FIREWALL] User-Agent: ${req.headers['user-agent'] || 'unknown'}`);
+    console.log(`[FIREWALL] Timestamp: ${new Date().toISOString()}`);
     
     // Configurar cabeçalhos CORS para a resposta
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Credentials', true);
+    res.header('Access-Control-Allow-Credentials', 'true');
     
     // Responder com 403 Forbidden
     return res.status(403).json({
@@ -59,8 +61,12 @@ app.use((req, res, next) => {
     });
   }
   
+  // Se não for a rota bloqueada, continuar para o próximo middleware
   next();
 });
+
+// Configurar middleware CORS
+app.use(cors());
 
 // Importar middlewares
 const { verifyTokenAndSubscription, requireResourceAccess } = require('./middlewares/asaasAuthMiddleware');
@@ -89,7 +95,6 @@ console.log('✅ Proteção absoluta contra acesso via navegador ativada');
 
 // Middlewares globais
 app.use(express.json());
-app.use(cors());
 app.use(requestLogger()); // Middleware de log
 
 // Aplicar proteção avançada (rate limiting, verificação de token, etc)

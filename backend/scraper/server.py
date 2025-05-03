@@ -54,9 +54,38 @@ def get_roletas():
 
 @app.route('/api/roulettes', methods=['GET'])
 def get_roulettes():
-    """Returns the list of available roulettes from MongoDB"""
-    roulettes = data_source.db.roletas.find({}, {'_id': 0})
-    return jsonify(list(roulettes))
+    """Desativado - retorna 403 Forbidden por razões de segurança"""
+    # Gerar ID único para rastreamento da requisição
+    request_id = str(uuid.uuid4())
+    
+    # Log detalhado da tentativa de acesso
+    print(f"[FIREWALL] Bloqueando acesso à rota desativada: /api/roulettes")
+    print(f"[FIREWALL] Request ID: {request_id}")
+    print(f"[FIREWALL] Method: {request.method}")
+    print(f"[FIREWALL] Headers: {json.dumps(dict(request.headers))}")
+    print(f"[FIREWALL] IP: {request.remote_addr}")
+    print(f"[FIREWALL] User-Agent: {request.headers.get('User-Agent', 'unknown')}")
+    print(f"[FIREWALL] Timestamp: {datetime.now().isoformat()}")
+    
+    # Responder com status 403 Forbidden
+    response = {
+        "success": False,
+        "message": "Esta rota foi desativada por razões de segurança.",
+        "code": "ROUTE_DISABLED",
+        "requestId": request_id,
+        "alternativeEndpoints": ["/api/roletas", "/api/ROULETTES"],
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Adicionar cabeçalhos CORS
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+    }
+    
+    # Retornar resposta 403 com cabeçalhos CORS
+    return jsonify(response), 403, headers
 
 @app.route('/api/roletas/<roleta_id>', methods=['GET'])
 def get_roleta(roleta_id):
