@@ -54,38 +54,34 @@ def get_roletas():
 
 @app.route('/api/roulettes', methods=['GET'])
 def get_roulettes():
-    """Desativado - retorna 403 Forbidden por razões de segurança"""
-    # Gerar ID único para rastreamento da requisição
+    """Rota desativada - Retorna 403 Forbidden por questões de segurança"""
+    # Gerar um ID único para rastreamento nos logs
     request_id = str(uuid.uuid4())
     
-    # Log detalhado da tentativa de acesso
-    print(f"[FIREWALL] Bloqueando acesso à rota desativada: /api/roulettes")
-    print(f"[FIREWALL] Request ID: {request_id}")
-    print(f"[FIREWALL] Method: {request.method}")
-    print(f"[FIREWALL] Headers: {json.dumps(dict(request.headers))}")
-    print(f"[FIREWALL] IP: {request.remote_addr}")
-    print(f"[FIREWALL] User-Agent: {request.headers.get('User-Agent', 'unknown')}")
-    print(f"[FIREWALL] Timestamp: {datetime.now().isoformat()}")
+    # Registrar tentativa de acesso à rota bloqueada
+    logger.warning(f"[FIREWALL {request_id}] Bloqueando acesso à rota desativada: /api/roulettes")
+    logger.warning(f"[FIREWALL {request_id}] Headers: {request.headers}")
+    logger.warning(f"[FIREWALL {request_id}] IP: {request.remote_addr}")
+    logger.warning(f"[FIREWALL {request_id}] User-Agent: {request.user_agent}")
+    logger.warning(f"[FIREWALL {request_id}] Timestamp: {datetime.now().isoformat()}")
     
-    # Responder com status 403 Forbidden
-    response = {
+    # Retornar resposta 403 Forbidden com mensagem clara
+    response = jsonify({
         "success": False,
         "message": "Esta rota foi desativada por razões de segurança.",
         "code": "ROUTE_DISABLED",
         "requestId": request_id,
         "alternativeEndpoints": ["/api/roletas", "/api/ROULETTES"],
         "timestamp": datetime.now().isoformat()
-    }
+    })
     
-    # Adicionar cabeçalhos CORS
-    headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization'
-    }
+    # Configurar cabeçalhos CORS explicitamente para esta resposta
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+    response.status_code = 403
     
-    # Retornar resposta 403 com cabeçalhos CORS
-    return jsonify(response), 403, headers
+    return response
 
 @app.route('/api/roletas/<roleta_id>', methods=['GET'])
 def get_roleta(roleta_id):

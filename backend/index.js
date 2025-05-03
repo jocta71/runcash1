@@ -9,6 +9,7 @@ const cors = require('cors');
 const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
+const crypto = require('crypto');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -32,6 +33,48 @@ try {
 
 // Inicializar Express para a API principal
 const app = express();
+
+// FIREWALL ABSOLUTO NA RAIZ DO SERVIDOR: Bloqueio absoluto da rota /api/roulettes 
+// Este middleware é executado ANTES de qualquer outra configuração
+app.use((req, res, next) => {
+  // Verificar se o caminho é exatamente /api/roulettes (completo ou normalizado)
+  const path = req.originalUrl || req.url;
+  
+  if (path === '/api/roulettes' || path === '/api/roulettes/' ||
+      path.toLowerCase() === '/api/roulettes' || path.toLowerCase() === '/api/roulettes/') {
+    // Gerar ID único para rastreamento do log
+    const requestId = crypto.randomUUID();
+    
+    // Registrar tentativa de acesso à rota bloqueada com detalhes máximos
+    console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO ABSOLUTO: Acesso à rota desativada /api/roulettes`);
+    console.log(`[FIREWALL ROOT ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[FIREWALL ROOT ${requestId}] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress}`);
+    console.log(`[FIREWALL ROOT ${requestId}] User-Agent: ${req.headers['user-agent']}`);
+    console.log(`[FIREWALL ROOT ${requestId}] Timestamp: ${new Date().toISOString()}`);
+    
+    // Aplicar cabeçalhos CORS explicitamente
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    // Retornar resposta 403 Forbidden com detalhes
+    return res.status(403).json({
+      success: false,
+      message: 'Esta rota foi desativada por motivos de segurança.',
+      code: 'ROOT_FIREWALL_BLOCK',
+      requestId: requestId,
+      alternativeEndpoints: [
+        '/api/roletas',
+        '/api/ROULETTES'
+      ],
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  // Se não for a rota específica, continuar para o próximo middleware
+  next();
+});
 
 // Middlewares básicos
 app.use(cors({

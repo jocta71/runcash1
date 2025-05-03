@@ -5,7 +5,6 @@ const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const jwt = require('jsonwebtoken'); // Adicionado para corrigir o problema de autenticação WebSocket
-const crypto = require('crypto');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -25,48 +24,78 @@ console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
 console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 console.log(`JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'}`);
 
-// Criar aplicação Express
+// Inicializar Express
 const app = express();
 
-// Middleware para bloquear explicitamente a rota /api/roulettes
+// FIREWALL DE SEGURANÇA: Bloqueio absoluto da rota /api/roulettes
+// Este middleware é executado ANTES de qualquer outro middleware
+// para garantir que a rota seja bloqueada independentemente de outras configurações
 app.use((req, res, next) => {
-  // Verificar se a requisição é para a rota /api/roulettes
-  if (req.path.toLowerCase() === '/api/roulettes' || req.path.toLowerCase() === '/api/roulettes/') {
-    // Gerar ID de requisição único para rastreamento
-    const requestId = crypto.randomUUID();
+  // Verificar exatamente se o caminho é /api/roulettes ou /api/roulettes/
+  const path = req.originalUrl || req.url || req.path;
+  
+  if (path === '/api/roulettes' || path === '/api/roulettes/') {
+    // Gerar ID único para rastreamento do log
+  const requestId = Math.random().toString(36).substring(2, 15);
+  
+    // Registrar tentativa de acesso à rota bloqueada
+    console.log(`[FIREWALL ${requestId}] 🛑 Bloqueando acesso à rota desativada /api/roulettes`);
+    console.log(`[FIREWALL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[FIREWALL ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
     
-    // Log detalhado do bloqueio
-    console.log(`[FIREWALL] Bloqueando acesso à rota desativada: ${req.path}`);
-    console.log(`[FIREWALL] Request ID: ${requestId}`);
-    console.log(`[FIREWALL] Method: ${req.method}`);
-    console.log(`[FIREWALL] Headers: ${JSON.stringify(req.headers)}`);
-    console.log(`[FIREWALL] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown'}`);
-    console.log(`[FIREWALL] User-Agent: ${req.headers['user-agent'] || 'unknown'}`);
-    console.log(`[FIREWALL] Timestamp: ${new Date().toISOString()}`);
-    
-    // Configurar cabeçalhos CORS para a resposta
+    // Aplicar cabeçalhos CORS explicitamente
     res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Credentials', 'true');
     
-    // Responder com 403 Forbidden
+    // Retornar resposta 403 Forbidden com mensagem clara
     return res.status(403).json({
       success: false,
-      message: 'Esta rota foi desativada por razões de segurança.',
-      code: 'ROUTE_DISABLED',
+      message: 'Esta rota foi desativada por motivos de segurança',
+      code: 'ENDPOINT_DISABLED',
       requestId: requestId,
-      alternativeEndpoints: ['/api/roletas', '/api/ROULETTES'],
+      alternativeEndpoints: [
+        '/api/roletas',
+        '/api/ROULETTES'
+      ],
       timestamp: new Date().toISOString()
     });
   }
   
-  // Se não for a rota bloqueada, continuar para o próximo middleware
+  // Se não for a rota específica, continuar para o próximo middleware
   next();
 });
 
-// Configurar middleware CORS
-app.use(cors());
+// Middleware específico para bloquear APENAS a rota /api/roulettes
+app.use((req, res, next) => {
+  // Verificar se é exatamente a rota que queremos bloquear
+  if (req.path === '/api/roulettes' || req.path === '/api/roulettes/') {
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[FIREWALL ${requestId}] Bloqueando acesso à rota desativada /api/roulettes`);
+    console.log(`[FIREWALL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[FIREWALL ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
+    
+    // Aplicar cabeçalhos CORS explicitamente para esta rota
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    
+    // Retornar resposta indicando que a rota foi desativada
+    return res.status(403).json({
+      success: false,
+      message: 'Esta rota foi desativada por motivos de segurança',
+      code: 'ENDPOINT_DISABLED',
+      requestId: requestId,
+      alternativeEndpoints: [
+        '/api/roletas',
+        '/api/ROULETTES'
+      ],
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  next();
+});
 
 // Importar middlewares
 const { verifyTokenAndSubscription, requireResourceAccess } = require('./middlewares/asaasAuthMiddleware');
@@ -95,6 +124,7 @@ console.log('✅ Proteção absoluta contra acesso via navegador ativada');
 
 // Middlewares globais
 app.use(express.json());
+app.use(cors());
 app.use(requestLogger()); // Middleware de log
 
 // Aplicar proteção avançada (rate limiting, verificação de token, etc)
@@ -612,11 +642,11 @@ app.get('/api/status', (req, res) => {
 // Definição específica da rota /api/roulettes para garantir que retorne 403
 app.get('/api/roulettes', (req, res) => {
   // Gerar ID único para rastreamento do log
-  const requestId = Math.random().toString(36).substring(2, 15);
+    const requestId = Math.random().toString(36).substring(2, 15);
   
   // Registrar tentativa de acesso à rota bloqueada
   console.log(`[API ${requestId}] Bloqueando acesso à rota desativada /api/roulettes`);
-  console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
   console.log(`[API ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
   
   // Aplicar cabeçalhos CORS explicitamente
@@ -625,11 +655,11 @@ app.get('/api/roulettes', (req, res) => {
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
   // Retornar resposta 403 Forbidden com mensagem clara
-  return res.status(403).json({
-    success: false,
+        return res.status(403).json({
+          success: false,
     message: 'Esta rota foi desativada por motivos de segurança',
     code: 'ENDPOINT_DISABLED',
-    requestId: requestId,
+          requestId: requestId,
     alternativeEndpoints: [
       '/api/roletas',
       '/api/ROULETTES'
@@ -873,45 +903,45 @@ app.get('/api/numbers/byid/:roletaId',
     console.log(`[ULTRA-SECURE ${requestId}] Validação bruta no endpoint /api/numbers/byid/:roletaId`);
     
     // Verificar se há token de autorização
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Sem token de autorização válido`);
-      return res.status(401).json({
-        success: false,
+    return res.status(401).json({
+      success: false,
         message: 'Acesso negado - Token de autenticação obrigatório',
         code: 'ENDPOINT_LEVEL_BLOCK',
+      requestId
+    });
+  }
+  
+    // Extrair e verificar o token JWT diretamente
+  try {
+    const token = authHeader.slice(7); // Remove 'Bearer '
+      // Usar a constante global JWT_SECRET
+    
+      // Verificar token - isto lança erro se inválido
+      const decoded = jwt.verify(token, JWT_SECRET);
+    
+    if (!decoded || !decoded.id) {
+        console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Token de autenticação inválido',
+          code: 'ENDPOINT_LEVEL_BLOCK',
         requestId
       });
     }
     
-    // Extrair e verificar o token JWT diretamente
-    try {
-      const token = authHeader.slice(7); // Remove 'Bearer '
-      // Usar a constante global JWT_SECRET
-      
-      // Verificar token - isto lança erro se inválido
-      const decoded = jwt.verify(token, JWT_SECRET);
-      
-      if (!decoded || !decoded.id) {
-        console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
-        return res.status(401).json({
-          success: false,
-          message: 'Acesso negado - Token de autenticação inválido',
-          code: 'ENDPOINT_LEVEL_BLOCK',
+      console.log(`[ULTRA-SECURE ${requestId}] ✓ Token JWT validado para usuário ${decoded.id}`);
+    next();
+  } catch (error) {
+      console.error(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Erro na validação JWT:`, error.message);
+    return res.status(401).json({
+      success: false,
+      message: 'Acesso negado - Token de autenticação inválido ou expirado',
+        code: 'ENDPOINT_LEVEL_JWT_ERROR',
           requestId
         });
-      }
-      
-      console.log(`[ULTRA-SECURE ${requestId}] ✓ Token JWT validado para usuário ${decoded.id}`);
-      next();
-    } catch (error) {
-      console.error(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Erro na validação JWT:`, error.message);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso negado - Token de autenticação inválido ou expirado',
-        code: 'ENDPOINT_LEVEL_JWT_ERROR',
-        requestId
-      });
     }
   },
   verifyTokenAndSubscription({ 
