@@ -4,8 +4,6 @@ const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -15,7 +13,6 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
-const JWT_SECRET = process.env.JWT_SECRET || 'runcashh_secret_key';
 
 // Informações de configuração
 console.log('==== Configuração do Servidor WebSocket ====');
@@ -306,55 +303,11 @@ app.use(express.json());
 
 // Add a status endpoint to check if the server is working
 app.get('/socket-status', (req, res) => {
-  const authHeader = req.headers.authorization;
-  let isAuthenticated = false;
-  let userData = null;
-  
-  // Verificar se existe token JWT
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    try {
-      // Tentativa de verificar o token
-      const decoded = jwt.verify(token, JWT_SECRET);
-      isAuthenticated = true;
-      userData = decoded;
-    } catch (error) {
-      isAuthenticated = false;
-      console.log(`Token inválido enviado para /socket-status: ${error.message}`);
-    }
-  }
-  
-  // Preparar resposta com status do servidor
-  const response = {
-    server_status: "online",
-    socket: {
-      connected_clients: io ? Object.keys(io.sockets.sockets).length : 0,
-      namespaces: io ? Object.keys(io.nsps).map(nsp => nsp) : [],
-      authentication_required: true
-    },
-    jwt_verification: {
-      is_authenticated: isAuthenticated,
-      user_data: userData ? { 
-        id: userData.id,
-        email: userData.email, 
-        subscription: userData.subscription
-      } : null
-    },
-    mongodb_connection: {
-      status: mongoose.connection.readyState === 1 ? "connected" : "disconnected" 
-    },
-    api_endpoints: {
-      socket_connection: "wss://backendapi-production-36b5.up.railway.app/",
-      authentication: "POST /api/auth/login",
-      examples: {
-        websocket_connection: "const socket = io('wss://backendapi-production-36b5.up.railway.app/', {\n  extraHeaders: {\n    'Authorization': 'Bearer YOUR_JWT_TOKEN'\n  }\n});"
-      }
-    },
-    version: "1.0.0"
-  };
-  
-  // Enviar resposta
-  res.json(response);
+  res.json({
+    status: 'online',
+    mongoConnected: isConnected,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Adicionar rota para a raiz - necessária para health checks do Railway
@@ -1707,10 +1660,6 @@ app.use(['/api/roulettes*', '/api/ROULETTES*', '/api/roletas*'], (req, res, next
     }
     
     console.log(`[TRIPLE-CHECK ${requestId}] ✓ Verificação tripla: token válido para usuário ${decoded.id}`);
-    
-    // Armazenar informações do usuário para uso posterior
-    req.jwt_user = decoded;
-    
     next();
   } catch (error) {
     console.error(`[TRIPLE-CHECK ${requestId}] Falha na verificação tripla: erro no JWT:`, error.message);
@@ -2017,60 +1966,3 @@ app.get('/api/jwt-roulettes',
     }
   }
 );
-
-// Implementar middleware de verificação de JWT para rotas da API de roletas
-app.use(['/api/roulettes*', '/api/ROULETTES*', '/api/roletas*'], (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  
-  // Ignorar para requisições OPTIONS (CORS preflight)
-  if (req.method === 'OPTIONS') {
-    return next();
-  }
-  
-  // Log da tentativa de acessar a rota protegida
-  console.log(`[${new Date().toISOString()}] Tentativa de acesso à API de roletas com header: ${authHeader ? 'Presente' : 'Ausente'}`);
-  
-  // Verificar se existe token JWT
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.log(`[${new Date().toISOString()}] Acesso negado: Token não fornecido`);
-    return res.status(401).json({ error: 'Acesso não autorizado. Token não fornecido.' });
-  }
-  
-  const token = authHeader.substring(7);
-  
-  // Verificar validade do token
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.jwt_user = decoded; // Armazenar os dados do usuário para uso posterior
-    console.log(`[${new Date().toISOString()}] Acesso autorizado para usuário: ${decoded.id}`);
-    
-    // Verificar assinatura ativa
-    if (!decoded.subscription || decoded.subscription.status !== 'active') {
-      console.log(`[${new Date().toISOString()}] Acesso negado: Assinatura inativa para usuário ${decoded.id}`);
-      return res.status(403).json({ error: 'Acesso não autorizado. Assinatura inativa.' });
-    }
-    
-    // Cabeçalhos anti-cache para evitar problemas com dados antigos
-    res.header('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.header('Expires', '-1');
-    res.header('Pragma', 'no-cache');
-    
-    next();
-  } catch (error) {
-    console.log(`[${new Date().toISOString()}] Acesso negado: Token inválido - ${error.message}`);
-    return res.status(401).json({ error: 'Acesso não autorizado. Token inválido.' });
-  }
-});
-
-// Rota para verificar o status do servidor e MongoDB
-app.get('/api/status', (req, res) => {
-  res.json({
-    server: {
-      status: 'online',
-      version: '1.0.0'
-    },
-    mongodb: {
-      connected: mongoose.connection.readyState === 1
-    }
-  });
-});
