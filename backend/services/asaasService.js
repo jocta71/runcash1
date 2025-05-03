@@ -154,21 +154,6 @@ async function checkLocalSubscriptionStatus(customerId) {
       };
     }
     
-    // Verificar na coleção 'userSubscriptions'
-    console.log(`[AsaasService] Verificando na coleção 'userSubscriptions'...`);
-    const userSubscription = await db.collection('userSubscriptions').findOne({ asaasCustomerId: customerId });
-    
-    if (userSubscription && userSubscription.status === 'active') {
-      console.log(`[AsaasService] Assinatura ativa encontrada na coleção 'userSubscriptions'`);
-      return {
-        success: true,
-        message: 'Assinatura ativa encontrada no banco local',
-        status: userSubscription.status,
-        hasActiveSubscription: true,
-        source: 'local_db_userSubscriptions'
-      };
-    }
-    
     // Nenhuma assinatura ativa encontrada
     console.log(`[AsaasService] Nenhuma assinatura ativa encontrada no banco local`);
     return {

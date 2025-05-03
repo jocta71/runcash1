@@ -97,7 +97,7 @@ module.exports = async (req, res) => {
     const API_URL = ASAAS_ENVIRONMENT === 'production'
       ? 'https://api.asaas.com/v3'
       : 'https://sandbox.asaas.com/api/v3';
-    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const FRONTEND_URL = process.env.FRONTEND_URL;
 
     if (!ASAAS_API_KEY) {
       return res.status(500).json({ 
@@ -319,21 +319,21 @@ module.exports = async (req, res) => {
           customer_id: customerId,
           plan_id: planId,
           payment_id: paymentId,
-          status: "pending", // Forçando o status inicial como pending
-          original_asaas_status: subscription.status, // Mantendo o status original para referência
+          status: subscription.status.toLowerCase(), // Usar o status retornado pelo Asaas
+          original_asaas_status: subscription.status, // Manter o status original para referência
           billing_type: billingType,
           value: subscriptionValue, // Usar o valor oficial
           created_at: new Date(),
           status_history: [
             {
-              status: "pending",
+              status: subscription.status.toLowerCase(),
               timestamp: new Date(),
               source: "initial_creation"
             }
           ]
         });
         
-        console.log('Assinatura registrada no MongoDB com status inicial "pending"');
+        console.log(`Assinatura registrada no MongoDB com status ${subscription.status.toLowerCase()} (original: ${subscription.status})`);
       } catch (dbError) {
         console.error('Erro ao registrar assinatura no MongoDB:', dbError.message);
       }
