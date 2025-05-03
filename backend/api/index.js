@@ -1,15 +1,32 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { MongoClient } = require('mongodb');
 const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const jwt = require('jsonwebtoken');
+const fs = require('fs');
 require('dotenv').config();
 
 // Importar roteadores
 const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
 const strategiesRouter = require('./routes/strategies');
 const authRouter = require('./routes/auth');
-const webhookRoutes = require('./routes/webhookRoutes');
+
+// Verificar se o arquivo webhookRoutes existe e importá-lo
+let webhookRoutes = null;
+try {
+  if (fs.existsSync(path.join(__dirname, 'routes', 'webhookRoutes.js'))) {
+    webhookRoutes = require('./routes/webhookRoutes');
+    console.log('[API] Rotas de webhook carregadas com sucesso');
+  } else {
+    console.log('[API] Arquivo de rotas de webhook não encontrado');
+  }
+} catch (err) {
+  console.error('[API] Erro ao carregar rotas de webhook:', err.message);
+}
 
 // Configuração MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -77,7 +94,11 @@ apiApp.locals.db = db;
 apiApp.use('/roulettes/history', rouletteHistoryRouter);
 apiApp.use('/strategies', strategiesRouter);
 apiApp.use('/auth', authRouter);
-apiApp.use('/webhooks', webhookRoutes);
+// Registrar rota de webhook se estiver disponível
+if (webhookRoutes) {
+  apiApp.use('/webhooks', webhookRoutes);
+  console.log('[API] Rota de webhook registrada em /api/webhooks');
+}
 
 // Adicionar mapeamento de nomes para IDs de roletas conhecidas
 const NOME_PARA_ID = {
@@ -187,8 +208,12 @@ apiApp.get('/ROULETTES', async (req, res) => {
   }
 });
 
-// Iniciar o servidor
-const PORT = process.env.PORT || 3001;
-apiApp.listen(PORT, () => {
-  console.log(`[API] Servidor iniciado na porta ${PORT}`);
-});
+// Rotas da API
+apiApp.use('/roulettes/history', rouletteHistoryRouter);
+apiApp.use('/strategies', strategiesRouter);
+apiApp.use('/auth', authRouter);
+// A rota de webhook já foi registrada anteriormente
+
+// ... existing code ...
+
+// ... existing code ...
