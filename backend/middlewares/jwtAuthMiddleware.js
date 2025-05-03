@@ -5,6 +5,12 @@
 
 const jwt = require("jsonwebtoken");
 
+// Usar a constante global JWT_SECRET para garantir consistência em toda a aplicação
+const JWT_SECRET = process.env.JWT_SECRET || 'runcashh_secret_key';
+
+// Registrar informações sobre a configuração JWT
+console.log(`[JWT] Usando JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'} (middleware)`);
+
 /**
  * Middleware para verificar token JWT
  * @param {Object} options - Opções de configuração
@@ -37,11 +43,9 @@ const authenticateToken = (options = { required: true }) => {
       }
     }
     
-    // Verificar token
-    const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
-    
+    // Verificar token usando a constante JWT_SECRET global
     try {
-      const decoded = jwt.verify(token, secret);
+      const decoded = jwt.verify(token, JWT_SECRET);
       
       // Verificar se usuário possui role necessário (se especificado)
       if (options.roles && options.roles.length > 0) {
@@ -88,4 +92,4 @@ const authenticateToken = (options = { required: true }) => {
   };
 };
 
-module.exports = { authenticateToken }; 
+module.exports = { authenticateToken, JWT_SECRET }; 

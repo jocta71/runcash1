@@ -889,6 +889,53 @@ app.get('/api/roletas',
 
 // Rota para buscar números por nome da roleta
 app.get('/api/numbers/:roletaNome', 
+  (req, res, next) => {
+    // VALIDAÇÃO EXTREMA: Verificar token JWT antes de qualquer coisa
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[ULTRA-SECURE ${requestId}] Validação bruta no endpoint /api/numbers/:roletaNome`);
+    
+    // Verificar se há token de autorização
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Sem token de autorização válido`);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Token de autenticação obrigatório',
+        code: 'ENDPOINT_LEVEL_BLOCK',
+        requestId
+      });
+    }
+    
+    // Extrair e verificar o token JWT diretamente
+    try {
+      const token = authHeader.slice(7); // Remove 'Bearer '
+      // Usar a constante global JWT_SECRET
+      
+      // Verificar token - isto lança erro se inválido
+      const decoded = jwt.verify(token, JWT_SECRET);
+      
+      if (!decoded || !decoded.id) {
+        console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
+        return res.status(401).json({
+          success: false,
+          message: 'Acesso negado - Token de autenticação inválido',
+          code: 'ENDPOINT_LEVEL_BLOCK',
+          requestId
+        });
+      }
+      
+      console.log(`[ULTRA-SECURE ${requestId}] ✓ Token JWT validado para usuário ${decoded.id}`);
+      next();
+    } catch (error) {
+      console.error(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Erro na validação JWT:`, error.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Token de autenticação inválido ou expirado',
+        code: 'ENDPOINT_LEVEL_JWT_ERROR',
+        requestId
+      });
+    }
+  },
   verifyTokenAndSubscription({ 
     required: true, 
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
@@ -918,6 +965,53 @@ app.get('/api/numbers/:roletaNome',
 
 // Rota para buscar números por ID da roleta
 app.get('/api/numbers/byid/:roletaId', 
+  (req, res, next) => {
+    // VALIDAÇÃO EXTREMA: Verificar token JWT antes de qualquer coisa
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[ULTRA-SECURE ${requestId}] Validação bruta no endpoint /api/numbers/byid/:roletaId`);
+    
+    // Verificar se há token de autorização
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Sem token de autorização válido`);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Token de autenticação obrigatório',
+        code: 'ENDPOINT_LEVEL_BLOCK',
+        requestId
+      });
+    }
+    
+    // Extrair e verificar o token JWT diretamente
+    try {
+      const token = authHeader.slice(7); // Remove 'Bearer '
+      // Usar a constante global JWT_SECRET
+      
+      // Verificar token - isto lança erro se inválido
+      const decoded = jwt.verify(token, JWT_SECRET);
+      
+      if (!decoded || !decoded.id) {
+        console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
+        return res.status(401).json({
+          success: false,
+          message: 'Acesso negado - Token de autenticação inválido',
+          code: 'ENDPOINT_LEVEL_BLOCK',
+          requestId
+        });
+      }
+      
+      console.log(`[ULTRA-SECURE ${requestId}] ✓ Token JWT validado para usuário ${decoded.id}`);
+      next();
+    } catch (error) {
+      console.error(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Erro na validação JWT:`, error.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Token de autenticação inválido ou expirado',
+        code: 'ENDPOINT_LEVEL_JWT_ERROR',
+        requestId
+      });
+    }
+  },
   verifyTokenAndSubscription({ 
     required: true, 
     allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
@@ -941,1012 +1035,6 @@ app.get('/api/numbers/byid/:roletaId',
       res.json(numbers);
     } catch (error) {
       console.error('Erro ao buscar números da roleta:', error);
-      res.status(500).json({ error: 'Erro interno ao buscar números' });
-    }
-});
-
-// Endpoint de compatibilidade para obter detalhes de uma roleta por ID
-app.get('/api/roletas/:id', 
-  verifyTokenAndSubscription({ 
-    required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
-  }), 
-  async (req, res) => {
-    console.log('[API] Endpoint de compatibilidade /api/roletas/:id acessado');
-    try {
-      if (!isConnected) {
-        return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
-      }
-      
-      const roletaId = req.params.id;
-      
-      // Buscar informações da roleta especificada
-      const roleta = await db.collection('roletas').findOne({ id: roletaId });
-      
-      if (!roleta) {
-        return res.status(404).json({ error: 'Roleta não encontrada' });
-      }
-      
-      res.json(roleta);
-    } catch (error) {
-      console.error('Erro ao buscar detalhes da roleta:', error);
-      res.status(500).json({ error: 'Erro interno ao buscar detalhes da roleta' });
-    }
-});
-
-// Rota para inserir número (para testes)
-app.post('/api/numbers', async (req, res) => {
-  try {
-    if (!isConnected) {
-      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
-    }
-    
-    const { roleta_nome, roleta_id, numero } = req.body;
-    
-    if (!roleta_nome || !numero) {
-      return res.status(400).json({ error: 'Campos obrigatórios: roleta_nome, numero' });
-    }
-    
-    // Determinar a cor do número
-    let cor = 'verde';
-    if (numero > 0) {
-      const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-      cor = numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
-    }
-    
-    // Inserir novo número
-    const result = await collection.insertOne({
-      roleta_nome, 
-      roleta_id: roleta_id || 'unknown',
-      numero: parseInt(numero),
-      cor,
-      timestamp: new Date().toISOString()
-    });
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'Número inserido com sucesso',
-      id: result.insertedId
-    });
-  } catch (error) {
-    console.error('Erro ao inserir número:', error);
-    res.status(500).json({ error: 'Erro interno ao inserir número' });
-  }
-});
-
-// Rota para buscar número específico por ID
-app.get('/api/numbers/:id', async (req, res) => {
-  try {
-    if (!isConnected) {
-      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
-    }
-    
-    const id = req.params.id;
-    console.log(`Buscando número com ID: ${id}`);
-    
-    // Verificar formato do ID
-    let numeroDoc;
-    try {
-      // Tentar buscar por ID do MongoDB (ObjectId)
-      const ObjectId = require('mongodb').ObjectId;
-      if (ObjectId.isValid(id)) {
-        numeroDoc = await collection.findOne({ _id: new ObjectId(id) });
-      }
-    } catch (err) {
-      console.log(`Não foi possível buscar como ObjectId: ${err.message}`);
-    }
-    
-    // Se não encontrou por ObjectId, tentar buscar por campo personalizado
-    if (!numeroDoc) {
-      numeroDoc = await collection.findOne({ 
-        $or: [
-          { roleta_id: id },
-          { numero: parseInt(id, 10) }
-        ]
-      });
-    }
-    
-    if (!numeroDoc) {
-      console.log(`Número não encontrado com ID: ${id}`);
-      return res.status(404).json({ error: 'Número não encontrado' });
-    }
-    
-    res.json(numeroDoc);
-  } catch (error) {
-    console.error(`Erro ao buscar número com ID ${req.params.id}:`, error);
-    res.status(500).json({ error: 'Erro interno ao buscar número' });
-  }
-});
-
-// Rota para listar todos os números
-app.get('/api/numbers', async (req, res) => {
-  try {
-    if (!isConnected) {
-      return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
-    }
-    
-    // Parâmetros opcionais de paginação
-    const limit = parseInt(req.query.limit) || 100;  // Aumentado para retornar mais registros
-    const skip = parseInt(req.query.skip) || 0;
-    
-    // Filtros opcionais
-    const filtros = {};
-    if (req.query.roleta_id) filtros.roleta_id = req.query.roleta_id;
-    if (req.query.roleta_nome) filtros.roleta_nome = req.query.roleta_nome;
-    if (req.query.numero) filtros.numero = parseInt(req.query.numero);
-    if (req.query.cor) filtros.cor = req.query.cor;
-    
-    // Buscar números com filtros e paginação
-    const numeros = await collection.find(filtros)
-      .sort({ timestamp: -1 })
-      .skip(skip)
-      .limit(limit)
-      .toArray();
-    
-    // Contar total de documentos que correspondem aos filtros
-    const total = await collection.countDocuments(filtros);
-    
-    res.json({
-      total,
-      skip,
-      limit,
-      data: numeros
-    });
-  } catch (error) {
-    console.error('Erro ao listar números:', error);
-    res.status(500).json({ error: 'Erro interno ao listar números' });
-  }
-});
-
-// Endpoint para forçar retorno com cabeçalho CORS para qualquer origem
-app.get('/disable-cors-check', (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', '*');
-  res.header('Access-Control-Allow-Headers', '*');
-  
-  res.json({
-    message: 'Este endpoint tem CORS completamente desativado para diagnóstico',
-    timestamp: new Date().toISOString(),
-    cors: 'disabled',
-    origin: req.headers.origin || 'unknown'
-  });
-});
-
-// Endpoint específico para buscar histórico completo
-app.get('/api/historico', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/historico');
-  console.log('[API] Query params:', req.query);
-  
-  try {
-    if (!isConnected || !collection) {
-      console.log('[API] MongoDB não conectado, retornando array vazio');
-      return res.json({ data: [], total: 0 });
-    }
-    
-    // Parâmetros de consulta
-    const limit = parseInt(req.query.limit) || 2000;  // Aumentado para retornar mais registros
-    const skip = parseInt(req.query.skip) || 0;
-    
-    // Filtros opcionais
-    const filtros = {};
-    if (req.query.roleta_id) filtros.roleta_id = req.query.roleta_id;
-    if (req.query.roleta_nome) filtros.roleta_nome = req.query.roleta_nome;
-    
-    console.log(`[API] Buscando histórico com filtros:`, filtros);
-    console.log(`[API] Limit: ${limit}, Skip: ${skip}`);
-    
-    // Buscar dados com paginação
-    const numeros = await collection
-      .find(filtros)
-      .sort({ timestamp: -1 })
-      .skip(skip)
-      .limit(limit)
-      .toArray();
-    
-    // Contar total de documentos
-    const total = await collection.countDocuments(filtros);
-    
-    console.log(`[API] Retornando ${numeros.length} registros de um total de ${total}`);
-    
-    res.json({
-      data: numeros,
-      total,
-      limit,
-      skip
-    });
-  } catch (error) {
-    console.error('[API] Erro ao buscar histórico:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar histórico' });
-  }
-});
-
-// Rota específica para o histórico
-app.get('/api/ROULETTES/historico', 
-  verifyTokenAndSubscription({ 
-    required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
-  }),
-  async (req, res) => {
-    const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[API ${requestId}] Requisição recebida para /api/ROULETTES/historico`);
-    console.log(`[API ${requestId}] Usuário: ${req.usuario?.id}`);
-    console.log(`[API ${requestId}] Plano: ${req.userPlan?.type}`);
-    console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
-    console.log(`[API ${requestId}] Query: ${JSON.stringify(req.query)}`);
-    
-    // Verificação dupla de assinatura válida
-    if (!req.subscription) {
-      console.log(`[API ${requestId}] Bloqueando acesso - assinatura não encontrada`);
-      return res.status(403).json({
-        success: false,
-        message: 'Você precisa de uma assinatura ativa para acessar este recurso',
-        code: 'SUBSCRIPTION_REQUIRED',
-        requestId: requestId
-      });
-    }
-    
-    // Configurar CORS explicitamente para esta rota
-    configureCors(req, res);
-    
-    // Responder com o histórico
-    try {
-      if (!isConnected || !collection) {
-        console.log(`[API ${requestId}] MongoDB não conectado, retornando array vazio`);
-        return res.json([]);
-      }
-      
-      // Obter histórico de números jogados
-      const historico = await collection
-        .find({})
-        .sort({ timestamp: -1 })
-        .limit(2000)  // Aumentado para retornar mais registros
-        .toArray();
-      
-      if (historico.length > 0) {
-        console.log(`[API ${requestId}] Retornando histórico com ${historico.length} entradas para usuário ${req.usuario?.id}`);
-        res.json(historico);
-      } else {
-        console.log(`[API ${requestId}] Histórico vazio`);
-        res.status(404).json({ 
-          error: 'Histórico vazio',
-          requestId: requestId
-        });
-      }
-    } catch (error) {
-      console.error(`[API ${requestId}] Erro ao buscar histórico:`, error);
-      res.status(500).json({ 
-        error: 'Erro interno do servidor',
-        message: error.message,
-        requestId: requestId 
-      });
-    }
-});
-
-// Manipulador OPTIONS específico para /api/ROULETTES
-app.options('/api/ROULETTES', (req, res) => {
-  const requestId = Math.random().toString(36).substring(2, 15);
-  console.log(`[CORS ${requestId}] Requisição OPTIONS recebida para /api/ROULETTES`);
-  
-  // Aplicar cabeçalhos CORS necessários
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
-  
-  // Responder imediatamente com sucesso
-  console.log(`[CORS ${requestId}] Resposta OPTIONS enviada com status 204`);
-  res.status(204).end();
-});
-
-// Manipulador OPTIONS específico para /api/ROULETTES/historico
-app.options('/api/ROULETTES/historico', (req, res) => {
-  console.log('[CORS] Requisição OPTIONS recebida para /api/ROULETTES/historico');
-  
-  // Aplicar cabeçalhos CORS necessários
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', '*');
-  res.header('Access-Control-Max-Age', '86400'); // Cache por 24 horas
-  
-  // Responder imediatamente com sucesso
-  res.status(204).end();
-});
-
-// Socket.IO connection handler
-io.on('connection', async (socket) => {
-  // Verificar se o socket já foi autenticado pelo middleware
-  if (!socket.isAuthenticated) {
-    console.log(`[WebSocket] Tentativa de uso sem autenticação: ${socket.id}`);
-    socket.emit('error', { message: 'Autenticação necessária para usar este serviço.' });
-    socket.disconnect(true);
-    return;
-  }
-  
-  console.log(`[WebSocket] Nova conexão autenticada: ${socket.id}, usuário: ${socket.user.username || socket.user.email || socket.user.id || 'usuário'}`);
-  
-  // Enviar confirmação de conexão com informações do usuário
-  socket.emit('connection_success', { 
-    status: 'connected',
-    user: {
-      username: socket.user.username || socket.user.email || socket.user.id,
-      plan: socket.user.userPlan?.type || 'FREE',
-      id: socket.user.id
-    },
-    socket_id: socket.id,
-    timestamp: new Date().toISOString()
-  });
-      
-  // Enviar os últimos números conhecidos para cada roleta
-  if (isConnected) {
-    socket.emit('initial_data', rouletteStatus);
-    console.log('Enviados dados iniciais para o cliente autenticado');
-  } else {
-    socket.emit('connection_error', { status: 'MongoDB not connected' });
-  }
-  
-  // Subscrever a uma roleta específica
-  socket.on('subscribe', (roletaNome) => {
-    if (!socket.isAuthenticated) {
-      return socket.emit('error', { message: 'Autenticação necessária para se inscrever em uma roleta.' });
-    }
-    
-    if (typeof roletaNome === 'string' && roletaNome.trim()) {
-      socket.join(roletaNome);
-      console.log(`Cliente ${socket.id} subscrito à roleta: ${roletaNome}`);
-    }
-  });
-  
-  // Cancelar subscrição a uma roleta específica
-  socket.on('unsubscribe', (roletaNome) => {
-    if (!socket.isAuthenticated) {
-      return socket.emit('error', { message: 'Autenticação necessária para cancelar inscrição em uma roleta.' });
-    }
-    
-    if (typeof roletaNome === 'string' && roletaNome.trim()) {
-      socket.leave(roletaNome);
-      console.log(`Cliente ${socket.id} cancelou subscrição à roleta: ${roletaNome}`);
-    }
-  });
-  
-  // Handler para novo número
-  socket.on('new_number', async (data) => {
-    // Verificar autenticação
-    if (!socket.isAuthenticated) {
-      return socket.emit('error', { message: 'Autenticação necessária para enviar novos números.' });
-    }
-    
-    try {
-      console.log('[WebSocket] Recebido novo número:', data);
-      
-      // Adicionar o número ao histórico
-      if (historyModel && data.roletaId && data.numero !== undefined) {
-        await historyModel.addNumberToHistory(
-          data.roletaId,
-          data.roletaNome || `Roleta ${data.roletaId}`,
-          data.numero
-        );
-        console.log(`[WebSocket] Número ${data.numero} adicionado ao histórico da roleta ${data.roletaId}`);
-      }
-      
-      // Broadcast para todos os clientes inscritos nesta roleta
-      if (data.roletaNome) {
-        io.to(data.roletaNome).emit('new_number', data);
-        console.log(`[WebSocket] Evento 'new_number' emitido para sala ${data.roletaNome}`);
-      }
-      
-      // Broadcast global para todos os clientes
-      io.emit('global_new_number', data);
-    } catch (error) {
-      console.error('[WebSocket] Erro ao processar novo número:', error);
-    }
-  });
-  
-  // Handler para solicitar histórico completo de uma roleta
-  socket.on('request_history', async (data) => {
-    // Verificar autenticação
-    if (!socket.isAuthenticated) {
-      return socket.emit('error', { message: 'Autenticação necessária para solicitar histórico.' });
-    }
-    
-    try {
-      if (!historyModel) {
-        await initializeModels();
-      }
-      
-      if (!data || !data.roletaId) {
-        return socket.emit('history_error', { error: 'ID da roleta é obrigatório' });
-      }
-      
-      console.log(`[WebSocket] Solicitação de histórico para roleta ${data.roletaId}`);
-      
-      const history = await historyModel.getHistoryByRouletteId(data.roletaId);
-      
-      socket.emit('history_data', {
-        roletaId: data.roletaId,
-        ...history
-      });
-      
-      console.log(`[WebSocket] Histórico enviado: ${history.numeros ? history.numeros.length : 0} números`);
-    } catch (error) {
-      console.error('[WebSocket] Erro ao buscar histórico:', error);
-      socket.emit('history_error', { error: 'Erro ao buscar histórico' });
-    }
-  });
-  
-  // Evento de desconexão
-  socket.on('disconnect', () => {
-    console.log(`Cliente desconectado: ${socket.id}`);
-  });
-});
-
-// Iniciar o servidor
-server.listen(PORT, async () => {
-  console.log(`Servidor WebSocket rodando na porta ${PORT}`);
-  
-  // Inicializar conexão com MongoDB e modelos
-  await connectToMongoDB();
-});
-
-// Tratar sinais de encerramento do processo
-process.on('SIGINT', () => {
-  console.log('Encerrando servidor...');
-  process.exit(0);
-});
-
-// Rota para verificar o status do MongoDB e dados disponíveis
-app.get('/api/status', async (req, res) => {
-  console.log('[API] Requisição recebida para /api/status');
-  
-  // Aplicar cabeçalhos CORS
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
-  try {
-    if (!isConnected || !db || !collection) {
-      return res.status(503).json({
-        status: 'error',
-        connected: false,
-        message: 'Servidor não está conectado ao MongoDB'
-      });
-    }
-    
-    // Verificar configurações atuais
-    const dbName = db.databaseName;
-    const collectionName = collection.collectionName;
-    
-    // Verificar contagem de documentos
-    const count = await collection.countDocuments();
-    
-    // Obter amostra de documentos
-    const recentDocs = count > 0 
-      ? await collection.find().sort({timestamp: -1}).limit(5).toArray()
-      : [];
-    
-    // Obter lista de coleções
-    const collections = await db.listCollections().toArray();
-    const collectionsList = collections.map(c => c.name);
-    
-    // Retornar status completo
-    return res.json({
-      status: 'ok',
-      connected: true,
-      database: {
-        name: dbName,
-        collection: collectionName,
-        documentCount: count,
-        collections: collectionsList
-      },
-      recentDocuments: recentDocs,
-      connection: {
-        uri: MONGODB_URI.replace(/:.*@/, ':****@'),
-      }
-    });
-    
-  } catch (error) {
-    console.error('[API] Erro ao verificar status:', error);
-    return res.status(500).json({
-      status: 'error',
-      message: 'Erro interno ao verificar status',
-      error: error.message
-    });
-  }
-});
-
-// Endpoint para verificar o status da assinatura do usuário
-app.get('/api/subscription/status',
-  verifyTokenAndSubscription({ required: false }),
-  (req, res) => {
-    console.log('[API] Verificação de status de assinatura');
-    console.log('[API] Usuário:', req.usuario?.id);
-    console.log('[API] Plano:', req.userPlan?.type);
-    
-    const temAssinatura = !!req.subscription;
-    const plano = req.userPlan?.type || 'FREE';
-    
-    res.json({
-      success: true,
-      hasSubscription: temAssinatura,
-      plan: plano,
-      subscription: req.subscription ? {
-        id: req.subscription.id || req.subscription._id,
-        status: req.subscription.status,
-        expiresAt: req.subscription.validade || req.subscription.expiresAt
-      } : null,
-      message: temAssinatura 
-        ? `Assinatura ativa: plano ${plano}` 
-        : 'Usuário não possui assinatura ativa'
-    });
-});
-
-// Endpoint para diagnóstico de autenticação e assinatura
-app.get('/api/auth-test', 
-  verifyTokenAndSubscription({ required: false }), 
-  (req, res) => {
-    const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[API ${requestId}] Requisição para diagnóstico de autenticação`);
-    
-    // Coletar informações sobre o request e a autenticação
-    const info = {
-      requestId: requestId,
-      timestamp: new Date().toISOString(),
-      path: req.path,
-      method: req.method,
-      authenticated: !!req.usuario,
-      hasSubscription: !!req.subscription,
-      userInfo: req.usuario ? {
-        id: req.usuario.id,
-        username: req.usuario.username,
-        email: req.usuario.email
-      } : null,
-      subscriptionInfo: req.subscription ? {
-        id: req.subscription.id || req.subscription._id,
-        status: req.subscription.status,
-        plan: req.userPlan?.type,
-        expiresAt: req.subscription.validade || req.subscription.expiresAt
-      } : null,
-      headers: {
-        authorization: req.headers.authorization ? 'Bearer [redacted]' : null,
-        userAgent: req.headers['user-agent'],
-        origin: req.headers.origin,
-        host: req.headers.host
-      },
-      client: {
-        ip: req.ip,
-        protocol: req.protocol
-      }
-    };
-    
-    console.log(`[API ${requestId}] Resultado do diagnóstico:`, 
-      JSON.stringify({
-        authenticated: info.authenticated,
-        hasSubscription: info.hasSubscription,
-        plan: info.subscriptionInfo?.plan
-      })
-    );
-    
-    res.json(info);
-});
-
-// Adicionar rotas específicas para todas as variantes observadas
-// Variante: roletas?_I
-app.get('/api/roletas', verifyTokenAndSubscription({ 
-  required: true, 
-  allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
-}));
-
-// Variante: ROULETTES7_I
-app.get('/api/ROULETTES7_*', verifyTokenAndSubscription({ 
-  required: true, 
-  allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
-}));
-
-// Variante: ROULETTES com qualquer sufixo
-app.get('/api/ROULETTES*', verifyTokenAndSubscription({ 
-  required: true, 
-  allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
-}));
-
-// Variante: roulettes com qualquer sufixo
-app.get('/api/roulettes*', verifyTokenAndSubscription({ 
-  required: true, 
-  allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
-}));
-
-// Handler específico para requisições com _I
-app.get('*', (req, res, next) => {
-  // Verificar se a URL contém o parâmetro _I=
-  const originalUrl = req.originalUrl || req.url;
-  
-  if (originalUrl.includes('_I=')) {
-    const requestId = req.requestId || Math.random().toString(36).substring(2, 15);
-    console.log(`[I-PARAM ${requestId}] Detectado parâmetro _I= na requisição: ${originalUrl}`);
-    
-    // Verificar se a URL também contém 'roulettes', 'ROULETTES', ou 'roletas'
-    const isRouletteEndpoint = (
-      originalUrl.includes('/api/roulettes') || 
-      originalUrl.includes('/api/ROULETTES') || 
-      originalUrl.includes('/api/roletas')
-    );
-    
-    if (isRouletteEndpoint) {
-      console.log(`[I-PARAM ${requestId}] Interceptando requisição com _I= para endpoint de roletas`);
-      
-      // Se já tiver passado pela autenticação, deixar prosseguir
-      if (req.hasOwnProperty('usuario') && req.hasOwnProperty('subscription') && req.subscription) {
-        console.log(`[I-PARAM ${requestId}] Requisição já autenticada, permitindo acesso`);
-        return next();
-      }
-      
-      // Caso contrário, bloquear a requisição
-      console.log(`[I-PARAM ${requestId}] Bloqueando requisição não autenticada com _I=`);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso não autorizado - Autenticação obrigatória',
-        code: 'I_PARAM_BLOCKER',
-        path: originalUrl,
-        requestId: requestId
-      });
-    }
-  }
-  
-  // Se não contém _I= ou não é um endpoint de roletas, continuar
-  next();
-});
-
-// Adicionar headers anti-cache para TODAS as rotas de roleta
-app.use(['/api/roulettes*', '/api/ROULETTES*', '/api/roletas*'], (req, res, next) => {
-  // Definir cabeçalhos anti-cache extremamente rigorosos
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Surrogate-Control', 'no-store');
-  
-  // Adicionar cabeçalho único para evitar cache
-  res.setHeader('X-No-Cache', Date.now().toString());
-  
-  // Continuar para o próximo middleware
-  next();
-});
-
-// Adicionar verificação de token JWT para TODAS as rotas de roleta (verificação tripla)
-app.use(['/api/roulettes*', '/api/ROULETTES*', '/api/roletas*'], (req, res, next) => {
-  const requestId = Math.random().toString(36).substring(2, 12);
-  
-  // Se o método for OPTIONS, pular verificação (pre-flight CORS)
-  if (req.method === 'OPTIONS') {
-    return next();
-  }
-  
-  console.log(`[TRIPLE-CHECK ${requestId}] Verificação tripla para ${req.method} ${req.originalUrl}`);
-  
-  // Verificar cabeçalho de autorização
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.log(`[TRIPLE-CHECK ${requestId}] Falha na verificação tripla: sem token de autorização`);
-    return res.status(401).json({
-      success: false,
-      message: 'Acesso negado - Token de autenticação é obrigatório',
-      code: 'TRIPLE_CHECK_NO_TOKEN',
-      requestId
-    });
-  }
-  
-  // Extrair e verificar o token JWT
-  try {
-    const token = authHeader.slice(7); // Remove 'Bearer '
-    // Usar a constante global JWT_SECRET em vez de definir localmente
-    
-    // Verificar token
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    if (!decoded || !decoded.id) {
-      console.log(`[TRIPLE-CHECK ${requestId}] Falha na verificação tripla: token JWT inválido`);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso negado - Token de autenticação inválido',
-        code: 'TRIPLE_CHECK_INVALID_TOKEN',
-        requestId
-      });
-    }
-    
-    console.log(`[TRIPLE-CHECK ${requestId}] ✓ Verificação tripla: token válido para usuário ${decoded.id}`);
-    next();
-  } catch (error) {
-    console.error(`[TRIPLE-CHECK ${requestId}] Falha na verificação tripla: erro no JWT:`, error.message);
-    return res.status(401).json({
-      success: false,
-      message: 'Acesso negado - Token de autenticação inválido ou expirado',
-      code: 'TRIPLE_CHECK_JWT_ERROR',
-      requestId,
-      error: error.message
-    });
-  }
-});
-
-// Endpoint de status detalhado do servidor
-app.get('/api/server-status', async (req, res) => {
-  const requestId = Math.random().toString(36).substring(2, 12);
-  console.log(`[STATUS ${requestId}] Verificação de status do servidor`);
-  
-  // Verificar status do MongoDB
-  let mongoStatus = 'offline';
-  let dbLatency = null;
-  
-  if (isConnected && collection) {
-    try {
-      const startTime = Date.now();
-      // Ping rápido ao MongoDB
-      await client.db("admin").command({ ping: 1 });
-      dbLatency = Date.now() - startTime;
-      mongoStatus = 'online';
-    } catch (error) {
-      console.error(`[STATUS ${requestId}] Erro ao verificar MongoDB:`, error);
-      mongoStatus = 'error';
-    }
-  }
-  
-  // Coletar estatísticas do servidor
-  const os = require('os');
-  const serverInfo = {
-    platform: os.platform(),
-    arch: os.arch(),
-    cpus: os.cpus().length,
-    freeMemory: Math.round(os.freemem() / 1024 / 1024) + 'MB',
-    totalMemory: Math.round(os.totalmem() / 1024 / 1024) + 'MB',
-    uptime: Math.round(os.uptime() / 60 / 60) + ' horas',
-    loadAvg: os.loadavg()
-  };
-  
-  // Coletar informações da versão do Node.js
-  const nodeInfo = {
-    version: process.version,
-    modules: process.versions,
-  };
-  
-  // Retornar resposta detalhada
-  res.json({
-    status: 'online',
-    timestamp: new Date().toISOString(),
-    requestId,
-    server: {
-      environment: process.env.NODE_ENV || 'production',
-      processUptime: Math.round(process.uptime() / 60 / 60 * 10) / 10 + ' horas',
-      ...serverInfo
-    },
-    database: {
-      status: mongoStatus,
-      latency: dbLatency ? `${dbLatency}ms` : null
-    },
-    node: nodeInfo
-  });
-});
-
-// Middleware de tratamento de erros global
-// IMPORTANTE: Este middleware deve ser adicionado APÓS todas as outras rotas
-app.use((err, req, res, next) => {
-  const requestId = Math.random().toString(36).substring(2, 12);
-  console.error(`[ERROR ${requestId}] Erro não tratado:`, err);
-  
-  // Log detalhado para depuração
-  console.error(`[ERROR ${requestId}] Stack:`, err.stack);
-  console.error(`[ERROR ${requestId}] URL: ${req.method} ${req.originalUrl}`);
-  console.error(`[ERROR ${requestId}] Parâmetros:`, {
-    query: req.query,
-    body: req.body,
-    params: req.params
-  });
-  
-  // Evitar que o cache armazene respostas de erro
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  
-  // Retornar resposta de erro formatada
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Erro interno do servidor',
-    code: err.code || 'INTERNAL_SERVER_ERROR',
-    requestId,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Endpoint LiveFeed que só aceita método POST - similar ao exemplo cgp.safe-iplay.com
-app.post('/api/liveFeed/GetLiveTables', 
-  requireFormUrlEncoded(), // Exige application/x-www-form-urlencoded como no exemplo
-  verifyTokenAndSubscription({ required: true, allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] }),
-  async (req, res) => {
-    const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[LIVE-FEED ${requestId}] Nova requisição POST para LiveFeed`);
-    console.log(`[LIVE-FEED ${requestId}] Body: ${JSON.stringify(req.body)}`);
-    
-    // Aplicar cabeçalhos EXATAMENTE como no exemplo fornecido
-    res.header('access-control-allow-origin', '*');
-    res.header('access-control-expose-headers', 'current-client-request-ip');
-    res.header('cache-control', 'public, max-age=0, must-revalidate');
-    res.header('content-type', 'application/json; charset=utf-8');
-    res.header('date', new Date().toUTCString());
-    res.header('vary', 'Accept-Encoding');
-    res.header('x-cdn', 'Imperva');
-    res.header('serverid', '02');
-    
-    // Configurar cookies exatamente como no exemplo, ajustados para nosso domínio
-    const domainBase = req.hostname.split('.').slice(-2).join('.');
-    const expiryDate = new Date();
-    expiryDate.setFullYear(expiryDate.getFullYear() + 1); // Expira em 1 ano
-    
-    const visitorId = `visid_incap_${Math.floor(Math.random() * 10000000)}`;
-    const sessionId = `incap_ses_${Math.floor(Math.random() * 1000)}_${Math.floor(Math.random() * 10000000)}`;
-    
-    res.cookie(visitorId, generateRandomString(32), {
-      expires: expiryDate,
-      httpOnly: true,
-      path: '/',
-      domain: `.${domainBase}`
-    });
-    
-    res.cookie(sessionId, generateRandomString(32), {
-      path: '/',
-      domain: `.${domainBase}`
-    });
-
-    // Adicionar cabeçalho com informações do cliente (como no x-iinfo do exemplo)
-    const clientInfo = `${Math.floor(Math.random() * 100)}-${Math.floor(Math.random() * 100000000)}-${Math.floor(Math.random() * 100000000)} NNNY CT(${Math.floor(Math.random() * 1000)} ${Math.floor(Math.random() * 1000)} 0) RT(${Date.now()} ${Math.floor(Math.random() * 1000)}) q(0 0 0 1) r(2 2) U24`;
-    res.header('x-iinfo', clientInfo);
-    
-    try {
-      if (!isConnected || !collection) {
-        console.log(`[LIVE-FEED ${requestId}] MongoDB não conectado, retornando erro`);
-        return res.status(503).json({
-          success: false,
-          message: 'Serviço temporariamente indisponível',
-          code: 'DATABASE_OFFLINE',
-          requestId
-        });
-      }
-      
-      // VERIFICAÇÃO DE SEGURANÇA (similar às outras rotas)
-      if (!req.usuario || !req.subscription) {
-        console.log(`[LIVE-FEED ${requestId}] Acesso não autenticado ou sem assinatura`);
-        return res.status(401).json({
-          success: false,
-          message: 'Acesso negado - Autenticação e assinatura são obrigatórias',
-          code: 'AUTH_REQUIRED',
-          requestId
-        });
-      }
-      
-      // Obter dados de todas as roletas ativas
-      const roulettes = await collection.aggregate([
-        { $sort: { timestamp: -1 } },
-        { $group: { 
-            _id: "$roleta_nome", 
-            roleta_id: { $first: "$roleta_id" }, 
-            ultimo_numero: { $first: "$numero" }, 
-            ultima_cor: { $first: "$cor" },
-            timestamp: { $first: "$timestamp" },
-            total_registros: { $sum: 1 }
-          }
-        },
-        { $project: {
-            _id: 0,
-            TableId: "$roleta_id",
-            TableName: "$_id",
-            LastNumber: "$ultimo_numero",
-            LastColor: "$ultima_cor",
-            UpdateTime: "$timestamp",
-            TotalHistory: "$total_registros",
-            IsActive: true,
-            DealerName: { $concat: ["Dealer ", { $substr: ["$_id", 0, 1] }] },
-            Status: "InPlay"
-          }
-        }
-      ]).toArray();
-      
-      // Adicionar estatísticas e metadados (similar ao exemplo)
-      const result = {
-        Tables: roulettes,
-        TotalTables: roulettes.length,
-        UpdateTime: new Date().toISOString(),
-        ServerTime: Date.now(),
-        RequestId: requestId,
-        ClientIP: req.ip || req.headers['x-forwarded-for'] || 'unknown'
-      };
-      
-      console.log(`[LIVE-FEED ${requestId}] Retornando ${roulettes.length} roletas para usuário ${req.usuario.id}`);
-      
-      // Retornar estrutura similar ao exemplo
-      return res.json(result);
-    } catch (error) {
-      console.error(`[LIVE-FEED ${requestId}] Erro:`, error);
-      return res.status(500).json({ 
-        Message: 'Erro interno ao processar requisição',
-        ErrorCode: 'SERVER_ERROR',
-        RequestId: requestId
-      });
-    }
-});
-
-// Manipulador para método GET no mesmo endpoint - retornar erro similar ao exemplo
-app.get('/api/liveFeed/GetLiveTables', (req, res) => {
-  // Aplicar cabeçalhos CORS e cache-control iguais ao exemplo
-  res.header('access-control-allow-origin', '*');
-  res.header('access-control-expose-headers', 'current-client-request-ip');
-  res.header('cache-control', 'public, max-age=0, must-revalidate');
-  res.header('content-type', 'application/json; charset=utf-8');
-  res.header('vary', 'Accept-Encoding');
-  
-  // Retornar erro específico como no exemplo
-  res.status(405).json({
-    Message: "The requested resource does not support http method 'GET'."
-  });
-});
-
-// Handler OPTIONS para o endpoint LiveFeed
-app.options('/api/liveFeed/GetLiveTables', (req, res) => {
-  console.log('[CORS] Requisição OPTIONS recebida para /api/liveFeed/GetLiveTables');
-  
-  // Aplicar cabeçalhos CORS necessários compatíveis com o exemplo
-  res.header('access-control-allow-origin', '*');
-  res.header('access-control-allow-methods', 'POST, OPTIONS');
-  res.header('access-control-allow-headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, User-Agent');
-  res.header('access-control-max-age', '86400'); // Cache por 24 horas
-  
-  // Responder imediatamente com sucesso
-  res.status(204).end();
-});
-
-// Função utilitária para gerar strings aleatórias para cookies (similar aos do exemplo)
-function generateRandomString(length) {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-  let result = '';
-  
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length));
-  }
-  
-  return result;
-}
-
-// Adicionar nova rota de roletas usando o middleware JWT simples
-app.get('/api/jwt-roulettes', 
-  authenticateToken({ required: true }), 
-  async (req, res) => {
-    const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[API-JWT ${requestId}] Requisição recebida para /api/jwt-roulettes`);
-    console.log(`[API-JWT ${requestId}] Usuário: ${req.user?.id} (${req.user?.username})`);
-    
-    try {
-      if (!isConnected || !collection) {
-        console.log(`[API-JWT ${requestId}] MongoDB não conectado, retornando array vazio`);
-        return res.json([]);
-      }
-      
-      // Log de acesso bem-sucedido
-      console.log(`[API-JWT ${requestId}] ACESSO PERMITIDO: Usuário autenticado com JWT válido`);
-      
-      // Obter roletas únicas da coleção
-      const roulettes = await collection.aggregate([
-        { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-        { $project: { _id: 0, id: 1, nome: "$_id" } }
-      ]).toArray();
-      
-      console.log(`[API-JWT ${requestId}] Processadas ${roulettes.length} roletas para usuário ${req.user?.username}`);
-      
-      // Adicionar detalhes para diferenciar da rota antiga
-      res.json({
-        success: true,
-        message: 'Dados obtidos com JWT simples',
-        requestId,
-        user: {
-          id: req.user?.id,
-          username: req.user?.username,
-          roles: req.user?.roles
-        },
-        timestamp: new Date().toISOString(),
-        data: roulettes
-      });
-    } catch (error) {
       console.error(`[API-JWT ${requestId}] Erro ao listar roletas:`, error);
       res.status(500).json({ 
         success: false,

@@ -8,10 +8,14 @@ const axios = require('axios');
 const config = require('../config/config');
 const getDb = require('../services/database');
 const { ObjectId } = require('mongodb');
+const { JWT_SECRET } = require('./jwtAuthMiddleware');
 
 // Configuração do Asaas API
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3';
+
+// Log de configuração
+console.log(`[ASAAS-AUTH] Usando JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'} (importado do jwtAuthMiddleware)`);
 
 /**
  * Middleware para verificar JWT e status de assinatura Asaas
@@ -90,9 +94,8 @@ function verifyTokenAndSubscription(options = { required: true, allowedPlans: ['
     console.log(`[AUTH ${requestId}] Token extraído com sucesso`);
     
     try {
-      // Verificar se o token é válido usando JWT
-      const jwt = require('jsonwebtoken');
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'runcashh_secret_key');
+      // Verificar se o token é válido usando JWT e a constante JWT_SECRET importada
+      const decoded = jwt.verify(token, JWT_SECRET);
       
       console.log(`[AUTH ${requestId}] Token JWT verificado com sucesso`);
       console.log(`[AUTH ${requestId}] Usuário ID: ${decoded.id}, Email: ${decoded.email}`);
