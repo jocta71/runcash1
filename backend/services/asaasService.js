@@ -14,96 +14,35 @@ const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'runcash';
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3';
 
-// Variável para forçar verificação na API do Asaas (apenas para debugging)
+// Variável para controlar verificação forçada no Asaas
+// Pode ser usado para debugging ou em ambiente de produção em casos específicos
 const FORCE_ASAAS_CHECK = process.env.FORCE_ASAAS_CHECK === 'true';
 
 /**
- * Verifica o status de uma assinatura pelo ID do cliente
- * Primeira verificação: banco de dados local
- * Segunda verificação (fallback): API do Asaas
- * 
+ * Verifica o status de uma assinatura pelo ID do cliente, primeiro no MongoDB local
+ * e depois, se necessário, na API do Asaas
  * @param {string} customerId - ID do cliente no Asaas
  * @returns {Promise<Object>} - Objeto com informações da assinatura
  */
 async function checkSubscriptionStatus(customerId) {
-  let client;
-  
+  // Primeiramente, verificar no banco de dados local se existe uma assinatura ativa
   try {
-    // Primeiro, verificar no banco de dados local
+    console.log(`[AsaasService] Verificando assinatura para cliente: ${customerId}`);
+    
+    // Verificar no banco de dados local primeiro
     if (!FORCE_ASAAS_CHECK) {
-      console.log(`[AsaasService] Verificando assinatura para cliente ${customerId} no banco de dados local`);
+      console.log(`[AsaasService] Verificando primeiro no banco de dados local...`);
+      const localStatus = await checkLocalSubscriptionStatus(customerId);
       
-      client = new MongoClient(MONGODB_URI);
-      await client.connect();
-      
-      const db = client.db(MONGODB_DB_NAME);
-      
-      // 1. Verificar na coleção 'subscriptions'
-      const subscription = await db.collection('subscriptions').findOne({ 
-        customer_id: customerId,
-        status: 'active'
-      });
-      
-      if (subscription) {
-        console.log(`[AsaasService] ✅ Assinatura ativa encontrada na coleção 'subscriptions'`);
-        
-        await client.close();
-        client = null;
-        
-        return {
-          success: true,
-          message: 'Assinatura ativa encontrada no banco local',
-          status: subscription.status,
-          hasActiveSubscription: true,
-          source: 'local_db_subscriptions'
-        };
+      if (localStatus.hasActiveSubscription) {
+        console.log(`[AsaasService] Assinatura ativa encontrada no banco de dados local`);
+        return localStatus;
       }
       
-      // 2. Verificar na coleção 'userSubscriptions'
-      const userSubscription = await db.collection('userSubscriptions').findOne({ 
-        asaasCustomerId: customerId,
-        status: 'active'
-      });
-      
-      if (userSubscription) {
-        console.log(`[AsaasService] ✅ Assinatura ativa encontrada na coleção 'userSubscriptions'`);
-        
-        await client.close();
-        client = null;
-        
-        return {
-          success: true,
-          message: 'Assinatura ativa encontrada no banco local',
-          status: userSubscription.status,
-          hasActiveSubscription: true,
-          source: 'local_db_userSubscriptions'
-        };
-      }
-      
-      console.log(`[AsaasService] ⚠️ Nenhuma assinatura ativa encontrada no banco local, verificando na API Asaas...`);
+      console.log(`[AsaasService] Nenhuma assinatura ativa encontrada no banco local, verificando na API Asaas...`);
     }
     
-    // Se client ainda estiver conectado, feche a conexão
-    if (client) {
-      await client.close();
-      client = null;
-    }
-    
-    // Se não encontrar no banco ou se FORCE_ASAAS_CHECK for true, verificar na API do Asaas
-    // Este é apenas um fallback quando webhooks falham ou para verificação inicial
-    console.log(`[AsaasService] Verificando assinatura para cliente ${customerId} na API Asaas`);
-    
-    // Verificar se a chave da API está configurada
-    if (!ASAAS_API_KEY) {
-      console.error('[AsaasService] ❌ ASAAS_API_KEY não configurada');
-      return {
-        success: false,
-        message: 'Chave da API Asaas não configurada',
-        status: 'CONFIGURATION_ERROR',
-        hasActiveSubscription: false
-      };
-    }
-    
+    // Se não encontrar no banco local ou se FORCE_ASAAS_CHECK for true, verificar na API do Asaas
     const response = await axios.get(
       `${ASAAS_API_URL}/subscriptions?customer=${customerId}`, 
       {
@@ -137,9 +76,6 @@ async function checkSubscriptionStatus(customerId) {
       
       console.log(`[AsaasService] Nenhuma assinatura ativa. Status mais recente: ${latestSubscription.status}`);
       
-      // Como não encontramos uma assinatura ativa, vamos sincronizar o banco de dados
-      await syncSubscriptionToDatabase(customerId, latestSubscription, false);
-      
       return {
         success: true,
         message: 'Nenhuma assinatura ativa encontrada',
@@ -149,10 +85,7 @@ async function checkSubscriptionStatus(customerId) {
       };
     }
     
-    console.log(`[AsaasService] ✅ Assinatura ativa encontrada na API: ID=${activeSubscription.id}`);
-    
-    // Como encontramos uma assinatura ativa, vamos sincronizar o banco de dados
-    await syncSubscriptionToDatabase(customerId, activeSubscription, true);
+    console.log(`[AsaasService] Assinatura ativa encontrada: ID=${activeSubscription.id}`);
     
     // Checar pagamentos em aberto
     const paymentsResponse = await axios.get(
@@ -188,162 +121,77 @@ async function checkSubscriptionStatus(customerId) {
       hasActiveSubscription: false,
       error: error.message
     };
-  } finally {
-    // Garantir que a conexão seja fechada em caso de erro
-    if (client) {
-      await client.close();
-    }
   }
 }
 
 /**
- * Sincroniza dados de assinatura da API Asaas com o banco de dados local
+ * Verifica o status da assinatura diretamente no banco de dados local
  * @param {string} customerId - ID do cliente no Asaas
- * @param {Object} subscription - Dados da assinatura da API Asaas
- * @param {boolean} isActive - Se a assinatura está ativa
+ * @returns {Promise<Object>} - Objeto com informações da assinatura local
  */
-async function syncSubscriptionToDatabase(customerId, subscription, isActive) {
+async function checkLocalSubscriptionStatus(customerId) {
   let client;
-  
+
   try {
-    console.log(`[AsaasService] Sincronizando assinatura de cliente ${customerId} com banco de dados`);
-    
+    // Conectar ao MongoDB
     client = new MongoClient(MONGODB_URI);
     await client.connect();
     
     const db = client.db(MONGODB_DB_NAME);
-    const status = isActive ? 'active' : mapAsaasStatusToLocal(subscription.status);
     
-    // Buscar usuário pelo customerId
-    const user = await db.collection('users').findOne({ 
-      $or: [
-        { customerId: customerId },
-        { customer_id: customerId }
-      ]
-    });
+    // Verificar na coleção 'subscriptions'
+    console.log(`[AsaasService] Verificando na coleção 'subscriptions'...`);
+    const subscription = await db.collection('subscriptions').findOne({ customer_id: customerId });
     
-    if (!user) {
-      console.log(`[AsaasService] ⚠️ Usuário não encontrado para customer_id: ${customerId}`);
-      return;
+    if (subscription && subscription.status === 'active') {
+      console.log(`[AsaasService] Assinatura ativa encontrada na coleção 'subscriptions'`);
+      return {
+        success: true,
+        message: 'Assinatura ativa encontrada no banco local',
+        status: subscription.status,
+        hasActiveSubscription: true,
+        source: 'local_db_subscriptions'
+      };
     }
     
-    // 1. Atualizar ou criar registro na coleção 'subscriptions'
-    const existingSubscription = await db.collection('subscriptions').findOne({ 
-      customer_id: customerId,
-      subscription_id: subscription.id
-    });
+    // Verificar na coleção 'userSubscriptions'
+    console.log(`[AsaasService] Verificando na coleção 'userSubscriptions'...`);
+    const userSubscription = await db.collection('userSubscriptions').findOne({ asaasCustomerId: customerId });
     
-    if (existingSubscription) {
-      // Atualizar assinatura existente
-      await db.collection('subscriptions').updateOne(
-        { _id: existingSubscription._id },
-        { 
-          $set: { 
-            status: status,
-            original_asaas_status: subscription.status,
-            updated_at: new Date()
-          },
-          $push: {
-            status_history: {
-              status: status,
-              timestamp: new Date(),
-              source: 'api_sync',
-              original_status: subscription.status
-            }
-          }
-        }
-      );
-    } else {
-      // Criar nova assinatura
-      await db.collection('subscriptions').insertOne({
-        subscription_id: subscription.id,
-        user_id: user._id.toString(),
-        customer_id: customerId,
-        plan_id: subscription.billingType || 'unknown',
-        status: status,
-        original_asaas_status: subscription.status,
-        billing_type: subscription.billingType || 'unknown',
-        value: subscription.value || 0,
-        created_at: new Date(),
-        status_history: [
-          {
-            status: status,
-            timestamp: new Date(),
-            source: 'api_sync',
-            original_status: subscription.status
-          }
-        ]
-      });
+    if (userSubscription && userSubscription.status === 'active') {
+      console.log(`[AsaasService] Assinatura ativa encontrada na coleção 'userSubscriptions'`);
+      return {
+        success: true,
+        message: 'Assinatura ativa encontrada no banco local',
+        status: userSubscription.status,
+        hasActiveSubscription: true,
+        source: 'local_db_userSubscriptions'
+      };
     }
     
-    // 2. Atualizar ou criar registro na coleção 'userSubscriptions'
-    const existingUserSubscription = await db.collection('userSubscriptions').findOne({ 
-      asaasCustomerId: customerId
-    });
-    
-    // Calcular próxima data de vencimento
-    const nextDueDate = subscription.nextDueDate 
-      ? new Date(subscription.nextDueDate) 
-      : new Date(new Date().setDate(new Date().getDate() + 30));
-    
-    if (existingUserSubscription) {
-      // Atualizar assinatura existente
-      await db.collection('userSubscriptions').updateOne(
-        { _id: existingUserSubscription._id },
-        { 
-          $set: { 
-            status: status,
-            asaasSubscriptionId: subscription.id,
-            planType: subscription.billingType || existingUserSubscription.planType || 'basic',
-            nextDueDate: nextDueDate,
-            updatedAt: new Date()
-          }
-        }
-      );
-    } else {
-      // Criar nova assinatura
-      await db.collection('userSubscriptions').insertOne({
-        userId: user._id.toString(),
-        asaasCustomerId: customerId,
-        asaasSubscriptionId: subscription.id,
-        status: status,
-        planType: subscription.billingType || 'basic',
-        nextDueDate: nextDueDate,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-    }
-    
-    console.log(`[AsaasService] ✅ Assinatura sincronizada com banco de dados`);
+    // Nenhuma assinatura ativa encontrada
+    console.log(`[AsaasService] Nenhuma assinatura ativa encontrada no banco local`);
+    return {
+      success: false,
+      message: 'Nenhuma assinatura ativa encontrada no banco local',
+      status: 'INACTIVE',
+      hasActiveSubscription: false,
+      source: 'local_db'
+    };
     
   } catch (error) {
-    console.error('[AsaasService] Erro ao sincronizar assinatura com banco de dados:', error);
+    console.error('[AsaasService] Erro ao verificar assinatura no banco local:', error);
+    return {
+      success: false,
+      message: 'Erro ao verificar assinatura no banco local',
+      status: 'ERROR',
+      hasActiveSubscription: false,
+      error: error.message
+    };
   } finally {
     if (client) {
       await client.close();
     }
-  }
-}
-
-/**
- * Mapeia status do Asaas para formato local
- * @param {string} asaasStatus - Status do Asaas
- * @returns {string} - Status local
- */
-function mapAsaasStatusToLocal(asaasStatus) {
-  switch (asaasStatus) {
-    case 'ACTIVE':
-      return 'active';
-    case 'INACTIVE':
-      return 'inactive';
-    case 'EXPIRED':
-      return 'expired';
-    case 'OVERDUE':
-      return 'overdue';
-    case 'CANCELED':
-      return 'canceled';
-    default:
-      return asaasStatus.toLowerCase();
   }
 }
 
@@ -358,16 +206,6 @@ function mapAsaasStatusToLocal(asaasStatus) {
 async function createOrGetCustomer(customerData) {
   try {
     console.log(`[AsaasService] Buscando cliente por email: ${customerData.email}`);
-    
-    // Verificar se a chave da API está configurada
-    if (!ASAAS_API_KEY) {
-      console.error('[AsaasService] ❌ ASAAS_API_KEY não configurada');
-      return {
-        success: false,
-        message: 'Chave da API Asaas não configurada',
-        error: 'CONFIGURATION_ERROR'
-      };
-    }
     
     // Verificar se o cliente já existe pelo email
     const existingCustomerResponse = await axios.get(

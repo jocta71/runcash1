@@ -79,17 +79,22 @@ module.exports = async (req, res) => {
     
     // Processar diferentes tipos de eventos
     const eventType = webhookData.event;
-    const payment = webhookData.payment;
+    const payment = webhookData.payment || webhookData.subscription || {};
     
-    if (!payment) {
-      return res.status(400).json({ error: 'Dados de pagamento não fornecidos' });
+    // Se for um evento relacionado diretamente à assinatura (não ao pagamento)
+    if (webhookData.subscription && !payment.subscription) {
+      payment.subscription = webhookData.subscription.id;
     }
     
-    // Obter ID da assinatura do pagamento
-    const subscriptionId = payment.subscription;
+    if (!payment || (!payment.id && !payment.subscription)) {
+      return res.status(400).json({ error: 'Dados de pagamento ou assinatura não fornecidos' });
+    }
+    
+    // Obter ID da assinatura do pagamento ou diretamente do evento
+    const subscriptionId = payment.subscription || payment.id;
     
     if (!subscriptionId) {
-      console.log('[WEBHOOK] Pagamento não relacionado a uma assinatura', payment);
+      console.log('[WEBHOOK] Evento não relacionado a uma assinatura', payment);
       return res.status(200).json({ message: 'Evento ignorado - não é uma assinatura' });
     }
     
@@ -102,9 +107,9 @@ module.exports = async (req, res) => {
       console.error('[WEBHOOK] Erro ao buscar detalhes da assinatura:', error.message);
     }
     
-    // Buscar assinatura no MongoDB pelo payment_id
+    // Buscar assinatura no MongoDB pelo subscription_id
     const subscriptionData = await db.collection('subscriptions').findOne({
-      payment_id: subscriptionId
+      subscription_id: subscriptionId
     });
     
     // Se a assinatura não existir no banco, mas existir no Asaas, criar novo registro
@@ -113,14 +118,40 @@ module.exports = async (req, res) => {
       const userId = await getUserIdFromAsaasCustomer(db, subscriptionDetails.customer);
       
       if (userId) {
-        // Criar nova assinatura no banco
+        const planId = mapPlanType(subscriptionDetails.value, subscriptionDetails.cycle);
+        const status = 'pending';
+        
+        // Criar nova assinatura na coleção subscriptions
         await db.collection('subscriptions').insertOne({
+          subscription_id: subscriptionId,
           user_id: userId,
-          payment_id: subscriptionId,
-          plan_id: mapPlanType(subscriptionDetails.value, subscriptionDetails.cycle),
-          status: 'pending',
+          customer_id: subscriptionDetails.customer,
+          plan_id: planId,
+          payment_id: payment.id || '',
+          status: status,
+          original_asaas_status: subscriptionDetails.status,
+          billing_type: subscriptionDetails.billingType,
+          value: subscriptionDetails.value,
           created_at: new Date(),
-          updated_at: new Date()
+          status_history: [
+            {
+              status: status,
+              timestamp: new Date(),
+              source: 'webhook_initial_creation'
+            }
+          ]
+        });
+        
+        // Criar entrada na coleção userSubscriptions
+        await db.collection('userSubscriptions').insertOne({
+          userId: userId,
+          asaasCustomerId: subscriptionDetails.customer,
+          asaasSubscriptionId: subscriptionId,
+          status: status,
+          planType: planId,
+          nextDueDate: calculateExpirationDate(subscriptionDetails.cycle),
+          createdAt: new Date(),
+          updatedAt: new Date()
         });
         
         console.log(`[WEBHOOK] Nova assinatura criada para o usuário ${userId} com ID ${subscriptionId}`);
@@ -135,13 +166,15 @@ module.exports = async (req, res) => {
     switch (eventType) {
       case 'PAYMENT_CONFIRMED':
       case 'PAYMENT_RECEIVED':
+      case 'SUBSCRIPTION_RENEWED':
+      case 'SUBSCRIPTION_ACTIVATED':
         status = 'active';
         // Atualizar data de expiração com base no ciclo da assinatura
         if (subscriptionDetails) {
           const expirationDate = calculateExpirationDate(subscriptionDetails.cycle);
           
           // Atualizar ou criar assinatura
-          await updateOrCreateSubscription(db, subscriptionId, {
+          await updateSubscriptionsInAllCollections(db, subscriptionId, {
             status,
             expirationDate,
             updated_at: new Date()
@@ -150,22 +183,27 @@ module.exports = async (req, res) => {
           console.log(`[WEBHOOK] Assinatura ${subscriptionId} ativada até ${expirationDate}`);
         } else {
           // Caso não consiga buscar detalhes, apenas atualizar status
-          await updateSubscriptionStatus(db, subscriptionId, status);
+          await updateSubscriptionsInAllCollections(db, subscriptionId, { status });
         }
         break;
         
       case 'PAYMENT_OVERDUE':
         status = 'overdue';
-        await updateSubscriptionStatus(db, subscriptionId, status);
+        await updateSubscriptionsInAllCollections(db, subscriptionId, { status });
         break;
         
       case 'PAYMENT_DELETED':
       case 'PAYMENT_REFUNDED':
       case 'PAYMENT_REFUND_REQUESTED':
       case 'SUBSCRIPTION_CANCELLED':
+      case 'SUBSCRIPTION_ENDED':
         status = 'canceled';
         endDate = new Date();
-        await updateSubscriptionStatus(db, subscriptionId, status, endDate);
+        await updateSubscriptionsInAllCollections(db, subscriptionId, { 
+          status, 
+          endDate,
+          canceledAt: endDate
+        });
         break;
         
       default:
@@ -221,156 +259,142 @@ function calculateExpirationDate(cycle) {
 }
 
 /**
- * Atualiza o status de uma assinatura
+ * Atualiza o status de uma assinatura em todas as coleções relevantes
  * @param {Db} db - Instância do banco de dados
  * @param {string} subscriptionId - ID da assinatura
- * @param {string} status - Novo status
- * @param {Date} endDate - Data de término (opcional)
+ * @param {Object} updateData - Dados para atualização
+ * @param {Object} subscriptionDetails - Detalhes da assinatura (opcional)
  */
-async function updateSubscriptionStatus(db, subscriptionId, status, endDate) {
-  // Preparar dados para atualização
-  const updateData = {
+async function updateSubscriptionsInAllCollections(db, subscriptionId, updateData, subscriptionDetails = null) {
+  const { status, expirationDate, endDate, canceledAt } = updateData;
+  
+  // Atualização para a coleção 'subscriptions'
+  const subscriptionUpdate = {
     status,
     updated_at: new Date()
   };
   
-  if (endDate) {
-    updateData.end_date = endDate;
+  if (subscriptionDetails) {
+    subscriptionUpdate.original_asaas_status = subscriptionDetails.status;
   }
   
-  // Atualizar assinatura
+  if (expirationDate) {
+    subscriptionUpdate.expiration_date = expirationDate;
+  }
+  
+  if (endDate) {
+    subscriptionUpdate.end_date = endDate;
+  }
+  
+  // Registrar na history
+  const historyEntry = {
+    status,
+    timestamp: new Date(),
+    source: 'webhook'
+  };
+  
+  // Atualizar coleção subscriptions
   const result = await db.collection('subscriptions').updateOne(
-    { payment_id: subscriptionId },
-    { $set: updateData }
+    { subscription_id: subscriptionId },
+    { 
+      $set: subscriptionUpdate,
+      $push: { status_history: historyEntry }
+    }
+  );
+  
+  // Atualização para a coleção 'userSubscriptions'
+  const userSubscriptionUpdate = {
+    status,
+    updatedAt: new Date()
+  };
+  
+  if (expirationDate) {
+    userSubscriptionUpdate.nextDueDate = expirationDate;
+  }
+  
+  if (canceledAt) {
+    userSubscriptionUpdate.canceledAt = canceledAt;
+  }
+  
+  // Atualizar coleção userSubscriptions
+  const userSubResult = await db.collection('userSubscriptions').updateOne(
+    { asaasSubscriptionId: subscriptionId },
+    { $set: userSubscriptionUpdate }
   );
   
   // Atualizar também no formato antigo, se existir
   const legacyResult = await db.collection('assinaturas').updateOne(
     { 'asaas.id': subscriptionId },
     { $set: { 
-      status: status === 'active' ? 'ativa' : status === 'overdue' ? 'atrasada' : 'cancelada',
-      validade: endDate || null,
-      atualizado: new Date()
+      status, 
+      updated_at: new Date(),
+      ...(endDate ? { end_date: endDate } : {})
     }}
   );
   
-  console.log(`[WEBHOOK] Assinatura ${subscriptionId} atualizada para ${status}. Registros atualizados: ${result.modifiedCount + legacyResult.modifiedCount}`);
+  console.log(`[WEBHOOK] Assinatura ${subscriptionId} atualizada para ${status}. Registros atualizados: coleção subscriptions=${result.modifiedCount}, coleção userSubscriptions=${userSubResult.modifiedCount}, coleção legacy=${legacyResult.modifiedCount}`);
   
-  // Se a atualização foi bem-sucedida, notificar o usuário
-  if (result.modifiedCount > 0 || legacyResult.modifiedCount > 0) {
-    // Buscar o ID do usuário
-    const subscription = await db.collection('subscriptions').findOne({ payment_id: subscriptionId });
-    const legacySubscription = await db.collection('assinaturas').findOne({ 'asaas.id': subscriptionId });
-    
-    const userId = subscription?.user_id || legacySubscription?.usuario;
-    
-    if (userId) {
-      // Adicionar notificação
-      const notificationTitle = status === 'active' 
-        ? 'Pagamento confirmado' 
-        : status === 'overdue' 
-          ? 'Pagamento atrasado' 
-          : 'Assinatura cancelada';
-      
-      const notificationMessage = status === 'active' 
-        ? 'Seu pagamento foi confirmado e sua assinatura está ativa.' 
-        : status === 'overdue' 
-          ? 'Seu pagamento está atrasado. Por favor, regularize para manter seu acesso.' 
-          : 'Sua assinatura foi cancelada.';
-      
-      await db.collection('notifications').insertOne({
-        user_id: userId,
-        title: notificationTitle,
-        message: notificationMessage,
-        type: status === 'active' ? 'success' : status === 'overdue' ? 'warning' : 'error',
-        read: false,
-        created_at: new Date()
-      });
-    }
-  }
+  return {
+    result,
+    userSubResult,
+    legacyResult
+  };
 }
 
 /**
- * Busca o ID do usuário a partir do customer ID do Asaas
- * @param {Db} db - Instância do banco de dados 
+ * Busca o ID do usuário a partir do ID do cliente no Asaas
+ * @param {Db} db - Instância do banco de dados
  * @param {string} customerId - ID do cliente no Asaas
- * @returns {string|null} ID do usuário ou null se não encontrado
+ * @returns {Promise<string|null>} ID do usuário, ou null se não encontrado
  */
 async function getUserIdFromAsaasCustomer(db, customerId) {
-  // Buscar em usuários MongoDB
-  const user = await db.collection('users').findOne({
-    $or: [
-      { asaasCustomerId: customerId },
-      { 'asaas.customerId': customerId }
-    ]
-  });
+  // Tentar encontrar na coleção 'users'
+  const user = await db.collection('users').findOne({ customerId });
   
-  return user ? user._id.toString() : null;
+  if (user) {
+    return user._id.toString();
+  }
+  
+  // Tentar encontrar no campo alternativo
+  const userAlt = await db.collection('users').findOne({ customer_id: customerId });
+  
+  if (userAlt) {
+    return userAlt._id.toString();
+  }
+  
+  return null;
 }
 
 /**
- * Mapeia o tipo de plano com base no valor e ciclo
- * @param {number} value - Valor da assinatura
+ * Mapeia o valor do plano para o tipo de plano
+ * @param {number} value - Valor do plano
  * @param {string} cycle - Ciclo de cobrança
- * @returns {string} Identificador do plano
+ * @returns {string} Tipo do plano
  */
 function mapPlanType(value, cycle) {
-  // Mapeamento básico com base no valor e ciclo
+  if (!value) return 'basic';
+  
+  // Valores mensais
   if (cycle === 'MONTHLY' || cycle === 'monthly') {
-    return 'BASIC';
-  } else if (cycle === 'QUARTERLY' || cycle === 'quarterly') {
-    return 'PRO';
-  } else if (cycle === 'YEARLY' || cycle === 'yearly' || cycle === 'annual') {
-    return 'PREMIUM';
+    if (value <= 29.9) return 'basic';
+    if (value <= 49.9) return 'pro';
+    return 'premium';
   }
   
-  // Mapeamento baseado no valor (ajustar conforme necessário)
-  if (value <= 30) {
-    return 'BASIC';
-  } else if (value <= 80) {
-    return 'PRO';
-  } else {
-    return 'PREMIUM';
+  // Valores trimestrais
+  if (cycle === 'QUARTERLY' || cycle === 'quarterly') {
+    if (value <= 79.9) return 'basic';
+    if (value <= 139.9) return 'pro';
+    return 'premium';
   }
-}
-
-/**
- * Atualiza ou cria uma assinatura com base nos detalhes
- * @param {Db} db - Instância do banco de dados
- * @param {string} subscriptionId - ID da assinatura
- * @param {Object} updateData - Dados para atualizar
- * @param {Object} subscriptionDetails - Detalhes da assinatura do Asaas
- */
-async function updateOrCreateSubscription(db, subscriptionId, updateData, subscriptionDetails) {
-  // Buscar assinatura existente
-  const existingSubscription = await db.collection('subscriptions').findOne({
-    payment_id: subscriptionId
-  });
   
-  if (existingSubscription) {
-    // Atualizar assinatura existente
-    await db.collection('subscriptions').updateOne(
-      { payment_id: subscriptionId },
-      { $set: updateData }
-    );
-  } else {
-    // Buscar usuário pelo customer ID
-    const userId = await getUserIdFromAsaasCustomer(db, subscriptionDetails.customer);
-    
-    if (!userId) {
-      throw new Error(`Usuário não encontrado para customer ID: ${subscriptionDetails.customer}`);
-    }
-    
-    // Criar nova assinatura
-    await db.collection('subscriptions').insertOne({
-      user_id: userId,
-      payment_id: subscriptionId,
-      plan_id: mapPlanType(subscriptionDetails.value, subscriptionDetails.cycle),
-      status: updateData.status,
-      expirationDate: updateData.expirationDate,
-      activationDate: new Date(),
-      created_at: new Date(),
-      updated_at: new Date()
-    });
+  // Valores anuais
+  if (cycle === 'YEARLY' || cycle === 'yearly' || cycle === 'annual') {
+    if (value <= 299.9) return 'basic';
+    if (value <= 499.9) return 'pro';
+    return 'premium';
   }
+  
+  // Fallback para basic se não conseguir determinar
+  return 'basic';
 } 

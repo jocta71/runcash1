@@ -1,32 +1,14 @@
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const { MongoClient } = require('mongodb');
 const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const jwt = require('jsonwebtoken');
-const fs = require('fs');
 require('dotenv').config();
 
 // Importar roteadores
 const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
 const strategiesRouter = require('./routes/strategies');
 const authRouter = require('./routes/auth');
-
-// Verificar se o arquivo webhookRoutes existe e importá-lo
-let webhookRoutes = null;
-try {
-  if (fs.existsSync(path.join(__dirname, 'routes', 'webhookRoutes.js'))) {
-    webhookRoutes = require('./routes/webhookRoutes');
-    console.log('[API] Rotas de webhook carregadas com sucesso');
-  } else {
-    console.log('[API] Arquivo de rotas de webhook não encontrado');
-  }
-} catch (err) {
-  console.error('[API] Erro ao carregar rotas de webhook:', err.message);
-}
 
 // Configuração MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -94,11 +76,6 @@ apiApp.locals.db = db;
 apiApp.use('/roulettes/history', rouletteHistoryRouter);
 apiApp.use('/strategies', strategiesRouter);
 apiApp.use('/auth', authRouter);
-// Registrar rota de webhook se estiver disponível
-if (webhookRoutes) {
-  apiApp.use('/webhooks', webhookRoutes);
-  console.log('[API] Rota de webhook registrada em /api/webhooks');
-}
 
 // Adicionar mapeamento de nomes para IDs de roletas conhecidas
 const NOME_PARA_ID = {
@@ -178,42 +155,150 @@ apiApp.get('/ROULETTES', async (req, res) => {
               .toArray();
               
             if (numeros.length === 0) {
-              console.log(`[API] Busca case-insensitive também não encontrou números para "${nome}", retornando lista vazia`);
-              return res.json([]);
+              console.log(`[API] Busca case-insensitive não encontrou números para "${nome}", tentando busca parcial`);
+              
+              // Se ainda não encontrou, tentar uma busca parcial
+              numeros = await db.collection('roleta_numeros')
+                .find({ 
+                  roleta_nome: { 
+                    $regex: new RegExp(`${nome.replace(/[-\s]/g, '.*')}`, 'i')
+                  } 
+                })
+                .sort({ timestamp: -1 })
+                .limit(numbersLimit)
+                .toArray();
+                
+              if (numeros.length > 0) {
+                console.log(`[API] Busca parcial encontrou ${numeros.length} números para "${nome}" => "${numeros[0].roleta_nome}"`);
+              }
+            } else {
+              console.log(`[API] Busca case-insensitive encontrou ${numeros.length} números para "${nome}" => "${numeros[0].roleta_nome}"`);
             }
           }
           
-          return { id, nome, numeros };
+          // Para diagnóstico, vamos verificar todas as roletas distintas na coleção
+          if (numeros.length === 0) {
+            // Fazemos isso apenas uma vez por eficiência
+            if (!apiApp.locals.listaRoletasNumeros) {
+              const roletasDistintas = await db.collection('roleta_numeros').aggregate([
+                { $group: { _id: "$roleta_nome", count: { $sum: 1 } } },
+                { $sort: { count: -1 } }
+              ]).toArray();
+              
+              apiApp.locals.listaRoletasNumeros = roletasDistintas.map(r => r._id);
+              
+              console.log('[API] DIAGNÓSTICO: Roletas disponíveis na coleção roleta_numeros:');
+              roletasDistintas.forEach(r => {
+                console.log(`- "${r._id}" (${r.count} números)`);
+              });
+            }
+            
+            // Sugerir correspondências possíveis
+            console.log(`[API] Possíveis correspondências para "${nome}":`);
+            const sugestoes = apiApp.locals.listaRoletasNumeros
+              .filter(rNome => rNome && rNome.toLowerCase().includes(nome.toLowerCase().substring(0, 5)))
+              .slice(0, 3);
+              
+            if (sugestoes.length > 0) {
+              sugestoes.forEach(s => console.log(`- "${s}"`));
+            } else {
+              console.log('- Nenhuma sugestão encontrada');
+            }
+          }
+            
+          console.log(`[API] Encontrados ${numeros.length} números para roleta ${nome}`);
+          
+          // Formatar números para o cliente
+          const formattedNumbers = numeros.map(n => ({
+            numero: n.numero || n.number || n.value || 0,
+            roleta_id: n.roleta_id,
+            roleta_nome: n.roleta_nome || nome,
+            cor: n.cor || determinarCorNumero(n.numero || n.number || n.value || 0),
+            timestamp: n.timestamp || n.created_at || n.criado_em || n.data || new Date().toISOString()
+          }));
+          
+          return {
+            id: id,
+            nome: nome,
+            ativa: roleta.ativa || true,
+            numero: formattedNumbers,
+            estado_estrategia: roleta.estado_estrategia || "NEUTRAL",
+            vitorias: roleta.vitorias || 0,
+            derrotas: roleta.derrotas || 0,
+            win_rate: (roleta.vitorias || 0) + (roleta.derrotas || 0) > 0 
+              ? `${((roleta.vitorias || 0) / ((roleta.vitorias || 0) + (roleta.derrotas || 0)) * 100).toFixed(1)}%` 
+              : "N/A",
+            updated_at: roleta.updated_at || roleta.atualizado_em || formattedNumbers.length > 0 
+              ? formattedNumbers[0].timestamp 
+              : new Date().toISOString()
+          };
         } catch (error) {
-          console.error(`[API] Erro ao buscar números para roleta "${nome}":`, error);
-          return null;
+          console.error(`[API] Erro ao buscar números para roleta ${nome}:`, error);
+          // Retornar a roleta mesmo se houver erro ao buscar números
+          return { 
+            id: id,
+            nome: nome,
+            ativa: roleta.ativa || true,
+            numero: [],
+            estado_estrategia: roleta.estado_estrategia || "NEUTRAL",
+            vitorias: roleta.vitorias || 0,
+            derrotas: roleta.derrotas || 0,
+            win_rate: (roleta.vitorias || 0) + (roleta.derrotas || 0) > 0 
+              ? `${((roleta.vitorias || 0) / ((roleta.vitorias || 0) + (roleta.derrotas || 0)) * 100).toFixed(1)}%` 
+              : "N/A",
+            updated_at: roleta.updated_at || roleta.atualizado_em || new Date().toISOString()
+          };
         }
       });
       
-      const results = await Promise.all(fetchPromises);
+      // Resolva todas as promessas e retorne os resultados
+      const roletasComNumeros = await Promise.all(fetchPromises);
+      console.log(`[API] Retornando ${roletasComNumeros.length} roletas com seus números`);
       
-      if (results.length === 0) {
-        console.log('[API] Nenhuma roleta encontrada, retornando lista vazia');
-        return res.json([]);
-      }
-      
-      return res.json(results);
+      return res.json(roletasComNumeros);
     } catch (error) {
-      console.error('[API] Erro ao buscar roletas:', error);
-      return res.status(500).json({ error: 'Erro ao buscar roletas' });
+      console.error(`[API] Erro ao buscar roletas: ${error}`);
+      return res.status(500).json({ error: 'Erro ao buscar roletas e números' });
     }
   } catch (error) {
-    console.error('[API] Erro ao processar requisição:', error);
+    console.error(`[API] Erro ao processar requisição /api/ROULETTES: ${error}`);
     return res.status(500).json({ error: 'Erro ao processar requisição' });
   }
 });
 
-// Rotas da API
-apiApp.use('/roulettes/history', rouletteHistoryRouter);
-apiApp.use('/strategies', strategiesRouter);
-apiApp.use('/auth', authRouter);
-// A rota de webhook já foi registrada anteriormente
+// Rota para a API principal
+apiApp.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'RunCash API',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
 
-// ... existing code ...
+// Função auxiliar para mapear entre IDs de roletas
+function mapToCanonicalId(uuid) {
+  // Mapear o UUID para um ID canônico se existir, caso contrário retornar o próprio UUID
+  for (const [nome, id] of Object.entries(NOME_PARA_ID)) {
+    if (uuid === id) return uuid;
+  }
+  return uuid;
+}
 
-// ... existing code ...
+// Função auxiliar para determinar a cor de um número da roleta
+function determinarCorNumero(numero) {
+  if (numero === 0) return 'green';
+  const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  return numerosVermelhos.includes(numero) ? 'red' : 'black';
+}
+
+// Se for executado diretamente (não importado como módulo), iniciar servidor
+if (require.main === module) {
+  const PORT = process.env.PORT || 3002;
+  apiApp.listen(PORT, () => {
+    console.log(`[API] Servidor iniciado na porta ${PORT}`);
+  });
+}
+
+// Exportar a aplicação para ser montada pelo arquivo principal
+module.exports = apiApp;
