@@ -1,45 +1,18 @@
 {
-  "name": "runcashh1",
+  "name": "runcash-security-tests",
   "version": "1.0.0",
-  "private": true,
-  "type": "module",
+  "description": "Scripts de teste de segurança para o RunCash",
+  "main": "test-authentication.js",
   "scripts": {
-    "test": "echo \"No tests configured\"",
-    "dev": "cd frontend && npm run dev",
-    "build": "cd frontend && npm run build",
-    "build:dev": "cd frontend && npm run build:dev",
-    "preview": "cd frontend && npm run preview",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "find-unused-files": "ts-unused-exports tsconfig.json",
-    "find-orphans": "madge --extensions ts,tsx,js,jsx --orphans ./frontend/src",
-    "dependency-graph": "madge --extensions ts,tsx,js,jsx --image dependency-graph.svg ./frontend/src",
-    "find-circular": "madge --extensions ts,tsx,js,jsx --circular ./frontend/src"
+    "test-auth": "node test-authentication.js",
+    "test-websocket": "npm install -g http-server && http-server . -o websocket-test-authenticated.html"
   },
   "dependencies": {
-    "axios": "^1.8.4",
-    "dotenv": "^16.5.0",
-    "express": "^5.1.0",
-    "express-async-handler": "^1.2.0",
-    "http-proxy-middleware": "^3.0.5",
-    "js-cookie": "^3.0.5",
-    "lucide-react": "^0.501.0",
-    "mongodb": "^6.16.0",
-    "react-icons": "^5.5.0",
-    "socket.io": "^4.8.1"
+    "axios": "^1.6.0",
+    "colors": "^1.4.0",
+    "socket.io-client": "^4.6.0"
   },
-  "devDependencies": {
-    "@types/js-cookie": "^3.0.6",
-    "@typescript-eslint/eslint-plugin": "^7.4.0",
-    "@typescript-eslint/parser": "^7.4.0",
-    "eslint": "^8.57.0",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.6",
-    "eslint-plugin-unused-imports": "^3.1.0",
-    "madge": "^6.1.0",
-    "node-fetch": "^3.3.2",
-    "socket.io-client": "^4.8.1",
-    "ts-unused-exports": "^11.0.1",
-    "typescript-eslint": "^7.0.2"
-  }
+  "author": "RunCash Security Team",
+  "license": "UNLICENSED",
+  "private": true
 }
