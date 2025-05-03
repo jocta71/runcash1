@@ -66,7 +66,6 @@ async function handleWebhook(req, res) {
     // Processar apenas se o MongoDB estiver habilitado
     if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
       try {
-        console.log(`[WEBHOOK] Conectando ao MongoDB para processar evento ${webhookData.event}...`);
         client = new MongoClient(process.env.MONGODB_URI);
         await client.connect();
         dbConnected = true;
@@ -83,50 +82,100 @@ async function handleWebhook(req, res) {
         
         console.log('Evento Asaas bruto registrado no MongoDB:', rawEvent.insertedId);
         
-        // Extrair e estruturar os dados para armazenamento
-        const eventData = {
+        // Extrair dados relevantes com base no tipo de evento
+        let eventData = {
           event_type: webhookData.event,
-          payment_id: webhookData.payment?.id,
-          subscription_id: webhookData.payment?.subscription,
-          customer_id: webhookData.payment?.customer,
-          status: webhookData.payment?.status,
-          value: webhookData.payment?.value,
           raw_data: webhookData,
           created_at: new Date(),
           processed_at: new Date()
         };
         
+        // Determinar o tipo de evento e extrair informações específicas
+        const isPaymentEvent = webhookData.event.startsWith('PAYMENT_');
+        const isSubscriptionEvent = webhookData.event.startsWith('SUBSCRIPTION_');
+        
+        // Extrair IDs relevantes com base no tipo de evento
+        let subscriptionId = null;
+        let customerId = null;
+        let paymentId = null;
+        let status = null;
+        let value = null;
+        
+        if (isPaymentEvent && webhookData.payment) {
+          paymentId = webhookData.payment.id;
+          customerId = webhookData.payment.customer;
+          subscriptionId = webhookData.payment.subscription;
+          status = webhookData.payment.status;
+          value = webhookData.payment.value;
+          
+          // Adicionar dados específicos de pagamento ao eventData
+          eventData = {
+            ...eventData,
+            payment_id: paymentId,
+            subscription_id: subscriptionId,
+            customer_id: customerId,
+            status: status,
+            value: value
+          };
+        } else if (isSubscriptionEvent && webhookData.subscription) {
+          subscriptionId = webhookData.subscription.id;
+          customerId = webhookData.subscription.customer;
+          status = webhookData.subscription.status;
+          value = webhookData.subscription.value;
+          
+          // Adicionar dados específicos de assinatura ao eventData
+          eventData = {
+            ...eventData,
+            subscription_id: subscriptionId,
+            customer_id: customerId,
+            status: status,
+            value: value
+          };
+        }
+        
         // Registrar evento processado
         await db.collection('asaas_events').insertOne(eventData);
         console.log('Evento Asaas processado e registrado no MongoDB');
         
-        // Atualizar status da assinatura, se aplicável
-        if (webhookData.payment?.subscription) {
-          const subscriptionId = webhookData.payment.subscription;
-          const customerId = webhookData.payment.customer;
-          
-          console.log(`[WEBHOOK] Processando assinatura ${subscriptionId} para cliente ${customerId}`);
+        // Processar evento de assinatura
+        if (subscriptionId) {
+          console.log(`Processando evento para assinatura ${subscriptionId}`);
           
           // Verificar se a assinatura existe
           const existingSubscription = await db.collection('subscriptions').findOne({
             subscription_id: subscriptionId
           });
           
-          console.log(`[WEBHOOK] Assinatura encontrada:`, existingSubscription ? 'SIM' : 'NÃO');
-          
           if (existingSubscription) {
-            // Atualizar status na coleção subscriptions
+            console.log(`Assinatura ${subscriptionId} encontrada no banco de dados`);
+            
+            // Determinar o novo status com base no evento
+            let newStatus = existingSubscription.status;
+            
+            if (isPaymentEvent) {
+              if (webhookData.payment.status === 'CONFIRMED' || webhookData.payment.status === 'RECEIVED') {
+                newStatus = 'ACTIVE';
+              } else if (webhookData.payment.status === 'OVERDUE') {
+                newStatus = 'OVERDUE';
+              } else if (webhookData.payment.status === 'REFUNDED' || webhookData.payment.status === 'CHARGEBACK' || webhookData.payment.status === 'FAILED') {
+                newStatus = 'INACTIVE';
+              }
+            } else if (isSubscriptionEvent) {
+              newStatus = webhookData.subscription.status;
+            }
+            
+            // Atualizar assinatura na coleção subscriptions
             await db.collection('subscriptions').updateOne(
               { subscription_id: subscriptionId },
               { 
                 $set: { 
-                  status: webhookData.payment.status === 'CONFIRMED' ? 'ACTIVE' : webhookData.payment.status,
+                  status: newStatus,
                   updated_at: new Date()
                 },
                 $push: {
                   status_history: {
-                    status: webhookData.payment.status,
-                    payment_id: webhookData.payment.id,
+                    status: status,
+                    event_type: webhookData.event,
                     timestamp: new Date(),
                     source: 'webhook'
                   }
@@ -134,123 +183,134 @@ async function handleWebhook(req, res) {
               }
             );
             
-            console.log(`[WEBHOOK] Status da assinatura ${subscriptionId} atualizado para ${webhookData.payment.status}`);
+            console.log(`Status da assinatura ${subscriptionId} atualizado para ${newStatus}`);
             
-            // NOVO CÓDIGO: Atualizar ou criar registro na coleção userSubscriptions
-            if (webhookData.payment.status === 'CONFIRMED' || webhookData.payment.status === 'RECEIVED' || webhookData.payment.status === 'ACTIVE') {
-              console.log(`[WEBHOOK] Condição de status atendida para criar/atualizar userSubscriptions`);
+            // Verificar se deve atualizar ou criar registro em userSubscriptions
+            const shouldUpdateUserSubscription = 
+              (isPaymentEvent && (webhookData.payment.status === 'CONFIRMED' || webhookData.payment.status === 'RECEIVED')) ||
+              (isSubscriptionEvent && webhookData.subscription.status === 'ACTIVE');
+            
+            if (shouldUpdateUserSubscription) {
+              console.log(`Atualizando userSubscriptions para assinatura ${subscriptionId}`);
               
-              try {
-                // Verificar se já existe um registro para este usuário na coleção userSubscriptions
-                // Verificando por dois campos possíveis para garantir compatibilidade
-                const existingUserSubscription = await db.collection('userSubscriptions').findOne({
-                  $or: [
-                    { asaasSubscriptionId: subscriptionId },
-                    { subscription_id: subscriptionId }
-                  ]
-                });
-                
-                console.log(`[WEBHOOK] Registro existente em userSubscriptions:`, existingUserSubscription ? 'SIM' : 'NÃO');
-                
-                if (existingUserSubscription) {
-                  // Atualizar o registro existente
-                  console.log(`[WEBHOOK] Atualizando registro existente em userSubscriptions`);
-                  await db.collection('userSubscriptions').updateOne(
-                    { _id: existingUserSubscription._id },
-                    {
-                      $set: {
-                        status: 'active',
-                        updatedAt: new Date(),
-                        nextDueDate: new Date(new Date().setDate(new Date().getDate() + 30)) // 30 dias a partir de hoje
-                      },
-                      $push: {
-                        statusHistory: {
-                          status: 'active',
-                          timestamp: new Date(),
-                          source: 'webhook'
-                        }
-                      }
-                    }
-                  );
-                  console.log(`[WEBHOOK] Registro em userSubscriptions atualizado com sucesso`);
-                } else {
-                  // Determinar o tipo de plano com base no valor ou nas informações da assinatura
-                  const planType = determinePlanType(existingSubscription.plan_id, webhookData.payment.value);
-                  
-                  console.log(`[WEBHOOK] Criando novo registro em userSubscriptions com planType: ${planType}`);
-                  
-                  // Preparar o objeto a ser inserido
-                  const userSubscriptionData = {
-                    userId: existingSubscription.user_id,
-                    asaasCustomerId: customerId,
-                    asaasSubscriptionId: subscriptionId,
-                    subscription_id: subscriptionId, // Campo adicional para compatibilidade
-                    status: 'active',
-                    planType: planType,
-                    nextDueDate: new Date(new Date().setDate(new Date().getDate() + 30)), // 30 dias a partir de hoje
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                    statusHistory: [
-                      {
+              // Verificar se já existe um registro para este usuário na coleção userSubscriptions
+              const existingUserSubscription = await db.collection('userSubscriptions').findOne({
+                asaasSubscriptionId: subscriptionId
+              });
+              
+              if (existingUserSubscription) {
+                // Atualizar o registro existente
+                await db.collection('userSubscriptions').updateOne(
+                  { asaasSubscriptionId: subscriptionId },
+                  {
+                    $set: {
+                      status: 'active',
+                      updatedAt: new Date(),
+                      nextDueDate: isSubscriptionEvent ? 
+                        new Date(webhookData.subscription.nextDueDate) : 
+                        new Date(new Date().setDate(new Date().getDate() + 30)) // 30 dias a partir de hoje
+                    },
+                    $push: {
+                      statusHistory: {
                         status: 'active',
                         timestamp: new Date(),
-                        source: 'webhook'
+                        source: 'webhook',
+                        event: webhookData.event
                       }
-                    ],
-                    webhookData: {
-                      event: webhookData.event,
-                      payment_id: webhookData.payment.id,
-                      payment_status: webhookData.payment.status,
-                      payment_value: webhookData.payment.value
                     }
-                  };
-                  
-                  console.log(`[WEBHOOK] Dados do registro a ser inserido:`, JSON.stringify(userSubscriptionData));
-                  
-                  // Criar um novo registro
-                  const result = await db.collection('userSubscriptions').insertOne(userSubscriptionData);
-                  
-                  console.log(`[WEBHOOK] Novo registro criado em userSubscriptions, ID: ${result.insertedId}`);
-                  
-                  // Verificar se o registro foi criado com sucesso
-                  const insertedRecord = await db.collection('userSubscriptions').findOne({ _id: result.insertedId });
-                  console.log(`[WEBHOOK] Verificação de inserção:`, insertedRecord ? 'SUCESSO' : 'FALHA');
-                }
-              } catch (userSubError) {
-                console.error(`[WEBHOOK] ERRO ao manipular userSubscriptions:`, userSubError);
+                  }
+                );
+                console.log(`Registro existente em userSubscriptions atualizado para assinatura ${subscriptionId}`);
+              } else {
+                // Determinar o tipo de plano com base no valor ou nas informações da assinatura
+                const planType = determinePlanType(existingSubscription.plan_id, value);
+                const nextDueDate = isSubscriptionEvent && webhookData.subscription.nextDueDate ? 
+                  new Date(webhookData.subscription.nextDueDate) : 
+                  new Date(new Date().setDate(new Date().getDate() + 30));
+                
+                // Criar um novo registro
+                const newUserSubscription = {
+                  userId: existingSubscription.user_id,
+                  asaasCustomerId: customerId,
+                  asaasSubscriptionId: subscriptionId,
+                  status: 'active',
+                  planType: planType,
+                  nextDueDate: nextDueDate,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                  statusHistory: [
+                    {
+                      status: 'active',
+                      timestamp: new Date(),
+                      source: 'webhook',
+                      event: webhookData.event
+                    }
+                  ]
+                };
+                
+                console.log('Inserindo novo registro em userSubscriptions:', JSON.stringify(newUserSubscription));
+                
+                const result = await db.collection('userSubscriptions').insertOne(newUserSubscription);
+                console.log(`Novo registro criado em userSubscriptions com ID: ${result.insertedId}`);
               }
             } else {
-              console.log(`[WEBHOOK] Status ${webhookData.payment.status} não atende os critérios para criar/atualizar userSubscriptions`);
+              console.log(`Não é necessário atualizar userSubscriptions para evento ${webhookData.event} com status ${status}`);
             }
           } else {
-            console.warn(`[WEBHOOK] Assinatura ${subscriptionId} não encontrada no banco de dados`);
+            console.warn(`Assinatura ${subscriptionId} não encontrada no banco de dados`);
             
-            // Registrar assinaturas não encontradas para reconciliação posterior
-            await db.collection('subscription_reconciliation_queue').insertOne({
-              subscription_id: subscriptionId,
-              reason: 'not_found_in_webhook',
-              webhook_data: webhookData,
-              created_at: new Date(),
-              processed: false
-            });
+            // Se a assinatura não existir mas for um evento de criação, criar o registro
+            if (isSubscriptionEvent && webhookData.event === 'SUBSCRIPTION_CREATED') {
+              console.log(`Criando novo registro de assinatura para ${subscriptionId}`);
+              
+              // Extrair dados da assinatura
+              const subscriptionData = webhookData.subscription;
+              
+              // Criar novo registro na coleção subscriptions
+              await db.collection('subscriptions').insertOne({
+                subscription_id: subscriptionId,
+                customer_id: customerId,
+                status: subscriptionData.status,
+                billing_type: subscriptionData.billingType,
+                value: subscriptionData.value,
+                created_at: new Date(),
+                updated_at: new Date(),
+                status_history: [
+                  {
+                    status: subscriptionData.status,
+                    timestamp: new Date(),
+                    source: 'webhook_auto_create'
+                  }
+                ]
+              });
+              
+              console.log(`Novo registro de assinatura criado para ${subscriptionId}`);
+            } else {
+              // Registrar assinaturas não encontradas para reconciliação posterior
+              await db.collection('subscription_reconciliation_queue').insertOne({
+                subscription_id: subscriptionId,
+                reason: 'not_found_in_webhook',
+                webhook_data: webhookData,
+                created_at: new Date(),
+                processed: false
+              });
+            }
           }
         }
         
         // Atualizar status de pagamento, se aplicável
-        if (webhookData.payment?.id) {
-          const paymentId = webhookData.payment.id;
-          
+        if (paymentId) {
           await db.collection('payments').updateOne(
             { payment_id: paymentId },
             { 
               $set: { 
-                status: webhookData.payment.status,
+                status: status,
                 updated_at: new Date(),
                 webhook_update: true
               },
               $push: {
                 status_history: {
-                  status: webhookData.payment.status,
+                  status: status,
                   timestamp: new Date(),
                   source: 'webhook'
                 }
@@ -259,7 +319,7 @@ async function handleWebhook(req, res) {
             { upsert: true }
           );
           
-          console.log(`Status do pagamento ${paymentId} atualizado para ${webhookData.payment.status}`);
+          console.log(`Status do pagamento ${paymentId} atualizado para ${status}`);
         }
         
         // Marcar evento bruto como processado
@@ -273,7 +333,7 @@ async function handleWebhook(req, res) {
           }
         );
       } catch (dbError) {
-        console.error('[WEBHOOK] Erro ao processar webhook no MongoDB:', dbError.message);
+        console.error('Erro ao processar webhook no MongoDB:', dbError.message);
         
         // Se já estabelecemos conexão com o banco, registrar o erro para processamento posterior
         if (dbConnected && client) {
