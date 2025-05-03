@@ -301,6 +301,15 @@ const App = () => {
                             </ProtectedRoute>
                           } />
                           
+                          {/* Rota para a página de teste */}
+                          <Route path="/test" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <TestPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
                           {/* Rota para a página de teste do Asaas - DESATIVADA */}
                           {/* 
                           <Route path="/asaas-test" element={

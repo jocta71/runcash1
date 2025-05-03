@@ -52,36 +52,6 @@ app.use((req, res, next) => {
   console.log(`[BLOQUEIO-GLOBAL ${requestId}] Método: ${req.method}`);
   console.log(`[BLOQUEIO-GLOBAL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
   
-  // VERIFICAÇÃO DE ACESSO VIA NAVEGADOR
-  // Detectar se a requisição está vindo de um navegador verificando o Accept header
-  const isDirectBrowserAccess = req.headers.accept && 
-                             (req.headers.accept.includes('text/html') || 
-                              req.headers.accept.includes('*/*'));
-                              
-  const userAgent = req.headers['user-agent'] || '';
-  const isBrowserUserAgent = userAgent.includes('Mozilla') || 
-                            userAgent.includes('Chrome') || 
-                            userAgent.includes('Safari') || 
-                            userAgent.includes('Edge') || 
-                            userAgent.includes('Firefox');
-                            
-  // Se parecer um acesso direto via navegador, bloquear IMEDIATAMENTE
-  if (isDirectBrowserAccess && isBrowserUserAgent && req.method === 'GET') {
-    console.log(`[BLOQUEIO-GLOBAL ${requestId}] BLOQUEIO ABSOLUTO: Acesso direto via navegador detectado!`);
-    
-    // Definir cabeçalhos anti-cache rigorosos
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    
-    // Retornar erro 403 com mensagem genérica sem revelar detalhes do sistema
-    return res.status(403).json({
-      error: 'Acesso proibido',
-      message: 'O acesso direto a este recurso não é permitido',
-      code: 'DIRECT_BROWSER_ACCESS_DENIED'
-    });
-  }
-  
   // Verificar se há token de autorização
   const hasAuth = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
   if (!hasAuth) {
@@ -91,61 +61,6 @@ app.use((req, res, next) => {
       message: 'Acesso negado - Autenticação obrigatória',
       code: 'GLOBAL_ABSOLUTE_BLOCK',
       path: path,
-      requestId: requestId
-    });
-  }
-  
-  // VERIFICAÇÃO ADICIONAL DO TOKEN - Validar se o token está no formato correto
-  const token = req.headers.authorization.split(' ')[1];
-  if (!token || token.length < 20) { // Tokens JWT são normalmente longos
-    console.log(`[BLOQUEIO-GLOBAL ${requestId}] BLOQUEIO ABSOLUTO: Token JWT inválido ou muito curto`);
-    return res.status(401).json({
-      success: false,
-      message: 'Acesso negado - Token de autenticação inválido',
-      code: 'INVALID_TOKEN_FORMAT',
-      requestId: requestId
-    });
-  }
-  
-  // Validar formato do token JWT (estrutura básica xxx.yyy.zzz)
-  if (!token.match(/^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/)) {
-    console.log(`[BLOQUEIO-GLOBAL ${requestId}] BLOQUEIO ABSOLUTO: Formato de token JWT inválido`);
-    return res.status(401).json({
-      success: false,
-      message: 'Acesso negado - Formato de token inválido',
-      code: 'INVALID_JWT_FORMAT',
-      requestId: requestId
-    });
-  }
-  
-  // VERIFICAÇÃO COMPLETA DO TOKEN
-  try {
-    const jwt = require('jsonwebtoken');
-    const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
-    
-    // Verificar token - isto lança erro se inválido
-    const decoded = jwt.verify(token, secret);
-    
-    if (!decoded || !decoded.id) {
-      console.log(`[BLOQUEIO-GLOBAL ${requestId}] BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso negado - Token de autenticação inválido',
-        code: 'ENDPOINT_LEVEL_BLOCK',
-        requestId
-      });
-    }
-    
-    // Adicionar informações do token decodificado à requisição para uso posterior
-    req.decodedJwt = decoded;
-    console.log(`[BLOQUEIO-GLOBAL ${requestId}] JWT verificado para usuário ${decoded.id}`);
-    
-  } catch (error) {
-    console.error(`[BLOQUEIO-GLOBAL ${requestId}] BLOQUEIO ABSOLUTO: Erro na validação JWT:`, error.message);
-    return res.status(401).json({
-      success: false,
-      message: 'Acesso negado - Token de autenticação inválido ou expirado',
-      code: 'JWT_VERIFICATION_FAILED',
       requestId: requestId
     });
   }
@@ -162,6 +77,8 @@ const securityEnforcer = require('./middlewares/securityEnforcer');
 const blockBrowserAccess = require('./middlewares/browserBlockMiddleware');
 const apiProtectionShield = require('./middlewares/apiProtectionShield');
 const { requireFormUrlEncoded, acceptJsonOrForm } = require('./middlewares/contentTypeMiddleware');
+const { authenticateToken } = require('./middlewares/jwtAuthMiddleware');
+const simpleAuthRoutes = require('./routes/simpleAuthRoutes');
 
 // Middlewares globais
 app.use(express.json());
@@ -181,6 +98,34 @@ app.use(['/api/roulettes', '/api/ROULETTES', '/api/roletas'], blockBrowserAccess
 
 // Security enforcer para rotas protegidas
 app.use(securityEnforcer());
+
+// Configurar rotas de autenticação simplificada
+app.use('/api/simple-auth', simpleAuthRoutes);
+console.log('Rotas de autenticação simplificada configuradas em /api/simple-auth');
+
+// Exemplo de rota protegida usando o novo middleware de autenticação JWT
+app.get('/api/protected', 
+  authenticateToken({ required: true }), 
+  (req, res) => {
+    res.json({
+      success: true,
+      message: 'Você acessou um recurso protegido',
+      user: req.user
+    });
+  }
+);
+
+// Exemplo de rota protegida com requisito de role
+app.get('/api/admin', 
+  authenticateToken({ required: true, roles: ['admin'] }), 
+  (req, res) => {
+    res.json({
+      success: true,
+      message: 'Bem-vindo, administrador!',
+      user: req.user
+    });
+  }
+);
 
 // Função utilitária para configurar CORS de forma consistente
 const configureCors = (req, res) => {
@@ -1848,3 +1793,53 @@ function generateRandomString(length) {
   
   return result;
 }
+
+// Adicionar nova rota de roletas usando o middleware JWT simples
+app.get('/api/jwt-roulettes', 
+  authenticateToken({ required: true }), 
+  async (req, res) => {
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[API-JWT ${requestId}] Requisição recebida para /api/jwt-roulettes`);
+    console.log(`[API-JWT ${requestId}] Usuário: ${req.user?.id} (${req.user?.username})`);
+    
+    try {
+      if (!isConnected || !collection) {
+        console.log(`[API-JWT ${requestId}] MongoDB não conectado, retornando array vazio`);
+        return res.json([]);
+      }
+      
+      // Log de acesso bem-sucedido
+      console.log(`[API-JWT ${requestId}] ACESSO PERMITIDO: Usuário autenticado com JWT válido`);
+      
+      // Obter roletas únicas da coleção
+      const roulettes = await collection.aggregate([
+        { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+        { $project: { _id: 0, id: 1, nome: "$_id" } }
+      ]).toArray();
+      
+      console.log(`[API-JWT ${requestId}] Processadas ${roulettes.length} roletas para usuário ${req.user?.username}`);
+      
+      // Adicionar detalhes para diferenciar da rota antiga
+      res.json({
+        success: true,
+        message: 'Dados obtidos com JWT simples',
+        requestId,
+        user: {
+          id: req.user?.id,
+          username: req.user?.username,
+          roles: req.user?.roles
+        },
+        timestamp: new Date().toISOString(),
+        data: roulettes
+      });
+    } catch (error) {
+      console.error(`[API-JWT ${requestId}] Erro ao listar roletas:`, error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Erro interno ao buscar roletas',
+        message: error.message,
+        requestId: requestId 
+      });
+    }
+  }
+);
