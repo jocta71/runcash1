@@ -4,7 +4,7 @@
  */
 
 const axios = require('axios');
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient } = require('mongodb');
 
 // Configuração do MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
@@ -17,9 +17,6 @@ const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3';
 // Variável para controlar verificação forçada no Asaas
 // Pode ser usado para debugging ou em ambiente de produção em casos específicos
 const FORCE_ASAAS_CHECK = process.env.FORCE_ASAAS_CHECK === 'true';
-
-// Flag para habilitar atualização automática do banco local ao consultar na API
-const AUTO_SYNC_ON_CHECK = process.env.AUTO_SYNC_ON_CHECK !== 'false';
 
 /**
  * Verifica o status de uma assinatura pelo ID do cliente, primeiro no MongoDB local
@@ -79,11 +76,6 @@ async function checkSubscriptionStatus(customerId) {
       
       console.log(`[AsaasService] Nenhuma assinatura ativa. Status mais recente: ${latestSubscription.status}`);
       
-      // Se AUTO_SYNC_ON_CHECK estiver habilitado, atualizar o banco local
-      if (AUTO_SYNC_ON_CHECK) {
-        await syncSubscriptionToDatabase(latestSubscription, customerId);
-      }
-      
       return {
         success: true,
         message: 'Nenhuma assinatura ativa encontrada',
@@ -110,11 +102,6 @@ async function checkSubscriptionStatus(customerId) {
       paymentsResponse.data.data.filter(payment => 
         payment.status === 'PENDING' || payment.status === 'RECEIVED' || payment.status === 'CONFIRMED'
       ) : [];
-      
-    // Se AUTO_SYNC_ON_CHECK estiver habilitado, atualizar o banco local
-    if (AUTO_SYNC_ON_CHECK) {
-      await syncSubscriptionToDatabase(activeSubscription, customerId);
-    }
     
     return {
       success: true,
@@ -209,183 +196,6 @@ async function checkLocalSubscriptionStatus(customerId) {
 }
 
 /**
- * Sincroniza dados de uma assinatura do Asaas para o banco de dados local
- * @param {Object} subscription - Dados da assinatura vinda do Asaas
- * @param {string} customerId - ID do cliente no Asaas
- * @returns {Promise<boolean>} - Retorna true se a sincronização foi bem-sucedida
- */
-async function syncSubscriptionToDatabase(subscription, customerId) {
-  let client;
-  
-  try {
-    // Conectar ao MongoDB
-    client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    
-    const db = client.db(MONGODB_DB_NAME);
-    
-    // Mapear status do Asaas para o formato usado no banco local
-    const statusMap = {
-      'ACTIVE': 'active',
-      'INACTIVE': 'inactive',
-      'OVERDUE': 'overdue',
-      'PENDING': 'pending'
-    };
-    
-    const localStatus = statusMap[subscription.status] || subscription.status.toLowerCase();
-    
-    // 1. Atualizar na coleção 'subscriptions'
-    console.log(`[AsaasService] Sincronizando assinatura ${subscription.id} na coleção 'subscriptions'`);
-    
-    const existingSubscription = await db.collection('subscriptions').findOne({ 
-      subscription_id: subscription.id
-    });
-    
-    if (existingSubscription) {
-      // Atualizar assinatura existente
-      await db.collection('subscriptions').updateOne(
-        { subscription_id: subscription.id },
-        { 
-          $set: {
-            status: localStatus,
-            last_update: new Date(),
-            value: subscription.value,
-            next_due_date: subscription.nextDueDate,
-            cycle: subscription.cycle,
-            description: subscription.description
-          },
-          $push: {
-            status_history: {
-              status: localStatus,
-              timestamp: new Date(),
-              source: 'asaas_api'
-            }
-          }
-        }
-      );
-    } else {
-      // Verificar se existe usuário associado ao customer_id
-      const user = await db.collection('users').findOne({ customerId });
-      
-      if (!user) {
-        console.log(`[AsaasService] Nenhum usuário encontrado com customerId ${customerId}, não é possível criar registro na coleção 'subscriptions'`);
-        return false;
-      }
-      
-      // Criar nova entrada na coleção 'subscriptions'
-      await db.collection('subscriptions').insertOne({
-        subscription_id: subscription.id,
-        customer_id: customerId,
-        user_id: user._id.toString(),
-        status: localStatus,
-        value: subscription.value,
-        next_due_date: subscription.nextDueDate,
-        cycle: subscription.cycle,
-        description: subscription.description,
-        created_at: new Date(),
-        last_update: new Date(),
-        status_history: [
-          {
-            status: localStatus,
-            timestamp: new Date(),
-            source: 'asaas_api'
-          }
-        ]
-      });
-    }
-    
-    // 2. Atualizar na coleção 'userSubscriptions'
-    console.log(`[AsaasService] Sincronizando assinatura ${subscription.id} na coleção 'userSubscriptions'`);
-    
-    // Verificar se já existe registro em userSubscriptions
-    const existingUserSubscription = await db.collection('userSubscriptions').findOne({
-      asaasSubscriptionId: subscription.id
-    });
-    
-    if (existingUserSubscription) {
-      // Atualizar assinatura existente
-      await db.collection('userSubscriptions').updateOne(
-        { asaasSubscriptionId: subscription.id },
-        {
-          $set: {
-            status: localStatus,
-            nextDueDate: subscription.nextDueDate,
-            updatedAt: new Date(),
-            planValue: subscription.value
-          },
-          $push: {
-            statusHistory: {
-              status: localStatus,
-              date: new Date(),
-              source: 'asaas_api'
-            }
-          }
-        }
-      );
-    } else {
-      // Buscar informações do usuário
-      const user = await db.collection('users').findOne({ customerId });
-      
-      if (!user) {
-        console.log(`[AsaasService] Nenhum usuário encontrado com customerId ${customerId}, não é possível criar registro na coleção 'userSubscriptions'`);
-        return false;
-      }
-      
-      // Determinar o tipo de plano com base na descrição ou valor
-      let planType = 'basic'; // padrão
-      
-      if (subscription.description) {
-        const description = subscription.description.toLowerCase();
-        if (description.includes('premium') || description.includes('pro')) {
-          planType = 'premium';
-        } else if (description.includes('vip') || description.includes('ultimate')) {
-          planType = 'vip';
-        }
-      } else if (subscription.value) {
-        // Lógica alternativa baseada no valor
-        const value = parseFloat(subscription.value);
-        if (value >= 100) {
-          planType = 'vip';
-        } else if (value >= 50) {
-          planType = 'premium';
-        }
-      }
-      
-      // Criar nova entrada na coleção 'userSubscriptions'
-      await db.collection('userSubscriptions').insertOne({
-        userId: user._id.toString(),
-        asaasCustomerId: customerId,
-        asaasSubscriptionId: subscription.id,
-        planType,
-        status: localStatus,
-        nextDueDate: subscription.nextDueDate,
-        planValue: subscription.value,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        statusHistory: [
-          {
-            status: localStatus,
-            date: new Date(),
-            source: 'asaas_api'
-          }
-        ]
-      });
-    }
-    
-    console.log(`[AsaasService] Sincronização concluída com sucesso para assinatura ${subscription.id}`);
-    return true;
-    
-  } catch (error) {
-    console.error('[AsaasService] Erro ao sincronizar assinatura com o banco de dados:', error);
-    return false;
-  } finally {
-    if (client) {
-      await client.close();
-    }
-  }
-}
-
-/**
  * Cria ou recupera um cliente no Asaas
  * @param {Object} customerData - Dados do cliente
  * @param {string} customerData.name - Nome do cliente
@@ -456,20 +266,7 @@ async function createOrGetCustomer(customerData) {
   }
 }
 
-/**
- * Atualiza o customerId de um usuário no banco de dados
- * @param {string} userId - ID do usuário
- * @param {string} customerId - ID do cliente no Asaas
- * @returns {Promise<boolean>} - Indica se a atualização foi bem-sucedida
- */
-async function updateUserCustomerId(userId, customerId) {
-  // ... existing code ...
-}
-
 module.exports = {
   checkSubscriptionStatus,
-  checkLocalSubscriptionStatus,
-  createOrGetCustomer,
-  updateUserCustomerId,
-  syncSubscriptionToDatabase
+  createOrGetCustomer
 }; 

@@ -1,188 +1,178 @@
 /**
- * Job para sincronizar as coleções subscriptions e userSubscriptions
- * Garante consistência entre as coleções, mesmo se algum webhook falhar
+ * Job para sincronizar assinaturas entre as coleções 'subscriptions' e 'userSubscriptions'
+ * Este script deve ser executado periodicamente para garantir consistência dos dados
  */
-const { MongoClient, ObjectId } = require('mongodb');
+
+const { MongoClient } = require('mongodb');
 
 // Configuração do MongoDB
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'runcash';
 
-// Configurações do job
-const SYNC_INTERVAL = process.env.SUBSCRIPTION_SYNC_INTERVAL || 3600000; // 1 hora por padrão
+// Flag para controlar o log detalhado
+const VERBOSE = process.env.VERBOSE_SYNC === 'true';
 
 /**
- * Função principal para sincronização de assinaturas
+ * Sincroniza as assinaturas entre as coleções
  */
 async function syncSubscriptions() {
-  const client = new MongoClient(MONGODB_URI);
-  const requestId = Math.random().toString(36).substring(2, 15);
-  
-  console.log(`[SyncSubscriptions ${requestId}] Iniciando sincronização de assinaturas`);
+  let client;
+  const syncId = new Date().toISOString();
+  console.log(`[SyncJob ${syncId}] Iniciando sincronização de assinaturas`);
   
   try {
+    // Conectar ao MongoDB
+    client = new MongoClient(MONGODB_URI);
     await client.connect();
     const db = client.db(MONGODB_DB_NAME);
     
-    // 1. Sincronizar de subscriptions para userSubscriptions
-    const subscriptions = await db.collection('subscriptions').find({
-      status: { $in: ['active', 'pending', 'overdue'] }
+    // 1. Obter todas as assinaturas ativas da coleção 'subscriptions'
+    const activeSubscriptions = await db.collection('subscriptions').find({ 
+      status: 'active' 
     }).toArray();
     
-    console.log(`[SyncSubscriptions ${requestId}] Encontradas ${subscriptions.length} assinaturas para sincronizar`);
+    console.log(`[SyncJob ${syncId}] Encontradas ${activeSubscriptions.length} assinaturas ativas na coleção 'subscriptions'`);
     
+    // 2. Para cada assinatura ativa, garantir que existe um registro correspondente em 'userSubscriptions'
     let createdCount = 0;
     let updatedCount = 0;
-    let errorCount = 0;
     
-    // Processar cada assinatura
-    for (const subscription of subscriptions) {
-      try {
-        const customerId = subscription.customer_id;
-        if (!customerId) {
-          console.log(`[SyncSubscriptions ${requestId}] Assinatura sem customerId, ignorando: ${subscription._id}`);
-          continue;
-        }
+    for (const subscription of activeSubscriptions) {
+      const customerId = subscription.customer_id;
+      const subscriptionId = subscription.subscription_id;
+      const userId = subscription.user_id;
+      const planId = subscription.plan_id;
+      
+      if (!customerId || !subscriptionId || !userId) {
+        console.log(`[SyncJob ${syncId}] Assinatura ${subscription._id} com dados incompletos, ignorando`);
+        continue;
+      }
+      
+      // Verificar se já existe um registro em 'userSubscriptions'
+      const existingUserSubscription = await db.collection('userSubscriptions').findOne({
+        asaasCustomerId: customerId,
+        asaasSubscriptionId: subscriptionId
+      });
+      
+      if (!existingUserSubscription) {
+        // Não existe, criar novo registro
+        VERBOSE && console.log(`[SyncJob ${syncId}] Criando novo registro em userSubscriptions para assinatura ${subscription._id}`);
         
-        // Verificar se já existe registro em userSubscriptions
-        const existingUserSub = await db.collection('userSubscriptions').findOne({
-          asaasCustomerId: customerId
-        });
+        // Calcular próxima data de vencimento (30 dias a partir de hoje)
+        const nextDueDate = new Date();
+        nextDueDate.setDate(nextDueDate.getDate() + 30);
         
-        // Determinar userId (pode estar em vários lugares dependendo da implementação)
-        let userId = subscription.user_id;
+        const newUserSubscription = {
+          userId: userId,
+          asaasCustomerId: customerId,
+          asaasSubscriptionId: subscriptionId,
+          status: 'active',
+          planType: planId || 'basic',
+          nextDueDate: nextDueDate,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
         
-        // Se não tiver userId na assinatura, buscar do usuário
-        if (!userId) {
-          const user = await db.collection('users').findOne({ 
-            $or: [
-              { customerId: customerId },
-              { 'asaas.customerId': customerId }
-            ]
-          });
-          
-          if (user) {
-            userId = user._id.toString();
-          } else {
-            console.log(`[SyncSubscriptions ${requestId}] Não foi possível encontrar usuário para customerId: ${customerId}`);
-            continue;
+        await db.collection('userSubscriptions').insertOne(newUserSubscription);
+        createdCount++;
+      } else if (existingUserSubscription.status !== 'active') {
+        // Existe mas não está ativo, atualizar
+        VERBOSE && console.log(`[SyncJob ${syncId}] Atualizando status do registro ${existingUserSubscription._id} para 'active'`);
+        
+        await db.collection('userSubscriptions').updateOne(
+          { _id: existingUserSubscription._id },
+          { 
+            $set: { 
+              status: 'active',
+              planType: planId || existingUserSubscription.planType || 'basic',
+              updatedAt: new Date()
+            } 
           }
-        }
-        
-        if (existingUserSub) {
-          // Atualizar registro existente
-          const updateResult = await db.collection('userSubscriptions').updateOne(
-            { _id: existingUserSub._id },
-            {
-              $set: {
-                status: subscription.status,
-                planType: subscription.plan_id,
-                nextDueDate: subscription.next_due_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                updatedAt: new Date()
-              }
-            }
-          );
-          
-          if (updateResult.modifiedCount > 0) {
-            updatedCount++;
-          }
-        } else {
-          // Criar novo registro
-          const newUserSubscription = {
-            userId: userId,
-            asaasCustomerId: customerId,
-            asaasSubscriptionId: subscription.subscription_id,
-            status: subscription.status,
-            planType: subscription.plan_id || 'basic',
-            nextDueDate: subscription.next_due_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            createdAt: new Date(),
-            updatedAt: new Date()
-          };
-          
-          await db.collection('userSubscriptions').insertOne(newUserSubscription);
-          createdCount++;
-        }
-      } catch (error) {
-        console.error(`[SyncSubscriptions ${requestId}] Erro ao processar assinatura ${subscription._id}:`, error);
-        errorCount++;
+        );
+        updatedCount++;
+      } else {
+        VERBOSE && console.log(`[SyncJob ${syncId}] Registro já está atualizado para assinatura ${subscription._id}`);
       }
     }
     
-    // 2. Verificar assinaturas inativas ou canceladas em userSubscriptions
-    const activeUserSubs = await db.collection('userSubscriptions').find({
-      status: 'active'
+    // 3. Inativar registros em 'userSubscriptions' que não têm assinaturas ativas correspondentes
+    const userSubscriptions = await db.collection('userSubscriptions').find({ 
+      status: 'active' 
     }).toArray();
+    
+    console.log(`[SyncJob ${syncId}] Encontrados ${userSubscriptions.length} registros ativos na coleção 'userSubscriptions'`);
     
     let inactivatedCount = 0;
     
-    for (const userSub of activeUserSubs) {
-      try {
-        // Verificar se existe uma assinatura ativa correspondente
-        const activeSubscription = await db.collection('subscriptions').findOne({
-          customer_id: userSub.asaasCustomerId,
-          status: 'active'
-        });
+    for (const userSubscription of userSubscriptions) {
+      const customerId = userSubscription.asaasCustomerId;
+      const subscriptionId = userSubscription.asaasSubscriptionId;
+      
+      if (!customerId || !subscriptionId) {
+        console.log(`[SyncJob ${syncId}] UserSubscription ${userSubscription._id} com dados incompletos, ignorando`);
+        continue;
+      }
+      
+      // Verificar se existe uma assinatura ativa correspondente
+      const activeSubscription = await db.collection('subscriptions').findOne({
+        customer_id: customerId,
+        subscription_id: subscriptionId,
+        status: 'active'
+      });
+      
+      if (!activeSubscription) {
+        // Não existe assinatura ativa, inativar
+        VERBOSE && console.log(`[SyncJob ${syncId}] Inativando registro ${userSubscription._id} sem assinatura ativa correspondente`);
         
-        if (!activeSubscription) {
-          // Se não existe assinatura ativa, marcar como inativa em userSubscriptions
-          await db.collection('userSubscriptions').updateOne(
-            { _id: userSub._id },
-            {
-              $set: {
-                status: 'inactive',
-                updatedAt: new Date()
-              }
-            }
-          );
-          
-          inactivatedCount++;
-        }
-      } catch (error) {
-        console.error(`[SyncSubscriptions ${requestId}] Erro ao verificar assinatura de usuário ${userSub._id}:`, error);
-        errorCount++;
+        await db.collection('userSubscriptions').updateOne(
+          { _id: userSubscription._id },
+          { 
+            $set: { 
+              status: 'inactive',
+              updatedAt: new Date()
+            } 
+          }
+        );
+        inactivatedCount++;
       }
     }
     
-    console.log(`[SyncSubscriptions ${requestId}] Sincronização concluída.`);
-    console.log(`[SyncSubscriptions ${requestId}] Criadas: ${createdCount}, Atualizadas: ${updatedCount}, Inativadas: ${inactivatedCount}, Erros: ${errorCount}`);
+    console.log(`[SyncJob ${syncId}] Sincronização concluída:`);
+    console.log(`- ${createdCount} novos registros criados em 'userSubscriptions'`);
+    console.log(`- ${updatedCount} registros atualizados em 'userSubscriptions'`);
+    console.log(`- ${inactivatedCount} registros inativados em 'userSubscriptions'`);
     
     return {
       success: true,
       created: createdCount,
       updated: updatedCount,
-      inactivated: inactivatedCount,
-      errors: errorCount
+      inactivated: inactivatedCount
     };
-    
   } catch (error) {
-    console.error(`[SyncSubscriptions ${requestId}] Erro geral na sincronização:`, error);
-    throw error;
+    console.error(`[SyncJob ${syncId}] Erro durante a sincronização:`, error);
+    return {
+      success: false,
+      error: error.message
+    };
   } finally {
-    await client.close();
+    if (client) {
+      await client.close();
+      console.log(`[SyncJob ${syncId}] Conexão com MongoDB fechada`);
+    }
   }
 }
 
-/**
- * Função para iniciar o job recorrente
- */
-function startSyncJob() {
-  console.log(`Iniciando job de sincronização de assinaturas. Intervalo: ${SYNC_INTERVAL}ms`);
-  
-  // Executar imediatamente na inicialização
-  syncSubscriptions().catch(err => {
-    console.error('Erro na execução inicial do job de sincronização:', err);
+// Se for executado diretamente pelo Node.js (não importado como módulo)
+if (require.main === module) {
+  // Executar o job e sair
+  syncSubscriptions().then(result => {
+    console.log('Resultado da sincronização:', result);
+    process.exit(result.success ? 0 : 1);
+  }).catch(error => {
+    console.error('Erro fatal durante a sincronização:', error);
+    process.exit(1);
   });
-  
-  // Configurar intervalo para execuções recorrentes
-  setInterval(() => {
-    syncSubscriptions().catch(err => {
-      console.error('Erro na execução do job de sincronização:', err);
-    });
-  }, SYNC_INTERVAL);
-}
-
-// Exportar funções para uso externo
-module.exports = {
-  syncSubscriptions,
-  startSyncJob
-}; 
+} else {
+  // Exportar a função para ser usada como módulo
+  module.exports = syncSubscriptions;
+} 

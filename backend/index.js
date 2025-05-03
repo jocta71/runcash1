@@ -11,6 +11,12 @@ const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const compression = require('compression');
+const cookieParser = require('cookie-parser');
+const socketIo = require('socket.io');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const setupCronJobs = require('./jobs/setupCronJobs');
+const webhookRoutes = require('./api/routes/webhookRoutes');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -268,38 +274,6 @@ if (fs.existsSync(apiIndexPath)) {
     } catch (err) {
       console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
     }
-
-    // Carregar webhook do Asaas se disponível
-    try {
-      const asaasWebhook = require('./webhooks/asaasWebhook');
-      app.use('/webhook/asaas', asaasWebhook);
-      console.log('→ Asaas Webhook carregado com sucesso');
-    } catch (error) {
-      console.error('→ Erro ao carregar webhook do Asaas:', error.message);
-    }
-
-    // Carregar rotas administrativas
-    try {
-      const adminRoutes = require('./routes/adminRoutes');
-      app.use('/api/admin', adminRoutes);
-      console.log('→ Rotas administrativas carregadas com sucesso');
-    } catch (error) {
-      console.error('→ Erro ao carregar rotas administrativas:', error.message);
-    }
-
-    // Iniciar job de sincronização de assinaturas se disponível
-    try {
-      const syncSubscriptionsJob = require('./jobs/syncSubscriptions');
-      // Verificar se deve iniciar o job baseado em variável de ambiente
-      if (process.env.ENABLE_SUBSCRIPTION_SYNC !== 'false') {
-        syncSubscriptionsJob.startSyncJob();
-        console.log('Job de sincronização de assinaturas iniciado');
-      } else {
-        console.log('Job de sincronização de assinaturas desativado por configuração');
-      }
-    } catch (err) {
-      console.log('Job de sincronização de assinaturas não disponível:', err.message);
-    }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
   }
@@ -335,6 +309,12 @@ app.get('/auth/google/callback', (req, res, next) => {
   req.url = '/api/auth/google/callback';
   app._router.handle(req, res, next);
 });
+
+// Configuração das rotas
+// Rotas públicas
+app.use('/api/auth', authRoutes);
+app.use('/api/register', registerRoutes);
+app.use('/webhooks', webhookRoutes);
 
 // Inicializar servidor HTTP
 const server = http.createServer(app);
@@ -428,4 +408,8 @@ server.listen(PORT, () => {
   console.log('- / (status do servidor)');
   console.log('- /api (rotas da API principal)');
   console.log('- /emit-event (compatibilidade com WebSocket, se ativado)');
+  
+  // Iniciar cron jobs
+  setupCronJobs();
+  console.log('Cron jobs iniciados');
 });
