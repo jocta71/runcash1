@@ -9,6 +9,7 @@ require('dotenv').config();
 const rouletteHistoryRouter = require('./routes/rouletteHistoryApi');
 const strategiesRouter = require('./routes/strategies');
 const authRouter = require('./routes/auth');
+const webhookRouter = require('./routes/webhookRoutes');
 
 // Configuração MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -76,6 +77,7 @@ apiApp.locals.db = db;
 apiApp.use('/roulettes/history', rouletteHistoryRouter);
 apiApp.use('/strategies', strategiesRouter);
 apiApp.use('/auth', authRouter);
+apiApp.use('/', webhookRouter);
 
 // Adicionar mapeamento de nomes para IDs de roletas conhecidas
 const NOME_PARA_ID = {
