@@ -615,125 +615,29 @@ app.get('/api/status', (req, res) => {
 });
 
 // Rota para listar todas as roletas (endpoint em inglês)
-app.get('/api/roulettes', 
-  (req, res, next) => {
-    // VALIDAÇÃO EXTREMA: Verificar token JWT antes de qualquer coisa
-    const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[ULTRA-SECURE ${requestId}] Validação bruta no próprio endpoint /api/roulettes`);
-    
-    // Verificar se há token de autorização
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Sem token de autorização válido`);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso negado - Token de autenticação obrigatório',
-        code: 'ENDPOINT_LEVEL_BLOCK',
-        requestId
-      });
-    }
-    
-    // Extrair e verificar o token JWT diretamente
-    try {
-      const token = authHeader.slice(7); // Remove 'Bearer '
-      // Usar a constante global JWT_SECRET em vez de definir localmente
-      
-      // Verificar token - isto lança erro se inválido
-      const decoded = jwt.verify(token, JWT_SECRET);
-      
-      if (!decoded || !decoded.id) {
-        console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
-        return res.status(401).json({
-          success: false,
-          message: 'Acesso negado - Token de autenticação inválido',
-          code: 'ENDPOINT_LEVEL_BLOCK',
-          requestId
-        });
-      }
-      
-      console.log(`[ULTRA-SECURE ${requestId}] ✓ Token JWT validado para usuário ${decoded.id}`);
-      next();
-    } catch (error) {
-      console.error(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Erro na validação JWT:`, error.message);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso negado - Token de autenticação inválido ou expirado',
-        code: 'ENDPOINT_LEVEL_JWT_ERROR',
-        requestId
-      });
-    }
-  },
-  verifyTokenAndSubscription({ 
-    required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
-  }), 
-  async (req, res) => {
-    const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[API ${requestId}] Requisição recebida para /api/roulettes`);
-    console.log(`[API ${requestId}] Usuário: ${req.usuario?.id}`);
-    console.log(`[API ${requestId}] Plano: ${req.userPlan?.type}`);
-    console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
-    console.log(`[API ${requestId}] Query: ${JSON.stringify(req.query)}`);
-    
-    // VERIFICAÇÃO DUPLA: Se o middleware falhar, verificar novamente aqui
-    if (!req.usuario || !req.subscription) {
-      console.log(`[API ${requestId}] BLOQUEIO SECUNDÁRIO: Acesso não autenticado ou sem assinatura detectado`);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso negado - Autenticação e assinatura são obrigatórias',
-        code: 'DOUBLE_VERIFICATION_FAILED',
-        requestId: requestId
-      });
-    }
-    
-    // VERIFICAÇÃO TRIPLA: Verificar se a assinatura é válida
-    try {
-      // Verificar data de validade da assinatura
-      const validUntil = req.subscription.validade || req.subscription.expiresAt || req.subscription.nextDueDate;
-      if (validUntil && new Date(validUntil) < new Date()) {
-        console.log(`[API ${requestId}] BLOQUEIO TERCIÁRIO: Assinatura expirada`);
-        return res.status(403).json({
-          success: false,
-          message: 'Sua assinatura expirou. Por favor, renove para continuar acessando este recurso.',
-          code: 'SUBSCRIPTION_EXPIRED',
-          requestId: requestId,
-          expiryDate: validUntil
-        });
-      }
-    } catch (error) {
-      console.error(`[API ${requestId}] Erro ao verificar data de validade da assinatura:`, error);
-    }
-    
-    // Aplicar cabeçalhos CORS explicitamente para esta rota
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    
-    try {
-      if (!isConnected || !collection) {
-        console.log(`[API ${requestId}] MongoDB não conectado, retornando array vazio`);
-        return res.json([]);
-      }
-      
-      // Log de acesso bem-sucedido
-      console.log(`[API ${requestId}] ACESSO PERMITIDO: Usuário autenticado com assinatura válida`);
-      
-      // Obter roletas únicas da coleção
-      const roulettes = await collection.aggregate([
-        { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
-        { $project: { _id: 0, id: 1, nome: "$_id" } }
-      ]).toArray();
-      
-      console.log(`[API ${requestId}] Processadas ${roulettes.length} roletas para usuário ${req.usuario?.id} com plano ${req.userPlan?.type}`);
-      res.json(roulettes);
-    } catch (error) {
-      console.error(`[API ${requestId}] Erro ao listar roletas:`, error);
-      res.status(500).json({ 
-        error: 'Erro interno ao buscar roletas',
-        message: error.message,
-        requestId: requestId 
-      });
-    }
+app.get('/api/roulettes', (req, res) => {
+  const requestId = Math.random().toString(36).substring(2, 15);
+  console.log(`[API ${requestId}] Tentativa de acesso à rota desativada /api/roulettes`);
+  console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+  console.log(`[API ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
+  
+  // Aplicar cabeçalhos CORS explicitamente para esta rota
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Retornar resposta indicando que a rota foi desativada
+  return res.status(403).json({
+    success: false,
+    message: 'Esta rota foi desativada por motivos de segurança',
+    code: 'ENDPOINT_DISABLED',
+    requestId: requestId,
+    alternativeEndpoints: [
+      '/api/roletas',
+      '/api/ROULETTES'
+    ],
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
