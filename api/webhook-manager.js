@@ -102,6 +102,7 @@ async function handleWebhook(req, res) {
         // Atualizar status da assinatura, se aplicável
         if (webhookData.payment?.subscription) {
           const subscriptionId = webhookData.payment.subscription;
+          const customerId = webhookData.payment.customer;
           
           // Verificar se a assinatura existe
           const existingSubscription = await db.collection('subscriptions').findOne({
@@ -109,6 +110,7 @@ async function handleWebhook(req, res) {
           });
           
           if (existingSubscription) {
+            // Atualizar status na coleção subscriptions
             await db.collection('subscriptions').updateOne(
               { subscription_id: subscriptionId },
               { 
@@ -128,6 +130,61 @@ async function handleWebhook(req, res) {
             );
             
             console.log(`Status da assinatura ${subscriptionId} atualizado para ${webhookData.payment.status}`);
+            
+            // NOVO CÓDIGO: Atualizar ou criar registro na coleção userSubscriptions
+            if (webhookData.payment.status === 'CONFIRMED' || webhookData.payment.status === 'RECEIVED' || webhookData.payment.status === 'ACTIVE') {
+              console.log(`Atualizando userSubscriptions para assinatura ${subscriptionId}`);
+              
+              // Verificar se já existe um registro para este usuário na coleção userSubscriptions
+              const existingUserSubscription = await db.collection('userSubscriptions').findOne({
+                asaasSubscriptionId: subscriptionId
+              });
+              
+              if (existingUserSubscription) {
+                // Atualizar o registro existente
+                await db.collection('userSubscriptions').updateOne(
+                  { asaasSubscriptionId: subscriptionId },
+                  {
+                    $set: {
+                      status: 'active',
+                      updatedAt: new Date(),
+                      nextDueDate: new Date(new Date().setDate(new Date().getDate() + 30)) // 30 dias a partir de hoje
+                    },
+                    $push: {
+                      statusHistory: {
+                        status: 'active',
+                        timestamp: new Date(),
+                        source: 'webhook'
+                      }
+                    }
+                  }
+                );
+                console.log(`Registro existente em userSubscriptions atualizado para assinatura ${subscriptionId}`);
+              } else {
+                // Determinar o tipo de plano com base no valor ou nas informações da assinatura
+                const planType = determinePlanType(existingSubscription.plan_id, webhookData.payment.value);
+                
+                // Criar um novo registro
+                await db.collection('userSubscriptions').insertOne({
+                  userId: existingSubscription.user_id,
+                  asaasCustomerId: customerId,
+                  asaasSubscriptionId: subscriptionId,
+                  status: 'active',
+                  planType: planType,
+                  nextDueDate: new Date(new Date().setDate(new Date().getDate() + 30)), // 30 dias a partir de hoje
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                  statusHistory: [
+                    {
+                      status: 'active',
+                      timestamp: new Date(),
+                      source: 'webhook'
+                    }
+                  ]
+                });
+                console.log(`Novo registro criado em userSubscriptions para assinatura ${subscriptionId}`);
+              }
+            }
           } else {
             console.warn(`Assinatura ${subscriptionId} não encontrada no banco de dados`);
             
@@ -228,6 +285,27 @@ async function handleWebhook(req, res) {
       }
     }
   }
+}
+
+// Função utilitária para determinar o tipo de plano
+function determinePlanType(planId, value) {
+  // Se temos um ID de plano, usar essa informação
+  if (planId) {
+    if (planId.includes('basic')) return 'basic';
+    if (planId.includes('pro')) return 'pro';
+    if (planId.includes('premium')) return 'premium';
+  }
+  
+  // Caso contrário, tentar inferir pelo valor
+  if (value) {
+    const numValue = parseFloat(value);
+    if (numValue <= 29.90) return 'basic';
+    if (numValue <= 59.90) return 'pro';
+    return 'premium';
+  }
+  
+  // Valor padrão
+  return 'basic';
 }
 
 // Função para lidar com reconciliação
