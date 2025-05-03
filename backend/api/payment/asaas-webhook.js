@@ -147,6 +147,9 @@ module.exports = async (req, res) => {
             updated_at: new Date()
           }, subscriptionDetails);
           
+          // Criar registro na coleção userSubscriptions se ainda não existir
+          await createUserSubscription(db, subscriptionId, subscriptionDetails);
+          
           console.log(`[WEBHOOK] Assinatura ${subscriptionId} ativada até ${expirationDate}`);
         } else {
           // Caso não consiga buscar detalhes, apenas atualizar status
@@ -372,5 +375,68 @@ async function updateOrCreateSubscription(db, subscriptionId, updateData, subscr
       created_at: new Date(),
       updated_at: new Date()
     });
+  }
+}
+
+/**
+ * Cria ou atualiza um registro na coleção userSubscriptions
+ * @param {Db} db - Instância do banco de dados
+ * @param {string} subscriptionId - ID da assinatura no Asaas
+ * @param {Object} subscriptionDetails - Detalhes da assinatura do Asaas
+ */
+async function createUserSubscription(db, subscriptionId, subscriptionDetails) {
+  try {
+    // Buscar usuário pelo customer ID
+    const userId = await getUserIdFromAsaasCustomer(db, subscriptionDetails.customer);
+    
+    if (!userId) {
+      console.error(`[WEBHOOK] Usuário não encontrado para customer ID: ${subscriptionDetails.customer}`);
+      return;
+    }
+    
+    // Verificar se já existe um registro para esta assinatura
+    const existingUserSubscription = await db.collection('userSubscriptions').findOne({
+      asaasSubscriptionId: subscriptionId
+    });
+    
+    if (existingUserSubscription) {
+      // Atualizar registro existente
+      await db.collection('userSubscriptions').updateOne(
+        { asaasSubscriptionId: subscriptionId },
+        { 
+          $set: {
+            status: 'active',
+            nextDueDate: new Date(subscriptionDetails.nextDueDate),
+            updatedAt: new Date()
+          }
+        }
+      );
+      console.log(`[WEBHOOK] userSubscription atualizada para ID: ${subscriptionId}`);
+    } else {
+      // Mapear o tipo de plano
+      let planType = 'basic';
+      if (subscriptionDetails.value >= 40 && subscriptionDetails.value < 100) {
+        planType = 'pro';
+      } else if (subscriptionDetails.value >= 100) {
+        planType = 'premium';
+      }
+      
+      // Criar novo registro
+      const userSubscription = {
+        userId: userId,
+        asaasCustomerId: subscriptionDetails.customer,
+        asaasSubscriptionId: subscriptionId,
+        status: 'active',
+        planType: planType,
+        nextDueDate: new Date(subscriptionDetails.nextDueDate),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      const result = await db.collection('userSubscriptions').insertOne(userSubscription);
+      console.log(`[WEBHOOK] Nova userSubscription criada, ID: ${result.insertedId}`);
+    }
+  } catch (error) {
+    console.error('[WEBHOOK] Erro ao criar/atualizar userSubscription:', error);
   }
 } 
