@@ -22,17 +22,18 @@ const FORCE_ASAAS_CHECK = process.env.FORCE_ASAAS_CHECK === 'true';
  * Verifica o status de uma assinatura pelo ID do cliente, primeiro no MongoDB local
  * e depois, se necessário, na API do Asaas
  * @param {string} customerId - ID do cliente no Asaas
+ * @param {string} userId - ID do usuário (opcional)
  * @returns {Promise<Object>} - Objeto com informações da assinatura
  */
-async function checkSubscriptionStatus(customerId) {
+async function checkSubscriptionStatus(customerId, userId = null) {
   // Primeiramente, verificar no banco de dados local se existe uma assinatura ativa
   try {
-    console.log(`[AsaasService] Verificando assinatura para cliente: ${customerId}`);
+    console.log(`[AsaasService] Verificando assinatura para cliente: ${customerId}${userId ? `, usuário: ${userId}` : ''}`);
     
     // Verificar no banco de dados local primeiro
     if (!FORCE_ASAAS_CHECK) {
       console.log(`[AsaasService] Verificando primeiro no banco de dados local...`);
-      const localStatus = await checkLocalSubscriptionStatus(customerId);
+      const localStatus = await checkLocalSubscriptionStatus(customerId, userId);
       
       if (localStatus.hasActiveSubscription) {
         console.log(`[AsaasService] Assinatura ativa encontrada no banco de dados local`);
@@ -127,9 +128,10 @@ async function checkSubscriptionStatus(customerId) {
 /**
  * Verifica o status da assinatura diretamente no banco de dados local
  * @param {string} customerId - ID do cliente no Asaas
+ * @param {string} userId - ID do usuário (opcional)
  * @returns {Promise<Object>} - Objeto com informações da assinatura local
  */
-async function checkLocalSubscriptionStatus(customerId) {
+async function checkLocalSubscriptionStatus(customerId, userId = null) {
   let client;
 
   try {
@@ -139,8 +141,8 @@ async function checkLocalSubscriptionStatus(customerId) {
     
     const db = client.db(MONGODB_DB_NAME);
     
-    // Verificar na coleção 'subscriptions'
-    console.log(`[AsaasService] Verificando na coleção 'subscriptions'...`);
+    // Verificar na coleção 'subscriptions' pelo customerId
+    console.log(`[AsaasService] Verificando na coleção 'subscriptions' pelo customer_id: ${customerId}`);
     const subscription = await db.collection('subscriptions').findOne({ customer_id: customerId });
     
     if (subscription && subscription.status === 'active') {
@@ -150,23 +152,77 @@ async function checkLocalSubscriptionStatus(customerId) {
         message: 'Assinatura ativa encontrada no banco local',
         status: subscription.status,
         hasActiveSubscription: true,
-        source: 'local_db_subscriptions'
+        source: 'local_db_subscriptions',
+        customerId: customerId
       };
     }
     
-    // Verificar na coleção 'userSubscriptions'
-    console.log(`[AsaasService] Verificando na coleção 'userSubscriptions'...`);
+    // Verificar na coleção 'userSubscriptions' pelo asaasCustomerId
+    console.log(`[AsaasService] Verificando na coleção 'userSubscriptions' pelo asaasCustomerId: ${customerId}`);
     const userSubscription = await db.collection('userSubscriptions').findOne({ asaasCustomerId: customerId });
     
     if (userSubscription && userSubscription.status === 'active') {
-      console.log(`[AsaasService] Assinatura ativa encontrada na coleção 'userSubscriptions'`);
+      console.log(`[AsaasService] Assinatura ativa encontrada na coleção 'userSubscriptions' pelo asaasCustomerId`);
       return {
         success: true,
         message: 'Assinatura ativa encontrada no banco local',
         status: userSubscription.status,
         hasActiveSubscription: true,
-        source: 'local_db_userSubscriptions'
+        source: 'local_db_userSubscriptions',
+        customerId: customerId,
+        userId: userSubscription.userId
       };
+    }
+    
+    // Se temos um userId, verificar também pelo userId
+    if (userId) {
+      console.log(`[AsaasService] Verificando na coleção 'userSubscriptions' pelo userId: ${userId}`);
+      const userSubByUserId = await db.collection('userSubscriptions').findOne({ 
+        userId: userId,
+        status: 'active'
+      });
+      
+      if (userSubByUserId) {
+        console.log(`[AsaasService] Assinatura ativa encontrada na coleção 'userSubscriptions' pelo userId`);
+        return {
+          success: true,
+          message: 'Assinatura ativa encontrada no banco local pelo userId',
+          status: userSubByUserId.status,
+          hasActiveSubscription: true,
+          source: 'local_db_userSubscriptions_userId',
+          userId: userId,
+          customerId: userSubByUserId.asaasCustomerId || customerId
+        };
+      }
+      
+      // Tentar buscar pelo _id do usuário se for uma string
+      try {
+        if (userId && userId.length === 24) {
+          console.log(`[AsaasService] Tentando verificar com userId como ObjectId...`);
+          const { ObjectId } = require('mongodb');
+          const userIdObj = new ObjectId(userId);
+          
+          const userSubByObjectId = await db.collection('userSubscriptions').findOne({ 
+            userId: userIdObj.toString(),
+            status: 'active'
+          });
+          
+          if (userSubByObjectId) {
+            console.log(`[AsaasService] Assinatura ativa encontrada com userId como ObjectId`);
+            return {
+              success: true,
+              message: 'Assinatura ativa encontrada no banco local pelo userId (ObjectId)',
+              status: userSubByObjectId.status,
+              hasActiveSubscription: true,
+              source: 'local_db_userSubscriptions_objectId',
+              userId: userId,
+              customerId: userSubByObjectId.asaasCustomerId || customerId
+            };
+          }
+        }
+      } catch (err) {
+        console.log(`[AsaasService] Erro ao tentar ObjectId: ${err.message}`);
+      }
     }
     
     // Nenhuma assinatura ativa encontrada

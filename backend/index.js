@@ -168,7 +168,7 @@ app.use('/api/roulettes', async (req, res, next) => {
         const asaasService = require('./services/asaasService');
         
         // Verificar status da assinatura
-        const subscriptionStatus = await asaasService.checkSubscriptionStatus(decoded.customerId);
+        const subscriptionStatus = await asaasService.checkSubscriptionStatus(decoded.customerId, decoded.id);
         
         if (subscriptionStatus.hasActiveSubscription) {
           console.log(`[FIREWALL ROULETTE ${requestId}] ✓ Assinatura ativa verificada. Permitindo acesso.`);
