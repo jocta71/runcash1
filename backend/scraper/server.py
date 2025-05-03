@@ -54,34 +54,122 @@ def get_roletas():
 
 @app.route('/api/roulettes', methods=['GET'])
 def get_roulettes():
-    """Rota desativada - Retorna 403 Forbidden por questões de segurança"""
-    # Gerar um ID único para rastreamento nos logs
+    """Verifica assinatura Asaas e retorna roletas apenas para assinantes válidos"""
+    # Obter token de autorização
+    auth_header = request.headers.get('Authorization')
     request_id = str(uuid.uuid4())
     
-    # Registrar tentativa de acesso à rota bloqueada
-    logger.warning(f"[FIREWALL {request_id}] Bloqueando acesso à rota desativada: /api/roulettes")
-    logger.warning(f"[FIREWALL {request_id}] Headers: {request.headers}")
-    logger.warning(f"[FIREWALL {request_id}] IP: {request.remote_addr}")
-    logger.warning(f"[FIREWALL {request_id}] User-Agent: {request.user_agent}")
-    logger.warning(f"[FIREWALL {request_id}] Timestamp: {datetime.now().isoformat()}")
+    # Verificar se o header de autorização está presente
+    if not auth_header or not auth_header.startswith('Bearer '):
+        # Registrar tentativa de acesso não autenticado
+        logger.warning(f"[AUTH {request_id}] Acesso não autenticado à rota /api/roulettes")
+        logger.warning(f"[AUTH {request_id}] Headers: {request.headers}")
+        logger.warning(f"[AUTH {request_id}] IP: {request.remote_addr}")
+        
+        # Retornar resposta 401 Unauthorized
+        response = jsonify({
+            "success": False,
+            "message": "Autenticação necessária para acessar este recurso.",
+            "code": "AUTHENTICATION_REQUIRED",
+            "requestId": request_id,
+            "timestamp": datetime.now().isoformat()
+        })
+        response.status_code = 401
+        return response
     
-    # Retornar resposta 403 Forbidden com mensagem clara
-    response = jsonify({
-        "success": False,
-        "message": "Esta rota foi desativada por razões de segurança.",
-        "code": "ROUTE_DISABLED",
-        "requestId": request_id,
-        "alternativeEndpoints": ["/api/roletas"],
-        "timestamp": datetime.now().isoformat()
-    })
+    # Extrair token
+    token = auth_header.split(' ')[1]
     
-    # Configurar cabeçalhos CORS explicitamente para esta resposta
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization'
-    response.status_code = 403
+    try:
+        # Verificar JWT (usando biblioteca específica ou função externa)
+        jwt_secret = os.environ.get('JWT_SECRET', 'runcash_jwt_secret_key_2023')
+        import jwt
+        decoded = jwt.decode(token, jwt_secret, algorithms=['HS256'])
+        
+        # Verificar se há customerId no token
+        customer_id = decoded.get('customerId')
+        if not customer_id:
+            # Buscar customerId no banco de dados
+            user_id = decoded.get('id')
+            if user_id:
+                user = data_source.db.users.find_one({'id': user_id})
+                if user and 'customerId' in user:
+                    customer_id = user['customerId']
+        
+        # Se não encontrou customerId, negar acesso
+        if not customer_id:
+            logger.warning(f"[AUTH {request_id}] Usuário sem ID Asaas: {decoded.get('id')}")
+            response = jsonify({
+                "success": False,
+                "message": "Assinatura necessária para acessar este recurso.",
+                "code": "SUBSCRIPTION_REQUIRED",
+                "requestId": request_id,
+                "timestamp": datetime.now().isoformat()
+            })
+            response.status_code = 403
+            return response
+        
+        # Verificar assinatura Asaas no banco de dados
+        subscription = data_source.db.subscriptions.find_one({
+            'customer_id': customer_id,
+            'status': 'ACTIVE'
+        })
+        
+        # Se não encontrou assinatura ativa, negar acesso
+        if not subscription:
+            logger.warning(f"[AUTH {request_id}] Sem assinatura ativa para: {customer_id}")
+            response = jsonify({
+                "success": False,
+                "message": "Assinatura ativa necessária para acessar este recurso.",
+                "code": "ACTIVE_SUBSCRIPTION_REQUIRED",
+                "requestId": request_id,
+                "timestamp": datetime.now().isoformat()
+            })
+            response.status_code = 403
+            return response
+        
+        # Assinatura ativa verificada, retornar roletas
+        logger.info(f"[AUTH {request_id}] Assinatura verificada para: {customer_id}")
+        
+        # Buscar roletas com base no plano do usuário
+        plan_type = subscription.get('plan_type', 'BASIC').upper()
+        
+        # Definir limite com base no plano
+        limit = 5  # Default
+        if plan_type == 'BASIC':
+            limit = 15
+        elif plan_type == 'PRO':
+            limit = 50
+        elif plan_type == 'PREMIUM':
+            limit = None  # Sem limite
+        
+        # Buscar todas as roletas
+        roletas = list(data_source.db.roletas.find({}, {'_id': 0}))
+        
+        # Limitar conforme o plano (exceto PREMIUM)
+        if limit is not None:
+            roletas = roletas[:limit]
+        
+        return jsonify({
+            "success": True,
+            "data": roletas,
+            "count": len(roletas),
+            "plan": plan_type,
+            "timestamp": datetime.now().isoformat()
+        })
     
-    return response
+    except Exception as e:
+        logger.error(f"[AUTH {request_id}] Erro ao verificar token/assinatura: {str(e)}")
+        response = jsonify({
+            "success": False,
+            "message": "Erro ao verificar autenticação ou assinatura.",
+            "code": "AUTH_ERROR",
+            "error": str(e),
+            "requestId": request_id,
+            "timestamp": datetime.now().isoformat()
+        })
+        response.status_code = 401
+        return response
 
 @app.route('/api/ROULETTES', methods=['GET'])
 def get_roulettes_uppercase():

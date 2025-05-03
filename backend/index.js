@@ -10,6 +10,8 @@ const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const { ObjectId } = require('mongodb');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -17,6 +19,7 @@ dotenv.config();
 // Configuração
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
+const JWT_SECRET = process.env.JWT_SECRET || "runcash_jwt_secret_key_2023";
 
 console.log('=== RunCash Unified Server ===');
 console.log(`PORT: ${PORT}`);
@@ -34,51 +37,192 @@ try {
 // Inicializar Express para a API principal
 const app = express();
 
-// FIREWALL ABSOLUTO NA RAIZ DO SERVIDOR: Bloqueio absoluto da rota /api/roulettes 
-// Este middleware é executado ANTES de qualquer outra configuração
-app.use((req, res, next) => {
-  // Verificar se o caminho é exatamente /api/roulettes (completo ou normalizado)
-  const path = req.originalUrl || req.url;
-  const pathLower = path.toLowerCase();
+// Middleware para verificar autenticação e assinatura para o endpoint de roletas
+app.use('/api/roulettes', async (req, res, next) => {
+  const requestId = Math.random().toString(36).substring(2, 15);
+  console.log(`[FIREWALL ROULETTE ${requestId}] Verificando acesso a /api/roulettes`);
   
-  // Verificar todas as variações possíveis da rota (case insensitive)
-  if (pathLower === '/api/roulettes' || 
-      pathLower === '/api/roulettes/' ||
-      pathLower.startsWith('/api/roulettes?') ||
-      path === '/api/ROULETTES' ||
-      path === '/api/ROULETTES/' ||
-      path.startsWith('/api/ROULETTES?')) {
-    // Gerar ID único para rastreamento do log
-    const requestId = crypto.randomUUID();
-    
-    // Registrar tentativa de acesso à rota bloqueada com detalhes máximos
-    console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO ABSOLUTO: Acesso à rota desativada ${path}`);
-    console.log(`[FIREWALL ROOT ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
-    console.log(`[FIREWALL ROOT ${requestId}] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress}`);
-    console.log(`[FIREWALL ROOT ${requestId}] User-Agent: ${req.headers['user-agent']}`);
-    console.log(`[FIREWALL ROOT ${requestId}] Timestamp: ${new Date().toISOString()}`);
-    
-    // Aplicar cabeçalhos CORS explicitamente
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    
-    // Retornar resposta 403 Forbidden com detalhes
-    return res.status(403).json({
+  // Verificar se a requisição tem um token de autorização
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log(`[FIREWALL ROULETTE ${requestId}] Sem token de autorização ou formato inválido`);
+    return res.status(401).json({
       success: false,
-      message: 'Esta rota foi desativada por motivos de segurança.',
-      code: 'ROOT_FIREWALL_BLOCK',
+      message: 'Token de autenticação não fornecido ou inválido',
+      code: 'AUTH_REQUIRED',
       requestId: requestId,
-      alternativeEndpoints: [
-        '/api/roletas'
-      ],
       timestamp: new Date().toISOString()
     });
   }
   
-  // Se não for a rota específica, continuar para o próximo middleware
-  next();
+  const token = authHeader.split(' ')[1];
+  
+  try {
+    // Verificar se o token é válido
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Definir informações do usuário na requisição
+    req.usuario = decoded;
+    
+    // Verificar se o parâmetro customerId existe no token
+    if (!decoded.customerId) {
+      // Verificar se há customerId persistido no banco de dados
+      console.log(`[FIREWALL ROULETTE ${requestId}] Token válido, mas sem customerId. Verificando no banco...`);
+      
+      try {
+        // Conectar ao MongoDB
+        const client = new MongoClient(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+        await client.connect();
+        const db = client.db();
+        
+        // Buscar usuário no banco pelo ID
+        const user = await db.collection('users').findOne({ _id: new ObjectId(decoded.id) });
+        
+        if (!user) {
+          // Tentar buscar por outros campos se não encontrou pelo _id
+          console.log(`[FIREWALL ROULETTE ${requestId}] Usuário não encontrado pelo _id, tentando outros campos...`);
+          const userByOtherId = await db.collection('users').findOne({ id: decoded.id });
+          
+          if (userByOtherId && (userByOtherId.customerId || userByOtherId.asaasCustomerId)) {
+            // Usar customerId do usuário encontrado
+            decoded.customerId = userByOtherId.customerId || userByOtherId.asaasCustomerId;
+            console.log(`[FIREWALL ROULETTE ${requestId}] CustomerId encontrado em campo alternativo: ${decoded.customerId}`);
+          } else {
+            // Se ainda não encontrou, tentar pelo email
+            console.log(`[FIREWALL ROULETTE ${requestId}] Tentando buscar pelo email: ${decoded.email}`);
+            const userByEmail = await db.collection('users').findOne({ email: decoded.email });
+            
+            if (userByEmail && (userByEmail.customerId || userByEmail.asaasCustomerId)) {
+              decoded.customerId = userByEmail.customerId || userByEmail.asaasCustomerId;
+              console.log(`[FIREWALL ROULETTE ${requestId}] CustomerId encontrado pelo email: ${decoded.customerId}`);
+            }
+          }
+        } else if (user && (user.customerId || user.asaasCustomerId)) {
+          decoded.customerId = user.customerId || user.asaasCustomerId;
+          console.log(`[FIREWALL ROULETTE ${requestId}] CustomerId encontrado: ${decoded.customerId}`);
+        }
+        
+        // Se ainda não encontrou CustomerId, verificar na coleção userSubscriptions
+        if (!decoded.customerId) {
+          console.log(`[FIREWALL ROULETTE ${requestId}] Verificando na coleção userSubscriptions...`);
+          const userSubscription = await db.collection('userSubscriptions').findOne({ userId: decoded.id });
+          
+          if (userSubscription && userSubscription.asaasCustomerId) {
+            decoded.customerId = userSubscription.asaasCustomerId;
+            console.log(`[FIREWALL ROULETTE ${requestId}] CustomerId encontrado em userSubscriptions: ${decoded.customerId}`);
+          }
+        }
+        
+        // Se ainda não temos customerId, verificar se há uma assinatura ativa diretamente
+        if (!decoded.customerId) {
+          console.log(`[FIREWALL ROULETTE ${requestId}] Verificando assinatura ativa sem customerId...`);
+          const userSubscription = await db.collection('userSubscriptions').findOne({ 
+            userId: decoded.id,
+            status: "active"
+          });
+          
+          if (userSubscription) {
+            console.log(`[FIREWALL ROULETTE ${requestId}] Assinatura ativa encontrada sem customerId`);
+            // Se temos assinatura ativa, permitir acesso mesmo sem customerId
+            await client.close();
+            
+            // Definir plano do usuário para limitar dados
+            req.userPlan = { type: userSubscription.planType || 'BASIC' };
+            return next();
+          } else {
+            // Usuário sem assinatura ativa e sem customerId - bloquear acesso
+            console.log(`[FIREWALL ROULETTE ${requestId}] 🛑 BLOQUEIO: Usuário sem assinatura ativa e sem ID Asaas`);
+            
+            // Fechar conexão com MongoDB
+            await client.close();
+            
+            return res.status(403).json({
+              success: false,
+              message: 'Assinatura necessária para acessar este recurso.',
+              code: 'SUBSCRIPTION_REQUIRED',
+              requestId: requestId,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+        
+        // Fechar conexão com MongoDB
+        await client.close();
+      } catch (dbError) {
+        console.error(`[FIREWALL ROULETTE ${requestId}] Erro ao verificar banco de dados:`, dbError);
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Erro interno ao verificar assinatura.',
+          code: 'INTERNAL_ERROR',
+          requestId: requestId,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+    
+    // Verificar assinatura Asaas se temos customerId
+    if (decoded.customerId) {
+      try {
+        // Importar serviço Asaas
+        const asaasService = require('./services/asaasService');
+        
+        // Verificar status da assinatura
+        const subscriptionStatus = await asaasService.checkSubscriptionStatus(decoded.customerId);
+        
+        if (subscriptionStatus.hasActiveSubscription) {
+          console.log(`[FIREWALL ROULETTE ${requestId}] ✓ Assinatura ativa verificada. Permitindo acesso.`);
+          // Usuário com assinatura válida - permitir acesso
+          return next();
+        } else {
+          // Usuário sem assinatura ativa - bloquear acesso
+          console.log(`[FIREWALL ROULETTE ${requestId}] 🛑 BLOQUEIO: Sem assinatura ativa. Status: ${subscriptionStatus.status}`);
+          
+          return res.status(403).json({
+            success: false,
+            message: 'Assinatura ativa necessária para acessar este recurso.',
+            code: 'ACTIVE_SUBSCRIPTION_REQUIRED',
+            status: subscriptionStatus.status,
+            requestId: requestId,
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch (asaasError) {
+        console.error(`[FIREWALL ROULETTE ${requestId}] Erro ao verificar assinatura Asaas:`, asaasError);
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Erro interno ao verificar assinatura.',
+          code: 'ASAAS_SERVICE_ERROR',
+          requestId: requestId,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } else {
+      // Usuário sem customerId após todas as verificações - bloquear acesso
+      console.log(`[FIREWALL ROULETTE ${requestId}] 🛑 BLOQUEIO: Usuário sem ID Asaas após todas as verificações`);
+      
+      return res.status(403).json({
+        success: false,
+        message: 'Assinatura necessária para acessar este recurso.',
+        code: 'SUBSCRIPTION_REQUIRED',
+        requestId: requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (jwtError) {
+    // Token inválido - bloquear acesso
+    console.log(`[FIREWALL ROULETTE ${requestId}] 🛑 BLOQUEIO: Token JWT inválido`);
+    console.log(`[FIREWALL ROULETTE ${requestId}] Erro: ${jwtError.message}`);
+    
+    return res.status(401).json({
+      success: false,
+      message: 'Token de autenticação inválido ou expirado.',
+      code: 'INVALID_TOKEN',
+      requestId: requestId,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Middlewares básicos

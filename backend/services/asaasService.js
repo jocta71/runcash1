@@ -4,20 +4,45 @@
  */
 
 const axios = require('axios');
+const { MongoClient } = require('mongodb');
+
+// Configuração do MongoDB
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
+const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'runcash';
 
 // Configuração do Asaas API
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
 const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3';
 
+// Variável para controlar verificação forçada no Asaas
+// Pode ser usado para debugging ou em ambiente de produção em casos específicos
+const FORCE_ASAAS_CHECK = process.env.FORCE_ASAAS_CHECK === 'true';
+
 /**
- * Verifica o status de uma assinatura pelo ID do cliente
+ * Verifica o status de uma assinatura pelo ID do cliente, primeiro no MongoDB local
+ * e depois, se necessário, na API do Asaas
  * @param {string} customerId - ID do cliente no Asaas
  * @returns {Promise<Object>} - Objeto com informações da assinatura
  */
 async function checkSubscriptionStatus(customerId) {
+  // Primeiramente, verificar no banco de dados local se existe uma assinatura ativa
   try {
     console.log(`[AsaasService] Verificando assinatura para cliente: ${customerId}`);
     
+    // Verificar no banco de dados local primeiro
+    if (!FORCE_ASAAS_CHECK) {
+      console.log(`[AsaasService] Verificando primeiro no banco de dados local...`);
+      const localStatus = await checkLocalSubscriptionStatus(customerId);
+      
+      if (localStatus.hasActiveSubscription) {
+        console.log(`[AsaasService] Assinatura ativa encontrada no banco de dados local`);
+        return localStatus;
+      }
+      
+      console.log(`[AsaasService] Nenhuma assinatura ativa encontrada no banco local, verificando na API Asaas...`);
+    }
+    
+    // Se não encontrar no banco local ou se FORCE_ASAAS_CHECK for true, verificar na API do Asaas
     const response = await axios.get(
       `${ASAAS_API_URL}/subscriptions?customer=${customerId}`, 
       {
@@ -96,6 +121,77 @@ async function checkSubscriptionStatus(customerId) {
       hasActiveSubscription: false,
       error: error.message
     };
+  }
+}
+
+/**
+ * Verifica o status da assinatura diretamente no banco de dados local
+ * @param {string} customerId - ID do cliente no Asaas
+ * @returns {Promise<Object>} - Objeto com informações da assinatura local
+ */
+async function checkLocalSubscriptionStatus(customerId) {
+  let client;
+
+  try {
+    // Conectar ao MongoDB
+    client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    
+    const db = client.db(MONGODB_DB_NAME);
+    
+    // Verificar na coleção 'subscriptions'
+    console.log(`[AsaasService] Verificando na coleção 'subscriptions'...`);
+    const subscription = await db.collection('subscriptions').findOne({ customer_id: customerId });
+    
+    if (subscription && subscription.status === 'active') {
+      console.log(`[AsaasService] Assinatura ativa encontrada na coleção 'subscriptions'`);
+      return {
+        success: true,
+        message: 'Assinatura ativa encontrada no banco local',
+        status: subscription.status,
+        hasActiveSubscription: true,
+        source: 'local_db_subscriptions'
+      };
+    }
+    
+    // Verificar na coleção 'userSubscriptions'
+    console.log(`[AsaasService] Verificando na coleção 'userSubscriptions'...`);
+    const userSubscription = await db.collection('userSubscriptions').findOne({ asaasCustomerId: customerId });
+    
+    if (userSubscription && userSubscription.status === 'active') {
+      console.log(`[AsaasService] Assinatura ativa encontrada na coleção 'userSubscriptions'`);
+      return {
+        success: true,
+        message: 'Assinatura ativa encontrada no banco local',
+        status: userSubscription.status,
+        hasActiveSubscription: true,
+        source: 'local_db_userSubscriptions'
+      };
+    }
+    
+    // Nenhuma assinatura ativa encontrada
+    console.log(`[AsaasService] Nenhuma assinatura ativa encontrada no banco local`);
+    return {
+      success: false,
+      message: 'Nenhuma assinatura ativa encontrada no banco local',
+      status: 'INACTIVE',
+      hasActiveSubscription: false,
+      source: 'local_db'
+    };
+    
+  } catch (error) {
+    console.error('[AsaasService] Erro ao verificar assinatura no banco local:', error);
+    return {
+      success: false,
+      message: 'Erro ao verificar assinatura no banco local',
+      status: 'ERROR',
+      hasActiveSubscription: false,
+      error: error.message
+    };
+  } finally {
+    if (client) {
+      await client.close();
+    }
   }
 }
 

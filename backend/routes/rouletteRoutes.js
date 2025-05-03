@@ -15,37 +15,40 @@ const rouletteController = require('../controllers/rouletteController');
 
 /**
  * @route   GET /api/roulettes
- * @desc    ROTA DESATIVADA - Retorna 403 Forbidden
- * @access  Bloqueado
+ * @desc    Lista todas as roletas disponíveis (requer assinatura Asaas válida)
+ * @access  Privado - Requer assinatura
  */
-router.get('/roulettes', (req, res) => {
-  // Gerar ID de requisição único para rastreamento
-  const requestId = crypto.randomUUID();
-  
-  // Log detalhado do bloqueio com informações importantes para auditoria
-  console.log(`[FIREWALL] Bloqueando acesso à rota desativada: /api/roulettes`);
-  console.log(`[FIREWALL] Request ID: ${requestId}`);
-  console.log(`[FIREWALL] Headers: ${JSON.stringify(req.headers)}`);
-  console.log(`[FIREWALL] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown'}`);
-  console.log(`[FIREWALL] User-Agent: ${req.headers['user-agent'] || 'unknown'}`);
-  console.log(`[FIREWALL] Timestamp: ${new Date().toISOString()}`);
-  
-  // Configurar cabeçalhos CORS para a resposta
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Responder com 403 Forbidden
-  return res.status(403).json({
-    success: false,
-    message: 'Esta rota foi desativada por razões de segurança.',
-    code: 'ROUTE_DISABLED',
-    requestId: requestId,
-    alternativeEndpoints: ['/api/roletas', '/api/ROULETTES'],
-    timestamp: new Date().toISOString()
-  });
-});
+router.get('/roulettes', 
+  verifyTokenAndSubscription({
+    required: true,
+    allowedPlans: ['BASIC', 'PRO', 'PREMIUM']
+  }),
+  requireResourceAccess('standard_stats'),
+  async (req, res) => {
+    try {
+      // Gerar ID de requisição único para rastreamento
+      const requestId = crypto.randomUUID();
+      
+      // Log detalhado do acesso
+      console.log(`[API] Acesso autorizado à rota /api/roulettes`);
+      console.log(`[API] Request ID: ${requestId}`);
+      console.log(`[API] Usuário ID: ${req.usuario.id}`);
+      console.log(`[API] Plano: ${req.userPlan?.type || 'desconhecido'}`);
+      console.log(`[API] Timestamp: ${new Date().toISOString()}`);
+      
+      // Redirecionar para o controller que lista as roletas
+      return rouletteController.listRoulettes(req, res);
+    } catch (error) {
+      console.error(`[API] Erro ao processar requisição para /api/roulettes:`, error);
+      return res.status(500).json({
+        success: false,
+        message: 'Erro interno ao processar a requisição',
+        requestId: requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+);
 
 /**
  * @route   GET /api/roulettes/:id/basic
