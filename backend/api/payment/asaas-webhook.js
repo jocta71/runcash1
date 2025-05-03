@@ -148,6 +148,43 @@ module.exports = async (req, res) => {
           }, subscriptionDetails);
           
           console.log(`[WEBHOOK] Assinatura ${subscriptionId} ativada até ${expirationDate}`);
+          
+          // Verificar se já existe registro na coleção userSubscriptions
+          const userSubscription = await db.collection('userSubscriptions').findOne({
+            asaasSubscriptionId: subscriptionId
+          });
+          
+          if (!userSubscription) {
+            // Buscar ID do usuário associado ao customer
+            const userId = await getUserIdFromAsaasCustomer(db, subscriptionDetails.customer);
+            
+            if (userId) {
+              // Criar registro na coleção userSubscriptions
+              const planType = mapPlanType(subscriptionDetails.value, subscriptionDetails.cycle);
+              const nextDueDate = new Date(subscriptionDetails.nextDueDate);
+              
+              console.log(`[WEBHOOK] Criando registro em userSubscriptions para usuário ${userId}`);
+              
+              await db.collection('userSubscriptions').insertOne({
+                userId: userId,
+                user_id: userId, // Mantendo ambos os formatos para compatibilidade
+                asaasCustomerId: subscriptionDetails.customer,
+                customer_id: subscriptionDetails.customer, // Mantendo ambos os formatos para compatibilidade
+                asaasSubscriptionId: subscriptionId,
+                status: 'active',
+                planType: planType,
+                nextDueDate: nextDueDate,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+              
+              console.log(`[WEBHOOK] Registro criado com sucesso em userSubscriptions`);
+            } else {
+              console.error(`[WEBHOOK] Não foi possível encontrar usuário para customer ID: ${subscriptionDetails.customer}`);
+            }
+          } else {
+            console.log(`[WEBHOOK] Registro já existe em userSubscriptions: ${userSubscription._id}`);
+          }
         } else {
           // Caso não consiga buscar detalhes, apenas atualizar status
           await updateSubscriptionStatus(db, subscriptionId, status);
