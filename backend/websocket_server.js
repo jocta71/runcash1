@@ -27,13 +27,10 @@ console.log(`JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'}`);
 // Inicializar Express
 const app = express();
 
-// MIDDLEWARE ESPECÍFICO PARA BLOQUEAR APENAS A ROTA /api/roulettes 
-// Este middleware será executado ANTES de qualquer outro
+// Middleware específico para bloquear APENAS a rota /api/roulettes
 app.use((req, res, next) => {
-  // Verificar se é especificamente a rota /api/roulettes
-  const path = req.originalUrl || req.url || req.path;
-  
-  if (path === '/api/roulettes' || path === '/api/roulettes/') {
+  // Verificar se é exatamente a rota que queremos bloquear
+  if (req.path === '/api/roulettes' || req.path === '/api/roulettes/') {
     const requestId = Math.random().toString(36).substring(2, 15);
     console.log(`[API ${requestId}] Tentativa de acesso à rota desativada /api/roulettes`);
     console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
@@ -58,7 +55,6 @@ app.use((req, res, next) => {
     });
   }
   
-  // Se não for a rota específica, continuar para os próximos middlewares
   next();
 });
 
