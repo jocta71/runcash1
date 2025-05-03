@@ -5,6 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 
 // Importar middlewares
 const { verifyTokenAndSubscription, requireResourceAccess } = require('../middlewares/asaasAuthMiddleware');
@@ -14,16 +15,35 @@ const rouletteController = require('../controllers/rouletteController');
 
 /**
  * @route   GET /api/roulettes
- * @desc    Lista todas as roletas disponíveis (limitado por plano)
- * @access  Privado - Requer assinatura
+ * @desc    ROTA DESATIVADA - Retorna 403 Forbidden
+ * @access  Bloqueado
  */
-router.get('/roulettes', 
-  verifyTokenAndSubscription({ 
-    required: true,
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] 
-  }), // Autenticação obrigatória
-  rouletteController.listRoulettes
-);
+router.get('/roulettes', (req, res) => {
+  // Gerar ID de requisição único para rastreamento
+  const requestId = crypto.randomUUID();
+  
+  // Log detalhado do bloqueio
+  console.log(`[FIREWALL] Blocking access to disabled route: /api/roulettes`);
+  console.log(`[FIREWALL] Request ID: ${requestId}`);
+  console.log(`[FIREWALL] Headers: ${JSON.stringify(req.headers)}`);
+  console.log(`[FIREWALL] IP: ${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`);
+  
+  // Configurar cabeçalhos CORS para a resposta
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', true);
+  
+  // Responder com 403 Forbidden
+  return res.status(403).json({
+    success: false,
+    message: 'Esta rota foi desativada por razões de segurança.',
+    code: 'ROUTE_DISABLED',
+    requestId: requestId,
+    alternativeEndpoints: ['/api/roletas', '/api/ROULETTES'],
+    timestamp: new Date().toISOString()
+  });
+});
 
 /**
  * @route   GET /api/roulettes/:id/basic
