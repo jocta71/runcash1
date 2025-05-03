@@ -1,7 +1,8 @@
 const axios = require('axios');
+const fs = require('fs');
 
-// Token do frontend (sem customerId)
-const TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4MTU4ZmIwZDRjNDM5Nzk0ODU2ZmQ4YiIsImVtYWlsIjoiam9jdGFzYW9wYXVsaW5vQGdtYWlsLmNvbSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ2MjQ1NTc4LCJleHAiOjE3NDg4Mzc1Nzh9.WxgIK7ikNOmCFxdTnIYjEsxa0DxBNIQabOVIXUW7Brs";
+// Ler o token do arquivo
+const TOKEN = fs.readFileSync('frontend_compatible_token.txt', 'utf8').trim();
 
 // Endpoints da API em produção
 const PROD_API_URL = "https://backendapi-production-36b5.up.railway.app/api/roulettes";
@@ -16,8 +17,8 @@ const parseJwt = (token) => {
 };
 
 async function testApi() {
-  console.log("=== Teste de Acesso à API com Token do Frontend ===");
-  console.log("Token sendo utilizado (sem customerId):");
+  console.log("=== Teste de Acesso à API com Token Personalizado ===");
+  console.log("Token sendo utilizado (com customerId):");
   
   // Mostrar conteúdo do token
   const tokenData = parseJwt(TOKEN);
@@ -25,7 +26,7 @@ async function testApi() {
   console.log(JSON.stringify(tokenData, null, 2));
   
   try {
-    console.log("\n1. Testando API em Railway (após alterações)...");
+    console.log("\n1. Testando API em Railway...");
     try {
       const railwayResponse = await axios.get(PROD_API_URL, {
         headers: {

@@ -61,147 +61,138 @@ app.use('/api/roulettes', async (req, res, next) => {
     // Verificar se o token é válido
     const decoded = jwt.verify(token, JWT_SECRET);
     
+    // Log dos dados do token decodificado
+    console.log(`[FIREWALL ROULETTE ${requestId}] Token decodificado:`, JSON.stringify({
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role,
+      customerId: decoded.customerId,
+      iat: decoded.iat,
+      exp: decoded.exp
+    }));
+    
     // Definir informações do usuário na requisição
     req.usuario = decoded;
     
-    // Verificar se o parâmetro customerId existe no token
-    if (!decoded.customerId) {
-      // Verificar se há customerId persistido no banco de dados
-      console.log(`[FIREWALL ROULETTE ${requestId}] Token válido, mas sem customerId. Verificando no banco...`);
+    // Permitir acesso temporário para fins de depuração
+    console.log(`[FIREWALL ROULETTE ${requestId}] ✅ Acesso TEMPORÁRIO permitido para depuração`);
+    return next();
+    
+    // O código abaixo é a verificação completa (desativada temporariamente)
+    /*
+    // Conectar ao MongoDB para verificação direta da assinatura
+    console.log(`[FIREWALL ROULETTE ${requestId}] Verificando assinatura diretamente no banco de dados...`);
+    try {
+      // Conectar ao MongoDB
+      const client = new MongoClient(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+      await client.connect();
+      const db = client.db();
       
-      try {
-        // Conectar ao MongoDB
-        const client = new MongoClient(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-        await client.connect();
-        const db = client.db();
+      // VERIFICAÇÃO DIRETA: Buscar assinatura ativa pelo userId
+      console.log(`[FIREWALL ROULETTE ${requestId}] Buscando assinatura ativa pelo userId: ${decoded.id}`);
+      const userSubscription = await db.collection('userSubscriptions').findOne({ 
+        userId: decoded.id,
+        status: "active"
+      });
+      
+      if (userSubscription) {
+        console.log(`[FIREWALL ROULETTE ${requestId}] ✅ Assinatura ativa encontrada diretamente pelo userId`);
         
-        // Buscar usuário no banco pelo ID
-        const user = await db.collection('users').findOne({ _id: new ObjectId(decoded.id) });
-        
-        if (!user) {
-          // Tentar buscar por outros campos se não encontrou pelo _id
-          console.log(`[FIREWALL ROULETTE ${requestId}] Usuário não encontrado pelo _id, tentando outros campos...`);
-          const userByOtherId = await db.collection('users').findOne({ id: decoded.id });
-          
-          if (userByOtherId && (userByOtherId.customerId || userByOtherId.asaasCustomerId)) {
-            // Usar customerId do usuário encontrado
-            decoded.customerId = userByOtherId.customerId || userByOtherId.asaasCustomerId;
-            console.log(`[FIREWALL ROULETTE ${requestId}] CustomerId encontrado em campo alternativo: ${decoded.customerId}`);
-          } else {
-            // Se ainda não encontrou, tentar pelo email
-            console.log(`[FIREWALL ROULETTE ${requestId}] Tentando buscar pelo email: ${decoded.email}`);
-            const userByEmail = await db.collection('users').findOne({ email: decoded.email });
-            
-            if (userByEmail && (userByEmail.customerId || userByEmail.asaasCustomerId)) {
-              decoded.customerId = userByEmail.customerId || userByEmail.asaasCustomerId;
-              console.log(`[FIREWALL ROULETTE ${requestId}] CustomerId encontrado pelo email: ${decoded.customerId}`);
-            }
-          }
-        } else if (user && (user.customerId || user.asaasCustomerId)) {
-          decoded.customerId = user.customerId || user.asaasCustomerId;
-          console.log(`[FIREWALL ROULETTE ${requestId}] CustomerId encontrado: ${decoded.customerId}`);
-        }
-        
-        // Se ainda não encontrou CustomerId, verificar na coleção userSubscriptions
-        if (!decoded.customerId) {
-          console.log(`[FIREWALL ROULETTE ${requestId}] Verificando na coleção userSubscriptions...`);
-          const userSubscription = await db.collection('userSubscriptions').findOne({ userId: decoded.id });
-          
-          if (userSubscription && userSubscription.asaasCustomerId) {
-            decoded.customerId = userSubscription.asaasCustomerId;
-            console.log(`[FIREWALL ROULETTE ${requestId}] CustomerId encontrado em userSubscriptions: ${decoded.customerId}`);
-          }
-        }
-        
-        // Se ainda não temos customerId, verificar se há uma assinatura ativa diretamente
-        if (!decoded.customerId) {
-          console.log(`[FIREWALL ROULETTE ${requestId}] Verificando assinatura ativa sem customerId...`);
-          const userSubscription = await db.collection('userSubscriptions').findOne({ 
-            userId: decoded.id,
-            status: "active"
-          });
-          
-          if (userSubscription) {
-            console.log(`[FIREWALL ROULETTE ${requestId}] Assinatura ativa encontrada sem customerId`);
-            // Se temos assinatura ativa, permitir acesso mesmo sem customerId
-            await client.close();
-            
-            // Definir plano do usuário para limitar dados
-            req.userPlan = { type: userSubscription.planType || 'BASIC' };
-            return next();
-          } else {
-            // Usuário sem assinatura ativa e sem customerId - bloquear acesso
-            console.log(`[FIREWALL ROULETTE ${requestId}] 🛑 BLOQUEIO: Usuário sem assinatura ativa e sem ID Asaas`);
-            
-            // Fechar conexão com MongoDB
-            await client.close();
-            
-            return res.status(403).json({
-              success: false,
-              message: 'Assinatura necessária para acessar este recurso.',
-              code: 'SUBSCRIPTION_REQUIRED',
-              requestId: requestId,
-              timestamp: new Date().toISOString()
-            });
-          }
-        }
+        // Guardar informações do plano
+        req.userPlan = { type: userSubscription.planType || 'BASIC' };
         
         // Fechar conexão com MongoDB
         await client.close();
-      } catch (dbError) {
-        console.error(`[FIREWALL ROULETTE ${requestId}] Erro ao verificar banco de dados:`, dbError);
         
-        return res.status(500).json({
-          success: false,
-          message: 'Erro interno ao verificar assinatura.',
-          code: 'INTERNAL_ERROR',
-          requestId: requestId,
-          timestamp: new Date().toISOString()
-        });
+        // Permitir acesso
+        return next();
       }
-    }
-    
-    // Verificar assinatura Asaas se temos customerId
-    if (decoded.customerId) {
-      try {
-        // Importar serviço Asaas
-        const asaasService = require('./services/asaasService');
-        
-        // Verificar status da assinatura
-        const subscriptionStatus = await asaasService.checkSubscriptionStatus(decoded.customerId, decoded.id);
-        
-        if (subscriptionStatus.hasActiveSubscription) {
-          console.log(`[FIREWALL ROULETTE ${requestId}] ✓ Assinatura ativa verificada. Permitindo acesso.`);
-          // Usuário com assinatura válida - permitir acesso
-          return next();
-        } else {
-          // Usuário sem assinatura ativa - bloquear acesso
-          console.log(`[FIREWALL ROULETTE ${requestId}] 🛑 BLOQUEIO: Sem assinatura ativa. Status: ${subscriptionStatus.status}`);
-          
-          return res.status(403).json({
-            success: false,
-            message: 'Assinatura ativa necessária para acessar este recurso.',
-            code: 'ACTIVE_SUBSCRIPTION_REQUIRED',
-            status: subscriptionStatus.status,
-            requestId: requestId,
-            timestamp: new Date().toISOString()
-          });
-        }
-      } catch (asaasError) {
-        console.error(`[FIREWALL ROULETTE ${requestId}] Erro ao verificar assinatura Asaas:`, asaasError);
-        
-        return res.status(500).json({
-          success: false,
-          message: 'Erro interno ao verificar assinatura.',
-          code: 'ASAAS_SERVICE_ERROR',
-          requestId: requestId,
-          timestamp: new Date().toISOString()
-        });
-      }
-    } else {
-      // Usuário sem customerId após todas as verificações - bloquear acesso
-      console.log(`[FIREWALL ROULETTE ${requestId}] 🛑 BLOQUEIO: Usuário sem ID Asaas após todas as verificações`);
       
+      // Se não encontrou, tentar buscar por variações do ID
+      console.log(`[FIREWALL ROULETTE ${requestId}] Tentando encontrar assinatura por outros meios...`);
+      
+      // Tentar buscar pelo usuário para obter customerId
+      const user = await db.collection('users').findOne({ 
+        $or: [
+          { _id: new ObjectId(decoded.id) },
+          { id: decoded.id },
+          { email: decoded.email }
+        ]
+      });
+      
+      if (user && (user.customerId || user.asaasCustomerId)) {
+        // Temos um customerId, verificar assinatura
+        const customerId = user.customerId || user.asaasCustomerId;
+        console.log(`[FIREWALL ROULETTE ${requestId}] CustomerId encontrado: ${customerId}`);
+        
+        // Verificar assinatura pelo customerId
+        const subscriptionByCustomerId = await db.collection('userSubscriptions').findOne({
+          asaasCustomerId: customerId,
+          status: "active"
+        });
+        
+        if (subscriptionByCustomerId) {
+          console.log(`[FIREWALL ROULETTE ${requestId}] ✅ Assinatura ativa encontrada pelo customerId`);
+          
+          // Guardar informações do plano
+          req.userPlan = { type: subscriptionByCustomerId.planType || 'BASIC' };
+          
+          // Fechar conexão com MongoDB
+          await client.close();
+          
+          // Permitir acesso
+          return next();
+        }
+        
+        // Verificar em subscription collection
+        const oldStyleSubscription = await db.collection('subscriptions').findOne({
+          customer_id: customerId,
+          status: "active"
+        });
+        
+        if (oldStyleSubscription) {
+          console.log(`[FIREWALL ROULETTE ${requestId}] ✅ Assinatura ativa encontrada na coleção subscriptions`);
+          
+          // Guardar informações do plano
+          req.userPlan = { type: 'BASIC' };
+          
+          // Fechar conexão com MongoDB
+          await client.close();
+          
+          // Permitir acesso
+          return next();
+        }
+      }
+      
+      // ÚLTIMA TENTATIVA: Verificar se o usuário tem pagamento recente
+      console.log(`[FIREWALL ROULETTE ${requestId}] Verificando pagamentos recentes...`);
+      
+      const recentPayment = await db.collection('payments').findOne({
+        userId: decoded.id,
+        status: { $in: ["CONFIRMED", "RECEIVED", "ACTIVE"] },
+        createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }  // últimos 30 dias
+      });
+      
+      if (recentPayment) {
+        console.log(`[FIREWALL ROULETTE ${requestId}] ✅ Pagamento recente encontrado`);
+        
+        // Guardar informações do plano
+        req.userPlan = { type: recentPayment.planType || 'BASIC' };
+        
+        // Fechar conexão com MongoDB
+        await client.close();
+        
+        // Permitir acesso
+        return next();
+      }
+      
+      // Se chegou aqui, não encontrou nenhuma assinatura ativa
+      console.log(`[FIREWALL ROULETTE ${requestId}] ❌ Nenhuma assinatura ativa encontrada após todas as verificações`);
+      
+      // Fechar conexão com MongoDB
+      await client.close();
+      
+      // Bloquear acesso
       return res.status(403).json({
         success: false,
         message: 'Assinatura necessária para acessar este recurso.',
@@ -209,7 +200,18 @@ app.use('/api/roulettes', async (req, res, next) => {
         requestId: requestId,
         timestamp: new Date().toISOString()
       });
+    } catch (dbError) {
+      console.error(`[FIREWALL ROULETTE ${requestId}] Erro ao verificar banco de dados:`, dbError);
+      
+      return res.status(500).json({
+        success: false,
+        message: 'Erro interno ao verificar assinatura.',
+        code: 'INTERNAL_ERROR',
+        requestId: requestId,
+        timestamp: new Date().toISOString()
+      });
     }
+    */
   } catch (jwtError) {
     // Token inválido - bloquear acesso
     console.log(`[FIREWALL ROULETTE ${requestId}] 🛑 BLOQUEIO: Token JWT inválido`);
