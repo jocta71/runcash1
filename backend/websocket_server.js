@@ -27,33 +27,15 @@ console.log(`JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'}`);
 // Inicializar Express
 const app = express();
 
-// Middleware para bloquear ABSOLUTAMENTE TODAS as requisições a endpoints de roleta sem autenticação válida
-// Este middleware é executado ANTES de qualquer outro para garantir que requisições sem autenticação
-// nem sequer cheguem aos middlewares específicos
+// MIDDLEWARE ESPECÍFICO PARA BLOQUEAR APENAS A ROTA /api/roulettes 
+// Este middleware será executado ANTES de qualquer outro
 app.use((req, res, next) => {
-  // Obter caminho da requisição
+  // Verificar se é especificamente a rota /api/roulettes
   const path = req.originalUrl || req.url || req.path;
-  const requestId = Math.random().toString(36).substring(2, 15);
   
-  // Verificar se é um endpoint de roleta (qualquer variação possível)
-  const isRouletteEndpoint = (
-    path.includes('/api/roulettes') || 
-    path.includes('/api/ROULETTES') || 
-    path.includes('/api/roletas') ||
-    /\/api\/roulettes.*/.test(path) ||
-    /\/api\/ROULETTES.*/.test(path) ||
-    /\/api\/roletas.*/.test(path)
-  );
-  
-  // Se não for endpoint de roleta, ou se for uma requisição OPTIONS, deixar passar
-  if (!isRouletteEndpoint || req.method === 'OPTIONS') {
-    return next();
-  }
-
-  // Verificar especificamente se é a rota /api/roulettes que está desativada
-  // Esta rota precisa retornar 403 sem verificar token
-  if (path === '/api/roulettes') {
-    console.log(`[API ${requestId}] Bloqueando acesso à rota desativada /api/roulettes`);
+  if (path === '/api/roulettes' || path === '/api/roulettes/') {
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[API ${requestId}] Tentativa de acesso à rota desativada /api/roulettes`);
     console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
     console.log(`[API ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
     
@@ -76,21 +58,7 @@ app.use((req, res, next) => {
     });
   }
   
-  // Verificar se há token de autorização
-  const hasAuth = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
-  if (!hasAuth) {
-    console.log(`[BLOQUEIO-GLOBAL ${requestId}] BLOQUEIO ABSOLUTO: Requisição sem token para endpoint de roleta`);
-    return res.status(401).json({
-      success: false,
-      message: 'Acesso negado - Autenticação obrigatória',
-      code: 'GLOBAL_ABSOLUTE_BLOCK',
-      path: path,
-      requestId: requestId
-    });
-  }
-  
-  // Se tiver autorização, deixar passar para o middleware de verificação completa
-  console.log(`[BLOQUEIO-GLOBAL ${requestId}] Requisição com authorization header, continuando para verificação completa`);
+  // Se não for a rota específica, continuar para os próximos middlewares
   next();
 });
 
