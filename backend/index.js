@@ -14,9 +14,48 @@ const jwt = require('jsonwebtoken');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const socketIo = require('socket.io');
-const { createProxyMiddleware } = require('http-proxy-middleware');
 const setupCronJobs = require('./jobs/setupCronJobs');
 const webhookRoutes = require('./api/routes/webhookRoutes');
+
+// Importações das rotas principais
+// Tentar carregar do diretório de rotas ou definir como nulos para evitar erros
+let authRoutes, registerRoutes;
+try {
+  authRoutes = require('./routes/authRoutes');
+  console.log('[Server] Rotas de autenticação carregadas com sucesso');
+} catch (err) {
+  console.warn('[Server] Erro ao carregar rotas de autenticação:', err.message);
+  // Criar um router vazio para evitar erros
+  authRoutes = express.Router();
+  authRoutes.get('/', (req, res) => {
+    res.status(503).json({ error: 'Serviço de autenticação indisponível' });
+  });
+}
+
+try {
+  registerRoutes = require('./routes/simpleAuthRoutes');
+  console.log('[Server] Rotas de registro carregadas com sucesso');
+} catch (err) {
+  console.warn('[Server] Erro ao carregar rotas de registro:', err.message);
+  // Criar um router vazio para evitar erros
+  registerRoutes = express.Router();
+  registerRoutes.get('/', (req, res) => {
+    res.status(503).json({ error: 'Serviço de registro indisponível' });
+  });
+}
+
+// Importação opcional do http-proxy-middleware
+let createProxyMiddleware;
+try {
+  createProxyMiddleware = require('http-proxy-middleware').createProxyMiddleware;
+  console.log('[Server] http-proxy-middleware carregado com sucesso');
+} catch (err) {
+  console.warn('[Server] http-proxy-middleware não está disponível. Alguns recursos podem estar limitados.');
+  createProxyMiddleware = () => (req, res, next) => {
+    console.warn('[Server] Tentativa de usar proxy middleware, mas não está disponível');
+    next();
+  };
+}
 
 // Carregar variáveis de ambiente
 dotenv.config();
