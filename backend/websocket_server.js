@@ -43,12 +43,10 @@ app.use((req, res, next) => {
     /\/api\/roletas.*/.test(path)
   );
   
-  // Verificar se é exatamente o endpoint /api/roulettes desativado
-  const isDisabledEndpoint = path === '/api/roulettes' || path.startsWith('/api/roulettes?');
-  
-  // Se for o endpoint desativado, permitir que a rota específica o trate
-  if (isDisabledEndpoint) {
-    console.log(`[MIDDLEWARE-GLOBAL ${requestId}] Permitindo acesso ao endpoint desativado: ${path}`);
+  // Se for o endpoint desativado /api/roulettes, permitir que vá para a rota específica
+  // que retornará o status 403 Forbidden
+  if (path === '/api/roulettes' || path.startsWith('/api/roulettes?')) {
+    console.log(`[MIDDLEWARE-GLOBAL ${requestId}] Requisição para endpoint desativado: ${path}`);
     return next();
   }
   
@@ -239,23 +237,37 @@ app.get('/cors-test', (req, res) => {
 });
 
 // FIREWALL ABSOLUTO: Última linha de defesa para endpoints de roleta
-// Esta função verifica E BLOQUEIA absolutamente QUALQUER tentativa não autenticada de acessar endpoints de roleta
-// Ela é deliberadamente redundante como medida de segurança extra
 app.use((req, res, next) => {
   // Obter caminho completo incluindo parâmetros de consulta
   const fullPath = req.originalUrl || req.url || req.path;
   const requestId = Math.random().toString(36).substring(2, 15);
   
-  // Verificar se é exatamente o endpoint /api/roulettes desativado
-  const isDisabledEndpoint = fullPath === '/api/roulettes' || fullPath.startsWith('/api/roulettes?');
-  
-  // Se for o endpoint desativado, permitir que a rota específica o trate
-  if (isDisabledEndpoint) {
-    console.log(`[FIREWALL ${requestId}] Permitindo acesso ao endpoint desativado: ${fullPath}`);
-    return next();
+  // Verificar se é exatamente a rota /api/roulettes
+  if (fullPath === '/api/roulettes' || fullPath.startsWith('/api/roulettes?')) {
+    console.log(`[FIREWALL ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Acesso à rota desativada /api/roulettes`);
+    console.log(`[FIREWALL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[FIREWALL ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
+    
+    // Aplicar cabeçalhos CORS explicitamente
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    
+    // Retornar resposta indicando que a rota foi desativada
+    return res.status(403).json({
+      success: false,
+      message: 'Esta rota foi desativada por motivos de segurança',
+      code: 'ENDPOINT_DISABLED',
+      requestId: requestId,
+      alternativeEndpoints: [
+        '/api/roletas',
+        '/api/ROULETTES'
+      ],
+      timestamp: new Date().toISOString()
+    });
   }
   
-  // Verificar TODAS as possíveis variações de endpoints de roleta ATIVOS, incluindo parâmetros de consulta
+  // Verificar TODAS as possíveis variações de endpoints de roleta, incluindo parâmetros de consulta
   const isRouletteRequest = (
     fullPath.includes('/api/ROULETTES') || 
     fullPath.includes('/api/roletas') ||
@@ -264,49 +276,28 @@ app.use((req, res, next) => {
     // Verificação especial para parâmetros _I, _t e qualquer outro
     fullPath.match(/\/api\/.*_[It]=/) ||
     // Verificação para variações numéricas
+    fullPath.match(/\/api\/.*roulettes\d+/) ||
     fullPath.match(/\/api\/.*ROULETTES\d+/) ||
     fullPath.match(/\/api\/.*roletas\d+/)
   );
   
-  // Se não for endpoint de roleta ou for OPTIONS, permitir
-  if (!isRouletteRequest || req.method === 'OPTIONS') {
-    return next();
+  // Se for um endpoint de roleta, verificar se tem autenticação
+  if (isRouletteRequest) {
+    // Verificar se há token de autorização
+    const hasAuth = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
+    if (!hasAuth) {
+      console.log(`[FIREWALL ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Requisição sem token para endpoint de roleta`);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Autenticação obrigatória',
+        code: 'FIREWALL_ABSOLUTE_BLOCK',
+        path: fullPath,
+        requestId: requestId
+      });
+    }
   }
   
-  // Verificar autenticação (requisição deve ter o cabeçalho Authorization e estar autenticada)
-  const hasAuthHeader = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
-  const isAuthenticated = req.hasOwnProperty('usuario') && req.hasOwnProperty('subscription') && req.subscription;
-  
-  // Se não houver cabeçalho de autorização ou não estiver autenticado, bloquear IMEDIATAMENTE
-  if (!hasAuthHeader || !isAuthenticated) {
-    console.log(`[FIREWALL ${requestId}] 🚫 BLOQUEIO ABSOLUTO: Endpoint protegido sem autenticação adequada: ${fullPath}`);
-    console.log(`[FIREWALL ${requestId}] Método: ${req.method}`);
-    console.log(`[FIREWALL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
-    console.log(`[FIREWALL ${requestId}] Tem header Auth: ${hasAuthHeader}, Está autenticado: ${isAuthenticated}`);
-    
-    return res.status(401).json({
-      success: false,
-      message: 'Acesso negado - Autenticação completa obrigatória',
-      code: 'ABSOLUTE_FIREWALL',
-      path: fullPath,
-      requestId: requestId
-    });
-  }
-  
-  // Verificação final de segurança
-  if (!req.subscription) {
-    console.log(`[FIREWALL ${requestId}] 🚫 BLOQUEIO ABSOLUTO: Acesso sem assinatura verificada: ${fullPath}`);
-    return res.status(403).json({
-      success: false,
-      message: 'Acesso negado - Assinatura ativa obrigatória',
-      code: 'ABSOLUTE_FIREWALL',
-      path: fullPath,
-      requestId: requestId
-    });
-  }
-  
-  // Se passou por todas as verificações, continuar
-  console.log(`[FIREWALL ${requestId}] ✅ Permitido: Acesso autenticado com assinatura válida: ${fullPath}`);
+  // Se passar por todas as verificações, continuar
   next();
 });
 
@@ -625,27 +616,27 @@ app.get('/api/status', (req, res) => {
 // Rota para listar todas as roletas (endpoint em inglês)
 app.get('/api/roulettes', (req, res) => {
     const requestId = Math.random().toString(36).substring(2, 15);
-  console.log(`[API ${requestId}] Tentativa de acesso à rota desativada /api/roulettes`);
+    console.log(`[API ${requestId}] Tentativa de acesso à rota desativada /api/roulettes`);
     console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
-  console.log(`[API ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
+    console.log(`[API ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
     
     // Aplicar cabeçalhos CORS explicitamente para esta rota
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     
-  // Retornar resposta indicando que a rota foi desativada
-  return res.status(403).json({
-    success: false,
-    message: 'Esta rota foi desativada por motivos de segurança',
-    code: 'ENDPOINT_DISABLED',
-    requestId: requestId,
-    alternativeEndpoints: [
-      '/api/roletas',
-      '/api/ROULETTES'
-    ],
-    timestamp: new Date().toISOString()
-  });
+    // Retornar resposta indicando que a rota foi desativada
+    return res.status(403).json({
+      success: false,
+      message: 'Esta rota foi desativada por motivos de segurança',
+      code: 'ENDPOINT_DISABLED',
+      requestId: requestId,
+      alternativeEndpoints: [
+        '/api/roletas',
+        '/api/ROULETTES'
+      ],
+      timestamp: new Date().toISOString()
+    });
 });
 
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
