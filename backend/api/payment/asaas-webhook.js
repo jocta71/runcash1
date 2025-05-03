@@ -256,6 +256,86 @@ async function updateSubscriptionStatus(db, subscriptionId, status, endDate) {
   
   console.log(`[WEBHOOK] Assinatura ${subscriptionId} atualizada para ${status}. Registros atualizados: ${result.modifiedCount + legacyResult.modifiedCount}`);
   
+  // Atualizar a coleção userSubscriptions com base no novo status
+  try {
+    const existingUserSubscription = await db.collection('userSubscriptions').findOne({
+      asaasSubscriptionId: subscriptionId
+    });
+    
+    if (existingUserSubscription) {
+      // Sempre atualizar o status na coleção userSubscriptions
+      await db.collection('userSubscriptions').updateOne(
+        { asaasSubscriptionId: subscriptionId },
+        { 
+          $set: {
+            status: status === 'active' ? 'active' : 
+                   status === 'overdue' ? 'overdue' : 'inactive',
+            updatedAt: new Date()
+          }
+        }
+      );
+      console.log(`[WEBHOOK] Status atualizado na coleção userSubscriptions para: ${status === 'active' ? 'active' : status === 'overdue' ? 'overdue' : 'inactive'}`);
+    }
+  } catch (error) {
+    console.error(`[WEBHOOK] Erro ao atualizar status na coleção userSubscriptions: ${error.message}`);
+  }
+  
+  // Se a atualização foi bem-sucedida, verificar se precisamos atualizar a coleção userSubscriptions
+  if ((result.modifiedCount > 0 || legacyResult.modifiedCount > 0) && status === 'active') {
+    // Buscar o ID do usuário e detalhes da assinatura
+    const subscription = await db.collection('subscriptions').findOne({ payment_id: subscriptionId });
+    
+    if (subscription) {
+      // Buscar se já existe um registro na coleção userSubscriptions
+      const existingUserSubscription = await db.collection('userSubscriptions').findOne({
+        asaasSubscriptionId: subscriptionId
+      });
+      
+      // Buscar o customerId associado ao usuário
+      const user = await db.collection('users').findOne({ _id: subscription.user_id });
+      const customerId = user?.asaasCustomerId || user?.['asaas']?.customerId;
+      
+      if (customerId) {
+        if (existingUserSubscription) {
+          // Atualizar o registro existente
+          await db.collection('userSubscriptions').updateOne(
+            { asaasSubscriptionId: subscriptionId },
+            { 
+              $set: {
+                status: 'active',
+                updatedAt: new Date(),
+                nextDueDate: subscription.expirationDate || calculateExpirationDate(subscription.plan_id === 'BASIC' ? 'MONTHLY' : subscription.plan_id === 'PRO' ? 'QUARTERLY' : 'YEARLY')
+              }
+            }
+          );
+          console.log(`[WEBHOOK] Registro existente atualizado na coleção userSubscriptions para a assinatura ${subscriptionId}`);
+        } else {
+          // Determinar o tipo de plano com base no plan_id
+          let planType = 'basic';
+          if (subscription.plan_id === 'PRO') planType = 'pro';
+          if (subscription.plan_id === 'PREMIUM') planType = 'premium';
+          
+          // Criar novo registro na coleção userSubscriptions
+          const userSubscription = {
+            userId: subscription.user_id,
+            asaasCustomerId: customerId,
+            asaasSubscriptionId: subscriptionId,
+            status: 'active',
+            planType: planType.toLowerCase(),
+            nextDueDate: subscription.expirationDate || calculateExpirationDate(planType === 'basic' ? 'MONTHLY' : planType === 'pro' ? 'QUARTERLY' : 'YEARLY'),
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          
+          await db.collection('userSubscriptions').insertOne(userSubscription);
+          console.log(`[WEBHOOK] Novo registro criado na coleção userSubscriptions para a assinatura ${subscriptionId}`);
+        }
+      } else {
+        console.log(`[WEBHOOK] Não foi possível encontrar o customerId do usuário ${subscription.user_id}`);
+      }
+    }
+  }
+  
   // Se a atualização foi bem-sucedida, notificar o usuário
   if (result.modifiedCount > 0 || legacyResult.modifiedCount > 0) {
     // Buscar o ID do usuário
@@ -347,30 +427,93 @@ async function updateOrCreateSubscription(db, subscriptionId, updateData, subscr
     payment_id: subscriptionId
   });
   
+  let userId;
+  let customerId = subscriptionDetails.customer;
+  let planId;
+  
   if (existingSubscription) {
     // Atualizar assinatura existente
     await db.collection('subscriptions').updateOne(
       { payment_id: subscriptionId },
       { $set: updateData }
     );
+    
+    userId = existingSubscription.user_id;
+    planId = existingSubscription.plan_id;
   } else {
     // Buscar usuário pelo customer ID
-    const userId = await getUserIdFromAsaasCustomer(db, subscriptionDetails.customer);
+    userId = await getUserIdFromAsaasCustomer(db, subscriptionDetails.customer);
     
     if (!userId) {
       throw new Error(`Usuário não encontrado para customer ID: ${subscriptionDetails.customer}`);
     }
     
+    // Determinar o tipo de plano
+    planId = mapPlanType(subscriptionDetails.value, subscriptionDetails.cycle);
+    
     // Criar nova assinatura
     await db.collection('subscriptions').insertOne({
       user_id: userId,
       payment_id: subscriptionId,
-      plan_id: mapPlanType(subscriptionDetails.value, subscriptionDetails.cycle),
+      plan_id: planId,
       status: updateData.status,
       expirationDate: updateData.expirationDate,
       activationDate: new Date(),
       created_at: new Date(),
       updated_at: new Date()
     });
+  }
+  
+  // Atualizar a coleção userSubscriptions
+  if (updateData.status === 'active') {
+    try {
+      // Buscar se já existe um registro
+      const existingUserSubscription = await db.collection('userSubscriptions').findOne({
+        asaasSubscriptionId: subscriptionId
+      });
+      
+      // Determinar o tipo de plano para o formato da coleção userSubscriptions
+      let planType = 'basic';
+      if (planId === 'PRO') planType = 'pro';
+      if (planId === 'PREMIUM') planType = 'premium';
+      
+      // Calcular próxima data de vencimento
+      const nextDueDate = updateData.expirationDate || calculateExpirationDate(
+        planType === 'basic' ? 'MONTHLY' : 
+        planType === 'pro' ? 'QUARTERLY' : 'YEARLY'
+      );
+      
+      if (existingUserSubscription) {
+        // Atualizar registro existente
+        await db.collection('userSubscriptions').updateOne(
+          { asaasSubscriptionId: subscriptionId },
+          { 
+            $set: {
+              status: 'active',
+              nextDueDate: nextDueDate,
+              updatedAt: new Date()
+            }
+          }
+        );
+        console.log(`[WEBHOOK] Registro atualizado na coleção userSubscriptions para a assinatura ${subscriptionId}`);
+      } else {
+        // Criar novo registro
+        const userSubscription = {
+          userId: userId,
+          asaasCustomerId: customerId,
+          asaasSubscriptionId: subscriptionId,
+          status: 'active',
+          planType: planType.toLowerCase(),
+          nextDueDate: nextDueDate,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        await db.collection('userSubscriptions').insertOne(userSubscription);
+        console.log(`[WEBHOOK] Novo registro criado na coleção userSubscriptions para a assinatura ${subscriptionId}`);
+      }
+    } catch (error) {
+      console.error(`[WEBHOOK] Erro ao atualizar a coleção userSubscriptions: ${error.message}`);
+    }
   }
 } 
