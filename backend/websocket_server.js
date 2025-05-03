@@ -35,25 +35,27 @@ app.use((req, res, next) => {
   const path = req.originalUrl || req.url || req.path;
   const requestId = Math.random().toString(36).substring(2, 15);
   
-  // Verificar se é um endpoint de roleta (qualquer variação possível)
+  // Verificar se é um endpoint de roleta (qualquer variação possível, EXCETO /api/roulettes que está desativado)
   const isRouletteEndpoint = (
-    path.includes('/api/roulettes') || 
     path.includes('/api/ROULETTES') || 
     path.includes('/api/roletas') ||
-    /\/api\/roulettes.*/.test(path) ||
     /\/api\/ROULETTES.*/.test(path) ||
     /\/api\/roletas.*/.test(path)
   );
+  
+  // Verificar se é exatamente o endpoint /api/roulettes desativado
+  const isDisabledEndpoint = path === '/api/roulettes' || path.startsWith('/api/roulettes?');
+  
+  // Se for o endpoint desativado, permitir que a rota específica o trate
+  if (isDisabledEndpoint) {
+    console.log(`[MIDDLEWARE-GLOBAL ${requestId}] Permitindo acesso ao endpoint desativado: ${path}`);
+    return next();
+  }
   
   // Se não for endpoint de roleta, ou se for uma requisição OPTIONS, deixar passar
   if (!isRouletteEndpoint || req.method === 'OPTIONS') {
     return next();
   }
-  
-  // Registrar a interceptação
-  console.log(`[BLOQUEIO-GLOBAL ${requestId}] Interceptada requisição para endpoint de roleta: ${path}`);
-  console.log(`[BLOQUEIO-GLOBAL ${requestId}] Método: ${req.method}`);
-  console.log(`[BLOQUEIO-GLOBAL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
   
   // Verificar se há token de autorização
   const hasAuth = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
@@ -244,18 +246,24 @@ app.use((req, res, next) => {
   const fullPath = req.originalUrl || req.url || req.path;
   const requestId = Math.random().toString(36).substring(2, 15);
   
-  // Verificar TODAS as possíveis variações de endpoints de roleta, incluindo parâmetros de consulta
+  // Verificar se é exatamente o endpoint /api/roulettes desativado
+  const isDisabledEndpoint = fullPath === '/api/roulettes' || fullPath.startsWith('/api/roulettes?');
+  
+  // Se for o endpoint desativado, permitir que a rota específica o trate
+  if (isDisabledEndpoint) {
+    console.log(`[FIREWALL ${requestId}] Permitindo acesso ao endpoint desativado: ${fullPath}`);
+    return next();
+  }
+  
+  // Verificar TODAS as possíveis variações de endpoints de roleta ATIVOS, incluindo parâmetros de consulta
   const isRouletteRequest = (
-    fullPath.includes('/api/roulettes') || 
     fullPath.includes('/api/ROULETTES') || 
     fullPath.includes('/api/roletas') ||
-    /\/api\/roulettes.*/.test(fullPath) ||
     /\/api\/ROULETTES.*/.test(fullPath) ||
     /\/api\/roletas.*/.test(fullPath) ||
     // Verificação especial para parâmetros _I, _t e qualquer outro
     fullPath.match(/\/api\/.*_[It]=/) ||
     // Verificação para variações numéricas
-    fullPath.match(/\/api\/.*roulettes\d+/) ||
     fullPath.match(/\/api\/.*ROULETTES\d+/) ||
     fullPath.match(/\/api\/.*roletas\d+/)
   );
@@ -616,16 +624,16 @@ app.get('/api/status', (req, res) => {
 
 // Rota para listar todas as roletas (endpoint em inglês)
 app.get('/api/roulettes', (req, res) => {
-  const requestId = Math.random().toString(36).substring(2, 15);
+    const requestId = Math.random().toString(36).substring(2, 15);
   console.log(`[API ${requestId}] Tentativa de acesso à rota desativada /api/roulettes`);
-  console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
   console.log(`[API ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
-  
-  // Aplicar cabeçalhos CORS explicitamente para esta rota
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
+    
+    // Aplicar cabeçalhos CORS explicitamente para esta rota
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    
   // Retornar resposta indicando que a rota foi desativada
   return res.status(403).json({
     success: false,
@@ -875,45 +883,45 @@ app.get('/api/numbers/byid/:roletaId',
     console.log(`[ULTRA-SECURE ${requestId}] Validação bruta no endpoint /api/numbers/byid/:roletaId`);
     
     // Verificar se há token de autorização
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Sem token de autorização válido`);
-      return res.status(401).json({
-        success: false,
+    return res.status(401).json({
+      success: false,
         message: 'Acesso negado - Token de autenticação obrigatório',
         code: 'ENDPOINT_LEVEL_BLOCK',
+      requestId
+    });
+  }
+  
+    // Extrair e verificar o token JWT diretamente
+  try {
+    const token = authHeader.slice(7); // Remove 'Bearer '
+      // Usar a constante global JWT_SECRET
+    
+      // Verificar token - isto lança erro se inválido
+      const decoded = jwt.verify(token, JWT_SECRET);
+    
+    if (!decoded || !decoded.id) {
+        console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso negado - Token de autenticação inválido',
+          code: 'ENDPOINT_LEVEL_BLOCK',
         requestId
       });
     }
     
-    // Extrair e verificar o token JWT diretamente
-    try {
-      const token = authHeader.slice(7); // Remove 'Bearer '
-      // Usar a constante global JWT_SECRET
-      
-      // Verificar token - isto lança erro se inválido
-      const decoded = jwt.verify(token, JWT_SECRET);
-      
-      if (!decoded || !decoded.id) {
-        console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
-        return res.status(401).json({
-          success: false,
-          message: 'Acesso negado - Token de autenticação inválido',
-          code: 'ENDPOINT_LEVEL_BLOCK',
+      console.log(`[ULTRA-SECURE ${requestId}] ✓ Token JWT validado para usuário ${decoded.id}`);
+    next();
+  } catch (error) {
+      console.error(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Erro na validação JWT:`, error.message);
+    return res.status(401).json({
+      success: false,
+      message: 'Acesso negado - Token de autenticação inválido ou expirado',
+        code: 'ENDPOINT_LEVEL_JWT_ERROR',
           requestId
         });
-      }
-      
-      console.log(`[ULTRA-SECURE ${requestId}] ✓ Token JWT validado para usuário ${decoded.id}`);
-      next();
-    } catch (error) {
-      console.error(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Erro na validação JWT:`, error.message);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso negado - Token de autenticação inválido ou expirado',
-        code: 'ENDPOINT_LEVEL_JWT_ERROR',
-        requestId
-      });
     }
   },
   verifyTokenAndSubscription({ 
