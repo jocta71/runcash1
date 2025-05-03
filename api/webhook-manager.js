@@ -66,6 +66,7 @@ async function handleWebhook(req, res) {
     // Processar apenas se o MongoDB estiver habilitado
     if (process.env.MONGODB_ENABLED === 'true' && process.env.MONGODB_URI) {
       try {
+        console.log(`[WEBHOOK] Conectando ao MongoDB para processar evento ${webhookData.event}...`);
         client = new MongoClient(process.env.MONGODB_URI);
         await client.connect();
         dbConnected = true;
@@ -104,10 +105,14 @@ async function handleWebhook(req, res) {
           const subscriptionId = webhookData.payment.subscription;
           const customerId = webhookData.payment.customer;
           
+          console.log(`[WEBHOOK] Processando assinatura ${subscriptionId} para cliente ${customerId}`);
+          
           // Verificar se a assinatura existe
           const existingSubscription = await db.collection('subscriptions').findOne({
             subscription_id: subscriptionId
           });
+          
+          console.log(`[WEBHOOK] Assinatura encontrada:`, existingSubscription ? 'SIM' : 'NÃO');
           
           if (existingSubscription) {
             // Atualizar status na coleção subscriptions
@@ -129,64 +134,96 @@ async function handleWebhook(req, res) {
               }
             );
             
-            console.log(`Status da assinatura ${subscriptionId} atualizado para ${webhookData.payment.status}`);
+            console.log(`[WEBHOOK] Status da assinatura ${subscriptionId} atualizado para ${webhookData.payment.status}`);
             
             // NOVO CÓDIGO: Atualizar ou criar registro na coleção userSubscriptions
             if (webhookData.payment.status === 'CONFIRMED' || webhookData.payment.status === 'RECEIVED' || webhookData.payment.status === 'ACTIVE') {
-              console.log(`Atualizando userSubscriptions para assinatura ${subscriptionId}`);
+              console.log(`[WEBHOOK] Condição de status atendida para criar/atualizar userSubscriptions`);
               
-              // Verificar se já existe um registro para este usuário na coleção userSubscriptions
-              const existingUserSubscription = await db.collection('userSubscriptions').findOne({
-                asaasSubscriptionId: subscriptionId
-              });
-              
-              if (existingUserSubscription) {
-                // Atualizar o registro existente
-                await db.collection('userSubscriptions').updateOne(
-                  { asaasSubscriptionId: subscriptionId },
-                  {
-                    $set: {
-                      status: 'active',
-                      updatedAt: new Date(),
-                      nextDueDate: new Date(new Date().setDate(new Date().getDate() + 30)) // 30 dias a partir de hoje
-                    },
-                    $push: {
-                      statusHistory: {
+              try {
+                // Verificar se já existe um registro para este usuário na coleção userSubscriptions
+                // Verificando por dois campos possíveis para garantir compatibilidade
+                const existingUserSubscription = await db.collection('userSubscriptions').findOne({
+                  $or: [
+                    { asaasSubscriptionId: subscriptionId },
+                    { subscription_id: subscriptionId }
+                  ]
+                });
+                
+                console.log(`[WEBHOOK] Registro existente em userSubscriptions:`, existingUserSubscription ? 'SIM' : 'NÃO');
+                
+                if (existingUserSubscription) {
+                  // Atualizar o registro existente
+                  console.log(`[WEBHOOK] Atualizando registro existente em userSubscriptions`);
+                  await db.collection('userSubscriptions').updateOne(
+                    { _id: existingUserSubscription._id },
+                    {
+                      $set: {
+                        status: 'active',
+                        updatedAt: new Date(),
+                        nextDueDate: new Date(new Date().setDate(new Date().getDate() + 30)) // 30 dias a partir de hoje
+                      },
+                      $push: {
+                        statusHistory: {
+                          status: 'active',
+                          timestamp: new Date(),
+                          source: 'webhook'
+                        }
+                      }
+                    }
+                  );
+                  console.log(`[WEBHOOK] Registro em userSubscriptions atualizado com sucesso`);
+                } else {
+                  // Determinar o tipo de plano com base no valor ou nas informações da assinatura
+                  const planType = determinePlanType(existingSubscription.plan_id, webhookData.payment.value);
+                  
+                  console.log(`[WEBHOOK] Criando novo registro em userSubscriptions com planType: ${planType}`);
+                  
+                  // Preparar o objeto a ser inserido
+                  const userSubscriptionData = {
+                    userId: existingSubscription.user_id,
+                    asaasCustomerId: customerId,
+                    asaasSubscriptionId: subscriptionId,
+                    subscription_id: subscriptionId, // Campo adicional para compatibilidade
+                    status: 'active',
+                    planType: planType,
+                    nextDueDate: new Date(new Date().setDate(new Date().getDate() + 30)), // 30 dias a partir de hoje
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    statusHistory: [
+                      {
                         status: 'active',
                         timestamp: new Date(),
                         source: 'webhook'
                       }
+                    ],
+                    webhookData: {
+                      event: webhookData.event,
+                      payment_id: webhookData.payment.id,
+                      payment_status: webhookData.payment.status,
+                      payment_value: webhookData.payment.value
                     }
-                  }
-                );
-                console.log(`Registro existente em userSubscriptions atualizado para assinatura ${subscriptionId}`);
-              } else {
-                // Determinar o tipo de plano com base no valor ou nas informações da assinatura
-                const planType = determinePlanType(existingSubscription.plan_id, webhookData.payment.value);
-                
-                // Criar um novo registro
-                await db.collection('userSubscriptions').insertOne({
-                  userId: existingSubscription.user_id,
-                  asaasCustomerId: customerId,
-                  asaasSubscriptionId: subscriptionId,
-                  status: 'active',
-                  planType: planType,
-                  nextDueDate: new Date(new Date().setDate(new Date().getDate() + 30)), // 30 dias a partir de hoje
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                  statusHistory: [
-                    {
-                      status: 'active',
-                      timestamp: new Date(),
-                      source: 'webhook'
-                    }
-                  ]
-                });
-                console.log(`Novo registro criado em userSubscriptions para assinatura ${subscriptionId}`);
+                  };
+                  
+                  console.log(`[WEBHOOK] Dados do registro a ser inserido:`, JSON.stringify(userSubscriptionData));
+                  
+                  // Criar um novo registro
+                  const result = await db.collection('userSubscriptions').insertOne(userSubscriptionData);
+                  
+                  console.log(`[WEBHOOK] Novo registro criado em userSubscriptions, ID: ${result.insertedId}`);
+                  
+                  // Verificar se o registro foi criado com sucesso
+                  const insertedRecord = await db.collection('userSubscriptions').findOne({ _id: result.insertedId });
+                  console.log(`[WEBHOOK] Verificação de inserção:`, insertedRecord ? 'SUCESSO' : 'FALHA');
+                }
+              } catch (userSubError) {
+                console.error(`[WEBHOOK] ERRO ao manipular userSubscriptions:`, userSubError);
               }
+            } else {
+              console.log(`[WEBHOOK] Status ${webhookData.payment.status} não atende os critérios para criar/atualizar userSubscriptions`);
             }
           } else {
-            console.warn(`Assinatura ${subscriptionId} não encontrada no banco de dados`);
+            console.warn(`[WEBHOOK] Assinatura ${subscriptionId} não encontrada no banco de dados`);
             
             // Registrar assinaturas não encontradas para reconciliação posterior
             await db.collection('subscription_reconciliation_queue').insertOne({
@@ -236,7 +273,7 @@ async function handleWebhook(req, res) {
           }
         );
       } catch (dbError) {
-        console.error('Erro ao processar webhook no MongoDB:', dbError.message);
+        console.error('[WEBHOOK] Erro ao processar webhook no MongoDB:', dbError.message);
         
         // Se já estabelecemos conexão com o banco, registrar o erro para processamento posterior
         if (dbConnected && client) {
