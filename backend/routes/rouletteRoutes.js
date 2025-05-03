@@ -22,17 +22,19 @@ router.get('/roulettes', (req, res) => {
   // Gerar ID de requisição único para rastreamento
   const requestId = crypto.randomUUID();
   
-  // Log detalhado do bloqueio
-  console.log(`[FIREWALL] Blocking access to disabled route: /api/roulettes`);
+  // Log detalhado do bloqueio com informações importantes para auditoria
+  console.log(`[FIREWALL] Bloqueando acesso à rota desativada: /api/roulettes`);
   console.log(`[FIREWALL] Request ID: ${requestId}`);
   console.log(`[FIREWALL] Headers: ${JSON.stringify(req.headers)}`);
-  console.log(`[FIREWALL] IP: ${req.ip || req.headers['x-forwarded-for'] || 'unknown'}`);
+  console.log(`[FIREWALL] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown'}`);
+  console.log(`[FIREWALL] User-Agent: ${req.headers['user-agent'] || 'unknown'}`);
+  console.log(`[FIREWALL] Timestamp: ${new Date().toISOString()}`);
   
   // Configurar cabeçalhos CORS para a resposta
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Credentials', true);
+  res.header('Access-Control-Allow-Credentials', 'true');
   
   // Responder com 403 Forbidden
   return res.status(403).json({
