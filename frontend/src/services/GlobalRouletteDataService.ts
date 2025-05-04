@@ -58,6 +58,10 @@ class GlobalRouletteDataService {
   // Construtor privado para garantir Singleton
   private constructor() {
     console.log('[GlobalRouletteService] Inicializando serviço global de roletas');
+    
+    // Executar diagnóstico e reparo de tokens na inicialização
+    this.repararTokensAutomaticamente();
+    
     this.startPolling();
   }
 
@@ -222,7 +226,18 @@ class GlobalRouletteDataService {
       let authToken = '';
       
       if (tokenCookie) {
-        authToken = tokenCookie;
+        // Verificar se o token tem o prefixo 'Bearer' incorretamente incluído no valor
+        if (tokenCookie.startsWith('Bearer ')) {
+          console.log('[GlobalRouletteDataService] ⚠️ Token inclui prefixo Bearer, corrigindo formato');
+          authToken = tokenCookie.replace('Bearer ', '');
+          
+          // Corrigir os cookies
+          document.cookie = `token=${authToken}; path=/; max-age=2592000; SameSite=Lax`;
+          document.cookie = `token_alt=${authToken}; path=/; max-age=2592000; SameSite=Lax`;
+        } else {
+          authToken = tokenCookie;
+        }
+        
         console.log('[GlobalRouletteDataService] ✅ Token de autenticação obtido dos cookies');
       } else {
         // Se não encontrou nos cookies, verificar localStorage
@@ -238,12 +253,20 @@ class GlobalRouletteDataService {
         for (const key of possibleKeys) {
           const token = localStorage.getItem(key);
           if (token) {
-            authToken = token;
+            // Verificar se o token tem o prefixo 'Bearer' incorretamente incluído
+            if (token.startsWith('Bearer ')) {
+              console.log(`[GlobalRouletteDataService] ⚠️ Token em localStorage.${key} inclui prefixo Bearer, corrigindo`);
+              authToken = token.replace('Bearer ', '');
+              localStorage.setItem(key, authToken);
+            } else {
+              authToken = token;
+            }
+            
             console.log(`[GlobalRouletteDataService] ✅ Token encontrado no localStorage: ${key}`);
             
             // Restaurar para cookies também
-            document.cookie = `token=${token}; path=/; max-age=2592000; SameSite=Lax`;
-            document.cookie = `token_alt=${token}; path=/; max-age=2592000; SameSite=Lax`;
+            document.cookie = `token=${authToken}; path=/; max-age=2592000; SameSite=Lax`;
+            document.cookie = `token_alt=${authToken}; path=/; max-age=2592000; SameSite=Lax`;
             console.log('[GlobalRouletteDataService] Token restaurado para cookies');
             
             break;
@@ -257,23 +280,84 @@ class GlobalRouletteDataService {
         'Accept': 'application/json'
       };
       
-      // Adicionar token de autenticação se disponível
-      if (authToken) {
+      // Verificar se temos um formato de token bem-sucedido no passado
+      const tokenFormatSuccess = localStorage.getItem('token_format_success');
+      
+      if (tokenFormatSuccess && authToken) {
+        console.log(`[GlobalRouletteDataService] Usando formato de token previamente bem-sucedido: ${tokenFormatSuccess}`);
+        
+        switch (tokenFormatSuccess) {
+          case 'padrao':
+            headers['Authorization'] = `Bearer ${authToken}`;
+            break;
+          case 'sem-espaco':
+            headers['Authorization'] = `Bearer${authToken}`;
+            break;
+          case 'sem-bearer':
+            headers['Authorization'] = authToken;
+            break;
+          case 'minusculo':
+            headers['authorization'] = `Bearer ${authToken}`;
+            break;
+          case 'x-access-token':
+            headers['x-access-token'] = authToken;
+            break;
+          default:
+            // Formato padrão se não encontrar formato específico
+            headers['Authorization'] = `Bearer ${authToken}`;
+            console.log('[GlobalRouletteDataService] ✅ Token de autenticação adicionado ao cabeçalho da requisição');
+        }
+      } else if (authToken) {
+        // Adicionar token de autenticação no formato padrão se disponível
         headers['Authorization'] = `Bearer ${authToken}`;
         console.log('[GlobalRouletteDataService] ✅ Token de autenticação adicionado ao cabeçalho da requisição');
       } else {
         console.warn('[GlobalRouletteDataService] ⚠️ Nenhum token de autenticação encontrado, a requisição pode falhar com 401');
       }
 
-      // Buscar dados da API (usando o mecanismo de retry)
+      // Buscar dados da API (usando o mecanismo de retry avançado)
       console.log('[GlobalRouletteDataService] Fazendo requisição à API...');
       const response = await this.fetchWithRetry('/api/roulettes', {
         method: 'GET',
         headers,
         credentials: 'include' // Importante: enviar cookies com a requisição
-      }, 2); // Permitir até 2 tentativas de retry
+      }, 3); // Permitir até 3 tentativas de retry com diferentes formatos
 
       if (!response.ok) {
+        // Se ainda falha após todas as tentativas, tentar uma abordagem alternativa
+        if (response.status === 401) {
+          console.warn('[GlobalRouletteDataService] ⚠️ Erro 401 após todas as tentativas, usando cache local se disponível');
+          
+          // Tentar restaurar do cache local
+          try {
+            const cacheData = localStorage.getItem('roulette_data_cache');
+            if (cacheData) {
+              const parsed = JSON.parse(cacheData);
+              if (parsed.data && Array.isArray(parsed.data) && parsed.data.length > 0) {
+                console.log(`[GlobalRouletteDataService] ⚠️ Usando ${parsed.data.length} roletas do cache como fallback`);
+                
+                // Atualizar dados do serviço e notificar
+                this.rouletteData = parsed.data;
+                this.lastFetchTime = Date.now(); // Atualizar timestamp para evitar muitas tentativas
+                
+                // Registrar o erro para diagnóstico
+                this.fetchError = new Error(`Erro 401 ao acessar API. Usando cache. Recomendação: diagnosticarAutenticacao()`);
+                
+                // Notificar assinantes dos dados do cache
+                this.notifySubscribers();
+                
+                // Retornar dados do cache
+                return this.rouletteData;
+              }
+            }
+          } catch (e) {
+            console.warn('[GlobalRouletteDataService] Erro ao restaurar dados do cache:', e);
+          }
+          
+          // Se chegamos aqui, não conseguimos recuperar do cache
+          throw new Error(`Erro 401 Unauthorized: Token inválido ou ausente. Execute diagnosticarAutenticacao()`);
+        }
+        
         throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
       }
 
@@ -712,17 +796,141 @@ class GlobalRouletteDataService {
   }
 
   /**
-   * Método para tentar fazer a requisição novamente com recuperação de erros
+   * Ferramenta de diagnóstico para problemas de autenticação
+   * Compara o formato do token e tenta diferentes métodos de envio
    */
-  private async fetchWithRetry(url: string, options: RequestInit, retries = 1): Promise<Response> {
+  public async fetchWithRetry(url: string, options: RequestInit, retries = 1): Promise<Response> {
     try {
+      // Verificar se temos um token salvo do formato que funcionou
+      const tokenFormatSuccess = localStorage.getItem('token_format_success');
+      
+      if (tokenFormatSuccess) {
+        // Usar o formato que funcionou anteriormente
+        console.log(`[GlobalRouletteDataService] Usando formato de token com sucesso anterior: ${tokenFormatSuccess}`);
+        
+        // Obter token limpo (sem Bearer)
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`;
+          const parts = value.split(`; ${name}=`);
+          if (parts.length === 2) return parts.pop()?.split(';').shift();
+          return undefined;
+        };
+        
+        const token = getCookie('token') || getCookie('token_alt') || localStorage.getItem('token') || '';
+        const tokenSemBearer = token.startsWith('Bearer ') ? token.replace('Bearer ', '') : token;
+        
+        // Substituir cabeçalho de autorização pelo formato que funcionou
+        if (options.headers) {
+          const headers = options.headers as Record<string, string>;
+          
+          // Remover cabeçalho existente
+          delete headers['Authorization'];
+          delete headers['authorization'];
+          delete headers['x-access-token'];
+          
+          // Adicionar no formato que funcionou
+          switch (tokenFormatSuccess) {
+            case 'padrao':
+              headers['Authorization'] = `Bearer ${tokenSemBearer}`;
+              break;
+            case 'sem-espaco':
+              headers['Authorization'] = `Bearer${tokenSemBearer}`;
+              break;
+            case 'sem-bearer':
+              headers['Authorization'] = tokenSemBearer;
+              break;
+            case 'minusculo':
+              headers['authorization'] = `Bearer ${tokenSemBearer}`;
+              break;
+            case 'x-access-token':
+              headers['x-access-token'] = tokenSemBearer;
+              break;
+          }
+        }
+      }
+      
       const response = await fetch(url, options);
       
       // Se for 401 Unauthorized e ainda temos tentativas, tentar recuperar
       if (response.status === 401 && retries > 0) {
         console.warn('[GlobalRouletteDataService] ⚠️ Erro 401 Unauthorized, tentando recuperar...');
         
-        // Tentar obter um novo token
+        // 1. Tentar restaurar token do localStorage para cookies
+        const possibleKeys = ['auth_token', 'token', 'accessToken', 'jwt_token', 'authentication'];
+        let tokenRestored = false;
+        
+        for (const key of possibleKeys) {
+          const token = localStorage.getItem(key);
+          if (token) {
+            const tokenToSave = token.startsWith('Bearer ') ? token.replace('Bearer ', '') : token;
+            document.cookie = `token=${tokenToSave}; path=/; max-age=2592000; SameSite=Lax`;
+            document.cookie = `token_alt=${tokenToSave}; path=/; max-age=2592000; SameSite=Lax`;
+            console.log(`[GlobalRouletteDataService] ✅ Token restaurado de localStorage.${key} para cookies`);
+            tokenRestored = true;
+            break;
+          }
+        }
+        
+        // 2. Se restauramos o token, tentar novamente com o token atualizado
+        if (tokenRestored) {
+          console.log('[GlobalRouletteDataService] 🔄 Repetindo requisição com token restaurado...');
+          return this.fetchWithRetry(url, options, retries - 1);
+        }
+        
+        // 3. Se não conseguimos restaurar, tentar diferentes formatos de autenticação
+        if (!tokenRestored && retries > 1) {
+          console.log('[GlobalRouletteDataService] 🔄 Tentando formato alternativo de autorização...');
+          
+          // Obter token dos cookies
+          const getCookie = (name: string) => {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop()?.split(';').shift();
+            return undefined;
+          };
+          
+          const token = getCookie('token') || getCookie('token_alt') || '';
+          if (token) {
+            const tokenSemBearer = token.startsWith('Bearer ') ? token.replace('Bearer ', '') : token;
+            const newOptions = { ...options };
+            const headers = newOptions.headers as Record<string, string>;
+            
+            // Testar formatos alternativos - verificar qual retries estamos para escolher um formato
+            if (retries === 3) {
+              // Formato 1: Authorization sem espaço
+              headers['Authorization'] = `Bearer${tokenSemBearer}`;
+              localStorage.setItem('token_format_trying', 'sem-espaco');
+            } else if (retries === 2) {
+              // Formato 2: authorization minúsculo
+              delete headers['Authorization'];
+              headers['authorization'] = `Bearer ${tokenSemBearer}`;
+              localStorage.setItem('token_format_trying', 'minusculo');
+            } else {
+              // Formato 3: x-access-token
+              delete headers['Authorization'];
+              delete headers['authorization'];
+              headers['x-access-token'] = tokenSemBearer;
+              localStorage.setItem('token_format_trying', 'x-access-token');
+            }
+            
+            console.log(`[GlobalRouletteDataService] Tentando formato: ${localStorage.getItem('token_format_trying')}`);
+            
+            // Tentar novamente com o novo formato
+            const retryResponse = await fetch(url, newOptions);
+            
+            // Se funcionou, salvar o formato para uso futuro
+            if (retryResponse.ok) {
+              console.log(`[GlobalRouletteDataService] ✅ Formato ${localStorage.getItem('token_format_trying')} funcionou!`);
+              localStorage.setItem('token_format_success', localStorage.getItem('token_format_trying') || '');
+              return retryResponse;
+            }
+            
+            // Se ainda não funcionou, tentar o próximo formato
+            return this.fetchWithRetry(url, options, retries - 1);
+          }
+        }
+        
+        // 4. Tentar obter um novo token através de método existente
         const newToken = await this.recoverFromAuthFailure();
         
         if (newToken) {
@@ -744,10 +952,131 @@ class GlobalRouletteDataService {
         }
       }
       
+      // Se a resposta for ok e estávamos testando um formato, salvar o formato que funcionou
+      if (response.ok && localStorage.getItem('token_format_trying')) {
+        console.log(`[GlobalRouletteDataService] ✅ Formato ${localStorage.getItem('token_format_trying')} funcionou!`);
+        localStorage.setItem('token_format_success', localStorage.getItem('token_format_trying') || '');
+      }
+      
       return response;
     } catch (error) {
       console.error('[GlobalRouletteDataService] ❌ Erro durante fetchWithRetry:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Executa reparo automático de tokens na inicialização
+   * Isso ajuda a evitar problemas de 401 quando há problemas com o formato do token
+   */
+  private repararTokensAutomaticamente(): void {
+    console.log('[GlobalRouletteDataService] 🩺 Verificando e corrigindo tokens automaticamente...');
+    
+    try {
+      // 1. Verificar cookies
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop()?.split(';').shift();
+        return undefined;
+      };
+      
+      // Verificar e corrigir token nos cookies
+      const tokenCookie = getCookie('token') || getCookie('token_alt');
+      let cookieFixed = false;
+      
+      if (tokenCookie) {
+        if (tokenCookie.startsWith('Bearer ')) {
+          // Corrigir cookie com prefixo Bearer
+          const tokenCorrigido = tokenCookie.replace('Bearer ', '');
+          document.cookie = `token=${tokenCorrigido}; path=/; max-age=2592000; SameSite=Lax`;
+          document.cookie = `token_alt=${tokenCorrigido}; path=/; max-age=2592000; SameSite=Lax`;
+          console.log('[GlobalRouletteDataService] ✅ Token corrigido nos cookies (removido prefixo Bearer)');
+          cookieFixed = true;
+        } else {
+          console.log('[GlobalRouletteDataService] ✓ Token nos cookies está no formato correto');
+        }
+      } else {
+        console.log('[GlobalRouletteDataService] ⚠️ Nenhum token encontrado nos cookies');
+      }
+      
+      // 2. Verificar localStorage
+      const possibleKeys = ['auth_token', 'token', 'accessToken', 'jwt_token', 'authentication'];
+      let foundInLocalStorage = false;
+      let localStorageFixed = false;
+      
+      for (const key of possibleKeys) {
+        const token = localStorage.getItem(key);
+        if (token) {
+          foundInLocalStorage = true;
+          
+          // Verificar formato
+          if (token.startsWith('Bearer ')) {
+            // Corrigir token com prefixo Bearer
+            const tokenCorrigido = token.replace('Bearer ', '');
+            localStorage.setItem(key, tokenCorrigido);
+            console.log(`[GlobalRouletteDataService] ✅ Token corrigido no localStorage.${key} (removido prefixo Bearer)`);
+            localStorageFixed = true;
+          }
+          
+          // Se não há token nos cookies, restaurar do localStorage
+          if (!tokenCookie) {
+            const tokenToSave = token.startsWith('Bearer ') ? token.replace('Bearer ', '') : token;
+            document.cookie = `token=${tokenToSave}; path=/; max-age=2592000; SameSite=Lax`;
+            document.cookie = `token_alt=${tokenToSave}; path=/; max-age=2592000; SameSite=Lax`;
+            console.log(`[GlobalRouletteDataService] ✅ Token restaurado de localStorage.${key} para cookies`);
+            cookieFixed = true;
+          }
+        }
+      }
+      
+      if (!foundInLocalStorage && !tokenCookie) {
+        console.warn('[GlobalRouletteDataService] ⚠️ Nenhum token encontrado! As requisições podem falhar com 401');
+      }
+      
+      // 3. Verificar formatos de token que funcionaram anteriormente
+      const tokenFormatSuccess = localStorage.getItem('token_format_success');
+      if (tokenFormatSuccess) {
+        console.log(`[GlobalRouletteDataService] ℹ️ Formato de token com sucesso anterior: ${tokenFormatSuccess}`);
+      }
+      
+      // Remover formato de token que está sendo testado (caso tenha ficado de uma sessão anterior)
+      if (localStorage.getItem('token_format_trying')) {
+        localStorage.removeItem('token_format_trying');
+      }
+      
+      if (cookieFixed || localStorageFixed) {
+        console.log('[GlobalRouletteDataService] ✅ Tokens corrigidos com sucesso na inicialização');
+      } else {
+        console.log('[GlobalRouletteDataService] ✓ Não foram necessárias correções nos tokens');
+      }
+    } catch (error) {
+      console.error('[GlobalRouletteDataService] ❌ Erro ao tentar corrigir tokens:', error);
+    }
+  }
+  
+  /**
+   * Executa diagnóstico completo e tenta reparar problemas de autenticação
+   * Este método público pode ser chamado para solucionar problemas de 401
+   */
+  public corrigirProblemasAutenticacao(): void {
+    console.log('[GlobalRouletteDataService] 🔧 Iniciando reparo de problemas de autenticação...');
+    
+    try {
+      // 1. Executar correção de tokens
+      this.repararTokensAutomaticamente();
+      
+      // 2. Limpar cache de formato bem-sucedido para forçar novos testes
+      localStorage.removeItem('token_format_success');
+      localStorage.removeItem('token_format_trying');
+      
+      // 3. Forçar atualização com novas configurações
+      this.forceUpdateAndClearCache();
+      
+      // 4. Executar diagnóstico completo de autenticação
+      diagnosticarAutenticacao();
+    } catch (error) {
+      console.error('[GlobalRouletteDataService] ❌ Erro durante correção de autenticação:', error);
     }
   }
 }
@@ -945,4 +1274,128 @@ export function diagnosticarCarregamentoRoletas(): void {
   console.log('2. Se o erro persistir, faça logout e login novamente');
   console.log('3. Verifique a conexão com a internet');
   console.log('4. Limpe o cache do navegador se o problema continuar');
+} 
+
+/**
+ * Ferramenta de diagnóstico para problemas de autenticação
+ * Compara o formato do token e tenta diferentes métodos de envio
+ */
+export function diagnosticarAutenticacao(): void {
+  console.log('==================== DIAGNÓSTICO DE AUTENTICAÇÃO ====================');
+  
+  // 1. Verificar cookies e localStorage
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+    return undefined;
+  };
+  
+  // Obter token dos cookies
+  const tokenCookie = getCookie('token') || getCookie('token_alt');
+  console.log('📋 Verificação de token nos cookies:');
+  if (tokenCookie) {
+    const maskedToken = `${tokenCookie.substring(0, 15)}...${tokenCookie.substring(tokenCookie.length - 10)}`;
+    console.log(`✅ Token encontrado nos cookies: ${maskedToken}`);
+    
+    // Verificar formato do token
+    if (tokenCookie.startsWith('Bearer ')) {
+      console.log('⚠️ O token contém o prefixo "Bearer " dentro do seu valor');
+      console.log('Isso pode causar problemas quando o prefixo é adicionado novamente nos cabeçalhos');
+      
+      // Corrigir automaticamente
+      const tokenCorrigido = tokenCookie.replace('Bearer ', '');
+      document.cookie = `token=${tokenCorrigido}; path=/; max-age=2592000; SameSite=Lax`;
+      document.cookie = `token_alt=${tokenCorrigido}; path=/; max-age=2592000; SameSite=Lax`;
+      console.log('✅ Token corrigido e salvo nos cookies');
+    }
+  } else {
+    console.log('❌ Nenhum token encontrado nos cookies');
+  }
+  
+  // Verificar localStorage
+  console.log('\n📋 Verificação de token no localStorage:');
+  const possibleKeys = ['auth_token', 'token', 'accessToken', 'jwt_token', 'authentication'];
+  let foundInLocalStorage = false;
+  
+  for (const key of possibleKeys) {
+    const token = localStorage.getItem(key);
+    if (token) {
+      foundInLocalStorage = true;
+      console.log(`✅ Token encontrado no localStorage: ${key}`);
+      
+      // Verificar formato do token
+      if (token.startsWith('Bearer ')) {
+        console.log('⚠️ O token no localStorage contém o prefixo "Bearer "');
+        
+        // Corrigir automaticamente
+        const tokenCorrigido = token.replace('Bearer ', '');
+        localStorage.setItem(key, tokenCorrigido);
+        console.log(`✅ Token corrigido e salvo no localStorage (${key})`);
+      }
+      
+      // Se não existir nos cookies, restaurar
+      if (!tokenCookie) {
+        const tokenToSave = token.startsWith('Bearer ') ? token.replace('Bearer ', '') : token;
+        document.cookie = `token=${tokenToSave}; path=/; max-age=2592000; SameSite=Lax`;
+        document.cookie = `token_alt=${tokenToSave}; path=/; max-age=2592000; SameSite=Lax`;
+        console.log('✅ Token do localStorage restaurado para cookies');
+      }
+    }
+  }
+  
+  if (!foundInLocalStorage && !tokenCookie) {
+    console.log('❌ PROBLEMA CRÍTICO: Nenhum token encontrado em qualquer armazenamento!');
+    console.log('Recomendação: Fazer logout e login novamente para renovar o token');
+  }
+  
+  // 2. Testar diferentes formatos de cabeçalho
+  console.log('\n📋 Teste de formatos de cabeçalho de autorização:');
+  const token = tokenCookie || localStorage.getItem('token') || '';
+  
+  if (!token) {
+    console.log('❌ Sem token disponível para testar cabeçalhos');
+    return;
+  }
+  
+  const tokenSemBearer = token.startsWith('Bearer ') ? token.replace('Bearer ', '') : token;
+  
+  // Preparar diferentes formatos de cabeçalho para teste
+  const cabecalhosTeste = [
+    { nome: 'Padrão', headers: { 'Authorization': `Bearer ${tokenSemBearer}` } },
+    { nome: 'Sem espaço', headers: { 'Authorization': `Bearer${tokenSemBearer}` } },
+    { nome: 'Sem Bearer', headers: { 'Authorization': tokenSemBearer } },
+    { nome: 'Minúsculo', headers: { 'authorization': `Bearer ${tokenSemBearer}` } },
+    { nome: 'x-access-token', headers: { 'x-access-token': tokenSemBearer } }
+  ];
+  
+  console.log('Iniciando testes de diferentes formatos de cabeçalho...');
+  console.log('Os resultados aparecerão no console em alguns segundos');
+  
+  // Realizar testes assíncronos para cada formato
+  cabecalhosTeste.forEach(({ nome, headers }) => {
+    fetch('/api/health', {  // Usar um endpoint simples para teste
+      method: 'GET',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    })
+    .then(response => {
+      console.log(`Teste de cabeçalho "${nome}": ${response.status} ${response.statusText}`);
+    })
+    .catch(error => {
+      console.error(`Erro no teste de cabeçalho "${nome}":`, error);
+    });
+  });
+  
+  // 3. Corrigir o método fetchWithRetry para tentar diferentes formatos
+  console.log('\n📋 Recomendações:');
+  console.log('1. Verifique os resultados dos testes de cabeçalho acima');
+  console.log('2. Se algum formato teve sucesso, use-o nas requisições futuras');
+  console.log('3. Se todos falharem, tente fazer logout e login novamente');
+  console.log('4. Depois de fazer login novamente, execute esta função para verificar o novo token');
+  
+  console.log('\n==================== FIM DO DIAGNÓSTICO ====================');
 } 

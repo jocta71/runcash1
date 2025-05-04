@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, PackageOpen, Loader2, Copy } from 'lucide-react';
+import { AlertCircle, PackageOpen, Loader2, Copy, Bug, Settings } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
 import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
@@ -22,6 +22,7 @@ import {
 } from '@/integrations/asaas/client';
 import { useSubscription } from '@/context/SubscriptionContext';
 import SubscriptionRequired from '@/components/SubscriptionRequired';
+import globalRouletteDataService, { diagnosticarAutenticacao } from '@/services/GlobalRouletteDataService';
 
 
 
@@ -217,6 +218,8 @@ const Index = () => {
   const [checkStatusInterval, setCheckStatusInterval] = useState<NodeJS.Timeout | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [showDiagnosticButton, setShowDiagnosticButton] = useState(false);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -815,114 +818,104 @@ const Index = () => {
     }
   };
 
-  // Modificar o useEffect para incluir diagnóstico
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
+  // Função para executar diagnóstico e correção de autenticação
+  const runAuthDiagnostic = () => {
+    console.log('[Index] 🩺 Iniciando diagnóstico de autenticação');
+    setIsDiagnosing(true);
+    
+    try {
+      // Executar diagnóstico avançado
+      globalRouletteDataService.corrigirProblemasAutenticacao();
       
-      try {
-        console.log('[Index] 📊 Iniciando carregamento de roletas...');
-        
-        // Importar utilitários de diagnóstico
-        try {
-          const diagnostics = await import('@/services/GlobalRouletteDataService')
-            .then(module => module.diagnosticarCarregamentoRoletas)
-            .catch(() => null);
-            
-          if (diagnostics) {
-            console.log('[Index] Executando diagnóstico do serviço de roletas');
-            diagnostics();
-          }
-        } catch (diagError) {
-          console.warn('[Index] Diagnóstico não disponível:', diagError);
+      toast({
+        title: "Diagnóstico concluído",
+        description: "Verifique o console para detalhes e atualize a página se o problema persistir",
+        variant: "default"
+      });
+      
+      // Forçar nova requisição após diagnóstico
+      setTimeout(() => {
+        setIsLoading(true);
+        fetchData();
+      }, 2000);
+    } catch (error) {
+      console.error('[Index] Erro durante diagnóstico:', error);
+      toast({
+        title: "Erro no diagnóstico",
+        description: "Ocorreu um erro durante o diagnóstico. Verifique o console.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDiagnosing(false);
+    }
+  };
+
+  // Função fetchData existente: adicionar detecção de erro 401
+  const fetchData = async () => {
+    console.log('[Index] 📊 Iniciando carregamento de roletas...');
+    setError(null);
+    setIsLoading(true);
+    
+    try {
+      // Executar diagnóstico do serviço de roletas
+      console.log('[Index] Executando diagnóstico do serviço de roletas');
+      diagnosticarAutenticacao();
+      
+      const apiRoulettes = await RouletteRepository.fetchAllRoulettesWithNumbers();
+      console.log(`[Index] 🎲 Carregadas ${apiRoulettes.length} roletas da API`);
+      
+      if (apiRoulettes.length === 0) {
+        console.log('[Index] ⚠️ Nenhuma roleta retornada pela API, tentando serviço global');
+        // Tentar obter do serviço global
+        const globalRoulettes = globalRouletteDataService.getAllRoulettes();
+        if (globalRoulettes && globalRoulettes.length > 0) {
+          console.log(`[Index] 🎲 Usando ${globalRoulettes.length} roletas do serviço global`);
+          setRoulettes(globalRoulettes);
+          setFilteredRoulettes(globalRoulettes);
+        } else {
+          console.error('[Index] ❌ Nenhuma roleta disponível em nenhuma fonte');
+          setError('Não foi possível carregar as roletas. Tente novamente mais tarde.');
+          setShowDiagnosticButton(true);
         }
-        
-        // Buscar todas as roletas com seus números
-        const rouletteData = await RouletteRepository.fetchAllRoulettesWithNumbers();
-        
-        if (!rouletteData || rouletteData.length === 0) {
-          console.warn('[Index] Nenhuma roleta retornada pela API');
-          setError('Nenhuma roleta disponível. A API retornou uma lista vazia.');
-          return;
-        }
-        
-        console.log(`[Index] ✅ Recebidas ${rouletteData.length} roletas`);
-        
-        // Ordenar por nome para exibição - acessando propriedades de forma segura
-        rouletteData.sort((a, b) => {
-          // Acessar name ou qualquer campo que contenha o nome de forma segura
-          const nameA = (a as any).nome || (a as any).name || '';
-          const nameB = (b as any).nome || (b as any).name || '';
-          return nameA.localeCompare(nameB);
-        });
-        
-        setRoulettes(rouletteData);
-        setFilteredRoulettes(rouletteData);
-        console.log(`[Index] ✅ ${rouletteData.length} roletas processadas e ordenadas`);
-      } catch (err) {
-        console.error('[Index] ❌ Erro ao buscar roletas:', err);
-        setError('Não foi possível carregar as roletas disponíveis.');
-        
-        // Tentar recuperação de erro com chamada direta
-        try {
-          console.log('[Index] Tentando chamada direta à API como fallback');
-          const response = await fetch('/api/roulettes', {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            credentials: 'include'
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            
-            // Processar resposta
-            if (Array.isArray(data) && data.length > 0) {
-              console.log(`[Index] ✅ Recuperação bem-sucedida via fallback: ${data.length} roletas`);
-              setRoulettes(data);
-              setFilteredRoulettes(data);
-              setError(null);
-            } else {
-              console.warn('[Index] Resposta do fallback não é um array válido');
-            }
-          }
-        } catch (fallbackErr) {
-          console.error('[Index] Falha na recuperação alternativa:', fallbackErr);
-        }
-      } finally {
-        setIsLoading(false);
-        
-        // Liberação forçada após timeout
-        setTimeout(() => {
-          if (isLoading) {
-            console.log('[Index] Forçando liberação após timeout');
-            setIsLoading(false);
-          }
-        }, 5000);
+      } else {
+        setRoulettes(apiRoulettes);
+        setFilteredRoulettes(apiRoulettes);
       }
-    };
-    
-    // Registrar listeners para eventos
-    const handleDataUpdate = () => {
-      console.log('[Index] Evento de atualização de dados recebido, atualizando UI');
-      fetchData();
-    };
-    
-    // Inicializar registros de eventos
-    EventService.on('roulettes_loaded', handleDataUpdate);
-    
-    // Iniciar carregamento de dados
-    fetchData();
-    
-    // Limpeza
-    return () => {
-      EventService.off('roulettes_loaded', handleDataUpdate);
-      isMounted.current = false;
-    };
-  }, []);
+    } catch (error: any) {
+      console.error('[Index] ❌ Erro ao buscar roletas:', error);
+      
+      // Verificar se é um erro de autenticação
+      const is401Error = error.message?.includes('401') || 
+                         error.message?.includes('Unauthorized') || 
+                         error.toString().includes('401');
+      
+      if (is401Error) {
+        setError('Erro de autenticação ao carregar roletas. Clique em "Diagnosticar" abaixo para corrigir.');
+        setShowDiagnosticButton(true);
+      } else {
+        setError('Erro ao carregar roletas. Tente novamente mais tarde.');
+      }
+      
+      // Tentativa de fallback para o serviço global
+      console.log('[Index] Tentando chamada direta à API como fallback');
+      try {
+        const globalRoulettes = globalRouletteDataService.getAllRoulettes();
+        if (globalRoulettes && globalRoulettes.length > 0) {
+          console.log(`[Index] 🎲 Usando ${globalRoulettes.length} roletas do serviço global como fallback`);
+          setRoulettes(globalRoulettes);
+          setFilteredRoulettes(globalRoulettes);
+        }
+      } catch (fallbackError) {
+        console.error('[Index] ❌ Também falhou o fallback:', fallbackError);
+      }
+    } finally {
+      // Libera a tela após um tempo máximo (segurança)
+      setTimeout(() => {
+        console.log('[Index] 🔄 Liberando tela após timeout de segurança');
+        setIsLoading(false);
+      }, 3000);
+    }
+  };
 
   return (
     <Layout>
@@ -932,6 +925,52 @@ const Index = () => {
           <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center z-50 relative">
             <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
             <p className="text-red-100">{error}</p>
+            
+            {/* Botão de diagnóstico */}
+            {showDiagnosticButton && (
+              <Button 
+                onClick={runAuthDiagnostic} 
+                className="ml-4 bg-red-600 hover:bg-red-700 text-white text-xs rounded-md px-3 h-9"
+                size="sm"
+                disabled={isDiagnosing}
+              >
+                {isDiagnosing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Diagnosticando...
+                  </>
+                ) : (
+                  <>
+                    <Bug className="h-4 w-4 mr-2" />
+                    Diagnosticar
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        )}
+        
+        {/* Botão de diagnóstico avançado (apenas para administradores) */}
+        {user?.isAdmin && (
+          <div className="mb-4 flex justify-end">
+            <Button
+              onClick={runAuthDiagnostic}
+              className="text-gray-400 border border-gray-700 hover:text-white hover:border-gray-500 hover:bg-gray-800 bg-transparent"
+              size="sm"
+              disabled={isDiagnosing}
+            >
+              {isDiagnosing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Diagnosticando...
+                </>
+              ) : (
+                <>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Diagnóstico Avançado
+                </>
+              )}
+            </Button>
           </div>
         )}
         
@@ -1136,7 +1175,7 @@ const Index = () => {
                                 type="button"
                                 variant="outline"
                                 onClick={() => setShowCheckout(false)}
-                                className="border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white"
+                                className="bg-transparent text-gray-400 border border-gray-700 hover:text-white hover:border-gray-500 hover:bg-gray-800"
                               >
                                 Cancelar
                               </Button>
@@ -1215,24 +1254,19 @@ const Index = () => {
                                   <div className="flex justify-center space-x-3">
                                     <Button
                                       type="button"
-                                      variant="outline"
-                                      onClick={() => setShowCheckout(false)}
-                                      className="border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white"
-                                    >
-                                      Cancelar
-                                    </Button>
-                                    
-                                    <Button
-                                      type="button"
-                                      className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded flex items-center space-x-2"
+                                      className="bg-transparent text-gray-400 border border-gray-700 hover:text-white hover:border-gray-500 hover:bg-gray-800 py-2 px-4 rounded-lg text-sm flex items-center justify-center"
+                                      size="sm"
                                       onClick={() => checkPaymentStatusManually(paymentId)}
+                                      disabled={verifyingPayment}
                                     >
                                       {verifyingPayment ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <>
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          Verificando...
+                                        </>
                                       ) : (
-                                        <PackageOpen className="h-4 w-4" />
+                                        "Verificar Pagamento"
                                       )}
-                                      <span>Verificar pagamento</span>
                                     </Button>
                                   </div>
                                 </div>
