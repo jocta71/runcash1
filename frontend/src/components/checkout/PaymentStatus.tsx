@@ -1,14 +1,63 @@
 import { CheckCircle, XCircle, Clock, AlertTriangle, CircleDollarSign, Award, RotateCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useState, useEffect } from "react";
+import Lottie from 'lottie-react';
 
 interface PaymentStatusProps {
   status: string;
   message?: string;
 }
 
+// Importar e definir a nova URL da animação de carregamento
+const LOADING_ANIMATION_URL = 'https://lottie.host/d56e4d2c-762c-42da-8a8c-34f1fd70c617/TVGDVAZYhW.json';
+
 export function PaymentStatus({ status, message }: PaymentStatusProps) {
+  const [remoteLoadingAnimation, setRemoteLoadingAnimation] = useState<any>(null);
+
+  useEffect(() => {
+    if (status === 'LOADING') {
+      const fetchAnimation = async () => {
+        try {
+          const response = await fetch(LOADING_ANIMATION_URL);
+          const animationData = await response.json();
+          setRemoteLoadingAnimation(animationData);
+        } catch (error) {
+          console.error('Erro ao carregar animação:', error);
+        }
+      };
+      fetchAnimation();
+    }
+  }, [status]);
+
+  // Se o status for LOADING, mostrar a animação
+  if (status === 'LOADING') {
+    return (
+      <div className="flex flex-col items-center justify-center">
+        <div className="w-24 h-24 mb-4">
+          {remoteLoadingAnimation ? (
+            <Lottie animationData={remoteLoadingAnimation} loop={true} />
+          ) : (
+            <RotateCw className="h-8 w-8 animate-spin" />
+          )}
+        </div>
+        <div className="text-center">
+          <h3 className="text-lg font-medium">Carregando</h3>
+          <p className="text-sm text-gray-500">{message || "Aguarde um momento..."}</p>
+        </div>
+      </div>
+    );
+  }
+
   // Define status configurations
   const statusConfig = {
+    // Status de carregamento
+    LOADING: {
+      icon: <RotateCw className="h-5 w-5 animate-spin" />,
+      title: "Carregando",
+      description: message || "Aguarde um momento enquanto carregamos as informações.",
+      variant: "default" as const,
+    },
+    
     // Status de espera/pendente
     PENDING: {
       icon: <Clock className="h-5 w-5" />,

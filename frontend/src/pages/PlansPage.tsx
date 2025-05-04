@@ -16,6 +16,9 @@ import processingAnimation from '../assets/animations/processing-payment.json';
 import waitingAnimation from '../assets/animations/waiting-payment.json';
 import errorAnimation from '../assets/animations/error-payment.json';
 
+// URL da nova animação de carregamento
+const LOADING_ANIMATION_URL = 'https://lottie.host/d56e4d2c-762c-42da-8a8c-34f1fd70c617/TVGDVAZYhW.json';
+
 // Importando os componentes de checkout
 import { CheckoutForm } from '@/components/checkout/CheckoutForm';
 import { PaymentSummary } from '@/components/checkout/PaymentSummary';
@@ -34,13 +37,32 @@ type CheckoutState =
   | 'PROCESSING_PAYMENT'
   | 'WAITING_PAYMENT'
   | 'PAYMENT_RECEIVED'
-  | 'ERROR';
+  | 'ERROR'
+  | 'LOADING';
 
 const PlansPage = () => {
   const { availablePlans, currentPlan, loading } = useSubscription();
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  // Estado para armazenar a animação de carregamento
+  const [remoteLoadingAnimation, setRemoteLoadingAnimation] = useState<any>(null);
+  
+  // Carregar a animação quando o componente for montado
+  useEffect(() => {
+    const fetchAnimation = async () => {
+      try {
+        const response = await fetch(LOADING_ANIMATION_URL);
+        const animationData = await response.json();
+        setRemoteLoadingAnimation(animationData);
+      } catch (error) {
+        console.error('Erro ao carregar animação:', error);
+      }
+    };
+    
+    fetchAnimation();
+  }, []);
   
   // Estados para controle da visualização
   const [showCheckout, setShowCheckout] = useState(false);
@@ -648,7 +670,13 @@ const PlansPage = () => {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="h-8 w-8 animate-spin" />
+          {remoteLoadingAnimation ? (
+            <div className="w-32 h-32">
+              <Lottie animationData={remoteLoadingAnimation} loop={true} />
+            </div>
+          ) : (
+            <Loader2 className="h-8 w-8 animate-spin" />
+          )}
         </div>
       </Layout>
     );
@@ -786,6 +814,18 @@ const PlansPage = () => {
                     <h3 className="text-lg font-medium mb-2">Processando seu pagamento</h3>
                     <p className="text-gray-500 text-center">
                       Estamos preparando seu pagamento. Por favor, aguarde um momento...
+                    </p>
+                  </div>
+                )}
+                
+                {checkoutState === 'LOADING' && (
+                  <div className="flex flex-col items-center justify-center p-12 border rounded-lg">
+                    <div className="w-32 h-32 mb-4">
+                      <Lottie animationData={remoteLoadingAnimation || loadingAnimation} loop={true} />
+                    </div>
+                    <h3 className="text-lg font-medium mb-2">Carregando</h3>
+                    <p className="text-gray-500 text-center">
+                      Por favor, aguarde enquanto carregamos os dados...
                     </p>
                   </div>
                 )}

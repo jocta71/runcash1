@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Loader2, XCircle, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -9,6 +10,9 @@ import loadingAnimation from '../assets/animations/loading-circle.json';
 import processingAnimation from '../assets/animations/processing-payment.json';
 import waitingAnimation from '../assets/animations/waiting-payment.json';
 import errorAnimation from '../assets/animations/error-payment.json';
+
+// URL da nova animação de carregamento
+const LOADING_ANIMATION_URL = 'https://lottie.host/d56e4d2c-762c-42da-8a8c-34f1fd70c617/TVGDVAZYhW.json';
 
 interface PaymentStatusProps {
   status: PaymentStatusType;
@@ -27,6 +31,25 @@ export default function PaymentStatus({
   activatedPlan,
   isRefreshing = false,
 }: PaymentStatusProps) {
+  const [remoteLoadingAnimation, setRemoteLoadingAnimation] = useState<any>(null);
+  
+  // Carregar a animação remota
+  useEffect(() => {
+    const fetchAnimation = async () => {
+      try {
+        const response = await fetch(LOADING_ANIMATION_URL);
+        const animationData = await response.json();
+        setRemoteLoadingAnimation(animationData);
+      } catch (error) {
+        console.error('Erro ao carregar animação:', error);
+      }
+    };
+    
+    if (status === 'LOADING') {
+      fetchAnimation();
+    }
+  }, [status]);
+
   if (status === 'PAYMENT_RECEIVED' || status === 'CONFIRMED' || status === 'RECEIVED') {
     return (
       <div className="flex flex-col items-center justify-center p-6 space-y-4">
@@ -117,7 +140,7 @@ export default function PaymentStatus({
     return (
       <div className="flex flex-col items-center justify-center p-6 space-y-4">
         <div className="w-32 h-32">
-          <Lottie animationData={loadingAnimation} loop={true} />
+          <Lottie animationData={remoteLoadingAnimation || loadingAnimation} loop={true} />
         </div>
         <h3 className="text-2xl font-bold text-blue-600">Carregando</h3>
         <p className="text-center text-gray-700">
