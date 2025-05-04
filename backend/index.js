@@ -15,10 +15,6 @@ const jwt = require('jsonwebtoken');
 // Carregar variáveis de ambiente
 dotenv.config();
 
-// Verificar variável de ambiente para desativação do middleware JWT
-const DISABLE_JWT_FOR_ROULETTES = process.env.DISABLE_JWT_FOR_ROULETTES === 'true';
-console.log(`[CONFIG] Desativação JWT para roletas: ${DISABLE_JWT_FOR_ROULETTES ? 'ATIVADA' : 'DESATIVADA'}`);
-
 // Configuração
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
@@ -47,12 +43,6 @@ app.use(async (req, res, next) => {
   const path = req.originalUrl || req.url;
   const pathLower = path.toLowerCase();
   
-  // Se a desativação do JWT estiver ATIVADA, permitir acesso às rotas protegidas
-  if (DISABLE_JWT_FOR_ROULETTES) {
-    // Para rotas públicas com JWT desativado, permitir continuar
-    return next();
-  }
-  
   // Verificar todas as variações possíveis da rota (case insensitive)
   if (pathLower === '/api/roulettes' || 
       pathLower === '/api/roulettes/' ||
@@ -61,103 +51,9 @@ app.use(async (req, res, next) => {
       path === '/api/ROULETTES/' ||
       path.startsWith('/api/ROULETTES?')) {
     
-    // Gerar ID único para rastreamento do log
-    const requestId = crypto.randomUUID();
-    
-    // Verificar se o usuário está autenticado
-    const authHeader = req.headers.authorization;
-    const cookies = req.cookies || {};
-    
-    // Tentar obter token do header de autorização ou do cookie
-    let token = null;
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-      console.log(`Headers de auth: ${authHeader}`);
-    } else if (cookies.token) {
-      token = cookies.token;
-    }
-    
-    console.log(`Cookies disponíveis: ${JSON.stringify(cookies)}`);
-    
-    if (!token) {
-      // Usuário não autenticado - bloquear acesso
-      console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO: Acesso não autenticado à rota ${path}`);
-      console.log(`[FIREWALL ROOT ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
-      console.log(`[FIREWALL ROOT ${requestId}] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress}`);
-      console.log(`[FIREWALL ROOT ${requestId}] User-Agent: ${req.headers['user-agent']}`);
-      console.log(`[FIREWALL ROOT ${requestId}] Timestamp: ${new Date().toISOString()}`);
-      
-      // Aplicar cabeçalhos CORS explicitamente
-      res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-      res.header('Access-Control-Allow-Credentials', 'true');
-      
-      // Retornar resposta 401 Unauthorized
-      return res.status(401).json({
-        success: false,
-        message: 'Autenticação necessária para acessar este recurso.',
-        code: 'AUTHENTICATION_REQUIRED',
-        requestId: requestId,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    try {
-      // Verificar token
-      console.log(`Token encontrado no header: ${token.substring(0, 15)}...`);
-      const decoded = jwt.verify(token, JWT_SECRET);
-      
-      // Definir informações do usuário na requisição
-      req.user = decoded;
-      console.log(`Token verificado com sucesso, usuário: ${req.user.id}`);
-      
-      // Importar e usar o middleware de verificação de assinatura
-      const { checkSubscription } = require('./middleware/subscriptionCheck');
-      
-      // Criar uma função para simular o middleware Express com promessa
-      const checkSubscriptionPromise = () => {
-        return new Promise((resolve, reject) => {
-          // Simular os objetos req/res/next do Express
-          const nextFunction = () => {
-            resolve(true); // Se o middleware chama next(), significa que o usuário pode acessar
-          };
-          
-          const resObject = {
-            status: (code) => ({
-              json: (data) => {
-                resolve({ code, data }); // Retorna o código e dados se o middleware bloquear
-              }
-            })
-          };
-          
-          // Chamar o middleware
-          checkSubscription(req, resObject, nextFunction).catch(reject);
-        });
-      };
-      
-      // Executar a verificação de assinatura
-      const result = await checkSubscriptionPromise();
-      
-      // Se o resultado for true, significa que o usuário passou na verificação
-      if (result === true) {
-        return next();
-      } else {
-        // Se não, retornar a resposta apropriada
-        return res.status(result.code).json(result.data);
-      }
-    } catch (error) {
-      console.error(`[FIREWALL ROOT ${requestId}] Erro ao verificar token:`, error);
-      
-      return res.status(401).json({
-        success: false,
-        message: 'Token de autenticação inválido ou expirado.',
-        code: 'INVALID_TOKEN',
-        requestId: requestId,
-        timestamp: new Date().toISOString()
-      });
-    }
+    // API pública: Simplesmente passar para o próximo middleware
+    console.log(`[API] Acesso público permitido para rota ${path}`);
+    return next();
   }
   
   // Se não for a rota específica, continuar para o próximo middleware
@@ -180,18 +76,6 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Carregar rotas públicas de roletas se a desativação de JWT estiver habilitada
-if (DISABLE_JWT_FOR_ROULETTES) {
-  try {
-    const publicRouletteRoutes = require('./routes/publicRouletteRoutes');
-    app.use('/api', publicRouletteRoutes);
-    console.log('[Server] Rotas públicas de roletas com criptografia carregadas com sucesso');
-  } catch (err) {
-    console.error('[Server] Erro ao carregar rotas públicas de roletas:', err);
-  }
-}
 
 // Verificar se a pasta api existe e carregar o index.js da API
 const apiIndexPath = path.join(__dirname, 'api', 'index.js');
@@ -229,15 +113,13 @@ if (fs.existsSync(apiIndexPath)) {
       }
     }
     
-    // Carregar rotas de roleta do diretório principal apenas se JWT não estiver desativado
-    if (!DISABLE_JWT_FOR_ROULETTES) {
-      try {
-        const rouletteRoutes = require('./routes/rouletteRoutes');
-        app.use('/api', rouletteRoutes);
-        console.log('Rotas de roleta carregadas do diretório principal');
-      } catch (err) {
-        console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
-      }
+    // Carregar rotas de roleta do diretório principal
+    try {
+      const rouletteRoutes = require('./routes/rouletteRoutes');
+      app.use('/api', rouletteRoutes);
+      console.log('Rotas de roleta carregadas do diretório principal');
+    } catch (err) {
+      console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
     }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
@@ -249,10 +131,7 @@ app.get('/', (req, res) => {
   res.json({
     status: 'online',
     service: 'RunCash Unified Server',
-    timestamp: new Date().toISOString(),
-    features: {
-      publicRoulettes: DISABLE_JWT_FOR_ROULETTES
-    }
+    timestamp: new Date().toISOString()
   });
 });
 

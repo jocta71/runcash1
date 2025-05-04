@@ -8,33 +8,36 @@ const { ObjectId } = require('mongodb');
 
 /**
  * Lista todas as roletas disponíveis para o usuário
- * Limita o número de roletas com base no plano do usuário
+ * Agora com acesso público
  */
 const listRoulettes = async (req, res) => {
   try {
     const db = await getDb();
     const roulettes = await db.collection('roulettes').find({}).toArray();
     
-    // Como o middleware já verificou a assinatura, sabemos que req.userPlan existe
-    let limit = 5; // Padrão para plano básico
-    let limited = true;
+    // Definir plano padrão se não existir
+    if (!req.userPlan) {
+      req.userPlan = { type: 'PRO' };
+    }
     
     // Ajustar limite com base no plano
-    if (req.userPlan) {
-      switch (req.userPlan.type) {
-        case 'BASIC':
-          limit = 15;
-          break;
-        case 'PRO':
-          limit = 50;
-          break;
-        case 'PREMIUM':
-          limit = Infinity; // Sem limite
-          limited = false;
-          break;
-        default:
-          limit = 5; // Plano básico padrão
-      }
+    let limit = 50; // Default para acesso público (equivalente ao PRO)
+    let limited = true;
+    
+    // Ajustar limite com base no plano se fornecido
+    switch (req.userPlan.type) {
+      case 'BASIC':
+        limit = 15;
+        break;
+      case 'PRO':
+        limit = 50;
+        break;
+      case 'PREMIUM':
+        limit = Infinity; // Sem limite
+        limited = false;
+        break;
+      default:
+        limit = 50; // Plano PRO padrão para acesso público
     }
     
     return res.json({
@@ -43,7 +46,8 @@ const listRoulettes = async (req, res) => {
       limited,
       totalCount: roulettes.length,
       availableCount: limited ? limit : roulettes.length,
-      userPlan: req.userPlan.type
+      userPlan: req.userPlan.type,
+      publicAccess: true
     });
   } catch (error) {
     console.error('Erro ao listar roletas:', error);
