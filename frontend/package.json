@@ -15,6 +15,7 @@
     "@chakra-ui/react": "^3.15.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
+    "@hapi/iron": "^7.0.1",
     "@hookform/resolvers": "^3.9.0",
     "@nivo/bar": "^0.87.0",
     "@nivo/core": "^0.87.0",

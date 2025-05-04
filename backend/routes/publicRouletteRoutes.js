@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { MongoClient } = require('mongodb');
 const { encryptResponseData } = require('../middlewares/encryptedDataMiddleware');
+const { v4: uuidv4 } = require('uuid');
 
 // Configuração do MongoDB
 const url = process.env.MONGODB_URI || 'mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash';
@@ -37,10 +38,10 @@ async function connectToMongoDB() {
 
 /**
  * @route   GET /api/roulettes
- * @desc    Lista todas as roletas disponíveis (agora pública sem necessidade de autenticação)
+ * @desc    Lista todas as roletas disponíveis com os últimos números (formato similar ao concorrente)
  * @access  Público
  */
-router.get('/roulettes', async (req, res) => {
+router.get('/roulettes', encryptResponseData, async (req, res) => {
   try {
     console.log(`[API] Acesso à rota pública /api/roulettes sem necessidade de autenticação`);
     
@@ -60,8 +61,31 @@ router.get('/roulettes', async (req, res) => {
     
     console.log(`[API] Processadas ${roulettes.length} roletas (endpoint público)`);
     
+    // Para cada roleta, buscar os últimos números (limitado a 20 por roleta)
+    const roletasCompletas = await Promise.all(roulettes.map(async (roleta) => {
+      const numeros = await collection
+        .find({ roleta_id: roleta.id })
+        .sort({ timestamp: -1 })
+        .limit(20)
+        .toArray();
+      
+      // Formatar no estilo solicitado pelo cliente
+      return {
+        id: uuidv4(), // Gerando UUID semelhante ao concorrente
+        nome: roleta.nome,
+        ativa: true,
+        numero: numeros.map(n => ({
+          numero: n.numero,
+          roleta_id: n.roleta_id,
+          roleta_nome: n.roleta_nome,
+          cor: n.cor,
+          timestamp: n.timestamp
+        }))
+      };
+    }));
+    
     // Retornar dados
-    return res.json(roulettes);
+    return res.json(roletasCompletas);
   } catch (error) {
     console.error('[API] Erro ao listar roletas:', error);
     return res.status(500).json({ 
@@ -77,7 +101,7 @@ router.get('/roulettes', async (req, res) => {
  * @desc    Obtém dados de uma roleta específica
  * @access  Público
  */
-router.get('/roulettes/:id', async (req, res) => {
+router.get('/roulettes/:id', encryptResponseData, async (req, res) => {
   try {
     // Garantir que estamos conectados ao MongoDB
     const isConnected = await connectToMongoDB();
@@ -109,12 +133,18 @@ router.get('/roulettes/:id', async (req, res) => {
       .limit(20)
       .toArray();
     
-    // Formatar resposta
+    // Formatar resposta no novo estilo
     const resposta = {
-      id: roleta.id,
+      id: uuidv4(),
       nome: roleta.nome,
-      numeros: numeros.map(n => n.numero),
-      dados_completos: numeros
+      ativa: true,
+      numero: numeros.map(n => ({
+        numero: n.numero,
+        roleta_id: n.roleta_id,
+        roleta_nome: n.roleta_nome,
+        cor: n.cor,
+        timestamp: n.timestamp
+      }))
     };
     
     // Retornar dados
@@ -163,7 +193,9 @@ router.get('/roulettes/:id/numbers', encryptResponseData, async (req, res) => {
       numeros: numeros.map(n => ({
         numero: n.numero,
         timestamp: n.timestamp,
-        cor: determinarCor(n.numero)
+        cor: n.cor,
+        roleta_id: n.roleta_id,
+        roleta_nome: n.roleta_nome
       })),
       total: numeros.length
     };
