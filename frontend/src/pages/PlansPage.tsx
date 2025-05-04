@@ -675,7 +675,7 @@ const PlansPage = () => {
               <Lottie animationData={remoteLoadingAnimation} loop={true} />
             </div>
           ) : (
-            <Loader2 className="h-8 w-8 animate-spin" />
+          <Loader2 className="h-8 w-8 animate-spin" />
           )}
         </div>
       </Layout>
