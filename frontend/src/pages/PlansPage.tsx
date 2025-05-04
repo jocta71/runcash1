@@ -809,7 +809,7 @@ const PlansPage = () => {
                 {checkoutState === 'PROCESSING_PAYMENT' && (
                   <div className="flex flex-col items-center justify-center p-12 border rounded-lg">
                     <div className="w-32 h-32 mb-4">
-                      <Lottie animationData={processingAnimation} loop={true} />
+                      <Lottie animationData={remoteLoadingAnimation || processingAnimation} loop={true} />
                     </div>
                     <h3 className="text-lg font-medium mb-2">Processando seu pagamento</h3>
                     <p className="text-gray-500 text-center">

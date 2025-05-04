@@ -7,6 +7,9 @@ import { useToast } from '@/hooks/use-toast';
 import Lottie from 'lottie-react';
 import waitingAnimation from '../../assets/animations/waiting-payment.json';
 
+// URL da nova animação de carregamento
+const LOADING_ANIMATION_URL = 'https://lottie.host/d56e4d2c-762c-42da-8a8c-34f1fd70c617/TVGDVAZYhW.json';
+
 interface PixPaymentProps {
   qrCodeImage: string;
   qrCodeText: string;
@@ -26,6 +29,22 @@ export function PixPayment({
 }: PixPaymentProps) {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const [remoteLoadingAnimation, setRemoteLoadingAnimation] = useState<any>(null);
+  
+  // Carregar a animação remota
+  useEffect(() => {
+    const fetchAnimation = async () => {
+      try {
+        const response = await fetch(LOADING_ANIMATION_URL);
+        const animationData = await response.json();
+        setRemoteLoadingAnimation(animationData);
+      } catch (error) {
+        console.error('Erro ao carregar animação:', error);
+      }
+    };
+    
+    fetchAnimation();
+  }, []);
 
   // Debug para verificar os valores recebidos
   useEffect(() => {
@@ -74,7 +93,7 @@ export function PixPayment({
           <div className="w-full mb-4">
             <div className="flex flex-col items-center">
               <div className="w-16 h-16 mb-2">
-                <Lottie animationData={waitingAnimation} loop={true} />
+                <Lottie animationData={remoteLoadingAnimation || waitingAnimation} loop={true} />
               </div>
               <PaymentStatus status={paymentStatus} />
             </div>

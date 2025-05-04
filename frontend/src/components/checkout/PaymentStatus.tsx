@@ -15,7 +15,12 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
   const [remoteLoadingAnimation, setRemoteLoadingAnimation] = useState<any>(null);
 
   useEffect(() => {
-    if (status === 'LOADING') {
+    if (status === 'LOADING' || 
+        status === 'PENDING' || 
+        status === 'AWAITING_PAYMENT' || 
+        status === 'PROCESSING' || 
+        status === 'AWAITING_CONFIRMATION' || 
+        status === 'WAITING_FOR_BANK_CONFIRMATION') {
       const fetchAnimation = async () => {
         try {
           const response = await fetch(LOADING_ANIMATION_URL);
@@ -29,6 +34,39 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
     }
   }, [status]);
 
+  // Se o status for UM DOS ESTADOS DE PROCESSAMENTO/ESPERA, mostrar a animação 
+  if (status === 'PENDING' || 
+      status === 'AWAITING_PAYMENT' || 
+      status === 'PROCESSING' || 
+      status === 'AWAITING_CONFIRMATION' || 
+      status === 'WAITING_FOR_BANK_CONFIRMATION') {
+    return (
+      <div className="flex flex-col items-center justify-center">
+        <div className="w-24 h-24 mb-4">
+          {remoteLoadingAnimation ? (
+            <Lottie animationData={remoteLoadingAnimation} loop={true} />
+          ) : (
+            <RotateCw className="h-8 w-8 animate-spin" />
+          )}
+        </div>
+        <div className="text-center">
+          <h3 className="text-lg font-medium">
+            {status === 'PENDING' || status === 'AWAITING_PAYMENT' 
+              ? "Aguardando pagamento" 
+              : "Processando pagamento"}
+          </h3>
+          <p className="text-sm text-gray-500">
+            {message || (
+              status === 'PENDING' || status === 'AWAITING_PAYMENT'
+                ? "Estamos aguardando a confirmação do seu pagamento."
+                : "Aguarde enquanto processamos seu pagamento."
+            )}
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
   // Se o status for LOADING, mostrar a animação
   if (status === 'LOADING') {
     return (
