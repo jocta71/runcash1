@@ -7,6 +7,7 @@ import { RequestThrottler } from '../utils/requestThrottler';
 
 // Chave única para throttling da API de roletas
 const ROULETTES_API_KEY = 'api_roulettes_all';
+const ROULETTE_HISTORY_KEY = 'api_roulette_history'; // Nova chave para o histórico
 
 // Tipo para resposta de erro
 interface ApiErrorResponse {
@@ -224,23 +225,34 @@ export const RouletteApi = {
     try {
       console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
       
-      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
+      // Usar o RequestThrottler para gerenciar o intervalo entre requisições
+      const result = await RequestThrottler.scheduleRequest(
+        `${ROULETTE_HISTORY_KEY}_${rouletteName}`,
+        async () => {
+          const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
+          
+          if (!response.data || !Array.isArray(response.data)) {
+            throw new Error('Resposta inválida da API de histórico');
+          }
+          
+          console.log(`[API] ✅ Obtidos ${response.data.length} números históricos`);
+          return response.data;
+        },
+        false, // não forçar execução
+        false, // usar cache quando disponível
+        30000  // cache válido por 30 segundos (metade do tempo das roletas)
+      );
       
-      if (!response.data || !Array.isArray(response.data)) {
-        console.error('[API] Resposta inválida do histórico:', response.data);
+      if (result) {
         return {
-          error: true,
-          code: 'INVALID_RESPONSE',
-          message: 'Resposta inválida da API de histórico',
-          statusCode: response.status
+          error: false,
+          data: result
         };
       }
       
-      console.log(`[API] ✅ Obtidos ${response.data.length} números históricos`);
-      return {
-        error: false,
-        data: response.data
-      };
+      // Se o throttler retornar null, temos um erro
+      throw new Error('Erro ao buscar histórico da roleta');
+      
     } catch (error: any) {
       console.error(`[API] Erro ao buscar histórico da roleta ${rouletteName}:`, error);
       
