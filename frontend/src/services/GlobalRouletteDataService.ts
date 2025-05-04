@@ -26,6 +26,18 @@ const DETAILED_LIMIT = 1000;
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
 
+// Adicionar declarações de tipos para extensões do Window
+declare global {
+  interface Window {
+    auth?: {
+      getToken?: () => Promise<string | null>;
+    };
+    authContext?: {
+      getToken?: () => Promise<string | null>;
+    };
+  }
+}
+
 /**
  * Serviço Global para centralizar requisições de dados das roletas
  * Este serviço implementa o padrão Singleton para garantir apenas uma instância
@@ -196,15 +208,62 @@ class GlobalRouletteDataService {
     try {
       // Limpar qualquer erro anterior
       this.fetchError = null;
+      
+      // Obter token de autenticação dos cookies
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop()?.split(';').shift();
+        return undefined;
+      };
+      
+      // Tentar obter o token dos cookies
+      const tokenCookie = getCookie('token') || getCookie('token_alt');
+      let authToken = '';
+      
+      if (tokenCookie) {
+        authToken = tokenCookie;
+        console.log('[GlobalRouletteDataService] ✅ Token de autenticação obtido dos cookies');
+      } else {
+        // Se não encontrou nos cookies, verificar localStorage
+        const possibleKeys = [
+          'auth_token',
+          'token',
+          'auth_token_backup',
+          'accessToken',
+          'jwt_token',
+          'authentication'
+        ];
+        
+        for (const key of possibleKeys) {
+          const token = localStorage.getItem(key);
+          if (token) {
+            authToken = token;
+            console.log(`[GlobalRouletteDataService] ✅ Token encontrado no localStorage: ${key}`);
+            break;
+          }
+        }
+      }
+      
+      // Criar cabeçalhos com o token de autenticação
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+      
+      // Adicionar token de autenticação se disponível
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+        console.log('[GlobalRouletteDataService] ✅ Token de autenticação adicionado ao cabeçalho da requisição');
+      } else {
+        console.warn('[GlobalRouletteDataService] ⚠️ Nenhum token de autenticação encontrado, a requisição pode falhar com 401');
+      }
 
       // Buscar dados da API
       console.log('[GlobalRouletteDataService] Fazendo requisição à API...');
       const response = await fetch('/api/roulettes', {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
+        headers,
         credentials: 'include' // Importante: enviar cookies com a requisição
       });
 
@@ -382,7 +441,7 @@ class GlobalRouletteDataService {
     if (this.rouletteData.length > 0) {
       console.log(`[GlobalRouletteService] Notificando imediatamente o assinante ${id} com ${this.rouletteData.length} roletas`);
       try {
-        callback();
+      callback();
       } catch (error) {
         console.error(`[GlobalRouletteService] Erro ao notificar inicialmente o assinante ${id}:`, error);
       }
@@ -546,6 +605,112 @@ class GlobalRouletteDataService {
   // Adicionar método público para obter último erro
   public getLastError(): Error | null {
     return this.fetchError;
+  }
+
+  /**
+   * Método para recuperar de falhas de autenticação
+   * Isso tenta obter um novo token se a requisição falhar com 401
+   */
+  private async recoverFromAuthFailure(): Promise<string | null> {
+    console.log('[GlobalRouletteDataService] 🔄 Tentando recuperar de falha de autenticação...');
+    
+    // Tentativa 1: Verificar novamente todos os possíveis locais de armazenamento
+    try {
+      // Primeiro tentar no localStorage com todas as chaves possíveis
+      const possibleKeys = [
+        'auth_token',
+        'token',
+        'auth_token_backup',
+        'accessToken',
+        'jwt_token',
+        'authentication'
+      ];
+      
+      for (const key of possibleKeys) {
+        const token = localStorage.getItem(key);
+        if (token) {
+          console.log(`[GlobalRouletteDataService] ✅ Token alternativo encontrado em localStorage.${key}`);
+          
+          // Restaurar o token para cookies
+          document.cookie = `token=${token}; path=/; max-age=2592000; SameSite=Lax`;
+          document.cookie = `token_alt=${token}; path=/; max-age=2592000; SameSite=Lax`;
+          
+          return token;
+        }
+      }
+      
+      // Tentativa 2: Verificar se existe um método no sistema de autenticação para obter o token
+      if (window.auth && typeof window.auth.getToken === 'function') {
+        try {
+          const token = await window.auth.getToken();
+          if (token) {
+            console.log('[GlobalRouletteDataService] ✅ Token obtido do sistema de autenticação');
+            return token;
+          }
+        } catch (e) {
+          console.warn('[GlobalRouletteDataService] Erro ao obter token do sistema de autenticação:', e);
+        }
+      }
+      
+      // Tentativa 3: Verificar se há um objeto AuthContext no window
+      if (window.authContext && typeof window.authContext.getToken === 'function') {
+        try {
+          const token = await window.authContext.getToken();
+          if (token) {
+            console.log('[GlobalRouletteDataService] ✅ Token obtido do AuthContext');
+            return token;
+          }
+        } catch (e) {
+          console.warn('[GlobalRouletteDataService] Erro ao obter token do AuthContext:', e);
+        }
+      }
+      
+      console.warn('[GlobalRouletteDataService] ❌ Não foi possível recuperar de falha de autenticação');
+      return null;
+    } catch (error) {
+      console.error('[GlobalRouletteDataService] ❌ Erro durante recuperação de autenticação:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Método para tentar fazer a requisição novamente com recuperação de erros
+   */
+  private async fetchWithRetry(url: string, options: RequestInit, retries = 1): Promise<Response> {
+    try {
+      const response = await fetch(url, options);
+      
+      // Se for 401 Unauthorized e ainda temos tentativas, tentar recuperar
+      if (response.status === 401 && retries > 0) {
+        console.warn('[GlobalRouletteDataService] ⚠️ Erro 401 Unauthorized, tentando recuperar...');
+        
+        // Tentar obter um novo token
+        const newToken = await this.recoverFromAuthFailure();
+        
+        if (newToken) {
+          // Atualizar os headers com o novo token
+          const newOptions = { ...options };
+          
+          if (!newOptions.headers) {
+            newOptions.headers = {};
+          }
+          
+          // Garantir que headers é um objeto
+          const headers = newOptions.headers as Record<string, string>;
+          headers['Authorization'] = `Bearer ${newToken}`;
+          
+          console.log('[GlobalRouletteDataService] 🔄 Repetindo requisição com novo token...');
+          
+          // Tentar novamente com o novo token
+          return this.fetchWithRetry(url, newOptions, retries - 1);
+        }
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('[GlobalRouletteDataService] ❌ Erro durante fetchWithRetry:', error);
+      throw error;
+    }
   }
 }
 
