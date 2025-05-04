@@ -216,13 +216,31 @@ if (fs.existsSync(apiIndexPath)) {
       console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
     }
 
-    // Carregar rotas de streaming (SSE) para dados em tempo real
+    // Carregar as novas rotas públicas com dados criptografados
+    try {
+      const publicRouletteRoutes = require('./routes/publicRouletteRoutes');
+      app.use('/api/public', publicRouletteRoutes);
+      console.log('Rotas públicas de roleta carregadas com sucesso');
+    } catch (err) {
+      console.error('Erro ao carregar rotas públicas de roleta:', err);
+    }
+
+    // Carregar as rotas de streaming (SSE)
     try {
       const streamRoutes = require('./routes/streamRoutes');
       app.use('/stream', streamRoutes);
-      console.log('Rotas de streaming SSE carregadas com sucesso no caminho /stream');
+      console.log('Rotas de streaming SSE carregadas com sucesso');
+      
+      // Inicializar serviço de atualização de roletas em tempo real
+      try {
+        const rouletteUpdateService = require('./services/rouletteUpdateService');
+        rouletteUpdateService.initRouletteUpdateService();
+        console.log('Serviço de atualização de roletas inicializado com sucesso');
+      } catch (err) {
+        console.error('Erro ao inicializar serviço de atualização de roletas:', err);
+      }
     } catch (err) {
-      console.error('Erro ao carregar rotas de streaming SSE:', err.message);
+      console.error('Erro ao carregar rotas de streaming:', err);
     }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
@@ -343,23 +361,6 @@ try {
   }
 } catch (err) {
   console.error('Erro ao carregar serviços adicionais:', err);
-}
-
-// Iniciar job de atualização de streams se disponível
-try {
-  const { startStreamUpdateJob } = require('./jobs/streamUpdateJob');
-  // Iniciar com intervalo de 5 segundos
-  const stopStreamJob = startStreamUpdateJob(5000);
-  
-  // Registrar função para parar o job quando o servidor for encerrado
-  process.on('SIGTERM', () => {
-    console.log('Recebido SIGTERM, parando job de streaming...');
-    stopStreamJob();
-  });
-  
-  console.log('Job de atualização de streams iniciado com sucesso');
-} catch (error) {
-  console.error('Erro ao iniciar job de atualização de streams:', error.message);
 }
 
 // Iniciar servidor

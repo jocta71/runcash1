@@ -1,129 +1,168 @@
 /**
- * Controlador para streams de eventos em tempo real (SSE)
- * Gerencia conexões persistentes com clientes para envio de dados atualizados
+ * Controlador para streaming de dados em tempo real (SSE)
+ * Implementa Server-Sent Events para enviar atualizações em tempo real
  */
 
-const { registerClient, unregisterClient, getGameInitialData } = require('../services/streamService');
-const { encryptData } = require('../utils/encryption');
+const getDb = require('../services/database');
+const { encryptData } = require('../utils/cryptoService');
+
+// Armazenar clientes conectados
+const connectedClients = {
+  // Por roleta
+  byRoulette: {},
+  // Global (todos os clientes)
+  global: new Set()
+};
 
 /**
- * Estabelece uma conexão SSE para receber atualizações em tempo real de uma roleta
+ * Inicia streaming de dados em tempo real para uma roleta específica
  * @param {Object} req - Requisição Express
  * @param {Object} res - Resposta Express
  */
-const establishRouletteStream = async (req, res) => {
+const streamRouletteData = async (req, res) => {
+  const rouletteId = req.params.id;
+  const requestId = Math.random().toString(36).substring(2, 15);
+  
+  // Verificar formato de streaming (parâmetro k)
+  const streamType = req.query.k || '1';
+  
+  // Configurar headers SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no' // Necessário para o Nginx não fazer buffer
+  });
+  
+  console.log(`[STREAM ${requestId}] Novo cliente conectado para roleta ${rouletteId}, formato ${streamType}`);
+  
+  // Enviar mensagem inicial para manter a conexão
+  const initialData = {
+    id: rouletteId,
+    status: 'connected',
+    timestamp: Date.now(),
+    type: streamType
+  };
+  
+  // Criptografar e enviar dados iniciais
+  sendSSEEvent(res, 'update', encryptData(initialData));
+  
+  // Registrar cliente para receber atualizações
+  if (!connectedClients.byRoulette[rouletteId]) {
+    connectedClients.byRoulette[rouletteId] = new Set();
+  }
+  
+  // Adicionar este cliente à lista da roleta específica
+  connectedClients.byRoulette[rouletteId].add(res);
+  
+  // Adicionar à lista global
+  connectedClients.global.add(res);
+  
+  // Enviar atualizações iniciais com dados recentes
   try {
-    const { gameType, gameId } = req.params;
-    const version = req.params.version || 'v1'; // Suporte para versionamento de API
-    const k = req.query.k || '0'; // Parâmetro de controle (similar ao concorrente)
+    // Buscar últimos números da roleta
+    const db = await getDb();
+    const recentNumbers = await db.collection('roulette_numbers')
+      .find({ rouletteId })
+      .sort({ timestamp: -1 })
+      .limit(20)
+      .toArray();
     
-    // Gerar ID único para esta conexão
-    const connectionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    
-    // Log detalhado para monitoramento
-    console.log(`[STREAM ${connectionId}] Nova conexão SSE para ${gameType}/${gameId}`);
-    console.log(`[STREAM ${connectionId}] Usuário: ${req.user?.id || 'anônimo'}`);
-    console.log(`[STREAM ${connectionId}] IP: ${req.ip || req.headers['x-forwarded-for'] || 'desconhecido'}`);
-    console.log(`[STREAM ${connectionId}] Parâmetros: version=${version}, k=${k}`);
-    
-    // Configurar cabeçalhos SSE
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate, max-age=0, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Importante para Nginx
-    res.setHeader('pragma', 'no-cache'); // Para compatibilidade com navegadores mais antigos
-    res.setHeader('expire', '0');
-    
-    // Enviar cabeçalho inicial para evitar timeout
-    res.write(': ping\n\n');
-    
-    // Função para enviar eventos ao cliente
-    const sendEvent = (data) => {
-      return new Promise((resolve, reject) => {
-        try {
-          // Se a conexão já foi encerrada, não tenta enviar
-          if (res.writableEnded) {
-            return reject(new Error('Conexão fechada'));
-          }
-          
-          // Formatação do evento SSE
-          res.write(`event: update\n`);
-          res.write(`id: ${Date.now()}\n`);
-          res.write(`data: ${data}\n\n`);
-          
-          // Resolver imediatamente
-          resolve();
-        } catch (error) {
-          reject(error);
-        }
-      });
-    };
-    
-    // Registrar cliente no serviço de stream
-    const clientId = registerClient(gameType, gameId, sendEvent);
-    
-    // Enviar dados iniciais
-    const initialData = await getGameInitialData(gameType, gameId);
-    await sendEvent(encryptData(initialData));
-    
-    // Enviar keep-alive periodicamente para manter a conexão
-    const keepAliveInterval = setInterval(() => {
-      try {
-        if (!res.writableEnded) {
-          res.write(': ping\n\n');
-        } else {
-          clearInterval(keepAliveInterval);
-        }
-      } catch (error) {
-        console.error(`[STREAM ${connectionId}] Erro no keep-alive:`, error);
-        clearInterval(keepAliveInterval);
-      }
-    }, 30000); // 30 segundos
-    
-    // Lidar com fechamento da conexão
-    req.on('close', () => {
-      clearInterval(keepAliveInterval);
-      unregisterClient(clientId);
-      console.log(`[STREAM ${connectionId}] Conexão fechada para ${gameType}/${gameId}`);
-    });
-  } catch (error) {
-    console.error('[STREAM] Erro ao estabelecer stream:', error);
-    
-    // Se ainda é possível enviar resposta
-    if (!res.headersSent) {
-      res.status(500).json({
-        success: false,
-        message: 'Erro ao estabelecer conexão de streaming',
-        error: error.message
-      });
-    } else {
-      try {
-        // Tentar enviar erro como evento SSE
-        res.write(`event: error\n`);
-        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-        res.end();
-      } catch (err) {
-        console.error('[STREAM] Erro secundário ao enviar mensagem de erro:', err);
+    if (recentNumbers.length > 0) {
+      // Enviar cada número como um evento separado para simular histórico
+      for (let i = recentNumbers.length - 1; i >= 0; i--) {
+        const numData = {
+          id: rouletteId,
+          number: recentNumbers[i].number,
+          timestamp: recentNumbers[i].timestamp,
+          color: getNumberColor(recentNumbers[i].number)
+        };
+        
+        // Enviar evento com dados criptografados
+        sendSSEEvent(res, 'update', encryptData(numData));
+        
+        // Pequeno delay entre eventos para evitar sobrecarga
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
+  } catch (error) {
+    console.error(`[STREAM ${requestId}] Erro ao buscar números recentes:`, error);
+  }
+  
+  // Cleanup quando o cliente desconectar
+  req.on('close', () => {
+    console.log(`[STREAM ${requestId}] Cliente desconectado da roleta ${rouletteId}`);
+    
+    // Remover das listas
+    if (connectedClients.byRoulette[rouletteId]) {
+      connectedClients.byRoulette[rouletteId].delete(res);
+      
+      // Limpar set vazio
+      if (connectedClients.byRoulette[rouletteId].size === 0) {
+        delete connectedClients.byRoulette[rouletteId];
+      }
+    }
+    
+    connectedClients.global.delete(res);
+  });
+};
+
+/**
+ * Enviar atualização para todos os clientes conectados a uma roleta específica
+ * @param {String} rouletteId - ID da roleta
+ * @param {Object} data - Dados a serem enviados
+ */
+const broadcastToRoulette = (rouletteId, data) => {
+  if (!connectedClients.byRoulette[rouletteId]) {
+    return; // Nenhum cliente conectado para esta roleta
+  }
+  
+  // Criptografar dados uma vez
+  const encryptedData = encryptData(data);
+  
+  // Enviar para todos os clientes conectados a esta roleta
+  connectedClients.byRoulette[rouletteId].forEach(client => {
+    try {
+      sendSSEEvent(client, 'update', encryptedData);
+    } catch (error) {
+      console.error(`Erro ao enviar evento para cliente: ${error.message}`);
+      // Client provavelmente desconectou mas não foi removido corretamente
+      connectedClients.byRoulette[rouletteId].delete(client);
+      connectedClients.global.delete(client);
+    }
+  });
+  
+  console.log(`[BROADCAST] Enviado evento para ${connectedClients.byRoulette[rouletteId].size} clientes da roleta ${rouletteId}`);
+};
+
+/**
+ * Envia um evento SSE para o cliente
+ * @param {Object} res - Objeto de resposta Express
+ * @param {String} event - Nome do evento
+ * @param {String} data - Dados a serem enviados (já criptografados)
+ */
+const sendSSEEvent = (res, event, data) => {
+  try {
+    res.write(`event: ${event}\n`);
+    res.write(`id: ${Date.now()}\n`);
+    res.write(`data: ${data}\n\n`);
+  } catch (error) {
+    console.error('Erro ao enviar evento SSE:', error);
   }
 };
 
 /**
- * Verifica o status de disponibilidade do serviço de streaming
- * @param {Object} req - Requisição Express
- * @param {Object} res - Resposta Express
+ * Determina a cor do número da roleta
  */
-const checkStreamStatus = (req, res) => {
-  res.json({
-    success: true,
-    status: 'online',
-    service: 'RunCash SSE Streaming',
-    timestamp: new Date().toISOString()
-  });
-};
+function getNumberColor(number) {
+  if (number === 0) return 'green';
+  
+  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  return redNumbers.includes(number) ? 'red' : 'black';
+}
 
 module.exports = {
-  establishRouletteStream,
-  checkStreamStatus
+  streamRouletteData,
+  broadcastToRoulette,
+  connectedClients
 }; 

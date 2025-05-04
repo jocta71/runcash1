@@ -1,77 +1,31 @@
 /**
- * Rotas para streaming de eventos em tempo real
- * Implementa Server-Sent Events (SSE) para enviar atualizações ao cliente
+ * Rotas de streaming de dados em tempo real (SSE)
+ * Implementa Server-Sent Events para enviar atualizações em tempo real
  */
 
 const express = require('express');
 const router = express.Router();
 const streamController = require('../controllers/streamController');
-const { authenticateToken } = require('../middlewares/jwtAuthMiddleware');
-const { requireSubscription } = require('../middlewares/subscriptionMiddleware');
-const { checkSubscription } = require('../middleware/subscriptionCheck');
-
-// Rota de verificação de status (pública)
-router.get('/status', streamController.checkStreamStatus);
 
 /**
- * @route   GET /stream/rounds/:gameType/:gameId/:version/live
- * @desc    Estabelece conexão SSE para atualizações em tempo real
- * @access  Privado - Requer assinatura ativa
- * @params  gameType - Tipo de jogo (ex: ROULETTE)
- *          gameId - ID do jogo específico
- *          version - Versão da API (opcional, padrão v1)
- * @query   k - Parâmetro de controle (opcional)
+ * @route   GET /stream/rounds/ROULETTE/:id/v2/live
+ * @desc    Streaming de dados em tempo real para uma roleta específica
+ * @access  Público (com dados criptografados)
  */
-router.get('/rounds/:gameType/:gameId/:version/live', 
-  // Verificar autenticação do usuário
-  authenticateToken({ required: true }),
-  
-  // Verificar se o usuário tem assinatura ativa
-  async (req, res, next) => {
-    try {
-      // Aplicar middleware de verificação de assinatura
-      checkSubscription(req, res, next);
-    } catch (error) {
-      console.error('[STREAM] Erro ao verificar assinatura:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Erro ao verificar assinatura para acesso ao stream',
-        error: error.message
-      });
-    }
-  },
-  
-  // Se passou pela verificação de assinatura, estabelecer o stream
-  streamController.establishRouletteStream
-);
+router.get('/rounds/ROULETTE/:id/v2/live', streamController.streamRouletteData);
 
 /**
- * @route   GET /stream/rounds/:gameType/:gameId/live
- * @desc    Versão simplificada da rota de streaming (sem versão específica)
- * @access  Privado - Requer assinatura ativa
+ * @route   GET /stream/rounds/ROULETTE/:id/live
+ * @desc    Versão alternativa do streaming (compatibilidade)
+ * @access  Público (com dados criptografados)
  */
-router.get('/rounds/:gameType/:gameId/live', 
-  authenticateToken({ required: true }),
-  checkSubscription,
-  streamController.establishRouletteStream
-);
-
-// Rotas de compatibilidade para diferentes padrões de URL
-// Para manter compatibilidade com urls esperadas pelos clients
+router.get('/rounds/ROULETTE/:id/live', streamController.streamRouletteData);
 
 /**
- * @route   GET /stream/:gameType/:gameId
- * @desc    Formato alternativo para estabelecer conexão SSE
- * @access  Privado - Requer assinatura ativa
+ * @route   GET /stream/roulettes/:id
+ * @desc    Versão simplificada do endpoint de streaming
+ * @access  Público (com dados criptografados)
  */
-router.get('/:gameType/:gameId', 
-  authenticateToken({ required: true }),
-  checkSubscription,
-  (req, res) => {
-    // Redirecionar para a rota padrão
-    req.params.version = 'v1';
-    streamController.establishRouletteStream(req, res);
-  }
-);
+router.get('/roulettes/:id', streamController.streamRouletteData);
 
 module.exports = router; 
