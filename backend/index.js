@@ -171,16 +171,6 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Integrar rotas SSE corrigidas
-try {
-  console.log('[Server] Tentando carregar rotas SSE corrigidas...');
-  const fixSSERouter = require('./fix-sse-integration');
-  app.use('/api', fixSSERouter);
-  console.log('[Server] Rotas SSE corrigidas carregadas com sucesso em /api');
-} catch (err) {
-  console.warn('[Server] Aviso: Rotas SSE corrigidas não disponíveis:', err.message);
-}
-
 // Verificar se a pasta api existe e carregar o index.js da API
 const apiIndexPath = path.join(__dirname, 'api', 'index.js');
 if (fs.existsSync(apiIndexPath)) {
@@ -224,6 +214,15 @@ if (fs.existsSync(apiIndexPath)) {
       console.log('Rotas de roleta carregadas do diretório principal');
     } catch (err) {
       console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
+    }
+
+    // Carregar rotas de streaming (SSE) para dados em tempo real
+    try {
+      const streamRoutes = require('./routes/streamRoutes');
+      app.use('/stream', streamRoutes);
+      console.log('Rotas de streaming SSE carregadas com sucesso no caminho /stream');
+    } catch (err) {
+      console.error('Erro ao carregar rotas de streaming SSE:', err.message);
     }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
@@ -344,6 +343,23 @@ try {
   }
 } catch (err) {
   console.error('Erro ao carregar serviços adicionais:', err);
+}
+
+// Iniciar job de atualização de streams se disponível
+try {
+  const { startStreamUpdateJob } = require('./jobs/streamUpdateJob');
+  // Iniciar com intervalo de 5 segundos
+  const stopStreamJob = startStreamUpdateJob(5000);
+  
+  // Registrar função para parar o job quando o servidor for encerrado
+  process.on('SIGTERM', () => {
+    console.log('Recebido SIGTERM, parando job de streaming...');
+    stopStreamJob();
+  });
+  
+  console.log('Job de atualização de streams iniciado com sucesso');
+} catch (error) {
+  console.error('Erro ao iniciar job de atualização de streams:', error.message);
 }
 
 // Iniciar servidor
