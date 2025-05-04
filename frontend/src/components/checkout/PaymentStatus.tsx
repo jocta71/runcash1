@@ -46,16 +46,16 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
           {remoteLoadingAnimation ? (
             <Lottie animationData={remoteLoadingAnimation} loop={true} />
           ) : (
-            <RotateCw className="h-8 w-8 animate-spin" />
+            <RotateCw className="h-8 w-8 animate-spin text-vegas-gold" />
           )}
         </div>
         <div className="text-center">
-          <h3 className="text-lg font-medium">
+          <h3 className="text-lg font-medium text-vegas-gold mb-1">
             {status === 'PENDING' || status === 'AWAITING_PAYMENT' 
               ? "Aguardando pagamento" 
               : "Processando pagamento"}
           </h3>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-neutral-400">
             {message || (
               status === 'PENDING' || status === 'AWAITING_PAYMENT'
                 ? "Estamos aguardando a confirmação do seu pagamento."
@@ -75,12 +75,12 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
           {remoteLoadingAnimation ? (
             <Lottie animationData={remoteLoadingAnimation} loop={true} />
           ) : (
-            <RotateCw className="h-8 w-8 animate-spin" />
+            <RotateCw className="h-8 w-8 animate-spin text-vegas-gold" />
           )}
         </div>
         <div className="text-center">
-          <h3 className="text-lg font-medium">Carregando</h3>
-          <p className="text-sm text-gray-500">{message || "Aguarde um momento..."}</p>
+          <h3 className="text-lg font-medium text-vegas-gold mb-1">Carregando</h3>
+          <p className="text-sm text-neutral-400">{message || "Aguarde um momento..."}</p>
         </div>
       </div>
     );
@@ -90,7 +90,7 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
   const statusConfig = {
     // Status de carregamento
     LOADING: {
-      icon: <RotateCw className="h-5 w-5 animate-spin" />,
+      icon: <RotateCw className="h-5 w-5 animate-spin text-vegas-gold" />,
       title: "Carregando",
       description: message || "Aguarde um momento enquanto carregamos as informações.",
       variant: "default" as const,
@@ -227,19 +227,19 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
 
   // Custom styling based on variant
   const variantStyles = {
-    default: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100",
-    success: "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300",
-    warning: "bg-yellow-50 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300",
-    destructive: "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300",
+    default: "bg-neutral-800 text-neutral-300 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]",
+    success: "bg-neutral-800 text-green-400 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]",
+    warning: "bg-neutral-800 text-yellow-400 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]",
+    destructive: "bg-neutral-800 text-red-400 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]",
   };
 
   return (
-    <Alert className={variantStyles[config.variant]}>
+    <Alert className={`${variantStyles[config.variant]} rounded-xl border-0`}>
       <div className="flex items-start">
-        <div className="mr-3 mt-0.5">{config.icon}</div>
+        <div className="mr-3 mt-0.5 bg-neutral-700 p-1.5 rounded-full shadow-[2px_2px_3px_rgba(0,0,0,0.2),inset_1px_1px_1px_rgba(40,40,40,0.5)]">{config.icon}</div>
         <div>
-          <AlertTitle className="mb-1">{config.title}</AlertTitle>
-          <AlertDescription>{config.description}</AlertDescription>
+          <AlertTitle className="mb-1 text-vegas-gold">{config.title}</AlertTitle>
+          <AlertDescription className="text-neutral-400">{config.description}</AlertDescription>
         </div>
       </div>
     </Alert>
