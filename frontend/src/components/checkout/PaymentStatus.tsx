@@ -1,4 +1,4 @@
-import { CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
+import { CheckCircle, XCircle, Clock, AlertTriangle, CircleDollarSign, Award, RotateCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface PaymentStatusProps {
@@ -9,12 +9,39 @@ interface PaymentStatusProps {
 export function PaymentStatus({ status, message }: PaymentStatusProps) {
   // Define status configurations
   const statusConfig = {
+    // Status de espera/pendente
     PENDING: {
       icon: <Clock className="h-5 w-5" />,
       title: "Aguardando pagamento",
-      description: message || "Estamos aguardando a confirmação do seu pagamento.",
+      description: message || "Estamos aguardando a confirmação do seu pagamento via PIX.",
       variant: "default" as const,
     },
+    AWAITING_PAYMENT: {
+      icon: <Clock className="h-5 w-5" />,
+      title: "Aguardando pagamento",
+      description: message || "Por favor, escaneie o QR code para finalizar seu pagamento.",
+      variant: "default" as const,
+    },
+    AWAITING_CONFIRMATION: {
+      icon: <RotateCw className="h-5 w-5" />,
+      title: "Processando pagamento",
+      description: message || "Seu pagamento foi realizado e está sendo processado.",
+      variant: "default" as const,
+    },
+    WAITING_FOR_BANK_CONFIRMATION: {
+      icon: <RotateCw className="h-5 w-5" />,
+      title: "Aguardando banco",
+      description: message || "Estamos aguardando a confirmação da sua instituição financeira.",
+      variant: "default" as const,
+    },
+    PROCESSING: {
+      icon: <RotateCw className="h-5 w-5" />,
+      title: "Processando pagamento",
+      description: message || "Seu pagamento está sendo processado pelo sistema.",
+      variant: "default" as const,
+    },
+    
+    // Status de sucesso
     RECEIVED: {
       icon: <CheckCircle className="h-5 w-5" />,
       title: "Pagamento recebido",
@@ -30,25 +57,57 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
     AVAILABLE: {
       icon: <CheckCircle className="h-5 w-5" />,
       title: "Pagamento confirmado",
-      description: message || "Seu pagamento foi confirmado com sucesso!",
+      description: message || "Seu pagamento foi confirmado e está disponível!",
       variant: "success" as const,
     },
     BILLING_AVAILABLE: {
-      icon: <CheckCircle className="h-5 w-5" />,
+      icon: <Award className="h-5 w-5" />,
       title: "Assinatura ativada",
       description: message || "Sua assinatura foi ativada com sucesso!",
       variant: "success" as const,
     },
+    APPROVED: {
+      icon: <CheckCircle className="h-5 w-5" />,
+      title: "Pagamento aprovado",
+      description: message || "Seu pagamento foi aprovado com sucesso!",
+      variant: "success" as const,
+    },
+    PAID: {
+      icon: <CircleDollarSign className="h-5 w-5" />,
+      title: "Pagamento concluído",
+      description: message || "Pagamento realizado com sucesso!",
+      variant: "success" as const,
+    },
+    
+    // Status de erro/problemas
     OVERDUE: {
       icon: <AlertTriangle className="h-5 w-5" />,
-      title: "Pagamento atrasado",
-      description: message || "O prazo para pagamento expirou.",
+      title: "Pagamento expirado",
+      description: message || "O prazo para pagamento expirou. Por favor, gere um novo QR code.",
+      variant: "warning" as const,
+    },
+    EXPIRED: {
+      icon: <AlertTriangle className="h-5 w-5" />,
+      title: "QR Code expirado",
+      description: message || "O QR code expirou. Por favor, gere um novo para continuar.",
       variant: "warning" as const,
     },
     CANCELED: {
       icon: <XCircle className="h-5 w-5" />,
       title: "Pagamento cancelado",
       description: message || "Este pagamento foi cancelado.",
+      variant: "destructive" as const,
+    },
+    DECLINED: {
+      icon: <XCircle className="h-5 w-5" />,
+      title: "Pagamento recusado",
+      description: message || "Seu pagamento foi recusado pela instituição financeira.",
+      variant: "destructive" as const,
+    },
+    FAILED: {
+      icon: <XCircle className="h-5 w-5" />,
+      title: "Falha no pagamento",
+      description: message || "Ocorreu uma falha ao processar seu pagamento.",
       variant: "destructive" as const,
     },
     REFUNDED: {
@@ -58,7 +117,7 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
       variant: "destructive" as const,
     },
     REFUND_REQUESTED: {
-      icon: <XCircle className="h-5 w-5" />,
+      icon: <AlertTriangle className="h-5 w-5" />,
       title: "Estorno solicitado",
       description: message || "Foi solicitado o estorno deste pagamento.",
       variant: "warning" as const,
@@ -74,7 +133,7 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
   // Get config for current status or use default
   const config = statusConfig[status as keyof typeof statusConfig] || {
     icon: <AlertTriangle className="h-5 w-5" />,
-    title: "Status desconhecido",
+    title: `Status: ${status}`,
     description: message || "Não foi possível determinar o status do pagamento.",
     variant: "default" as const,
   };

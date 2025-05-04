@@ -68,10 +68,37 @@ const PlansPage = () => {
   useEffect(() => {
     return () => {
       if (checkingInterval) {
+        console.log('Componente desmontado: Limpando intervalo de verificação de pagamento');
         clearInterval(checkingInterval);
+        setCheckingInterval(null);
       }
     };
   }, [checkingInterval]);
+
+  // Configurar o intervalo de verificação quando o paymentId mudar ou o estado mudar para WAITING_PAYMENT
+  useEffect(() => {
+    if (checkoutState === 'WAITING_PAYMENT' && paymentData.paymentId) {
+      console.log('Iniciando verificação periódica para o pagamento:', paymentData.paymentId);
+      
+      // Verificar imediatamente (primeira vez)
+      checkPaymentStatus(false);
+      
+      // Configurar verificação periódica
+      const interval = setInterval(() => {
+        console.log('Verificação automática periódica do pagamento:', paymentData.paymentId);
+        checkPaymentStatus(false);
+      }, 8000); // A cada 8 segundos
+      
+      setCheckingInterval(interval);
+      
+      // Limpar o intervalo quando o componente for desmontado ou o paymentId mudar
+      return () => {
+        console.log('Limpando intervalo de verificação devido a mudança de estado/paymentId');
+        clearInterval(interval);
+        setCheckingInterval(null);
+      };
+    }
+  }, [checkoutState, paymentData.paymentId]);
 
   // Atualizar progresso com base no estado
   useEffect(() => {
@@ -239,7 +266,10 @@ const PlansPage = () => {
 
   // Verificar status do pagamento
   const checkPaymentStatus = async (force: boolean = false) => {
-    if (!paymentData.paymentId) return;
+    if (!paymentData.paymentId) {
+      console.warn('Tentativa de verificar pagamento sem ID de pagamento');
+      return;
+    }
     
     try {
       console.log('Verificando status do pagamento:', paymentData.paymentId, force ? '(verificação forçada)' : '');
@@ -252,7 +282,10 @@ const PlansPage = () => {
       // Buscar o status atualizado do pagamento
       const payment = await findAsaasPayment(paymentData.paymentId, force);
       
+      console.log('Resposta da verificação do pagamento:', payment);
       console.log('Status do pagamento:', payment.status);
+      
+      // Atualizar status no estado local
       setPaymentStatus(payment.status);
       
       // Desativar indicador de carregamento após verificação forçada
@@ -266,13 +299,30 @@ const PlansPage = () => {
         });
       }
       
+      // Lista de status que indicam pagamento confirmado
+      const confirmedStatuses = [
+        'RECEIVED', 
+        'CONFIRMED', 
+        'AVAILABLE',
+        'BILLING_AVAILABLE',
+        // Adicionar outros status que possam indicar confirmação
+        'APPROVED',
+        'PAID'
+      ];
+      
+      // Lista de status que indicam problemas no pagamento
+      const errorStatuses = [
+        'OVERDUE', 
+        'CANCELED', 
+        'REFUNDED',
+        'REFUND_REQUESTED',
+        'DECLINED',
+        'FAILED',
+        'EXPIRED'
+      ];
+      
       // Se o pagamento foi confirmado
-      if (payment && (
-        payment.status === 'RECEIVED' || 
-        payment.status === 'CONFIRMED' || 
-        payment.status === 'AVAILABLE' ||
-        payment.status === 'BILLING_AVAILABLE'
-      )) {
+      if (payment && confirmedStatuses.includes(payment.status)) {
         console.log('Pagamento confirmado!', payment);
         
         // Parar o checking
@@ -294,12 +344,7 @@ const PlansPage = () => {
         setTimeout(() => {
           navigate('/payment-success');
         }, 2000);
-      } else if (payment && (
-        payment.status === 'OVERDUE' || 
-        payment.status === 'CANCELED' || 
-        payment.status === 'REFUNDED' ||
-        payment.status === 'REFUND_REQUESTED'
-      )) {
+      } else if (payment && errorStatuses.includes(payment.status)) {
         console.log('Pagamento com problema:', payment.status);
         
         // Parar o checking
@@ -311,12 +356,48 @@ const PlansPage = () => {
         // Atualizar estado
         setCheckoutState('ERROR');
         
-        // Mostrar erro
-        setError(`Pagamento ${
-          payment.status === 'OVERDUE' ? 'expirado' : 
-          payment.status === 'CANCELED' ? 'cancelado' : 
-          'estornado ou em processo de estorno'
-        }. Por favor, tente novamente.`);
+        // Mostrar erro específico baseado no status
+        let errorMessage;
+        
+        switch (payment.status) {
+          case 'OVERDUE':
+            errorMessage = 'Pagamento expirado. Por favor, tente novamente com um novo QR code.';
+            break;
+          case 'CANCELED':
+            errorMessage = 'Pagamento cancelado. Por favor, tente novamente.';
+            break;
+          case 'EXPIRED':
+            errorMessage = 'O QR code expirou. Por favor, gere um novo QR code.';
+            break;
+          case 'REFUNDED':
+          case 'REFUND_REQUESTED':
+            errorMessage = 'Pagamento estornado ou em processo de estorno. Por favor, entre em contato com o suporte.';
+            break;
+          default:
+            errorMessage = `Falha no pagamento (${payment.status}). Por favor, tente novamente.`;
+        }
+        
+        setError(errorMessage);
+        
+        toast({
+          variant: "destructive",
+          title: "Problema no pagamento",
+          description: errorMessage,
+        });
+      } else {
+        // Status pendente ou outro status não reconhecido
+        console.log('Pagamento ainda pendente ou em processamento:', payment.status);
+        
+        // Verificar se temos uma descrição para este status
+        const statusDescription = getPaymentStatusDescription(payment.status);
+        
+        // Se for verificação forçada pelo usuário, mostrar informação de status pendente
+        if (force) {
+          toast({
+            title: "Aguardando pagamento",
+            description: statusDescription,
+          });
+        }
       }
     } catch (error) {
       console.error('Erro ao verificar status do pagamento:', error);
@@ -336,20 +417,49 @@ const PlansPage = () => {
   // Obter descrição do status de pagamento
   const getPaymentStatusDescription = (status: string): string => {
     switch (status) {
+      // Status de sucesso
       case 'RECEIVED':
+        return 'Pagamento recebido e confirmado com sucesso!';
       case 'CONFIRMED':
+        return 'Pagamento confirmado pela instituição financeira!';
       case 'AVAILABLE':
+        return 'Pagamento disponível na sua conta!';
       case 'BILLING_AVAILABLE':
-        return 'Pagamento confirmado com sucesso!';
+        return 'Faturamento disponível!';
+      case 'APPROVED':
+        return 'Pagamento aprovado!';
+      case 'PAID':
+        return 'Pagamento realizado com sucesso!';
+        
+      // Status pendentes
       case 'PENDING':
         return 'Pagamento pendente. Aguardando confirmação do banco.';
+      case 'AWAITING_PAYMENT':
+        return 'Aguardando o pagamento via PIX.';
+      case 'AWAITING_CONFIRMATION':
+        return 'Pagamento realizado, aguardando confirmação do sistema bancário.';
+      case 'WAITING_FOR_BANK_CONFIRMATION':
+        return 'Aguardando confirmação da instituição financeira.';
+      case 'PROCESSING':
+        return 'Pagamento em processamento.';
+      
+      // Status de erro
       case 'OVERDUE':
         return 'Pagamento expirado. Por favor, gere um novo QR code.';
+      case 'EXPIRED':
+        return 'QR Code expirado. Gere um novo para continuar.';
       case 'CANCELED':
         return 'Pagamento cancelado.';
+      case 'DECLINED':
+        return 'Pagamento recusado pela instituição financeira.';
+      case 'FAILED':
+        return 'Falha no processamento do pagamento.';
       case 'REFUNDED':
+        return 'Pagamento estornado.';
       case 'REFUND_REQUESTED':
-        return 'Pagamento estornado ou em processo de estorno.';
+        return 'Estorno do pagamento solicitado.';
+        
+      // Caso padrão
       default:
         return `Status do pagamento: ${status}`;
     }
@@ -434,13 +544,6 @@ const PlansPage = () => {
         setTimeout(() => {
           loadPixQrCode();
         }, 500);
-        
-        // Configurar verificação periódica do status do pagamento
-        const interval = setInterval(() => {
-          checkPaymentStatus();
-        }, 5000);
-        
-        setCheckingInterval(interval);
       } else {
         throw new Error("Não foi possível obter as informações de pagamento. Por favor, tente novamente.");
       }
