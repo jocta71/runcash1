@@ -31,26 +31,71 @@ export const RouletteApi = {
    */
   async fetchAllRoulettes(): Promise<ApiResponse<any[]>> {
     try {
-      console.log('[API] Requisições para /api/roulettes estão desativadas. Usando dados mockados.');
+      console.log('[API] Buscando todas as roletas disponíveis');
+      const response = await axios.get(ENDPOINTS.ROULETTES);
       
-      // Usar dados mockados do arquivo JSON
-      const processedRoulettes = JSON.parse(JSON.stringify(mockRouletteData));
+      if (!response.data || !response.data.data) {
+        console.error('[API] Resposta inválida da API de roletas:', response.data);
+        return {
+          error: true,
+          code: 'INVALID_RESPONSE',
+          message: 'Resposta inválida da API',
+          statusCode: response.status
+        };
+      }
       
-      console.log(`[API] ✅ Carregadas ${processedRoulettes.length} roletas do mock`);
+      const roulettes = Array.isArray(response.data.data) ? response.data.data : response.data.data;
+      
+      console.log(`[API] ✅ Obtidas ${roulettes.length} roletas`);
+      
+      // Processar cada roleta para extrair campos relevantes
+      const processedRoulettes = roulettes.map((roulette: any) => {
+        // Garantir que temos o campo roleta_id em cada objeto
+        if (!roulette.roleta_id && roulette._id) {
+          const numericId = getNumericId(roulette._id);
+          console.log(`[API] Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
+          roulette.roleta_id = numericId;
+        }
+        return roulette;
+      });
       
       return {
         error: false,
         data: processedRoulettes
       };
     } catch (error: any) {
-      console.error('[API] Erro ao carregar dados mockados para roletas:', error);
+      console.error('[API] Erro ao buscar roletas:', error);
       
-      // Retornar um erro genérico
+      // Verificar se é erro de autenticação
+      if (error.response?.status === 401) {
+        return {
+          error: true,
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação necessária para acessar este recurso',
+          statusCode: 401
+        };
+      }
+      
+      // Verificar se é erro de assinatura
+      if (error.response?.status === 403) {
+        // Extrair código e mensagem específicos do erro
+        const errorCode = error.response.data?.code || 'SUBSCRIPTION_REQUIRED';
+        const errorMessage = error.response.data?.message || 'Você precisa de uma assinatura ativa para acessar este recurso';
+        
+        return {
+          error: true,
+          code: errorCode,
+          message: errorMessage,
+          statusCode: 403
+        };
+      }
+      
+      // Outros erros
       return {
         error: true,
-        code: 'MOCK_ERROR',
-        message: error.message || 'Erro ao carregar dados mockados para roletas',
-        statusCode: 500
+        code: 'FETCH_ERROR',
+        message: error.response?.data?.message || error.message || 'Erro ao buscar roletas',
+        statusCode: error.response?.status || 500
       };
     }
   },
