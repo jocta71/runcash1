@@ -8,36 +8,33 @@ const { ObjectId } = require('mongodb');
 
 /**
  * Lista todas as roletas disponíveis para o usuário
- * Agora com acesso público
+ * Limita o número de roletas com base no plano do usuário
  */
 const listRoulettes = async (req, res) => {
   try {
     const db = await getDb();
     const roulettes = await db.collection('roulettes').find({}).toArray();
     
-    // Definir plano padrão se não existir
-    if (!req.userPlan) {
-      req.userPlan = { type: 'PRO' };
-    }
-    
-    // Ajustar limite com base no plano
-    let limit = 50; // Default para acesso público (equivalente ao PRO)
+    // Como o middleware já verificou a assinatura, sabemos que req.userPlan existe
+    let limit = 5; // Padrão para plano básico
     let limited = true;
     
-    // Ajustar limite com base no plano se fornecido
-    switch (req.userPlan.type) {
-      case 'BASIC':
-        limit = 15;
-        break;
-      case 'PRO':
-        limit = 50;
-        break;
-      case 'PREMIUM':
-        limit = Infinity; // Sem limite
-        limited = false;
-        break;
-      default:
-        limit = 50; // Plano PRO padrão para acesso público
+    // Ajustar limite com base no plano
+    if (req.userPlan) {
+      switch (req.userPlan.type) {
+        case 'BASIC':
+          limit = 15;
+          break;
+        case 'PRO':
+          limit = 50;
+          break;
+        case 'PREMIUM':
+          limit = Infinity; // Sem limite
+          limited = false;
+          break;
+        default:
+          limit = 5; // Plano básico padrão
+      }
     }
     
     return res.json({
@@ -46,8 +43,7 @@ const listRoulettes = async (req, res) => {
       limited,
       totalCount: roulettes.length,
       availableCount: limited ? limit : roulettes.length,
-      userPlan: req.userPlan.type,
-      publicAccess: true
+      userPlan: req.userPlan.type
     });
   } catch (error) {
     console.error('Erro ao listar roletas:', error);
@@ -831,110 +827,6 @@ const checkAlternatingColors = (numbers) => {
   };
 };
 
-/**
- * Envia número da roleta via SSE
- * Isto será chamado quando um novo número for adicionado
- */
-const sendRouletteNumberUpdate = async (rouletteId, number) => {
-  try {
-    // Importar utilitários SSE
-    const { broadcastSseEvent } = require('../utils/sseUtils');
-    
-    // Buscar informações da roleta
-    const db = await getDb();
-    const roulette = await db.collection('roulettes').findOne({
-      $or: [
-        { _id: ObjectId.isValid(rouletteId) ? new ObjectId(rouletteId) : null },
-        { id: rouletteId }
-      ]
-    });
-    
-    if (!roulette) {
-      console.error(`Erro ao enviar atualização SSE: Roleta ${rouletteId} não encontrada`);
-      return;
-    }
-    
-    // Preparar dados para envio
-    const updateData = {
-      rouletteId: rouletteId,
-      name: roulette.name,
-      number: number,
-      color: getNumberColor(number),
-      timestamp: new Date().toISOString()
-    };
-    
-    // Enviar evento para todos os clientes conectados
-    broadcastSseEvent(updateData, 'update', true);
-    
-    console.log(`[SSE] Atualização enviada: Roleta ${roulette.name}, Número ${number}`);
-    
-    // Também enviar atualização de todas as roletas para manter consistência
-    setTimeout(() => {
-      sendAllRoulettesUpdate().catch(err => {
-        console.error('[SSE] Erro ao enviar atualização completa após atualização individual:', err);
-      });
-    }, 1000); // Pequeno atraso para garantir que o banco de dados foi atualizado
-    
-    return true;
-  } catch (error) {
-    console.error('Erro ao enviar atualização SSE:', error);
-    return false;
-  }
-};
-
-/**
- * Envia atualizações de todas as roletas via SSE
- * Centraliza todas as atualizações em uma única transmissão
- */
-const sendAllRoulettesUpdate = async () => {
-  try {
-    // Importar utilitários SSE
-    const { broadcastAllRoulettesUpdate } = require('../utils/sseUtils');
-    
-    // Buscar todas as roletas ativas
-    const db = await getDb();
-    const roulettes = await db.collection('roulettes')
-      .find({ status: 'active' })
-      .toArray();
-    
-    if (!roulettes || roulettes.length === 0) {
-      console.log('[SSE] Nenhuma roleta ativa encontrada para transmitir');
-      return false;
-    }
-    
-    // Para cada roleta, buscar o último número
-    const roulettesWithLatestNumbers = await Promise.all(
-      roulettes.map(async (roulette) => {
-        // Buscar último número da roleta
-        const latestNumber = await db.collection('roulette_numbers')
-          .find({ rouletteId: roulette._id.toString() })
-          .sort({ timestamp: -1 })
-          .limit(1)
-          .toArray();
-        
-        // Retornar objeto com dados da roleta e último número
-        return {
-          id: roulette._id.toString(),
-          name: roulette.name,
-          provider: roulette.provider,
-          number: latestNumber.length > 0 ? latestNumber[0].number : null,
-          color: latestNumber.length > 0 ? getNumberColor(latestNumber[0].number) : null,
-          timestamp: latestNumber.length > 0 ? latestNumber[0].timestamp : new Date()
-        };
-      })
-    );
-    
-    // Enviar atualizações de todas as roletas
-    broadcastAllRoulettesUpdate(roulettesWithLatestNumbers);
-    
-    console.log(`[SSE] Atualizações de ${roulettesWithLatestNumbers.length} roletas enviadas`);
-    return true;
-  } catch (error) {
-    console.error('Erro ao enviar atualizações de roletas:', error);
-    return false;
-  }
-};
-
 module.exports = {
   listRoulettes,
   getBasicRouletteData,
@@ -943,7 +835,5 @@ module.exports = {
   getRouletteStatistics,
   getHistoricalData,
   getNumbersBatch,
-  getFreePreview,
-  sendRouletteNumberUpdate,
-  sendAllRoulettesUpdate
+  getFreePreview
 }; 

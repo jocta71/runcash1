@@ -43,23 +43,6 @@ function verifyTokenAndSubscription(options = { required: true, allowedPlans: ['
       /\/api\/roletas.*/.test(path)
     );
     
-    // Verificar se o endpoint de roleta é público - permitido sem autenticação
-    if (isRouletteEndpoint) {
-      console.log(`[AUTH ${requestId}] Endpoint de roleta detectado: ${path} - acesso público permitido`);
-      
-      // Para o endpoint principal /api/roulettes, permitir acesso sem autenticação
-      const pathLower = path.toLowerCase();
-      if (pathLower === '/api/roulettes' || 
-          pathLower === '/api/roulettes/' ||
-          pathLower.startsWith('/api/roulettes?') ||
-          path === '/api/ROULETTES' ||
-          path === '/api/ROULETTES/' ||
-          path.startsWith('/api/ROULETTES?')) {
-        console.log(`[AUTH ${requestId}] Permitindo acesso público para o endpoint principal de roletas`);
-        return next();
-      }
-    }
-    
     // Verificar se a requisição tem um token de autorização
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -397,44 +380,22 @@ function verifyTokenAndSubscription(options = { required: true, allowedPlans: ['
   };
 }
 
-/**
- * Middleware para verificar acesso a um recurso específico
- * Modificado para permitir acesso público às rotas de roleta
- * @param {string} resourceType - Tipo de recurso sendo acessado
- * @returns {Function} Middleware Express
- */
+// Middlewares adicionais para requisitos específicos de recursos
 function requireResourceAccess(resourceType) {
   return (req, res, next) => {
-    const requestId = req.requestId || Math.random().toString(36).substring(2, 15);
-    const path = req.originalUrl || req.url || req.path;
+    console.log(`[ACCESS] Verificando acesso ao recurso: ${resourceType}`);
     
-    // Verificar se é um endpoint de roleta
-    const isRouletteEndpoint = (
-      path.includes('/api/roulettes') || 
-      path.includes('/api/ROULETTES') || 
-      path.includes('/api/roletas')
-    );
-    
-    // Permitir acesso público para endpoints de roleta
-    if (isRouletteEndpoint) {
-      console.log(`[RESOURCE ${requestId}] Concedendo acesso público para endpoint de roleta: ${path}`);
-      return next();
+    // Verificar se usuário está autenticado
+    if (!req.usuario) {
+      return res.status(401).json({ error: 'Autenticação necessária para acessar este recurso' });
     }
     
-    // Verificar se o usuário tem uma assinatura válida
-    if (!req.subscription || req.subscription.status !== 'active') {
-      console.log(`[RESOURCE ${requestId}] Acesso negado: usuário sem assinatura válida`);
-      return res.status(403).json({
-        success: false,
-        message: 'Este recurso requer uma assinatura ativa',
-        code: 'SUBSCRIPTION_REQUIRED',
-        path: path,
-        requestId: requestId
-      });
+    // Verificar se usuário tem assinatura ativa
+    if (!req.subscription) {
+      return res.status(403).json({ error: 'Assinatura necessária para acessar este recurso' });
     }
     
-    // Lógica original para verificar acesso a recursos específicos
-    // para endpoints que não são de roleta
+    // Verificar permissões específicas de recurso
     switch (resourceType) {
       case 'premium_data':
         // Verificar se o plano é PRO ou PREMIUM
@@ -455,8 +416,12 @@ function requireResourceAccess(resourceType) {
     return next();
     }
     
-    // Se chegou aqui, permitir acesso
-    next();
+    // Se chegou aqui, o acesso não é permitido
+    return res.status(403).json({ 
+      error: 'Seu plano atual não permite acesso a este recurso',
+      planoAtual: req.userPlan?.type,
+      recursoSolicitado: resourceType 
+    });
   };
 }
 
