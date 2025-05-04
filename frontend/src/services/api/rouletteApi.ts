@@ -4,6 +4,11 @@ import { getNumericId } from '../data/rouletteTransformer';
 // Importar dados mockados
 import mockRouletteData from '../../assets/data/mockRoulettes.json';
 
+// Variáveis para controle de polling
+let lastFetchTime = 0;
+let cachedRoulettes: any[] = [];
+const POLLING_INTERVAL = 8000; // 8 segundos em milissegundos
+
 // Tipo para resposta de erro
 interface ApiErrorResponse {
   error: boolean;
@@ -26,12 +31,26 @@ type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
  */
 export const RouletteApi = {
   /**
-   * Busca todas as roletas disponíveis
+   * Busca todas as roletas disponíveis respeitando o intervalo de polling
    * @returns Resposta da API com roletas ou erro
    */
   async fetchAllRoulettes(): Promise<ApiResponse<any[]>> {
     try {
+      const now = Date.now();
+      const timeElapsed = now - lastFetchTime;
+      
+      // Verificar se já passou o tempo mínimo desde a última requisição
+      if (timeElapsed < POLLING_INTERVAL && cachedRoulettes.length > 0) {
+        console.log(`[API] Usando dados em cache. Próxima requisição em ${Math.ceil((POLLING_INTERVAL - timeElapsed)/1000)}s`);
+        return {
+          error: false,
+          data: cachedRoulettes
+        };
+      }
+      
       console.log('[API] Buscando todas as roletas disponíveis');
+      lastFetchTime = now;
+      
       const response = await axios.get(ENDPOINTS.ROULETTES);
       
       if (!response.data) {
@@ -62,12 +81,24 @@ export const RouletteApi = {
         return roulette;
       });
       
+      // Armazenar em cache para futuras requisições
+      cachedRoulettes = [...processedRoulettes];
+      
       return {
         error: false,
         data: processedRoulettes
       };
     } catch (error: any) {
       console.error('[API] Erro ao buscar roletas:', error);
+      
+      // Se temos um cache e ocorreu um erro, usar o cache como fallback
+      if (cachedRoulettes.length > 0) {
+        console.log('[API] Usando cache como fallback devido a erro na requisição');
+        return {
+          error: false,
+          data: cachedRoulettes
+        };
+      }
       
       // Verificar se é erro de autenticação
       if (error.response?.status === 401) {
