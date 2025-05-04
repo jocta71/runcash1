@@ -124,91 +124,97 @@ class GlobalRouletteDataService {
       return this.rouletteData;
     }
     
-    // Verificar se já fizemos uma requisição recentemente
-    const now = Date.now();
-    const timeSinceLastRequest = now - this.lastFetchTime;
-    
-    if (timeSinceLastRequest < 2000 && this.rouletteData.length > 0) {
-      console.log(`[GlobalRouletteService] Requisição recente (${timeSinceLastRequest}ms atrás), retornando dados em cache`);
-      return this.rouletteData;
-    }
-    
     // Sinalizar que estamos buscando dados
     this.isFetching = true;
-    this.lastFetchTime = now;
-    
-    const axiosInstance = apiService.getInstance();
+    this.lastFetchTime = Date.now();
     
     try {
       this._currentFetchPromise = new Promise<any[]>(async (resolve) => {
         try {
-          console.log('[GlobalRouletteService] Buscando dados de roletas...');
+          console.log('[GlobalRouletteService] Requisições para /api/roulettes desativadas, usando dados locais');
           
-          // Tentar vários endpoints diferentes para aumentar as chances de sucesso
-          // Adicionar timestamp para evitar cache
-          const timestamp = Date.now();
-          const endpoints = [
-            `/api/roulettes?_t=${timestamp}`,
-            `/api/roletas?_t=${timestamp}`,
-            `/api/ROULETTES?_t=${timestamp}`
+          // Tentar usar dados do cache primeiro
+          const cachedData = localStorage.getItem('roulette_data_cache');
+          if (cachedData) {
+            try {
+              const parsedData = JSON.parse(cachedData);
+              console.log(`[GlobalRouletteService] Usando dados em cache com ${parsedData.data?.length || 0} roletas`);
+              this.rouletteData = parsedData.data || [];
+              this.notifySubscribers();
+              resolve(this.rouletteData);
+              return;
+            } catch (cacheError) {
+              console.error('[GlobalRouletteService] Erro ao usar cache:', cacheError);
+            }
+          }
+          
+          // Se não houver cache, usar dados mockados
+          console.log('[GlobalRouletteService] Sem cache disponível, usando dados mockados');
+          
+          // Dados mockados básicos de roletas
+          const mockRoulettes = [
+            {
+              id: '1',
+              nome: 'Roleta Europeia VIP',
+              status: 'online',
+              provider: 'Evolution',
+              numero: [
+                { numero: 12, cor: 'vermelho', timestamp: new Date().toISOString() },
+                { numero: 35, cor: 'preto', timestamp: new Date().toISOString() },
+                { numero: 0, cor: 'verde', timestamp: new Date().toISOString() },
+                { numero: 26, cor: 'preto', timestamp: new Date().toISOString() },
+                { numero: 3, cor: 'vermelho', timestamp: new Date().toISOString() }
+              ]
+            },
+            {
+              id: '2',
+              nome: 'Roleta Brasileira',
+              status: 'online',
+              provider: 'Pragmatic Play',
+              numero: [
+                { numero: 7, cor: 'vermelho', timestamp: new Date().toISOString() },
+                { numero: 15, cor: 'preto', timestamp: new Date().toISOString() },
+                { numero: 21, cor: 'vermelho', timestamp: new Date().toISOString() },
+                { numero: 0, cor: 'verde', timestamp: new Date().toISOString() },
+                { numero: 18, cor: 'vermelho', timestamp: new Date().toISOString() }
+              ]
+            },
+            {
+              id: '3',
+              nome: 'Lightning Roulette',
+              status: 'online',
+              provider: 'Evolution',
+              numero: [
+                { numero: 25, cor: 'vermelho', timestamp: new Date().toISOString() },
+                { numero: 10, cor: 'preto', timestamp: new Date().toISOString() },
+                { numero: 36, cor: 'vermelho', timestamp: new Date().toISOString() },
+                { numero: 23, cor: 'vermelho', timestamp: new Date().toISOString() },
+                { numero: 5, cor: 'vermelho', timestamp: new Date().toISOString() }
+              ]
+            }
           ];
           
-          let response = null;
-          let successEndpoint = '';
+          // Atualizar dados e notificar
+          this.rouletteData = mockRoulettes;
           
-          // Tentar cada endpoint em sequência
-          for (const endpoint of endpoints) {
-            try {
-              console.log(`[GlobalRouletteService] Tentando endpoint: ${endpoint}`);
-              response = await axiosInstance.get(endpoint, {
-                headers: {
-                  'bypass-tunnel-reminder': 'true',
-                  'cache-control': 'no-cache',
-                  'pragma': 'no-cache'
-                },
-                timeout: 5000 // Timeout mais curto para evitar esperar muito tempo
-              });
-              
-              if (response.status === 200 && Array.isArray(response.data)) {
-                successEndpoint = endpoint;
-                break;
-              }
-            } catch (endpointError) {
-              console.warn(`[GlobalRouletteService] Falha ao acessar ${endpoint}:`, endpointError.message);
-              // Continuar para o próximo endpoint
-            }
+          // Salvar mock em cache para uso futuro
+          try {
+            localStorage.setItem('roulette_data_cache', JSON.stringify({
+              timestamp: Date.now(),
+              data: mockRoulettes
+            }));
+            console.log('[GlobalRouletteService] Dados mockados salvos em cache para uso futuro');
+          } catch (storageError) {
+            console.warn('[GlobalRouletteService] Erro ao salvar cache:', storageError);
           }
           
-          if (response && response.status === 200 && Array.isArray(response.data)) {
-            console.log(`[GlobalRouletteService] Recebidos ${response.data.length} registros da API via ${successEndpoint}`);
-            
-            // Processar e armazenar os dados
-            this.rouletteData = response.data;
-            
-            // Salvar em cache para utilização offline
-            try {
-              localStorage.setItem('roulette_data_cache', JSON.stringify({
-                timestamp: Date.now(),
-                data: response.data
-              }));
-              console.log('[GlobalRouletteService] Dados salvos em cache para uso offline');
-            } catch (storageError) {
-              console.warn('[GlobalRouletteService] Erro ao salvar cache:', storageError);
-            }
-            
-            // Notificar assinantes sobre os novos dados
-            this.notifySubscribers();
-            
-            resolve(response.data);
-          } else {
-            // Tentar usar cache se disponível como fallback
-            this.tryUseCachedData(resolve);
-          }
+          // Notificar assinantes sobre os novos dados
+          this.notifySubscribers();
+          
+          resolve(mockRoulettes);
         } catch (error) {
-          console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
-          
-          // Tentar usar cache em caso de erro
-          this.tryUseCachedData(resolve);
+          console.error('[GlobalRouletteService] Erro ao processar dados:', error);
+          resolve(this.rouletteData);
         } finally {
           this.isFetching = false;
           this._currentFetchPromise = null;
@@ -217,7 +223,7 @@ class GlobalRouletteDataService {
       
       return this._currentFetchPromise;
     } catch (error) {
-      console.error('[GlobalRouletteService] Erro crítico ao buscar dados:', error);
+      console.error('[GlobalRouletteService] Erro crítico ao processar dados:', error);
       this.isFetching = false;
       return this.rouletteData;
     }

@@ -19,64 +19,55 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
       return cache[cacheKey].data;
     }
 
-    // Passo 1: Buscar todas as roletas disponíveis
-    console.log('[API] Buscando roletas e seus números');
-    const roulettesResponse = await axios.get('/api/roulettes');
+    console.log('[API] Requisições para /api/roulettes desativadas, usando dados mockados');
     
-    if (!roulettesResponse.data || !Array.isArray(roulettesResponse.data)) {
-      console.error('[API] Resposta inválida da API de roletas');
-      return [];
-    }
-
-    // Passo 2: Para cada roleta, usar os dados como estão - sem mapeamento para ID canônico
-    const roulettesWithNumbers = roulettesResponse.data.map((roleta: any) => {
-      try {
-        const id = roleta.id;
-        
-        // Verificar se a roleta já tem números incluídos
-        if (roleta.numero && Array.isArray(roleta.numero)) {
-          console.log(`[API] ✅ Roleta: ${roleta.nome}, ID: ${id}, Números já incluídos: ${roleta.numero.length}`);
-          
-          // Limitar a quantidade de números retornados
-          const limitedNumbers = roleta.numero.slice(0, limit);
-          
-          // Retornar a roleta com os números já incluídos
-          return {
-            ...roleta,
-            id: id,  // Manter o ID original
-            numero: limitedNumbers
-          };
-        }
-        
-        console.log(`[API] ✅ Roleta: ${roleta.nome}, ID: ${id}, Sem números incluídos`);
-        
-        // A roleta não tem números, retornar com array vazio
-        return {
-          ...roleta,
-          id: id,  // Manter o ID original
-          numero: []
-        };
-      } catch (error) {
-        console.error(`[API] Erro ao processar números para roleta ${roleta.nome}:`, error);
-        
-        // Mesmo em caso de erro, retornar a roleta, mas com array de números vazio
-        return {
-          ...roleta,
-          numero: []
-        };
+    // Dados mockados de roletas
+    const mockRoulettes = [
+      {
+        id: '1',
+        nome: 'Roleta Europeia VIP',
+        status: 'online',
+        provider: 'Evolution',
+        numero: Array.from({length: limit}, (_, i) => ({
+          numero: Math.floor(Math.random() * 37),
+          cor: i % 2 === 0 ? 'vermelho' : 'preto',
+          timestamp: new Date(Date.now() - i * 60000).toISOString()
+        }))
+      },
+      {
+        id: '2',
+        nome: 'Roleta Brasileira',
+        status: 'online',
+        provider: 'Pragmatic Play',
+        numero: Array.from({length: limit}, (_, i) => ({
+          numero: Math.floor(Math.random() * 37),
+          cor: i % 3 === 0 ? 'vermelho' : (i % 3 === 1 ? 'preto' : 'verde'),
+          timestamp: new Date(Date.now() - i * 60000).toISOString()
+        }))
+      },
+      {
+        id: '3',
+        nome: 'Lightning Roulette',
+        status: 'online',
+        provider: 'Evolution',
+        numero: Array.from({length: limit}, (_, i) => ({
+          numero: Math.floor(Math.random() * 37),
+          cor: i % 2 === 0 ? 'vermelho' : 'preto',
+          timestamp: new Date(Date.now() - i * 60000).toISOString()
+        }))
       }
-    });
+    ];
 
     // Armazenar em cache para requisições futuras
     cache[cacheKey] = {
-      data: roulettesWithNumbers,
+      data: mockRoulettes,
       timestamp: Date.now()
     };
     
-    console.log(`[API] ✅ Obtidas ${roulettesWithNumbers.length} roletas com seus números`);
-    return roulettesWithNumbers;
+    console.log(`[API] ✅ Mockadas ${mockRoulettes.length} roletas com seus números`);
+    return mockRoulettes;
   } catch (error) {
-    console.error('[API] Erro ao buscar roletas com números:', error);
+    console.error('[API] Erro ao processar dados mockados:', error);
     return [];
   }
 };
@@ -93,45 +84,38 @@ export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Pr
       return cache[cacheKey].data;
     }
 
-    // Buscar todas as roletas para encontrar a desejada
-    const roulettesResponse = await axios.get('/api/roulettes');
+    console.log(`[API] Requisições para /api/roulettes desativadas, usando dados mockados para roleta ${roletaId}`);
     
-    if (!roulettesResponse.data || !Array.isArray(roulettesResponse.data)) {
-      console.error('[API] Resposta inválida da API de roletas');
-      return null;
-    }
+    // Gerar nome baseado no ID
+    const nomes = {
+      '1': 'Roleta Europeia VIP',
+      '2': 'Roleta Brasileira',
+      '3': 'Lightning Roulette'
+    };
     
-    // Encontrar a roleta pelo ID original
-    const roleta = roulettesResponse.data.find((r: any) => r.id === roletaId);
-    
-    if (!roleta) {
-      console.error(`[API] Roleta com ID ${roletaId} não encontrada`);
-      return null;
-    }
-    
-    // Verificar se a roleta já tem números incluídos
-    let numbers = [];
-    if (roleta.numero && Array.isArray(roleta.numero)) {
-      // Limitar a quantidade de números retornados
-      numbers = roleta.numero.slice(0, limit);
-    }
-    
-    // Montar o objeto final
-    const roletaWithNumbers = {
-      ...roleta,
-      numero: numbers
+    // Mockado de roleta específica
+    const mockRoleta = {
+      id: roletaId,
+      nome: nomes[roletaId as keyof typeof nomes] || `Roleta ${roletaId}`,
+      status: 'online',
+      provider: 'Evolution',
+      numero: Array.from({length: limit}, (_, i) => ({
+        numero: Math.floor(Math.random() * 37),
+        cor: i % 2 === 0 ? 'vermelho' : 'preto',
+        timestamp: new Date(Date.now() - i * 60000).toISOString()
+      }))
     };
     
     // Armazenar em cache para requisições futuras
     cache[cacheKey] = {
-      data: roletaWithNumbers,
+      data: mockRoleta,
       timestamp: Date.now()
     };
     
-    console.log(`[API] ✅ Roleta: ${roleta.nome}, ID: ${roleta.id}, Números obtidos: ${numbers.length}`);
-    return roletaWithNumbers;
+    console.log(`[API] ✅ Mockada roleta: ${mockRoleta.nome}, ID: ${roletaId}, Números gerados: ${limit}`);
+    return mockRoleta;
   } catch (error) {
-    console.error(`[API] Erro ao buscar roleta ${roletaId} com números:`, error);
+    console.error(`[API] Erro ao processar dados mockados para roleta ${roletaId}:`, error);
     return null;
   }
 }; 

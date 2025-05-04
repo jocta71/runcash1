@@ -121,8 +121,30 @@ class ApiService {
    * @returns Promise com a resposta
    */
   public async getRoulette<T = any>(id: string, dataType: string = 'basic'): Promise<AxiosResponse<T>> {
-    // Fazer a requisição diretamente sem verificar assinatura
-    return this.get<T>(`/roulettes/${id}/${dataType}`);
+    console.log(`[API] Requisições para /roulettes/${id}/${dataType} desativadas, usando dados mockados`);
+    
+    // Dados mockados para simular a resposta da API
+    const mockData = {
+      success: true,
+      data: {
+        id: id,
+        name: `Roleta ${id}`,
+        provider: 'Evolution',
+        status: 'online',
+        numbers: dataType === 'basic' ? [12, 35, 0, 26, 3] : 
+                 [12, 35, 0, 26, 3, 15, 4, 0, 32, 15, 18, 21, 9, 7, 0],
+        lastUpdated: new Date().toISOString()
+      }
+    };
+    
+    // Simular resposta do axios
+    return {
+      data: mockData as any as T,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as any
+    };
   }
   
   /**

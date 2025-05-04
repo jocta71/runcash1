@@ -200,39 +200,25 @@ export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100)
       return cache[cacheKey].data;
     }
     
-    console.log(`[API] Buscando roletas para extrair números da roleta ${canonicalId}`);
+    console.log(`[API] Requisições para /api/roulettes desativadas, usando dados mockados para roleta ${canonicalId}`);
     
-    // Agora buscamos todas as roletas e filtramos a que precisamos
-    const response = await axios.get(`${apiBaseUrl}/roulettes`);
+    // Gerar números mockados
+    const mockNumbers = Array.from({length: limit}, (_, i) => ({
+      numero: Math.floor(Math.random() * 37),
+      cor: ['vermelho', 'preto', 'verde'][Math.floor(Math.random() * 3)],
+      timestamp: new Date(Date.now() - i * 60000).toISOString()
+    }));
     
-    if (response.data && Array.isArray(response.data)) {
-      // Encontrar a roleta específica pelo ID canônico
-      const targetRoulette = response.data.find((roleta: any) => {
-        const roletaCanonicalId = roleta.canonical_id || mapToCanonicalRouletteId(roleta.id || '');
-        return roletaCanonicalId === canonicalId || roleta.id === canonicalId;
-      });
-      
-      if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
-        const numbers = targetRoulette.numero.slice(0, limit);
-        
-        // Armazenar em cache
-        cache[cacheKey] = {
-          data: numbers,
-          timestamp: Date.now()
-        };
-        
-        console.log(`[API] ✅ Extraídos ${numbers.length} números para roleta ${canonicalId}`);
-        return numbers;
-      }
-      
-      console.warn(`[API] Roleta ${canonicalId} não encontrada nos dados retornados`);
-      return [];
-    }
+    // Armazenar em cache
+    cache[cacheKey] = {
+      data: mockNumbers,
+      timestamp: Date.now()
+    };
     
-    console.warn(`[API] Resposta inválida da API de roletas`);
-    return [];
+    console.log(`[API] ✅ Mockados ${mockNumbers.length} números para roleta ${canonicalId}`);
+    return mockNumbers;
   } catch (error) {
-    console.error(`[API] Erro ao buscar números da roleta ${canonicalId}:`, error);
+    console.error(`[API] Erro ao gerar números mockados para roleta ${canonicalId}:`, error);
     return [];
   }
 }
