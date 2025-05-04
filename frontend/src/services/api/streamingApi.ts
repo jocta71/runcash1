@@ -189,6 +189,8 @@ class StreamingService {
  * @returns Instância do serviço de streaming
  */
 export function connectToAllRoulettesStream(callbacks: EventCallbacks) {
+  // Adicionar logs de debug
+  console.log('[Streaming] Conectando ao endpoint de todas as roletas: /api/stream/roulettes');
   const service = new StreamingService('/api/stream/roulettes', callbacks);
   service.connect();
   return service;
@@ -201,7 +203,9 @@ export function connectToAllRoulettesStream(callbacks: EventCallbacks) {
  * @returns Instância do serviço de streaming
  */
 export function connectToRouletteStream(rouletteId: string, callbacks: EventCallbacks) {
-  const service = new StreamingService(`/api/stream/roulettes/${rouletteId}`, callbacks);
+  const url = `/api/stream/roulettes/${rouletteId}`;
+  console.log(`[Streaming] Conectando ao endpoint de roleta específica: ${url}`);
+  const service = new StreamingService(url, callbacks);
   service.connect();
   return service;
 } 

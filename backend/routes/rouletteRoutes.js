@@ -39,6 +39,7 @@ router.get('/stream/roulettes/:id',
       
       // Log detalhado do acesso
       console.log(`[SSE] Iniciando conexão SSE para roleta ID: ${req.params.id}`);
+      console.log(`[SSE] Request URL: ${req.originalUrl}`);
       console.log(`[SSE] Request ID: ${requestId}`);
       console.log(`[SSE] Usuário ID: ${req.user.id}`);
       console.log(`[SSE] Timestamp: ${new Date().toISOString()}`);
@@ -155,6 +156,7 @@ router.get('/stream/roulettes',
       
       // Log detalhado do acesso
       console.log(`[SSE] Iniciando conexão SSE para todas as roletas`);
+      console.log(`[SSE] Request URL: ${req.originalUrl}`);
       console.log(`[SSE] Request ID: ${requestId}`);
       console.log(`[SSE] Usuário ID: ${req.user.id}`);
       console.log(`[SSE] Timestamp: ${new Date().toISOString()}`);

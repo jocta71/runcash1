@@ -171,6 +171,16 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Integrar rotas SSE corrigidas
+try {
+  console.log('[Server] Tentando carregar rotas SSE corrigidas...');
+  const fixSSERouter = require('./fix-sse-integration');
+  app.use('/api', fixSSERouter);
+  console.log('[Server] Rotas SSE corrigidas carregadas com sucesso em /api');
+} catch (err) {
+  console.warn('[Server] Aviso: Rotas SSE corrigidas não disponíveis:', err.message);
+}
+
 // Verificar se a pasta api existe e carregar o index.js da API
 const apiIndexPath = path.join(__dirname, 'api', 'index.js');
 if (fs.existsSync(apiIndexPath)) {

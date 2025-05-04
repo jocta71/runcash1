@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de SSE para Roulettes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button.disconnect {
+            background-color: #dc3545;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .roulette-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .roulette-card {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        .numbers {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .number {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .number.red { background-color: #dc3545; color: white; }
+        .number.black { background-color: #343a40; color: white; }
+        .number.green { background-color: #28a745; color: white; }
+        .error {
+            color: #721c24;
+            background-color: #f8d7da;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 3px solid #3498db;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .options {
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Teste de SSE para Roulettes</h1>
+    
+    <div class="card options">
+        <h2>Opções de conexão</h2>
+        <div class="form-group">
+            <label for="server-url">URL do Servidor:</label>
+            <input type="text" id="server-url" value="http://localhost:5001" />
+        </div>
+        <div class="form-group">
+            <label for="endpoint">Endpoint:</label>
+            <select id="endpoint">
+                <option value="/api/stream/roulettes">Todas as roletas</option>
+                <option value="/api/stream/roulettes/1">Roleta ID 1</option>
+                <option value="/api/stream/roulettes/2">Roleta ID 2</option>
+                <option value="/stream/roulettes">Apenas /stream/roulettes (sem /api)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="token">Token (opcional):</label>
+            <input type="text" id="token" placeholder="JWT token para autenticação" />
+        </div>
+        <button id="connect-btn">Conectar</button>
+    </div>
+    
+    <div class="card">
+        <div class="header">
+            <h2>Status da conexão</h2>
+            <span id="connection-status" class="status disconnected">Desconectado</span>
+        </div>
+        <div id="connection-controls">
+            <button id="reconnect-btn" disabled>Reconectar</button>
+            <button id="disconnect-btn" class="disconnect" disabled>Desconectar</button>
+        </div>
+    </div>
+    
+    <div id="loading-container" class="card loading" style="display: none;">
+        <div class="spinner"></div>
+        <p>Conectando...</p>
+    </div>
+    
+    <div id="error-container" class="card error" style="display: none;">
+        <h3>Erro</h3>
+        <p id="error-message"></p>
+    </div>
+    
+    <div class="card">
+        <h2>Dados recebidos</h2>
+        <div id="data-container">
+            <p>Nenhum dado recebido ainda.</p>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Log de eventos</h2>
+        <pre id="event-log"></pre>
+        <button id="clear-log">Limpar Log</button>
+    </div>
+    
+    <script>
+        // Elementos do DOM
+        const connectBtn = document.getElementById('connect-btn');
+        const reconnectBtn = document.getElementById('reconnect-btn');
+        const disconnectBtn = document.getElementById('disconnect-btn');
+        const connectionStatus = document.getElementById('connection-status');
+        const dataContainer = document.getElementById('data-container');
+        const eventLog = document.getElementById('event-log');
+        const clearLogBtn = document.getElementById('clear-log');
+        const loadingContainer = document.getElementById('loading-container');
+        const errorContainer = document.getElementById('error-container');
+        const errorMessage = document.getElementById('error-message');
+        const serverUrlInput = document.getElementById('server-url');
+        const endpointSelect = document.getElementById('endpoint');
+        const tokenInput = document.getElementById('token');
+        
+        // Variáveis de estado
+        let eventSource = null;
+        
+        // Funções auxiliares
+        function formatDate(date) {
+            return new Date(date).toLocaleString();
+        }
+        
+        function colorizeNumber(number) {
+            // 0 é verde
+            if (number === 0) {
+                return 'green';
+            }
+            // Números vermelhos: 1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36
+            const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+            return redNumbers.includes(number) ? 'red' : 'black';
+        }
+        
+        function logEvent(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            eventLog.textContent = logEntry + eventLog.textContent;
+        }
+        
+        function updateConnectionStatus(connected) {
+            connectionStatus.textContent = connected ? 'Conectado' : 'Desconectado';
+            connectionStatus.className = `status ${connected ? 'connected' : 'disconnected'}`;
+            
+            // Atualizar botões
+            connectBtn.disabled = connected;
+            reconnectBtn.disabled = connected;
+            disconnectBtn.disabled = !connected;
+        }
+        
+        function showError(message) {
+            errorContainer.style.display = 'block';
+            errorMessage.textContent = message;
+            logEvent(`ERRO: ${message}`);
+        }
+        
+        function hideError() {
+            errorContainer.style.display = 'none';
+        }
+        
+        function showLoading() {
+            loadingContainer.style.display = 'flex';
+        }
+        
+        function hideLoading() {
+            loadingContainer.style.display = 'none';
+        }
+        
+        function renderRouletteList(roulettes) {
+            let html = '<div class="roulette-list">';
+            
+            roulettes.forEach(roulette => {
+                html += `
+                    <div class="roulette-card">
+                        <h3>${roulette.name}</h3>
+                        <p>ID: ${roulette.id}</p>
+                        <div class="numbers">
+                `;
+                
+                if (roulette.lastNumbers && roulette.lastNumbers.length) {
+                    roulette.lastNumbers.forEach(num => {
+                        const colorClass = colorizeNumber(num);
+                        html += `<span class="number ${colorClass}">${num}</span>`;
+                    });
+                } else {
+                    html += '<p>Sem números</p>';
+                }
+                
+                html += `</div></div>`;
+            });
+            
+            html += '</div>';
+            return html;
+        }
+        
+        function renderSingleRoulette(roulette) {
+            let html = `
+                <h3>${roulette.name}</h3>
+                <p>ID: ${roulette.id}</p>
+                <h4>Últimos números:</h4>
+                <div class="numbers">
+            `;
+            
+            if (roulette.lastNumbers && roulette.lastNumbers.length) {
+                roulette.lastNumbers.forEach(num => {
+                    const colorClass = colorizeNumber(num);
+                    html += `<span class="number ${colorClass}">${num}</span>`;
+                });
+            } else {
+                html += '<p>Sem números</p>';
+            }
+            
+            html += '</div>';
+            return html;
+        }
+        
+        function updateDataDisplay(data) {
+            if (!data) {
+                dataContainer.innerHTML = '<p>Nenhum dado recebido ainda.</p>';
+                return;
+            }
+            
+            let html = `<p>Tipo de evento: <strong>${data.type}</strong></p>`;
+            html += `<p>Timestamp: ${formatDate(data.timestamp)}</p>`;
+            
+            if (data.roulettes) {
+                // Múltiplas roletas
+                html += `<p>Total de roletas: ${data.roulettes.length}</p>`;
+                html += renderRouletteList(data.roulettes);
+            } else if (data.roulette) {
+                // Uma roleta
+                html += renderSingleRoulette(data.roulette);
+            } else if (data.numbers) {
+                // Atualização apenas de números
+                html += `<p>Novos números recebidos (${data.numbers.length})</p>`;
+            }
+            
+            dataContainer.innerHTML = html;
+        }
+        
+        // Função para conectar ao servidor SSE
+        function connect() {
+            // Limpar conexão anterior se existir
+            if (eventSource) {
+                disconnect();
+            }
+            
+            hideError();
+            showLoading();
+            
+            const serverUrl = serverUrlInput.value.trim();
+            const endpoint = endpointSelect.value;
+            const token = tokenInput.value.trim();
+            
+            const fullUrl = `${serverUrl}${endpoint}`;
+            logEvent(`Tentando conectar a: ${fullUrl}`);
+            
+            try {
+                const options = {};
+                
+                if (token) {
+                    options.headers = {
+                        'Authorization': `Bearer ${token}`
+                    };
+                }
+                
+                // Usar o polyfill EventSource para permitir headers
+                if (typeof EventSourcePolyfill !== 'undefined') {
+                    eventSource = new EventSourcePolyfill(fullUrl, options);
+                    logEvent('Usando EventSourcePolyfill');
+                } else {
+                    // Fallback para EventSource nativo (não suporta headers)
+                    if (token) {
+                        logEvent('AVISO: EventSource nativo não suporta headers de autenticação');
+                    }
+                    eventSource = new EventSource(fullUrl);
+                    logEvent('Usando EventSource nativo');
+                }
+                
+                // Configurar handlers de eventos
+                eventSource.onopen = function() {
+                    logEvent('Conexão estabelecida!');
+                    updateConnectionStatus(true);
+                    hideLoading();
+                };
+                
+                eventSource.onerror = function(error) {
+                    logEvent(`Erro na conexão: ${error.type}`);
+                    hideLoading();
+                    updateConnectionStatus(false);
+                    showError('Erro na conexão SSE. Verifique o console para mais detalhes.');
+                    console.error('SSE Error:', error);
+                };
+                
+                eventSource.addEventListener('update', function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        logEvent(`Recebido evento 'update' - tipo: ${data.type}`);
+                        updateDataDisplay(data);
+                    } catch (error) {
+                        logEvent(`Erro ao processar dados: ${error.message}`);
+                        console.error('Error parsing event data:', error, event.data);
+                    }
+                });
+                
+                eventSource.addEventListener('heartbeat', function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        logEvent(`Heartbeat recebido: ${formatDate(data.timestamp)}`);
+                    } catch (error) {
+                        logEvent(`Erro ao processar heartbeat: ${error.message}`);
+                    }
+                });
+                
+                // Event listener padrão para mensagens sem tipo específico
+                eventSource.onmessage = function(event) {
+                    logEvent(`Mensagem sem tipo recebida: ${event.data.substring(0, 50)}...`);
+                    try {
+                        const data = JSON.parse(event.data);
+                        updateDataDisplay(data);
+                    } catch (error) {
+                        logEvent(`Erro ao processar mensagem: ${error.message}`);
+                    }
+                };
+            } catch (error) {
+                hideLoading();
+                showError(`Falha ao criar conexão SSE: ${error.message}`);
+                console.error('Connection error:', error);
+            }
+        }
+        
+        // Função para desconectar
+        function disconnect() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+                logEvent('Conexão fechada manualmente');
+                updateConnectionStatus(false);
+            }
+        }
+        
+        // Event listeners
+        connectBtn.addEventListener('click', connect);
+        reconnectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        
+        clearLogBtn.addEventListener('click', function() {
+            eventLog.textContent = '';
+        });
+        
+        // Inicialização
+        logEvent('Página carregada. Pronto para conectar.');
+        updateConnectionStatus(false);
+        
+        // Verificar se EventSourcePolyfill está disponível
+        if (typeof EventSourcePolyfill === 'undefined') {
+            logEvent('AVISO: EventSourcePolyfill não detectado. Recursos de autenticação podem não funcionar.');
+            
+            // Adicionar script dinamicamente
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/event-source-polyfill@1.0.31/src/eventsource.min.js';
+            script.onload = function() {
+                logEvent('EventSourcePolyfill carregado com sucesso');
+            };
+            script.onerror = function() {
+                logEvent('Falha ao carregar EventSourcePolyfill');
+            };
+            document.head.appendChild(script);
+        }
+    </script>
+</body>
+</html> 
