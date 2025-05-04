@@ -121,13 +121,52 @@ const CACHE_TTL = 60000; // 1 minuto em milissegundos
  */
 export const fetchAllRoulettes = async (): Promise<any[]> => {
   try {
-    // Aqui usaremos a API rouletteApi para buscar as roletas
-    const { fetchRoulettesWithNumbers } = await import('./rouletteApi');
+    // Usar diretamente a API com normalização sem processamento adicional
+    const { fetchRoulettesWithNumbers, normalizeRouletteApiResponse } = await import('./rouletteApi');
+    
+    // Buscar dados normalizados
     const roulettes = await fetchRoulettesWithNumbers();
     
-    return roulettes.map(processRouletteData);
+    if (!roulettes || !Array.isArray(roulettes) || roulettes.length === 0) {
+      console.warn('[API] Resposta da API para roletas está vazia ou inválida');
+      return [];
+    }
+    
+    console.log(`[API] Encontradas ${roulettes.length} roletas para processamento`);
+    
+    // Aplicar processamento aos dados já normalizados
+    const processedRoulettes = roulettes.map(processRouletteData);
+    console.log(`[API] Processamento de ${processedRoulettes.length} roletas concluído com sucesso`);
+    
+    return processedRoulettes;
   } catch (error) {
-    console.error('Error fetching roulettes:', error);
+    console.error('[API] Erro ao buscar roletas:', error);
+    
+    // Tentar recover de erro específico
+    if (error && error.message && error.message.includes('Resposta inválida da API')) {
+      console.warn('[API] Tentando recuperar de erro de formato...');
+      
+      try {
+        // Tentar usar endpoint diretamente como fallback
+        const { normalizeRouletteApiResponse } = await import('./rouletteApi');
+        const response = await axios.get('/api/roulettes', {
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
+        
+        // Normalizar resposta para garantir formato correto
+        const normalizedData = normalizeRouletteApiResponse(response.data);
+        const processedData = normalizedData.map(processRouletteData);
+        console.log(`[API] Recuperação bem-sucedida: ${processedData.length} roletas`);
+        return processedData;
+      } catch (fallbackError) {
+        console.error('[API] Falha na recuperação:', fallbackError);
+      }
+    }
+    
     return [];
   }
 };

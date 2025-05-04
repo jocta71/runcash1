@@ -10,6 +10,57 @@ const CACHE_TTL = 60000; // 1 minuto em milissegundos
 const ROULETTES_ENDPOINT = '/api/roulettes';
 
 /**
+ * Função auxiliar para garantir que os dados da roleta estejam no formato esperado
+ * Isso resolve um problema onde os dados são carregados mas considerados inválidos
+ */
+export const formatRouletteData = (roleta: any): any => {
+  if (!roleta) return null;
+  
+  // Verificar se a roleta tem todos os campos necessários e garantir uma estrutura consistente
+  return {
+    id: roleta.id || roleta._id || '',
+    nome: roleta.nome || roleta.name || 'Roleta sem nome',
+    ativa: typeof roleta.ativa === 'boolean' ? roleta.ativa : true,
+    // Garantir que número seja sempre um array, mesmo que venha como outro formato
+    numero: Array.isArray(roleta.numero) ? roleta.numero : [],
+    // Adicionar campos comumente esperados pelo sistema, mesmo que sejam vazios
+    estado_estrategia: roleta.estado_estrategia || 'NEUTRAL',
+    sugestao: roleta.sugestao || '',
+    imagem: roleta.imagem || `/images/roulettes/${roleta.id || ''}.png`
+  };
+};
+
+/**
+ * Adapter para garantir consistência na estrutura de resposta da API
+ * Usado para corrigir problemas de incompatibilidade entre serviços
+ */
+export const normalizeRouletteApiResponse = (data: any): any[] => {
+  // Verificar se é um array
+  if (!Array.isArray(data)) {
+    console.warn('[API] Dados recebidos da API não são um array, convertendo...');
+    
+    // Tentar extrair dados de diferentes formatos comuns de resposta
+    if (data && typeof data === 'object') {
+      if (Array.isArray(data.data)) {
+        return data.data.map(formatRouletteData);
+      } else if (Array.isArray(data.roulettes)) {
+        return data.roulettes.map(formatRouletteData);
+      } else if (data.id) {
+        // É um único objeto, converter para array
+        return [formatRouletteData(data)];
+      }
+    }
+    
+    // Fallback para array vazio
+    console.error('[API] Não foi possível normalizar resposta da API:', data);
+    return [];
+  }
+  
+  // É um array, formatar cada item
+  return data.map(formatRouletteData);
+};
+
+/**
  * Busca todas as roletas e inclui os números mais recentes para cada uma.
  * Esta API combina os dados que normalmente seriam buscados separadamente.
  * IMPORTANTE: Utiliza apenas o endpoint "/api/roulettes" conforme especificado, sem parâmetros adicionais.
@@ -89,47 +140,29 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
       withCredentials: true // Importante: Incluir cookies na requisição
     });
     
-    if (!roulettesResponse.data || !Array.isArray(roulettesResponse.data)) {
-      console.error('[API] Resposta inválida da API de roletas');
+    // Usar o adapter para normalizar a resposta
+    const normalizedData = normalizeRouletteApiResponse(roulettesResponse.data);
+    
+    if (normalizedData.length === 0) {
+      console.error('[API] Resposta normalizada resultou em array vazio');
       return [];
     }
 
-    // Passo 2: Para cada roleta, usar os dados como estão - sem mapeamento para ID canônico
-    const roulettesWithNumbers = roulettesResponse.data.map((roleta: any) => {
+    console.log(`[API] Dados normalizados com sucesso: ${normalizedData.length} roletas`);
+
+    // Passo 2: Para cada roleta, limitar a quantidade de números conforme o parâmetro limit
+    const roulettesWithNumbers = normalizedData.map((roleta: any) => {
       try {
-        const id = roleta.id;
+        // Já garantimos que número é um array na normalização
+        const limitedNumbers = roleta.numero.slice(0, limit);
         
-        // Verificar se a roleta já tem números incluídos
-        if (roleta.numero && Array.isArray(roleta.numero)) {
-          console.log(`[API] ✅ Roleta: ${roleta.nome}, ID: ${id}, Números já incluídos: ${roleta.numero.length}`);
-          
-          // Limitar a quantidade de números retornados
-          const limitedNumbers = roleta.numero.slice(0, limit);
-          
-          // Retornar a roleta com os números já incluídos
-          return {
-            ...roleta,
-            id: id,  // Manter o ID original
-            numero: limitedNumbers
-          };
-        }
-        
-        console.log(`[API] ✅ Roleta: ${roleta.nome}, ID: ${id}, Sem números incluídos`);
-        
-        // A roleta não tem números, retornar com array vazio
         return {
           ...roleta,
-          id: id,  // Manter o ID original
-          numero: []
+          numero: limitedNumbers
         };
       } catch (error) {
         console.error(`[API] Erro ao processar números para roleta ${roleta.nome}:`, error);
-        
-        // Mesmo em caso de erro, retornar a roleta, mas com array de números vazio
-        return {
-          ...roleta,
-          numero: []
-        };
+        return roleta;
       }
     });
 
