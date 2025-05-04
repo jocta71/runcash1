@@ -1,6 +1,5 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
-import Cookies from 'js-cookie';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -148,24 +147,54 @@ class RESTSocketService {
   private async fetchDataFromREST() {
     try {
       const startTime = Date.now();
-      console.log('[RESTSocketService] Obtendo dados através do serviço global centralizado');
+      console.log('[RESTSocketService] Requisições para /api/roulettes desativadas, usando dados mockados');
       
-      // Usar o serviço global centralizado em vez de fazer chamada direta à API
-      const data = await globalRouletteDataService.fetchRouletteData();
-      
-      if (!data || !Array.isArray(data)) {
-        throw new Error('Dados recebidos do serviço global não são válidos');
-      }
+      // Usar dados mockados em vez de buscar da API
+      const mockData = [
+        {
+          id: '1',
+          nome: 'Roleta Europeia VIP',
+          status: 'online',
+          provider: 'Evolution',
+          numero: Array.from({length: 5}, (_, i) => ({
+            numero: Math.floor(Math.random() * 37),
+            cor: i % 2 === 0 ? 'vermelho' : 'preto',
+            timestamp: new Date(Date.now() - i * 60000).toISOString()
+          }))
+        },
+        {
+          id: '2',
+          nome: 'Roleta Brasileira',
+          status: 'online',
+          provider: 'Pragmatic Play',
+          numero: Array.from({length: 5}, (_, i) => ({
+            numero: Math.floor(Math.random() * 37),
+            cor: i % 3 === 0 ? 'vermelho' : (i % 3 === 1 ? 'preto' : 'verde'),
+            timestamp: new Date(Date.now() - i * 60000).toISOString()
+          }))
+        },
+        {
+          id: '3',
+          nome: 'Lightning Roulette',
+          status: 'online',
+          provider: 'Evolution',
+          numero: Array.from({length: 5}, (_, i) => ({
+            numero: Math.floor(Math.random() * 37),
+            cor: i % 2 === 0 ? 'vermelho' : 'preto',
+            timestamp: new Date(Date.now() - i * 60000).toISOString()
+          }))
+        }
+      ];
       
       const endTime = Date.now();
-      console.log(`[RESTSocketService] Dados obtidos do serviço global em ${endTime - startTime}ms`);
+      console.log(`[RESTSocketService] Dados mockados gerados em ${endTime - startTime}ms`);
       
-      // Processar os dados como eventos
-      this.processDataAsEvents(data);
+      // Processar os dados mockados como eventos
+      this.processDataAsEvents(mockData);
       
       return true;
     } catch (error) {
-      console.error('[RESTSocketService] Erro ao obter dados do serviço global:', error);
+      console.error('[RESTSocketService] Erro ao gerar dados mockados:', error);
       return false;
     }
   }
@@ -571,32 +600,69 @@ class RESTSocketService {
   // Método para processar dados do serviço centralizado
   private async processDataFromCentralService() {
     try {
-      const startTime = Date.now();
-      console.log('[RESTSocketService] Processando dados do serviço centralizado: ' + startTime);
+      console.log('[RESTSocketService] Requisições para /api/roulettes são desativadas. Usando dados mockados.');
       
-      // Obter dados do serviço global
-      const data = globalRouletteDataService.getAllRoulettes();
+      // Criar dados mockados para 3 roletas
+      const mockData = [
+        {
+          id: '1',
+          nome: 'Roleta A',
+          status: 'active',
+          provider: 'Evolution',
+          estado_estrategia: 'win',
+          vitorias: 15,
+          derrotas: 5,
+          numero_gatilho: 12,
+          terminais_gatilho: [1, 2, 3],
+          numero: Array.from({ length: 5 }, () => ({
+            numero: Math.floor(Math.random() * 37),
+            cor: ['red', 'black', 'green'][Math.floor(Math.random() * 3)],
+            timestamp: new Date(Date.now() - Math.floor(Math.random() * 3600000)).toISOString()
+          }))
+        },
+        {
+          id: '2',
+          nome: 'Roleta B',
+          status: 'active',
+          provider: 'Pragmatic',
+          estado_estrategia: 'loss',
+          vitorias: 10,
+          derrotas: 8,
+          numero_gatilho: 7,
+          terminais_gatilho: [4, 5, 6],
+          numero: Array.from({ length: 5 }, () => ({
+            numero: Math.floor(Math.random() * 37),
+            cor: ['red', 'black', 'green'][Math.floor(Math.random() * 3)],
+            timestamp: new Date(Date.now() - Math.floor(Math.random() * 3600000)).toISOString()
+          }))
+        },
+        {
+          id: '3',
+          nome: 'Roleta C',
+          status: 'inactive',
+          provider: 'Playtech',
+          estado_estrategia: 'waiting',
+          vitorias: 20,
+          derrotas: 3,
+          numero_gatilho: 22,
+          terminais_gatilho: [7, 8, 9],
+          numero: Array.from({ length: 5 }, () => ({
+            numero: Math.floor(Math.random() * 37),
+            cor: ['red', 'black', 'green'][Math.floor(Math.random() * 3)],
+            timestamp: new Date(Date.now() - Math.floor(Math.random() * 3600000)).toISOString()
+          }))
+        }
+      ];
       
-      if (!data || !Array.isArray(data) || data.length === 0) {
-        console.log('[RESTSocketService] Sem dados disponíveis no serviço centralizado, aguardando...');
-        return;
-      }
-      
-      console.log(`[RESTSocketService] Processando ${data.length} roletas do serviço centralizado`);
+      console.log('[RESTSocketService] Processando dados mockados:', mockData.length, 'roletas');
       
       // Registrar esta chamada como bem-sucedida
       const now = Date.now();
-      this.lastReceivedData.set('endpoint-base', { timestamp: now, data: { count: data.length } });
-      
-      // Salvar no cache com uma chave diferente para não conflitar
-      localStorage.setItem('roulettes_data_cache_base', JSON.stringify({
-        timestamp: Date.now(),
-        data: data
-      }));
+      this.lastReceivedData.set('endpoint-base', { timestamp: now, data: { count: mockData.length } });
       
       // Para cada roleta, processar os dados
-      data.forEach(roulette => {
-        if (!roulette || !roulette.id) return;
+      for (const roulette of mockData) {
+        if (!roulette || !roulette.id) continue;
         
         // Registrar timestamp para cada roleta
         this.lastReceivedData.set(`base-${roulette.id}`, { timestamp: now, data: roulette });
@@ -604,18 +670,18 @@ class RESTSocketService {
         // Atualizar o histórico da roleta se houver números
         if (roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0) {
           // Mapear apenas os números para um array simples
-          const numbers = roulette.numero.map((n: any) => n.numero || n.number || 0);
+          const numbers = roulette.numero.map((n: any) => n.numero);
           
           // Obter histórico existente 
-          const existingHistory = this.rouletteHistory.get(roulette.id) || [];
+          const existingHistory = this.getRouletteHistory(roulette.id);
           
           // Verificar se já existe o primeiro número na lista para evitar duplicação
           const isNewData = existingHistory.length === 0 || 
-                            existingHistory[0] !== numbers[0] ||
-                            !existingHistory.includes(numbers[0]);
+                         existingHistory[0] !== numbers[0] ||
+                         !existingHistory.includes(numbers[0]);
           
           if (isNewData) {
-            console.log(`[RESTSocketService] Novos números detectados para roleta ${roulette.nome || roulette.id} (central-service)`);
+            console.log(`[RESTSocketService] Novos números mockados para roleta ${roulette.nome || roulette.id}`);
             
             // Mesclar, evitando duplicações e preservando ordem
             const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
@@ -624,20 +690,22 @@ class RESTSocketService {
             this.setRouletteHistory(roulette.id, mergedNumbers);
             
             // Emitir evento com o número mais recente
-            const lastNumber = roulette.numero[0];
-            
-            const event: any = {
-              type: 'new_number',
-              roleta_id: roulette.id,
-              roleta_nome: roulette.nome,
-              numero: lastNumber.numero || lastNumber.number || 0,
-              cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
-              timestamp: lastNumber.timestamp || new Date().toISOString(),
-              source: 'central-service' // Marcar a origem para depuração
-            };
-            
-            // Notificar os listeners sobre o novo número
-            this.notifyListeners(event);
+            if (roulette.numero[0]) {
+              const lastNumber = roulette.numero[0];
+              
+              const event: any = {
+                type: 'new_number',
+                roleta_id: roulette.id,
+                roleta_nome: roulette.nome,
+                numero: lastNumber.numero,
+                cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
+                timestamp: lastNumber.timestamp || new Date().toISOString(),
+                source: 'mock-data' // Marcar a origem para depuração
+              };
+              
+              // Notificar os listeners sobre o novo número
+              this.notifyListeners(event);
+            }
           }
         }
         
@@ -652,20 +720,18 @@ class RESTSocketService {
             vitorias: roulette.vitorias || 0,
             derrotas: roulette.derrotas || 0,
             terminais_gatilho: roulette.terminais_gatilho || [],
-            source: 'central-service' // Marcar a origem para depuração
+            source: 'mock-data' // Marcar a origem para depuração
           };
           
           // Notificar os listeners sobre a atualização de estratégia
           this.notifyListeners(strategyEvent);
         }
-      });
+      }
       
-      const endTime = Date.now();
-      console.log(`[RESTSocketService] Processamento concluído em ${endTime - startTime}ms`);
-      
+      console.log('[RESTSocketService] Processamento de dados mockados concluído');
       return true;
     } catch (error) {
-      console.error('[RESTSocketService] Erro ao processar dados do serviço centralizado:', error);
+      console.error('[RESTSocketService] Erro ao processar dados mockados:', error);
       return false;
     }
   }
