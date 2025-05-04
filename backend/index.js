@@ -242,6 +242,29 @@ try {
   console.error('Erro ao carregar serviços adicionais:', err);
 }
 
+// Configurar transmissão periódica de atualizações de roletas via SSE
+try {
+  const { rouletteController } = require('./controllers');
+  
+  // Enviar atualizações de roletas a cada 60 segundos
+  console.log('[Server] Configurando envio periódico de atualizações de roletas via SSE');
+  
+  setInterval(async () => {
+    try {
+      if (global.sseClients && global.sseClients.size > 0) {
+        console.log(`[SSE] Enviando atualização periódica para ${global.sseClients.size} clientes conectados`);
+        await rouletteController.sendAllRoulettesUpdate();
+      }
+    } catch (error) {
+      console.error('[SSE] Erro ao enviar atualização periódica:', error);
+    }
+  }, 60000); // 60 segundos
+  
+  console.log('[Server] Envio periódico de atualizações configurado com sucesso');
+} catch (error) {
+  console.error('[Server] Erro ao configurar envio periódico de atualizações:', error);
+}
+
 // Iniciar servidor
 server.listen(PORT, () => {
   console.log(`[Server] Servidor unificado iniciado na porta ${PORT}`);
