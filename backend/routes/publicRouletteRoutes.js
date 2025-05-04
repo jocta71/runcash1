@@ -1,153 +1,119 @@
 /**
- * Rotas públicas de roleta com dados criptografados
- * Permite acesso público com dados protegidos por criptografia
+ * Rotas públicas para dados de roletas
+ * Implementa system de Server-Sent Events (SSE) com criptografia
  */
 
 const express = require('express');
 const router = express.Router();
-const getDb = require('../services/database');
-const { encryptData } = require('../utils/cryptoService');
+const { MongoClient } = require('mongodb');
+const crypto = require('crypto');
+
+// Importar serviços
+const cryptoService = require('../services/cryptoService');
+const sseController = require('../controllers/sseController');
+
+// Importar controlador existente para reutilizar lógica
 const rouletteController = require('../controllers/rouletteController');
 
-// Cache simples para reduzir consultas ao banco
-const cache = {
-  roulettes: {
-    data: null,
-    timestamp: 0,
-    ttl: 60 * 1000 // 1 minuto
+// Configuração do MongoDB
+const url = process.env.MONGODB_URI || 'mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash';
+const dbName = process.env.MONGODB_DB_NAME || 'runcash';
+
+// Armazenar conexão MongoDB
+let client;
+let collection;
+
+// Inicializar conexão MongoDB
+async function connectToMongoDB() {
+  try {
+    client = new MongoClient(url, { useUnifiedTopology: true });
+    await client.connect();
+    const db = client.db(dbName);
+    collection = db.collection('roulettes');
+    console.log('[PUBLIC API] Conectado ao MongoDB com sucesso');
+    return true;
+  } catch (error) {
+    console.error('[PUBLIC API] Erro ao conectar ao MongoDB:', error);
+    return false;
   }
-};
+}
+
+// Conectar ao inicializar
+const isConnected = connectToMongoDB();
+
+/**
+ * @route   GET /api/stream/roulettes
+ * @desc    Estabelece conexão SSE para streaming de dados criptografados
+ * @access  Público
+ */
+router.get('/stream/roulettes', sseController.establishConnection);
 
 /**
  * @route   GET /api/public/roulettes
- * @desc    Lista todas as roletas disponíveis com dados criptografados
+ * @desc    Retorna dados criptografados das roletas (sem verificar assinatura)
  * @access  Público
  */
-router.get('/roulettes', async (req, res) => {
+router.get('/public/roulettes', async (req, res) => {
+  const requestId = crypto.randomUUID();
+  console.log(`[PUBLIC API ${requestId}] Requisição recebida para /api/public/roulettes`);
+  
   try {
-    // Gerar identificador de request para rastreamento
-    const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[API-PUBLIC ${requestId}] Requisição recebida para /api/public/roulettes`);
-    
-    // Verificar se temos dados em cache válidos
-    const now = Date.now();
-    if (cache.roulettes.data && now - cache.roulettes.timestamp < cache.roulettes.ttl) {
-      console.log(`[API-PUBLIC ${requestId}] Retornando dados de cache`);
-      return res.json(cache.roulettes.data);
-    }
-    
-    // Não temos cache válido, buscar dados do banco
-    const db = await getDb();
-    const roulettes = await db.collection('roulettes').find({}).toArray();
-    
-    // Processar dados (simplificados para todos os usuários)
-    const processedData = roulettes.map(roulette => ({
-      id: roulette._id.toString(),
-      name: roulette.name,
-      provider: roulette.provider,
-      status: roulette.status
-    }));
-    
-    // Criptografar dados
-    const encryptedData = encryptData(processedData);
-    
-    // Construir resposta
-    const response = {
-      success: true,
-      timestamp: now,
-      data: encryptedData
-    };
-    
-    // Atualizar cache
-    cache.roulettes.data = response;
-    cache.roulettes.timestamp = now;
-    
-    console.log(`[API-PUBLIC ${requestId}] Dados criptografados e enviados`);
-    return res.json(response);
-  } catch (error) {
-    console.error('Erro ao listar roletas públicas:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erro ao obter lista de roletas',
-      error: 'INTERNAL_SERVER_ERROR'
-    });
-  }
-});
-
-/**
- * @route   GET /api/public/roulettes/:id
- * @desc    Obtém dados de uma roleta específica com dados criptografados
- * @access  Público
- */
-router.get('/roulettes/:id', async (req, res) => {
-  try {
-    const rouletteId = req.params.id;
-    const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[API-PUBLIC ${requestId}] Buscando dados da roleta ${rouletteId}`);
-    
-    // Buscar roleta do banco
-    const db = await getDb();
-    const roulette = await db.collection('roulettes').findOne({
-      $or: [
-        { _id: require('mongodb').ObjectId.isValid(rouletteId) ? new require('mongodb').ObjectId(rouletteId) : null },
-        { id: rouletteId }
-      ]
-    });
-    
-    if (!roulette) {
-      return res.status(404).json({
-        success: false,
-        message: 'Roleta não encontrada'
+    if (!isConnected || !collection) {
+      console.log(`[PUBLIC API ${requestId}] MongoDB não conectado, retornando array vazio`);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Serviço indisponível no momento' 
       });
     }
     
-    // Buscar apenas os últimos 10 números para versão pública
-    const numbers = await db.collection('roulette_numbers')
-      .find({ rouletteId: roulette._id.toString() })
-      .sort({ timestamp: -1 })
-      .limit(10)
-      .toArray();
+    // Obter roletas do banco de dados
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
     
-    // Processar dados
-    const processedData = {
-      id: roulette._id.toString(),
-      name: roulette.name,
-      provider: roulette.provider,
-      status: roulette.status,
-      numbers: numbers.map(n => ({
-        number: n.number,
-        timestamp: n.timestamp,
-        color: n.color || getNumberColor(n.number)
-      }))
-    };
+    console.log(`[PUBLIC API ${requestId}] Processadas ${roulettes.length} roletas`);
     
-    // Criptografar dados
-    const encryptedData = encryptData(processedData);
+    // Criptografar os dados antes de enviar
+    const encryptedData = await cryptoService.encrypt(roulettes);
     
-    // Retornar resposta criptografada
-    return res.json({
-      success: true,
-      timestamp: Date.now(),
-      data: encryptedData
-    });
+    // Retornar dados criptografados
+    res.status(200).json({ data: encryptedData });
   } catch (error) {
-    console.error('Erro ao obter dados da roleta:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erro ao obter dados da roleta',
-      error: 'INTERNAL_SERVER_ERROR'
+    console.error(`[PUBLIC API ${requestId}] Erro ao listar roletas:`, error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Erro interno ao processar dados',
+      requestId
     });
   }
 });
 
-/**
- * Determina a cor do número da roleta
- */
-function getNumberColor(number) {
-  if (number === 0) return 'green';
-  
-  const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-  return redNumbers.includes(number) ? 'red' : 'black';
-}
+// Atualização programada para SSE a cada 5 segundos
+setInterval(async () => {
+  try {
+    if (!isConnected || !collection) {
+      return;
+    }
+    
+    // Obter roletas do banco de dados
+    const roulettes = await collection.aggregate([
+      { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+      { $project: { _id: 0, id: 1, nome: "$_id" } }
+    ]).toArray();
+    
+    // Adicionar timestamp e atributos adicionais
+    const dataWithMetadata = {
+      roletas: roulettes,
+      timestamp: new Date().toISOString(),
+      count: roulettes.length
+    };
+    
+    // Broadcast para todos os clientes conectados
+    await sseController.broadcastData(dataWithMetadata);
+  } catch (error) {
+    console.error('[PUBLIC API] Erro ao atualizar clientes SSE:', error);
+  }
+}, 5000);
 
 module.exports = router; 

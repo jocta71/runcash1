@@ -15,6 +15,10 @@ const jwt = require('jsonwebtoken');
 // Carregar variáveis de ambiente
 dotenv.config();
 
+// Verificar variável de ambiente para desativação do middleware JWT
+const DISABLE_JWT_FOR_ROULETTES = process.env.DISABLE_JWT_FOR_ROULETTES === 'true';
+console.log(`[CONFIG] Desativação JWT para roletas: ${DISABLE_JWT_FOR_ROULETTES ? 'ATIVADA' : 'DESATIVADA'}`);
+
 // Configuração
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
@@ -42,6 +46,12 @@ app.use(async (req, res, next) => {
   // Verificar se o caminho é exatamente /api/roulettes (completo ou normalizado)
   const path = req.originalUrl || req.url;
   const pathLower = path.toLowerCase();
+  
+  // Se a desativação do JWT estiver ATIVADA, permitir acesso às rotas protegidas
+  if (DISABLE_JWT_FOR_ROULETTES) {
+    // Para rotas públicas com JWT desativado, permitir continuar
+    return next();
+  }
   
   // Verificar todas as variações possíveis da rota (case insensitive)
   if (pathLower === '/api/roulettes' || 
@@ -170,6 +180,18 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Carregar rotas públicas de roletas se a desativação de JWT estiver habilitada
+if (DISABLE_JWT_FOR_ROULETTES) {
+  try {
+    const publicRouletteRoutes = require('./routes/publicRouletteRoutes');
+    app.use('/api', publicRouletteRoutes);
+    console.log('[Server] Rotas públicas de roletas com criptografia carregadas com sucesso');
+  } catch (err) {
+    console.error('[Server] Erro ao carregar rotas públicas de roletas:', err);
+  }
+}
 
 // Verificar se a pasta api existe e carregar o index.js da API
 const apiIndexPath = path.join(__dirname, 'api', 'index.js');
@@ -207,40 +229,15 @@ if (fs.existsSync(apiIndexPath)) {
       }
     }
     
-    // Carregar rotas de roleta do diretório principal
-    try {
-      const rouletteRoutes = require('./routes/rouletteRoutes');
-      app.use('/api', rouletteRoutes);
-      console.log('Rotas de roleta carregadas do diretório principal');
-    } catch (err) {
-      console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
-    }
-
-    // Carregar as novas rotas públicas com dados criptografados
-    try {
-      const publicRouletteRoutes = require('./routes/publicRouletteRoutes');
-      app.use('/api/public', publicRouletteRoutes);
-      console.log('Rotas públicas de roleta carregadas com sucesso');
-    } catch (err) {
-      console.error('Erro ao carregar rotas públicas de roleta:', err);
-    }
-
-    // Carregar as rotas de streaming (SSE)
-    try {
-      const streamRoutes = require('./routes/streamRoutes');
-      app.use('/stream', streamRoutes);
-      console.log('Rotas de streaming SSE carregadas com sucesso');
-      
-      // Inicializar serviço de atualização de roletas em tempo real
+    // Carregar rotas de roleta do diretório principal apenas se JWT não estiver desativado
+    if (!DISABLE_JWT_FOR_ROULETTES) {
       try {
-        const rouletteUpdateService = require('./services/rouletteUpdateService');
-        rouletteUpdateService.initRouletteUpdateService();
-        console.log('Serviço de atualização de roletas inicializado com sucesso');
+        const rouletteRoutes = require('./routes/rouletteRoutes');
+        app.use('/api', rouletteRoutes);
+        console.log('Rotas de roleta carregadas do diretório principal');
       } catch (err) {
-        console.error('Erro ao inicializar serviço de atualização de roletas:', err);
+        console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
       }
-    } catch (err) {
-      console.error('Erro ao carregar rotas de streaming:', err);
     }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
@@ -252,7 +249,10 @@ app.get('/', (req, res) => {
   res.json({
     status: 'online',
     service: 'RunCash Unified Server',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    features: {
+      publicRoulettes: DISABLE_JWT_FOR_ROULETTES
+    }
   });
 });
 
