@@ -31,85 +31,46 @@ export interface RouletteStrategy {
   sugestao_display?: string;
 }
 
-/**
- * Interface para representar um número de roleta
- */
-export interface RouletteNumber {
-  id: string;
-  value: number;
-  color?: string;
-  timestamp?: string;
-  [key: string]: any;
-}
-
 // Lista das roletas disponíveis com seus IDs canônicos
 // Removendo a lista fixa para não limitar quais roletas são exibidas
 export const ROLETAS_CANONICAS: any[] = [];
 
 /**
- * Mapeamento canônico de nomes de roletas para IDs
- * Usado para normalizar os nomes de diferentes origens
+ * Mapeamento de IDs de roletas para o formato canônico
+ * Cada roleta deve ter um ID único e consistente
  */
-export const mapToCanonicalRouletteId = (id: string): string => {
-  // Converter para minúsculas e remover espaços
-  const normalizedId = id.toLowerCase().trim();
-  
-  // Tabela de mapeamento para nomes conhecidos
-  const mappings: Record<string, string> = {
-    'lightning': 'lightning-roulette',
-    'lightning roulette': 'lightning-roulette',
-    'xxxtreme': 'xxxtreme-lightning',
-    'xxxtreme lightning': 'xxxtreme-lightning',
-    'immersive': 'immersive-roulette',
-    'immersive roulette': 'immersive-roulette',
-    'auto': 'auto-roulette',
-    'auto roulette': 'auto-roulette',
-    'vivo': 'vivo-roulette',
-    'vivo roulette': 'vivo-roulette',
-    'american': 'american-roulette',
-    'american roulette': 'american-roulette',
-    'european': 'european-roulette',
-    'european roulette': 'european-roulette',
-    'french': 'french-roulette',
-    'french roulette': 'french-roulette',
-  };
-  
-  // Verificar se temos um mapeamento para este ID
-  return mappings[normalizedId] || normalizedId;
+const rouletteIdMappings: Record<string, string> = {
+  // Mapeamentos conhecidos
+  'immersive_roulette': 'immersive',
+  'roulette_lobby': 'lobby',
+  'auto_roulette': 'auto',
+  'lightning_roulette': 'lightning',
+  'speed_roulette': 'speed',
+  'vivo_roleta_zeus': 'zeus_vivo',
+  'vivo_roleta_brasileira': 'brasileira_vivo',
+  'roleta_brasileira': 'brasileira'
 };
 
 /**
- * Simplifica nome da roleta para formato canônico
- * @param nomeBruto Nome bruto da roleta
- * @returns Nome simplificado e padronizado
+ * Mapeia o ID da roleta para o formato canônico
+ * @param originalId ID original ou nome da roleta
+ * @returns ID canônico normalizado
  */
-export const simplificarNomeRoleta = (nomeBruto: string): string => {
-  if (!nomeBruto) return '';
+export function mapToCanonicalRouletteId(originalId: string): string {
+  // Se o ID já estiver no mapeamento, retornar o valor mapeado
+  if (rouletteIdMappings[originalId.toLowerCase()]) {
+    return rouletteIdMappings[originalId.toLowerCase()];
+  }
   
-  // Converter para minúsculas e remover espaços extras
-  let nome = nomeBruto.toLowerCase().trim();
-  
-  // Remover palavras comuns que não ajudam na identificação
-  nome = nome.replace(/\broulette\b|\bruleta\b|\bcasino\b|\blive\b|\bevo\b/g, '');
-  
-  // Remover caracteres especiais
-  nome = nome.replace(/[^\w\s-]/g, '');
-  
-  // Remover espaços extras e no início/fim
-  nome = nome.replace(/\s+/g, ' ').trim();
-  
-  // Se ficar vazio, retornar o original
-  return nome || nomeBruto.toLowerCase().trim();
-};
+  // Para IDs não mapeados, normalizar para lowercase e remover espaços/caracteres especiais
+  return originalId
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+}
 
 // Configuração básica para todas as APIs
 const apiBaseUrl = '/api'; // Usar o endpoint relativo para aproveitar o proxy
-
-/**
- * IMPORTANTE: Sempre utilizar apenas o endpoint /api/roulettes
- * Outros endpoints como /api/roletas ou /api/ROULETTES foram desativados
- */
-const ROULETTES_ENDPOINT = `${apiBaseUrl}/roulettes`;
 
 // Cache para evitar múltiplas solicitações para os mesmos dados
 const cache: Record<string, { data: any, timestamp: number }> = {};
@@ -121,52 +82,13 @@ const CACHE_TTL = 60000; // 1 minuto em milissegundos
  */
 export const fetchAllRoulettes = async (): Promise<any[]> => {
   try {
-    // Usar diretamente a API com normalização sem processamento adicional
-    const { fetchRoulettesWithNumbers, normalizeRouletteApiResponse } = await import('./rouletteApi');
-    
-    // Buscar dados normalizados
+    // Aqui usaremos a API rouletteApi para buscar as roletas
+    const { fetchRoulettesWithNumbers } = await import('./rouletteApi');
     const roulettes = await fetchRoulettesWithNumbers();
     
-    if (!roulettes || !Array.isArray(roulettes) || roulettes.length === 0) {
-      console.warn('[API] Resposta da API para roletas está vazia ou inválida');
-      return [];
-    }
-    
-    console.log(`[API] Encontradas ${roulettes.length} roletas para processamento`);
-    
-    // Aplicar processamento aos dados já normalizados
-    const processedRoulettes = roulettes.map(processRouletteData);
-    console.log(`[API] Processamento de ${processedRoulettes.length} roletas concluído com sucesso`);
-    
-    return processedRoulettes;
+    return roulettes.map(processRouletteData);
   } catch (error) {
-    console.error('[API] Erro ao buscar roletas:', error);
-    
-    // Tentar recover de erro específico
-    if (error && error.message && error.message.includes('Resposta inválida da API')) {
-      console.warn('[API] Tentando recuperar de erro de formato...');
-      
-      try {
-        // Tentar usar endpoint diretamente como fallback
-        const { normalizeRouletteApiResponse } = await import('./rouletteApi');
-        const response = await axios.get('/api/roulettes', {
-          withCredentials: true,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        });
-        
-        // Normalizar resposta para garantir formato correto
-        const normalizedData = normalizeRouletteApiResponse(response.data);
-        const processedData = normalizedData.map(processRouletteData);
-        console.log(`[API] Recuperação bem-sucedida: ${processedData.length} roletas`);
-        return processedData;
-      } catch (fallbackError) {
-        console.error('[API] Falha na recuperação:', fallbackError);
-      }
-    }
-    
+    console.error('Error fetching roulettes:', error);
     return [];
   }
 };
@@ -267,100 +189,53 @@ export const fetchRouletteLatestNumbersByName = async (roletaNome: string, limit
 }
 
 /**
- * Busca números para uma roleta específica por ID
- * Implementa cache para reduzir chamadas ao servidor
+ * Busca números de uma roleta específica pelo ID
  */
-export const fetchRouletteNumbersById = async (roletaId: string, limit = 20): Promise<RouletteNumber[] | null> => {
+export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100): Promise<any[]> => {
   try {
-    // Verificar cache
-    const cacheKey = `roulette_numbers_${roletaId}_${limit}`;
+    // Verificar se já temos dados em cache para este ID
+    const cacheKey = `numbers_${canonicalId}_${limit}`;
     if (cache[cacheKey] && Date.now() - cache[cacheKey].timestamp < CACHE_TTL) {
-      console.log(`[API] Usando dados em cache para números da roleta ${roletaId}`);
+      console.log(`[API] Usando dados em cache para números da roleta ${canonicalId}`);
       return cache[cacheKey].data;
     }
-
-    // Obter token de autenticação de várias fontes
-    let authToken = '';
     
-    // Função para obter cookies
-    const getCookie = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift();
-      return undefined;
-    };
+    console.log(`[API] Buscando roletas para extrair números da roleta ${canonicalId}`);
     
-    // Tentar obter dos cookies primeiro (mais confiável)
-    const tokenCookie = getCookie('token') || getCookie('token_alt');
-    if (tokenCookie) {
-      authToken = tokenCookie;
-      console.log('[API] Usando token de autenticação dos cookies');
-    } else {
-      // Se não encontrou nos cookies, verificar localStorage
-      const possibleKeys = [
-        'auth_token_backup',  // Usado pelo AuthContext
-        'token',              // Nome do cookie usado na requisição bem-sucedida
-        'auth_token',         // Usado em alguns componentes
-        'authToken'           // Usado em alguns utilitários
-      ];
-      
-      for (const key of possibleKeys) {
-        const storedToken = localStorage.getItem(key);
-        if (storedToken) {
-          authToken = storedToken;
-          console.log(`[API] Usando token de autenticação do localStorage (${key})`);
-          
-          // Restaurar para cookies se necessário
-          try {
-            document.cookie = `token=${authToken}; path=/; max-age=2592000`;
-            document.cookie = `token_alt=${authToken}; path=/; max-age=2592000; SameSite=Lax`;
-            console.log('[API] Token restaurado para cookies');
-          } catch (cookieError) {
-            console.warn('[API] Erro ao restaurar token para cookies:', cookieError);
-          }
-          
-          break;
-        }
-      }
-    }
-
-    // Configurar headers exatamente como na requisição bem-sucedida
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'accept': 'application/json, text/plain, */*'
-    };
-
-    // Adicionar token de autenticação se disponível
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-      console.log('[API] Token de autenticação adicionado ao cabeçalho da requisição para buscar números da roleta');
-    } else {
-      console.warn('[API] Nenhum token de autenticação encontrado, tentando acessar endpoint sem autenticação');
-    }
-
-    // Usar endpoint base sem parâmetros adicionais
-    const endpoint = `/api/roulettes/${roletaId}/numbers`;
-    console.log(`[API] Buscando números da roleta ${roletaId} do endpoint ${endpoint}`);
-    const response = await axios.get(endpoint, {
-      headers,
-      withCredentials: true, // Importante: Incluir cookies na requisição
-      params: { limit }
-    });
-
+    // Agora buscamos todas as roletas e filtramos a que precisamos
+    const response = await axios.get(`${apiBaseUrl}/roulettes`);
+    
     if (response.data && Array.isArray(response.data)) {
-      // Guardar em cache
-      cache[cacheKey] = {
-        data: response.data,
-        timestamp: Date.now()
-      };
-      return response.data;
+      // Encontrar a roleta específica pelo ID canônico
+      const targetRoulette = response.data.find((roleta: any) => {
+        const roletaCanonicalId = roleta.canonical_id || mapToCanonicalRouletteId(roleta.id || '');
+        return roletaCanonicalId === canonicalId || roleta.id === canonicalId;
+      });
+      
+      if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
+        const numbers = targetRoulette.numero.slice(0, limit);
+        
+        // Armazenar em cache
+        cache[cacheKey] = {
+          data: numbers,
+          timestamp: Date.now()
+        };
+        
+        console.log(`[API] ✅ Extraídos ${numbers.length} números para roleta ${canonicalId}`);
+        return numbers;
+      }
+      
+      console.warn(`[API] Roleta ${canonicalId} não encontrada nos dados retornados`);
+      return [];
     }
-    return null;
+    
+    console.warn(`[API] Resposta inválida da API de roletas`);
+    return [];
   } catch (error) {
-    console.error(`[API] Erro ao buscar números para roleta ${roletaId}:`, error);
-    return null;
+    console.error(`[API] Erro ao buscar números da roleta ${canonicalId}:`, error);
+    return [];
   }
-};
+}
 
 /**
  * Busca a estratégia atual de uma roleta

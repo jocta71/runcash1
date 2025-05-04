@@ -21,14 +21,26 @@ const MIN_REQUEST_INTERVAL = 30 * 1000;
 const CACHE_VALIDITY = 5 * 60 * 1000;
 
 // Headers para evitar detecção como bot ou captchas
-const getDefaultHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Accept': 'application/json',
-  'ngrok-skip-browser-warning': 'true',
-  'bypass-tunnel-reminder': 'true',
-  'Origin': window.location.origin,
-  'Referer': window.location.origin
-});
+const getDefaultHeaders = () => {
+  // Obter o token de autenticação do localStorage
+  const token = localStorage.getItem('@runcash:token') || localStorage.getItem('auth_token');
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+    'bypass-tunnel-reminder': 'true',
+    'Origin': window.location.origin,
+    'Referer': window.location.origin
+  };
+  
+  // Adicionar cabeçalho de autorização se o token estiver disponível
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
+};
 
 /**
  * Controlador de taxa de requisições para evitar múltiplas chamadas em curto espaço de tempo

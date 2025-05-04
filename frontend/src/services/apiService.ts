@@ -18,7 +18,7 @@ class ApiService {
     // Adicionar interceptor para incluir token em todas as requisições
     this.api.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('@runcash:token') || localStorage.getItem('auth_token') || localStorage.getItem('token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
