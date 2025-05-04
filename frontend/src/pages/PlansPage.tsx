@@ -842,21 +842,21 @@ const PlansPage = () => {
         <div className="relative overflow-hidden min-h-[80vh] py-16">
           {/* Backdrops e efeitos de luz */}
           <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
-            <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-vegas-gold/10 rounded-full blur-[120px] animate-pulse"></div>
-            <div className="absolute bottom-[-30%] right-[-10%] w-[60%] h-[60%] bg-vegas-gold/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
-            <div className="absolute top-[20%] right-[20%] w-5 h-5 bg-vegas-gold rounded-full blur-sm animate-ping"></div>
-            <div className="absolute bottom-[30%] left-[20%] w-3 h-3 bg-vegas-gold rounded-full blur-sm animate-ping" style={{ animationDelay: '2s' }}></div>
+            <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-[#00FF00]/10 rounded-full blur-[120px] animate-pulse"></div>
+            <div className="absolute bottom-[-30%] right-[-10%] w-[60%] h-[60%] bg-[#00FF00]/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
+            <div className="absolute top-[20%] right-[20%] w-5 h-5 bg-[#00FF00] rounded-full blur-sm animate-ping"></div>
+            <div className="absolute bottom-[30%] left-[20%] w-3 h-3 bg-[#00FF00] rounded-full blur-sm animate-ping" style={{ animationDelay: '2s' }}></div>
             <div className="absolute top-[50%] left-[50%] w-4 h-4 bg-white rounded-full blur-sm animate-ping" style={{ animationDelay: '1.5s' }}></div>
-            <div className="absolute top-[5%] left-[15%] w-1 h-10 bg-vegas-gold/50 rounded-full animate-[pulse_4s_infinite]"></div>
-            <div className="absolute top-[80%] right-[15%] w-1 h-10 bg-vegas-gold/50 rounded-full animate-[pulse_5s_infinite]"></div>
+            <div className="absolute top-[5%] left-[15%] w-1 h-10 bg-[#00FF00]/50 rounded-full animate-[pulse_4s_infinite]"></div>
+            <div className="absolute top-[80%] right-[15%] w-1 h-10 bg-[#00FF00]/50 rounded-full animate-[pulse_5s_infinite]"></div>
           </div>
           
           <div className="container mx-auto relative z-10">
             <div className="text-center mb-16 max-w-3xl mx-auto">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-vegas-gold via-yellow-200 to-vegas-gold">
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-[#00FF00] via-[#A3FFA3] to-[#00FF00]">
                 Escolha o plano ideal para você
               </h1>
-              <div className="h-1 w-24 bg-gradient-to-r from-vegas-gold/0 via-vegas-gold to-vegas-gold/0 mx-auto mb-6"></div>
+              <div className="h-1 w-24 bg-gradient-to-r from-[#00FF00]/0 via-[#00FF00] to-[#00FF00]/0 mx-auto mb-6"></div>
               <p className="text-lg text-gray-400">
                 Assine e tenha acesso a todos os recursos da plataforma que vão transformar sua experiência.
               </p>
@@ -870,25 +870,25 @@ const PlansPage = () => {
                 >
                   {/* Card backdrop glow */}
                   <div className={`absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
-                    plan.id === 'pro' ? 'bg-vegas-gold/20' : 'bg-vegas-gold/10'
+                    plan.id === 'pro' ? 'bg-[#00FF00]/20' : 'bg-[#00FF00]/10'
                   } blur-xl -z-10`}></div>
                   
                   {/* Card */}
                   <div className={`rounded-2xl overflow-hidden transition-all duration-300 shadow-[0_0_60px_rgba(0,0,0,0.3)] backdrop-blur-sm ${
                     currentPlan?.id === plan.id 
-                      ? 'bg-gradient-to-br from-neutral-900/95 to-neutral-800/95 border border-vegas-gold' 
+                      ? 'bg-gradient-to-br from-neutral-900/95 to-neutral-800/95 border border-[#00FF00]' 
                       : plan.id === 'pro' 
-                        ? 'bg-gradient-to-br from-neutral-900/95 to-neutral-800/95 border border-vegas-gold/50' 
+                        ? 'bg-gradient-to-br from-neutral-900/95 to-neutral-800/95 border border-[#00FF00]/50' 
                         : 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border border-neutral-700/50'
                   }`}>
                     {/* Destaque do plano recomendado */}
                     {plan.id === 'pro' && (
                       <div className="absolute -right-1 -top-1 z-10">
                         <div className="relative">
-                          <div className="bg-vegas-gold text-black text-xs font-bold px-5 py-1 rounded-br-lg rounded-tl-lg shadow-lg transform rotate-0">
+                          <div className="bg-[#00FF00] text-black text-xs font-bold px-5 py-1 rounded-br-lg rounded-tl-lg shadow-lg transform rotate-0">
                             RECOMENDADO
                           </div>
-                          <div className="absolute -bottom-1 -left-4 w-4 h-4 bg-vegas-gold/80 clip-path-triangle"></div>
+                          <div className="absolute -bottom-1 -left-4 w-4 h-4 bg-[#00FF00]/80 clip-path-triangle"></div>
                         </div>
                       </div>
                     )}
@@ -896,7 +896,7 @@ const PlansPage = () => {
                     <div className="p-8">
                       <div className="mb-8">
                         <span className={`text-sm uppercase tracking-widest font-medium ${
-                          plan.id === 'pro' ? 'text-vegas-gold' : 'text-gray-400'
+                          plan.id === 'pro' ? 'text-[#00FF00]' : 'text-gray-400'
                         }`}>
                           {plan.name}
                         </span>
@@ -904,7 +904,7 @@ const PlansPage = () => {
                         <div className="mt-4 flex items-end">
                           <div className={`rounded-lg py-2 px-4 inline-block ${
                             plan.id === 'pro'
-                              ? 'bg-vegas-gold/20 shadow-[0_0_15px_rgba(212,175,55,0.15)]'
+                              ? 'bg-[#00FF00]/20 shadow-[0_0_15px_rgba(0,255,0,0.15)]'
                               : 'bg-neutral-800/80'
                           }`}>
                             <span className="text-4xl font-bold text-white">
@@ -929,11 +929,11 @@ const PlansPage = () => {
                             <li key={idx} className="flex items-start">
                               <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mr-3 mt-0.5 ${
                                 plan.id === 'pro' 
-                                  ? 'bg-vegas-gold/20' 
+                                  ? 'bg-[#00FF00]/20' 
                                   : 'bg-neutral-800'
                               }`}>
                                 <Check className={`h-3 w-3 ${
-                                  plan.id === 'pro' ? 'text-vegas-gold' : 'text-gray-400'
+                                  plan.id === 'pro' ? 'text-[#00FF00]' : 'text-gray-400'
                                 }`} />
                               </div>
                               <span className="text-sm text-gray-300">{feature}</span>
@@ -948,8 +948,8 @@ const PlansPage = () => {
                           currentPlan?.id === plan.id 
                             ? "bg-neutral-700 hover:bg-neutral-600 text-gray-300 cursor-not-allowed" 
                             : plan.id === 'pro'
-                              ? "bg-gradient-to-r from-vegas-gold/90 to-yellow-600/90 hover:from-vegas-gold hover:to-yellow-600 text-black shadow-[0_0_20px_rgba(212,175,55,0.3)]"
-                              : "bg-neutral-800 hover:bg-neutral-700 text-vegas-gold border border-vegas-gold/30"
+                              ? "bg-gradient-to-r from-[#00FF00]/90 to-[#A3FFA3]/90 hover:from-[#00FF00] hover:to-[#A3FFA3] text-black shadow-[0_0_20px_rgba(0,255,0,0.3)]"
+                              : "bg-neutral-800 hover:bg-neutral-700 text-[#00FF00] border border-[#00FF00]/30"
                         }`}
                         disabled={currentPlan?.id === plan.id}
                       >
@@ -977,7 +977,7 @@ const PlansPage = () => {
             
             <div className="mt-20 max-w-4xl mx-auto">
               <div className="bg-gradient-to-br from-neutral-900/95 to-neutral-800/95 rounded-2xl p-8 border border-neutral-700/50 backdrop-blur-sm shadow-[0_0_60px_rgba(0,0,0,0.3)]">
-                <h2 className="text-2xl font-bold mb-6 text-vegas-gold">Dúvidas Frequentes</h2>
+                <h2 className="text-2xl font-bold mb-6 text-[#00FF00]">Dúvidas Frequentes</h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
