@@ -97,73 +97,106 @@ export function PixPayment({
           </div>
           
           {/* QR Code */}
-          <div className="bg-white p-4 rounded-lg">
+          <div className="bg-white p-6 rounded-lg shadow-inner">
             {qrCodeImage && qrCodeImage.length > 100 ? (
-              <img 
-                src={qrCodeImage.startsWith('data:') ? qrCodeImage : `data:image/png;base64,${qrCodeImage}`} 
-                alt="QR Code PIX" 
-                className="w-48 h-48 mx-auto"
-                onError={(e) => {
-                  console.error('Erro ao carregar imagem QR code:', e);
-                  // Mostrar feedback visual em caso de erro na imagem
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.parentElement?.classList.add('error-loading-qr');
-                }}
-              />
-            ) : (
-              <div className="w-48 h-48 flex flex-col items-center justify-center bg-gray-100">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400 mb-2" />
-                <p className="text-xs text-gray-500">
-                  {qrCodeImage ? 'QR Code inválido ou incompleto' : 'Carregando QR Code...'}
+              <div className="flex flex-col items-center">
+                <img 
+                  src={qrCodeImage.startsWith('data:') ? qrCodeImage : `data:image/png;base64,${qrCodeImage}`} 
+                  alt="QR Code PIX" 
+                  className="w-52 h-52 mx-auto border-2 border-gray-100 rounded-lg p-2"
+                  onError={(e) => {
+                    console.error('Erro ao carregar imagem QR code:', e);
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.parentElement?.classList.add('error-loading-qr');
+                  }}
+                />
+                <p className="text-sm font-medium text-gray-700 mt-3">
+                  Escaneie o QR code com o aplicativo do seu banco
                 </p>
-                {qrCodeImage && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Tamanho: {qrCodeImage.length} caracteres
-                  </p>
+              </div>
+            ) : (
+              <div className="w-52 h-52 flex flex-col items-center justify-center bg-gray-50 rounded-lg border border-gray-200 mx-auto">
+                {remoteLoadingAnimation ? (
+                  <div className="w-20 h-20 mb-2">
+                    <Lottie animationData={remoteLoadingAnimation} loop={true} />
+                  </div>
+                ) : (
+                  <Loader2 className="h-10 w-10 animate-spin text-gray-400 mb-2" />
                 )}
+                <p className="text-sm text-gray-600 font-medium">
+                  Preparando QR Code...
+                </p>
               </div>
             )}
           </div>
           
           {/* Temporizador */}
           {expirationTime && (
-            <div className="text-center text-sm text-gray-500">
-              Tempo restante: <span className="font-semibold">{expirationTime}</span>
+            <div className="text-center py-2 px-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg max-w-md">
+              <p className="text-yellow-800 dark:text-yellow-200 text-sm font-medium">
+                Tempo restante: <span className="font-bold">{expirationTime}</span>
+              </p>
             </div>
           )}
           
           {/* Instruções */}
-          <div className="text-center text-sm text-gray-600 dark:text-gray-400 space-y-2 w-full">
-            <p>1. Abra o aplicativo do seu banco</p>
-            <p>2. Escolha pagar via PIX com QR Code</p>
-            <p>3. Escaneie o código acima ou copie o código</p>
-            <p>4. Confirme o pagamento no app do seu banco</p>
+          <div className="w-full max-w-md bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-100 dark:border-gray-700">
+            <h4 className="font-medium text-center mb-3 text-gray-700 dark:text-gray-300">Como pagar com PIX</h4>
+            <div className="space-y-3">
+              <div className="flex items-start">
+                <div className="bg-vegas-gold text-black rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mr-2">
+                  <span className="text-sm font-bold">1</span>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300">Abra o aplicativo do seu banco</p>
+              </div>
+              
+              <div className="flex items-start">
+                <div className="bg-vegas-gold text-black rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mr-2">
+                  <span className="text-sm font-bold">2</span>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300">Escolha a opção de pagar com QR Code PIX</p>
+              </div>
+              
+              <div className="flex items-start">
+                <div className="bg-vegas-gold text-black rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mr-2">
+                  <span className="text-sm font-bold">3</span>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300">Escaneie o código acima ou use o código PIX copiado</p>
+              </div>
+              
+              <div className="flex items-start">
+                <div className="bg-vegas-gold text-black rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mr-2">
+                  <span className="text-sm font-bold">4</span>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300">Confirme o pagamento e aguarde a confirmação automática</p>
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>
       
-      <CardFooter className="flex flex-col gap-2">
+      <CardFooter className="flex flex-col gap-3">
         <Button
           onClick={copyToClipboard}
           variant="outline"
-          className="w-full flex items-center justify-center gap-2"
+          className="w-full flex items-center justify-center gap-2 border-vegas-gold/60 hover:bg-vegas-gold/10 hover:border-vegas-gold"
         >
-          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          {copied ? "Copiado!" : "Copiar código PIX"}
+          {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4 text-vegas-gold" />}
+          {copied ? "Código PIX copiado!" : "Copiar código PIX"}
         </Button>
         
         <Button
           onClick={onRefreshStatus}
           variant="secondary"
           disabled={isRefreshing}
-          className="w-full flex items-center justify-center gap-2"
+          className="w-full flex items-center justify-center gap-2 bg-vegas-gold/10 hover:bg-vegas-gold/20 text-vegas-gold border border-vegas-gold/30"
         >
           {isRefreshing ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          {isRefreshing ? "Verificando..." : "Verificar pagamento"}
+          {isRefreshing ? "Verificando pagamento..." : "Verificar status do pagamento"}
         </Button>
       </CardFooter>
     </Card>
