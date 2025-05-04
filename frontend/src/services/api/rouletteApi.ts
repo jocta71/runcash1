@@ -3,8 +3,6 @@ import { ENDPOINTS } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
 // Importar dados mockados
 import mockRouletteData from '../../assets/data/mockRoulettes.json';
-import { ApiResponse } from '../types/apiTypes';
-import { decryptApiData } from '../../utils/decryptionUtils';
 
 // Tipo para resposta de erro
 interface ApiErrorResponse {
@@ -46,13 +44,10 @@ export const RouletteApi = {
         };
       }
       
-      // Descriptografar a resposta (se estiver criptografada)
-      const decryptedData = await decryptApiData(response.data);
-      
       // Verificar se a resposta é um array diretamente ou está em um campo 'data'
-      const roulettes = Array.isArray(decryptedData) 
-        ? decryptedData 
-        : (decryptedData.data ? decryptedData.data : []);
+      const roulettes = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data.data ? response.data.data : []);
       
       console.log(`[API] ✅ Obtidas ${roulettes.length} roletas`);
       
@@ -60,10 +55,7 @@ export const RouletteApi = {
       const processedRoulettes = roulettes.map((roulette: any) => {
         // Garantir que temos o campo roleta_id em cada objeto
         if (!roulette.roleta_id && roulette._id) {
-          const numericId = typeof roulette._id === 'string' 
-            ? roulette._id.replace(/[^0-9]/g, '').substring(0, 8) 
-            : Math.floor(Math.random() * 1000000).toString();
-          
+          const numericId = getNumericId(roulette._id);
           console.log(`[API] Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
           roulette.roleta_id = numericId;
         }
@@ -266,89 +258,6 @@ export const RouletteApi = {
         error: true,
         code: 'FETCH_ERROR',
         message: error.response?.data?.message || error.message || 'Erro ao buscar histórico da roleta',
-        statusCode: error.response?.status || 500
-      };
-    }
-  },
-  
-  /**
-   * Busca detalhes de uma roleta específica
-   * @param id ID da roleta
-   * @returns Resposta da API com os detalhes da roleta ou erro
-   */
-  async fetchRouletteDetails(id: string): Promise<ApiResponse<any>> {
-    try {
-      console.log(`[API] Buscando detalhes da roleta: ${id}`);
-      const response = await axios.get(`${ENDPOINTS.ROULETTES}/${id}`);
-      
-      if (!response.data) {
-        console.error('[API] Resposta inválida da API para detalhes da roleta:', response.data);
-        return {
-          error: true,
-          code: 'INVALID_RESPONSE',
-          message: 'Resposta inválida da API',
-          statusCode: response.status
-        };
-      }
-      
-      // Descriptografar a resposta (se estiver criptografada)
-      const decryptedData = await decryptApiData(response.data);
-      
-      console.log(`[API] ✅ Obtidos detalhes da roleta ${id}`);
-      
-      return {
-        error: false,
-        data: decryptedData
-      };
-    } catch (error: any) {
-      console.error(`[API] Erro ao buscar detalhes da roleta ${id}:`, error);
-      
-      return {
-        error: true,
-        code: 'FETCH_ERROR',
-        message: error.response?.data?.message || error.message || `Erro ao buscar detalhes da roleta ${id}`,
-        statusCode: error.response?.status || 500
-      };
-    }
-  },
-  
-  /**
-   * Busca os números recentes de uma roleta
-   * @param id ID da roleta
-   * @param limit Limite de números a retornar
-   * @returns Resposta da API com os números da roleta ou erro
-   */
-  async fetchRouletteNumbers(id: string, limit: number = 50): Promise<ApiResponse<any>> {
-    try {
-      console.log(`[API] Buscando números da roleta: ${id} (limite: ${limit})`);
-      const response = await axios.get(`${ENDPOINTS.ROULETTES}/${id}/numbers?limit=${limit}`);
-      
-      if (!response.data) {
-        console.error('[API] Resposta inválida da API para números da roleta:', response.data);
-        return {
-          error: true,
-          code: 'INVALID_RESPONSE',
-          message: 'Resposta inválida da API',
-          statusCode: response.status
-        };
-      }
-      
-      // Descriptografar a resposta (se estiver criptografada)
-      const decryptedData = await decryptApiData(response.data);
-      
-      console.log(`[API] ✅ Obtidos ${decryptedData.numbers?.length || 0} números da roleta ${id}`);
-      
-      return {
-        error: false,
-        data: decryptedData
-      };
-    } catch (error: any) {
-      console.error(`[API] Erro ao buscar números da roleta ${id}:`, error);
-      
-      return {
-        error: true,
-        code: 'FETCH_ERROR',
-        message: error.response?.data?.message || error.message || `Erro ao buscar números da roleta ${id}`,
         statusCode: error.response?.status || 500
       };
     }

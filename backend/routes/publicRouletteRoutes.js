@@ -35,15 +35,16 @@ async function connectToMongoDB() {
   }
 }
 
+// Tentar conectar ao iniciar
+connectToMongoDB();
+
 /**
  * @route   GET /api/roulettes
- * @desc    Lista todas as roletas disponíveis (pública com dados criptografados)
+ * @desc    Lista todas as roletas disponíveis (agora pública com dados criptografados)
  * @access  Público
  */
 router.get('/roulettes', encryptResponseData, async (req, res) => {
   try {
-    console.log(`[API] Acesso à rota pública /api/roulettes com dados criptografados`);
-    
     // Garantir que estamos conectados ao MongoDB
     const isConnected = await connectToMongoDB();
     
@@ -58,7 +59,7 @@ router.get('/roulettes', encryptResponseData, async (req, res) => {
       { $project: { _id: 0, id: 1, nome: "$_id" } }
     ]).toArray();
     
-    console.log(`[API] Processadas ${roulettes.length} roletas (endpoint público criptografado)`);
+    console.log(`[API] Processadas ${roulettes.length} roletas (endpoint público)`);
     
     // Retornar dados (serão criptografados pelo middleware encryptResponseData)
     return res.json(roulettes);
@@ -74,7 +75,7 @@ router.get('/roulettes', encryptResponseData, async (req, res) => {
 
 /**
  * @route   GET /api/roulettes/:id
- * @desc    Obtém dados de uma roleta específica (com dados criptografados)
+ * @desc    Obtém dados de uma roleta específica
  * @access  Público
  */
 router.get('/roulettes/:id', encryptResponseData, async (req, res) => {

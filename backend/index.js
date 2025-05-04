@@ -36,22 +36,121 @@ try {
 // Inicializar Express para a API principal
 const app = express();
 
-// Middleware para logging da rota /api/roulettes (agora pública)
-app.use((req, res, next) => {
-  // Verificar se é a rota pública de roletas
+// FIREWALL CONDICIONAL NA RAIZ DO SERVIDOR: Bloqueio da rota /api/roulettes apenas para não-assinantes
+// Este middleware é executado ANTES de qualquer outra configuração
+app.use(async (req, res, next) => {
+  // Verificar se o caminho é exatamente /api/roulettes (completo ou normalizado)
   const path = req.originalUrl || req.url;
   const pathLower = path.toLowerCase();
   
+  // Verificar todas as variações possíveis da rota (case insensitive)
   if (pathLower === '/api/roulettes' || 
       pathLower === '/api/roulettes/' ||
       pathLower.startsWith('/api/roulettes?') ||
-      pathLower.startsWith('/api/roulettes/')) {
-    const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[API ${requestId}] Acesso à rota pública de roletas: ${path}`);
-    console.log(`[API ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
+      path === '/api/ROULETTES' ||
+      path === '/api/ROULETTES/' ||
+      path.startsWith('/api/ROULETTES?')) {
+    
+    // Gerar ID único para rastreamento do log
+    const requestId = crypto.randomUUID();
+    
+    // Verificar se o usuário está autenticado
+    const authHeader = req.headers.authorization;
+    const cookies = req.cookies || {};
+    
+    // Tentar obter token do header de autorização ou do cookie
+    let token = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+      console.log(`Headers de auth: ${authHeader}`);
+    } else if (cookies.token) {
+      token = cookies.token;
+    }
+    
+    console.log(`Cookies disponíveis: ${JSON.stringify(cookies)}`);
+    
+    if (!token) {
+      // Usuário não autenticado - bloquear acesso
+      console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO: Acesso não autenticado à rota ${path}`);
+      console.log(`[FIREWALL ROOT ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+      console.log(`[FIREWALL ROOT ${requestId}] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress}`);
+      console.log(`[FIREWALL ROOT ${requestId}] User-Agent: ${req.headers['user-agent']}`);
+      console.log(`[FIREWALL ROOT ${requestId}] Timestamp: ${new Date().toISOString()}`);
+      
+      // Aplicar cabeçalhos CORS explicitamente
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      
+      // Retornar resposta 401 Unauthorized
+      return res.status(401).json({
+        success: false,
+        message: 'Autenticação necessária para acessar este recurso.',
+        code: 'AUTHENTICATION_REQUIRED',
+        requestId: requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    try {
+      // Verificar token
+      console.log(`Token encontrado no header: ${token.substring(0, 15)}...`);
+      const decoded = jwt.verify(token, JWT_SECRET);
+      
+      // Definir informações do usuário na requisição
+      req.user = decoded;
+      console.log(`Token verificado com sucesso, usuário: ${req.user.id}`);
+      
+      // Importar e usar o middleware de verificação de assinatura
+      const { checkSubscription } = require('./middleware/subscriptionCheck');
+      
+      // Criar uma função para simular o middleware Express com promessa
+      const checkSubscriptionPromise = () => {
+        return new Promise((resolve, reject) => {
+          // Simular os objetos req/res/next do Express
+          const nextFunction = () => {
+            resolve(true); // Se o middleware chama next(), significa que o usuário pode acessar
+          };
+          
+          const resObject = {
+            status: (code) => ({
+              json: (data) => {
+                resolve({ code, data }); // Retorna o código e dados se o middleware bloquear
+              }
+            })
+          };
+          
+          // Chamar o middleware
+          checkSubscription(req, resObject, nextFunction).catch(reject);
+        });
+      };
+      
+      // Executar a verificação de assinatura
+      const result = await checkSubscriptionPromise();
+      
+      // Se o resultado for true, significa que o usuário passou na verificação
+      if (result === true) {
+        return next();
+      } else {
+        // Se não, retornar a resposta apropriada
+        return res.status(result.code).json(result.data);
+      }
+    } catch (error) {
+      console.error(`[FIREWALL ROOT ${requestId}] Erro ao verificar token:`, error);
+      
+      return res.status(401).json({
+        success: false,
+        message: 'Token de autenticação inválido ou expirado.',
+        code: 'INVALID_TOKEN',
+        requestId: requestId,
+        timestamp: new Date().toISOString()
+      });
+    }
   }
   
-  // Sempre continuar para o próximo middleware
+  // Se não for a rota específica, continuar para o próximo middleware
   next();
 });
 
@@ -89,15 +188,6 @@ if (fs.existsSync(apiIndexPath)) {
   
   // Importar algumas rotas diretas da API, se disponíveis
   try {
-    // Carregar as rotas públicas de roleta PRIMEIRO (sem autenticação)
-    try {
-      const publicRouletteRoutes = require('./routes/publicRouletteRoutes');
-      app.use('/api', publicRouletteRoutes);
-      console.log('Rotas PÚBLICAS de roleta carregadas com sucesso');
-    } catch (err) {
-      console.log('Erro ao carregar rotas públicas de roleta:', err.message);
-    }
-    
     if (fs.existsSync(path.join(__dirname, 'api', 'routes'))) {
       // Tentar carregar rotas individuais
       try {
@@ -117,8 +207,7 @@ if (fs.existsSync(apiIndexPath)) {
       }
     }
     
-    // Carregar rotas de roleta do diretório principal - NÃO REMOVER
-    // As rotas públicas em publicRouletteRoutes têm precedência, mas mantemos esta para outras rotas
+    // Carregar rotas de roleta do diretório principal
     try {
       const rouletteRoutes = require('./routes/rouletteRoutes');
       app.use('/api', rouletteRoutes);

@@ -45,15 +45,34 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middleware para logging da rota /api/roulettes (agora pública)
+// Middleware específico para bloquear APENAS a rota /api/roulettes
 app.use((req, res, next) => {
-  // Verificar se é a rota pública de roletas
+  // Verificar se é exatamente a rota que queremos bloquear
   if (req.path === '/api/roulettes' || req.path === '/api/roulettes/') {
     const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[API ${requestId}] Acesso à rota pública de dados criptografados /api/roulettes`);
+    console.log(`[FIREWALL ${requestId}] Bloqueando acesso à rota desativada /api/roulettes`);
+    console.log(`[FIREWALL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[FIREWALL ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
+    
+    // Aplicar cabeçalhos CORS explicitamente para esta rota
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    
+    // Retornar resposta indicando que a rota foi desativada
+    return res.status(403).json({
+      success: false,
+      message: 'Esta rota foi desativada por motivos de segurança',
+      code: 'ENDPOINT_DISABLED',
+      requestId: requestId,
+      alternativeEndpoints: [
+        '/api/roletas',
+        '/api/ROULETTES'
+      ],
+      timestamp: new Date().toISOString()
+    });
   }
   
-  // Sempre continuar para o próximo middleware
   next();
 });
 
@@ -88,10 +107,6 @@ app.use(express.json());
 app.use(cors());
 app.use(requestLogger()); // Middleware de log
 
-// Adicionar as rotas públicas de roletas criptografadas ANTES de quaisquer bloqueios de proteção
-app.use('/api', publicRouletteRoutes);
-console.log('✅ Rotas públicas de roletas com criptografia registradas');
-
 // Aplicar proteção avançada (rate limiting, verificação de token, etc)
 app.use(apiProtectionShield({
   ipRateLimit: 60,           // 60 requisições por minuto por IP
@@ -100,8 +115,8 @@ app.use(apiProtectionShield({
   strictTokenTimeCheck: true // Verificação rigorosa do tempo do token
 }));
 
-// Aplicar bloqueio de acesso direto via navegador para rotas protegidas de roleta (exceto a pública)
-app.use(['/api/ROULETTES', '/api/roletas'], blockBrowserAccess());
+// Aplicar bloqueio de acesso direto via navegador para todas as rotas de roleta
+app.use(['/api/roulettes', '/api/ROULETTES', '/api/roletas'], blockBrowserAccess());
 
 // Security enforcer para rotas protegidas
 app.use(securityEnforcer());
@@ -231,43 +246,12 @@ app.use((req, res, next) => {
   const fullPath = req.originalUrl || req.url || req.path;
   const requestId = Math.random().toString(36).substring(2, 15);
   
-  // Verificar se é a rota pública de roletas (permitida)
-  if (fullPath === '/api/roulettes' || fullPath.startsWith('/api/roulettes/')) {
-    console.log(`[API ${requestId}] Acesso à nova rota pública de roleta com criptografia: ${fullPath}`);
-    return next(); // Permitir acesso a esta rota específica
+  // Registrar acesso aos endpoints de roleta, mas não bloquear
+  if (fullPath === '/api/roulettes') {
+    console.log(`[API ${requestId}] Acesso à nova rota pública de roleta: ${fullPath}`);
   }
   
-  // Verificar TODAS as outras rotas de roleta, exceto a pública que já permitimos acima
-  const isProtectedRouletteRequest = (
-    fullPath.includes('/api/ROULETTES') || 
-    fullPath.includes('/api/roletas') ||
-    /\/api\/ROULETTES.*/.test(fullPath) ||
-    /\/api\/roletas.*/.test(fullPath) ||
-    // Verificação especial para parâmetros _I, _t e qualquer outro
-    fullPath.match(/\/api\/.*_[It]=/) ||
-    // Verificação para variações numéricas
-    fullPath.match(/\/api\/.*ROULETTES\d+/) ||
-    fullPath.match(/\/api\/.*roletas\d+/)
-  );
-  
-  // Verificar se requer autenticação para rotas protegidas
-  if (isProtectedRouletteRequest) {
-    // Verificar se há token de autorização
-    const hasAuth = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
-    if (!hasAuth) {
-      console.log(`[FIREWALL ${requestId}] BLOQUEIO: Requisição sem token para endpoint de roleta protegido`);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso negado - Autenticação obrigatória para este endpoint',
-        code: 'FIREWALL_BLOCK',
-        path: fullPath,
-        alternativeEndpoint: '/api/roulettes',
-        requestId: requestId
-      });
-    }
-  }
-  
-  // Continuar para o próximo middleware em todos os outros casos
+  // Continuar para o próximo middleware em todos os casos
   next();
 });
 
@@ -582,6 +566,9 @@ app.get('/api/status', (req, res) => {
     version: '1.0.0'
   });
 });
+
+// Adicionar as rotas públicas de roletas
+app.use('/api', publicRouletteRoutes);
 
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
 app.get('/api/ROULETTES',

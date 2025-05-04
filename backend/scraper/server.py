@@ -12,12 +12,10 @@ import time
 import threading
 import logging
 import queue
-import hashlib
-import hmac
-import base64
 from datetime import datetime
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
+import hashlib
 import uuid
 
 # Importações locais
@@ -39,51 +37,6 @@ CORS(app, resources={r"/api/*": {"origins": allowed_origins.split(','), "support
 # Fonte de dados
 data_source = MongoDataSource()
 
-# Chave de criptografia - deve ser a mesma usada no backend Node.js
-DATA_ENCRYPTION_KEY = os.environ.get('DATA_ENCRYPTION_KEY', 'runcashh_data_encryption_secret_key_32ch')
-
-def encrypt_data(data):
-    """
-    Criptografa os dados usando HMAC para simular o comportamento do Iron seal
-    """
-    try:
-        # Adicionar timestamp para evitar replay attacks
-        payload = {
-            "data": data,
-            "timestamp": datetime.now().timestamp() * 1000
-        }
-        
-        # Converter payload para string JSON
-        payload_str = json.dumps(payload)
-        
-        # Criptografar - aqui usamos uma versão simplificada com HMAC
-        # Na versão real, você usaria algo como Iron.seal
-        digest = hmac.new(
-            DATA_ENCRYPTION_KEY.encode(), 
-            payload_str.encode(), 
-            hashlib.sha256
-        ).digest()
-        
-        # Codificar em base64
-        hmac_b64 = base64.b64encode(digest).decode()
-        payload_b64 = base64.b64encode(payload_str.encode()).decode()
-        
-        # Retornar formato compatível com o frontend
-        encrypted_data = f"{hmac_b64}.{payload_b64}"
-        
-        # Criar ID para debugging
-        request_id = uuid.uuid4().hex[:8]
-        
-        return {
-            "_encryption": "Fe26.2",
-            "data": encrypted_data,
-            "requestId": request_id,
-            "timestamp": datetime.now().timestamp() * 1000
-        }
-    except Exception as e:
-        logger.error(f"Erro ao criptografar dados: {str(e)}")
-        return {"error": "Erro de criptografia", "message": str(e)}
-
 @app.route('/api/status')
 def api_status():
     """Endpoint para verificar se a API está online"""
@@ -101,40 +54,153 @@ def get_roletas():
 
 @app.route('/api/roulettes', methods=['GET'])
 def get_roulettes():
-    """Retorna todos os dados de roleta disponíveis - criptografados"""
+    """Verifica assinatura Asaas e retorna roletas apenas para assinantes válidos"""
+    # Obter token de autorização
+    auth_header = request.headers.get('Authorization')
     request_id = str(uuid.uuid4())
     
-    # Log de acesso
-    logger.info(f"[API {request_id}] Acesso à rota pública /api/roulettes (criptografada)")
-    logger.info(f"[API {request_id}] IP: {request.remote_addr}")
+    # Verificar se o header de autorização está presente
+    if not auth_header or not auth_header.startswith('Bearer '):
+        # Registrar tentativa de acesso não autenticado
+        logger.warning(f"[AUTH {request_id}] Acesso não autenticado à rota /api/roulettes")
+        logger.warning(f"[AUTH {request_id}] Headers: {request.headers}")
+        logger.warning(f"[AUTH {request_id}] IP: {request.remote_addr}")
+        
+        # Retornar resposta 401 Unauthorized
+        response = jsonify({
+            "success": False,
+            "message": "Autenticação necessária para acessar este recurso.",
+            "code": "AUTHENTICATION_REQUIRED",
+            "requestId": request_id,
+            "timestamp": datetime.now().isoformat()
+        })
+        response.status_code = 401
+        return response
+    
+    # Extrair token
+    token = auth_header.split(' ')[1]
     
     try:
-        # Buscar todas as roletas da base de dados
+        # Verificar JWT (usando biblioteca específica ou função externa)
+        jwt_secret = os.environ.get('JWT_SECRET', 'runcash_jwt_secret_key_2023')
+        import jwt
+        decoded = jwt.decode(token, jwt_secret, algorithms=['HS256'])
+        
+        # Verificar se há customerId no token
+        customer_id = decoded.get('customerId')
+        if not customer_id:
+            # Buscar customerId no banco de dados
+            user_id = decoded.get('id')
+            if user_id:
+                user = data_source.db.users.find_one({'id': user_id})
+                if user and 'customerId' in user:
+                    customer_id = user['customerId']
+        
+        # Se não encontrou customerId, negar acesso
+        if not customer_id:
+            logger.warning(f"[AUTH {request_id}] Usuário sem ID Asaas: {decoded.get('id')}")
+            response = jsonify({
+                "success": False,
+                "message": "Assinatura necessária para acessar este recurso.",
+                "code": "SUBSCRIPTION_REQUIRED",
+                "requestId": request_id,
+                "timestamp": datetime.now().isoformat()
+            })
+            response.status_code = 403
+            return response
+        
+        # Verificar assinatura Asaas no banco de dados
+        subscription = data_source.db.subscriptions.find_one({
+            'customer_id': customer_id,
+            'status': 'ACTIVE'
+        })
+        
+        # Se não encontrou assinatura ativa, negar acesso
+        if not subscription:
+            logger.warning(f"[AUTH {request_id}] Sem assinatura ativa para: {customer_id}")
+            response = jsonify({
+                "success": False,
+                "message": "Assinatura ativa necessária para acessar este recurso.",
+                "code": "ACTIVE_SUBSCRIPTION_REQUIRED",
+                "requestId": request_id,
+                "timestamp": datetime.now().isoformat()
+            })
+            response.status_code = 403
+            return response
+        
+        # Assinatura ativa verificada, retornar roletas
+        logger.info(f"[AUTH {request_id}] Assinatura verificada para: {customer_id}")
+        
+        # Buscar roletas com base no plano do usuário
+        plan_type = subscription.get('plan_type', 'BASIC').upper()
+        
+        # Definir limite com base no plano
+        limit = 5  # Default
+        if plan_type == 'BASIC':
+            limit = 15
+        elif plan_type == 'PRO':
+            limit = 50
+        elif plan_type == 'PREMIUM':
+            limit = None  # Sem limite
+        
+        # Buscar todas as roletas
         roletas = list(data_source.db.roletas.find({}, {'_id': 0}))
         
-        # Preparar a resposta
-        response_data = {
+        # Limitar conforme o plano (exceto PREMIUM)
+        if limit is not None:
+            roletas = roletas[:limit]
+        
+        return jsonify({
             "success": True,
             "data": roletas,
             "count": len(roletas),
+            "plan": plan_type,
             "timestamp": datetime.now().isoformat()
-        }
-        
-        # Criptografar a resposta
-        encrypted_response = encrypt_data(response_data)
-        return jsonify(encrypted_response)
+        })
     
     except Exception as e:
-        logger.error(f"[API {request_id}] Erro ao buscar roletas: {str(e)}")
+        logger.error(f"[AUTH {request_id}] Erro ao verificar token/assinatura: {str(e)}")
         response = jsonify({
             "success": False,
-            "message": "Erro ao buscar roletas",
+            "message": "Erro ao verificar autenticação ou assinatura.",
+            "code": "AUTH_ERROR",
             "error": str(e),
             "requestId": request_id,
             "timestamp": datetime.now().isoformat()
         })
-        response.status_code = 500
+        response.status_code = 401
         return response
+
+@app.route('/api/ROULETTES', methods=['GET'])
+def get_roulettes_uppercase():
+    """Rota desativada (versão maiúscula) - Retorna 403 Forbidden por questões de segurança"""
+    # Gerar um ID único para rastreamento nos logs
+    request_id = str(uuid.uuid4())
+    
+    # Registrar tentativa de acesso à rota bloqueada
+    logger.warning(f"[FIREWALL {request_id}] Bloqueando acesso à rota desativada: /api/ROULETTES")
+    logger.warning(f"[FIREWALL {request_id}] Headers: {request.headers}")
+    logger.warning(f"[FIREWALL {request_id}] IP: {request.remote_addr}")
+    logger.warning(f"[FIREWALL {request_id}] User-Agent: {request.user_agent}")
+    logger.warning(f"[FIREWALL {request_id}] Timestamp: {datetime.now().isoformat()}")
+    
+    # Retornar resposta 403 Forbidden com mensagem clara
+    response = jsonify({
+        "success": False,
+        "message": "Esta rota foi desativada por razões de segurança.",
+        "code": "ROUTE_DISABLED",
+        "requestId": request_id,
+        "alternativeEndpoints": ["/api/roletas"],
+        "timestamp": datetime.now().isoformat()
+    })
+    
+    # Configurar cabeçalhos CORS explicitamente para esta resposta
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+    response.status_code = 403
+    
+    return response
 
 @app.route('/api/roletas/<roleta_id>', methods=['GET'])
 def get_roleta(roleta_id):
@@ -146,21 +212,11 @@ def get_roleta(roleta_id):
 
 @app.route('/api/roulettes/<roulette_id>', methods=['GET'])
 def get_roulette(roulette_id):
-    """Returns information about a specific roulette by ID - encrypted"""
-    request_id = str(uuid.uuid4())
-    
-    try:
-        # Buscar roleta pelo ID
-        roulette = data_source.db.roletas.find_one({'id': roulette_id}, {'_id': 0})
-        if not roulette:
-            return jsonify({'error': 'Roulette not found'}), 404
-        
-        # Criptografar a resposta
-        encrypted_response = encrypt_data(roulette)
-        return jsonify(encrypted_response)
-    except Exception as e:
-        logger.error(f"[API {request_id}] Erro ao buscar roleta {roulette_id}: {str(e)}")
-        return jsonify({'error': f'Error fetching roulette: {str(e)}'}), 500
+    """Returns information about a specific roulette by ID"""
+    roulette = data_source.db.roletas.find_one({'id': roulette_id}, {'_id': 0})
+    if not roulette:
+        return jsonify({'error': 'Roulette not found'}), 404
+    return jsonify(roulette)
 
 @app.route('/api/roletas/<roleta_id>/numeros', methods=['GET'])
 def get_roleta_numeros(roleta_id):
@@ -207,54 +263,46 @@ def get_roleta_numeros(roleta_id):
 
 @app.route('/api/roulettes/<roulette_id>/numbers', methods=['GET'])
 def get_roulette_numbers(roulette_id):
-    """Returns the numbers of a specific roulette - encrypted"""
-    request_id = str(uuid.uuid4())
+    """Returns the numbers of a specific roulette"""
+    # Log the request
+    print(f"[API] Received request for roulette numbers: {roulette_id}")
     
-    try:
-        # Log the request
-        print(f"[API] Received request for roulette numbers: {roulette_id}")
-        
-        # Number of numbers to return
-        limit = int(request.args.get('limit', 50))
-        
-        # Check if the roulette exists
-        roulette = data_source.db.roletas.find_one({'id': roulette_id}, {'_id': 0})
-        if not roulette:
-            print(f"[API] Roulette not found by ID: {roulette_id}")
-            return jsonify({'error': 'Roulette not found'}), 404
-        
-        print(f"[API] Roulette found: {roulette['nome']}")
-        
-        # Get the roulette numbers
-        raw_numbers = data_source.obter_ultimos_numeros(roulette_id, limit)
-        print(f"[API] Raw numbers obtained: {len(raw_numbers)}")
-        
-        # Convert to format with more information
-        numbers = []
-        for i, num in enumerate(raw_numbers):
-            color = data_source.obter_cor_numero(num)
-            timestamp = data_source.obter_timestamp_numero(roulette_id, num, i)
-            numbers.append({
-                "numero": num,
-                "cor": color,
-                "timestamp": timestamp
-            })
-        
-        response = {
-            "roulette_id": roulette_id,
-            "roulette_name": roulette['nome'],
-            "numbers": numbers,
-            "total": len(numbers)
-        }
-        
-        print(f"[API] Formatted response for '{roulette['nome']}': {len(numbers)} numbers")
-        
-        # Criptografar a resposta
-        encrypted_response = encrypt_data(response)
-        return jsonify(encrypted_response)
-    except Exception as e:
-        logger.error(f"[API {request_id}] Erro ao buscar números da roleta {roulette_id}: {str(e)}")
-        return jsonify({'error': f'Error fetching roulette numbers: {str(e)}'}), 500
+    # Number of numbers to return
+    limit = int(request.args.get('limit', 50))
+    
+    # Remove UUID conversion and use original ID
+    # Check if the roulette exists
+    roulette = data_source.db.roletas.find_one({'id': roulette_id}, {'_id': 0})
+    if not roulette:
+        print(f"[API] Roulette not found by ID: {roulette_id}")
+        return jsonify({'error': 'Roulette not found'}), 404
+    
+    print(f"[API] Roulette found: {roulette['nome']}")
+    
+    # Get the roulette numbers
+    raw_numbers = data_source.obter_ultimos_numeros(roulette_id, limit)
+    print(f"[API] Raw numbers obtained: {len(raw_numbers)}")
+    
+    # Convert to format with more information
+    numbers = []
+    for i, num in enumerate(raw_numbers):
+        color = data_source.obter_cor_numero(num)
+        timestamp = data_source.obter_timestamp_numero(roulette_id, num, i)
+        numbers.append({
+            "numero": num,
+            "cor": color,
+            "timestamp": timestamp
+        })
+    
+    response = {
+        "roulette_id": roulette_id,
+        "roulette_name": roulette['nome'],
+        "numbers": numbers,
+        "total": len(numbers)
+    }
+    
+    print(f"[API] Formatted response for '{roulette['nome']}': {len(numbers)} numbers")
+    return jsonify(response)
 
 @app.route('/api/roletas/<roleta_id>/numeros', methods=['POST'])
 def add_roleta_numero(roleta_id):
