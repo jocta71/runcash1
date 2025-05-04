@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { Check, Loader2, ArrowLeft } from 'lucide-react';
+import { Check, Loader2, ArrowLeft, CheckCircle, CreditCard, Percent } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { Progress } from '@/components/ui/progress';
+import Lottie from 'lottie-react';
+
+// Importando as animações Lottie
+import paymentSuccessAnimation from '../assets/animations/payment-success.json';
+import loadingAnimation from '../assets/animations/loading-circle.json';
+import processingAnimation from '../assets/animations/processing-payment.json';
+import waitingAnimation from '../assets/animations/waiting-payment.json';
+import errorAnimation from '../assets/animations/error-payment.json';
 
 // Importando os componentes de checkout
 import { CheckoutForm } from '@/components/checkout/CheckoutForm';
@@ -305,7 +313,6 @@ const PlansPage = () => {
         'CONFIRMED', 
         'AVAILABLE',
         'BILLING_AVAILABLE',
-        // Adicionar outros status que possam indicar confirmação
         'APPROVED',
         'PAID'
       ];
@@ -340,10 +347,10 @@ const PlansPage = () => {
           description: "Seu pagamento foi confirmado com sucesso!",
         });
         
-        // Redirecionar para página de sucesso após 2 segundos
-        setTimeout(() => {
-          navigate('/payment-success');
-        }, 2000);
+        // Não redirecionar para outra página, manter no checkout
+        // setTimeout(() => {
+        //   navigate('/payment-success');
+        // }, 2000);
       } else if (payment && errorStatuses.includes(payment.status)) {
         console.log('Pagamento com problema:', payment.status);
         
@@ -529,14 +536,37 @@ const PlansPage = () => {
       // Log para depuração
       console.log('QR code na resposta da assinatura:', qrCodeFromResponse ? 'Presente' : 'Ausente');
       
+      // Lista de status que indicam pagamento confirmado
+      const confirmedStatuses = [
+        'RECEIVED', 
+        'CONFIRMED', 
+        'AVAILABLE',
+        'BILLING_AVAILABLE',
+        'APPROVED',
+        'PAID'
+      ];
+      
       // Se for plano gratuito, concluir diretamente
       if (selectedPlan.id === 'free') {
         toast({
           title: "Plano ativado com sucesso!",
           description: "Seu plano foi ativado com sucesso.",
         });
-        navigate('/payment-success');
-      } else if (subscription.paymentId) {
+        setCheckoutState('PAYMENT_RECEIVED');
+      } 
+      // Se o pagamento já estiver confirmado, mostrar tela de sucesso diretamente
+      else if (subscription.status && confirmedStatuses.includes(subscription.status)) {
+        console.log('Pagamento já confirmado na resposta da assinatura:', subscription.status);
+        setPaymentStatus(subscription.status);
+        setCheckoutState('PAYMENT_RECEIVED');
+        
+        toast({
+          title: "Pagamento confirmado!",
+          description: "Seu pagamento foi confirmado com sucesso!",
+        });
+      }
+      // Caso contrário, mostrar QR code para pagamento
+      else if (subscription.paymentId) {
         // Carregar QR code e configurar verificação periódica
         setCheckoutState('WAITING_PAYMENT');
         
@@ -570,6 +600,16 @@ const PlansPage = () => {
 
   // Manipuladores de eventos
   const handleRefreshStatus = async () => {
+    // Se estiver no estado PAYMENT_RECEIVED, apenas mostrar mensagem
+    if (checkoutState === 'PAYMENT_RECEIVED') {
+      toast({
+        title: "Pagamento já confirmado",
+        description: "Seu pagamento já foi confirmado e sua assinatura está ativa.",
+      });
+      return;
+    }
+    
+    // Caso contrário, verificar normalmente
     await checkPaymentStatus(true);
   };
 
@@ -585,6 +625,15 @@ const PlansPage = () => {
   };
 
   const handleRetry = () => {
+    // Se o pagamento já foi confirmado, não há o que tentar novamente
+    if (checkoutState === 'PAYMENT_RECEIVED') {
+      toast({
+        title: "Pagamento já confirmado",
+        description: "Seu pagamento já foi confirmado e sua assinatura está ativa.",
+      });
+      return;
+    }
+    
     if (checkoutState === 'WAITING_PAYMENT') {
       // Recomeçar no modo PIX
       loadPixQrCode();
@@ -642,7 +691,13 @@ const PlansPage = () => {
             
             {error && checkoutState === 'ERROR' && (
               <div className="mb-6">
-                <PaymentStatus status="ERROR" message={error} />
+                <div className="flex flex-col items-center justify-center p-6 space-y-4">
+                  <div className="w-32 h-32">
+                    <Lottie animationData={errorAnimation} loop={true} />
+                  </div>
+                  <h3 className="text-2xl font-bold text-red-600">Falha no pagamento</h3>
+                  <p className="text-center text-gray-700">{error}</p>
+                </div>
                 <div className="mt-4 flex justify-center">
                   <Button onClick={handleRetry} className="mx-2">
                     Tentar novamente
@@ -667,7 +722,7 @@ const PlansPage = () => {
                   />
                 )}
                 
-                {(checkoutState === 'WAITING_PAYMENT' || checkoutState === 'PAYMENT_RECEIVED') && (
+                {(checkoutState === 'WAITING_PAYMENT') && (
                   <PixPayment
                     qrCodeImage={paymentData.qrCodeImage || ''}
                     qrCodeText={paymentData.qrCodeText || ''}
@@ -678,9 +733,56 @@ const PlansPage = () => {
                   />
                 )}
                 
+                {checkoutState === 'PAYMENT_RECEIVED' && (
+                  <div className="flex flex-col items-center justify-center p-8 border rounded-lg">
+                    <div className="w-32 h-32 mb-6">
+                      <Lottie animationData={paymentSuccessAnimation} loop={false} />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-2">Pagamento Confirmado!</h3>
+                    <p className="text-center text-gray-600 dark:text-gray-400 mb-4">
+                      Seu pagamento foi processado com sucesso e sua assinatura está ativa.
+                    </p>
+                    
+                    {selectedPlan && (
+                      <div className="w-full max-w-md bg-vegas-black/40 border border-vegas-gold/30 rounded-lg p-4 mb-6">
+                        <h4 className="text-lg font-semibold mb-2 text-vegas-gold">Detalhes da sua assinatura</h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Plano:</span>
+                            <span className="font-medium">{selectedPlan.name}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Valor:</span>
+                            <span className="font-medium">R$ {selectedPlan.price.toFixed(2)}/mês</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Status:</span>
+                            <span className="font-medium text-green-500">Ativo</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">ID da Assinatura:</span>
+                            <span className="font-medium text-sm">{paymentData.subscriptionId?.substring(0, 10)}...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="mt-8 flex gap-4">
+                      <Button 
+                        onClick={handleCancel} 
+                        className="bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+                      >
+                        Voltar para planos
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
                 {checkoutState === 'PROCESSING_PAYMENT' && (
                   <div className="flex flex-col items-center justify-center p-12 border rounded-lg">
-                    <Loader2 className="h-10 w-10 animate-spin mb-4" />
+                    <div className="w-32 h-32 mb-4">
+                      <Lottie animationData={processingAnimation} loop={true} />
+                    </div>
                     <h3 className="text-lg font-medium mb-2">Processando seu pagamento</h3>
                     <p className="text-gray-500 text-center">
                       Estamos preparando seu pagamento. Por favor, aguarde um momento...

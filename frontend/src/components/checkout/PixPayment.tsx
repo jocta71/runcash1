@@ -4,6 +4,8 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { PaymentStatus } from './PaymentStatus';
 import { Check, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import Lottie from 'lottie-react';
+import waitingAnimation from '../../assets/animations/waiting-payment.json';
 
 interface PixPaymentProps {
   qrCodeImage: string;
@@ -70,7 +72,12 @@ export function PixPayment({
           
           {/* Status do pagamento */}
           <div className="w-full mb-4">
-            <PaymentStatus status={paymentStatus} />
+            <div className="flex flex-col items-center">
+              <div className="w-16 h-16 mb-2">
+                <Lottie animationData={waitingAnimation} loop={true} />
+              </div>
+              <PaymentStatus status={paymentStatus} />
+            </div>
           </div>
           
           {/* QR Code */}
