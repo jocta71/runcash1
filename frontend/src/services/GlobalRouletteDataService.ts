@@ -248,16 +248,62 @@ class GlobalRouletteDataService {
             let response = null;
             
             try {
+              // Obter o token de autenticação de várias fontes possíveis
+              let authToken = '';
+              
+              // Estratégia 1: Verificar em localStorage
+              try {
+                // Verificar em várias chaves conhecidas
+                const possibleKeys = [
+                  'auth_token_backup',  // Usado pelo AuthContext
+                  'auth_token',         // Usado em alguns componentes
+                  'token',              // Usado pelo apiService
+                  'authToken'           // Usado em alguns utilitários
+                ];
+                
+                for (const key of possibleKeys) {
+                  const storedToken = localStorage.getItem(key);
+                  if (storedToken) {
+                    authToken = storedToken;
+                    console.log(`[GlobalRouletteService] Usando token de autenticação do localStorage (${key})`);
+                    break;
+                  }
+                }
+              } catch (tokenError) {
+                console.warn('[GlobalRouletteService] Erro ao obter token do localStorage:', tokenError);
+              }
+              
+              // Configurar headers com autenticação
+              const headers: Record<string, string> = {
+                'bypass-tunnel-reminder': 'true',
+                'cache-control': 'no-cache',
+                'pragma': 'no-cache',
+                'Content-Type': 'application/json'
+              };
+
+              // Adicionar token de autenticação se disponível
+              if (authToken) {
+                headers['Authorization'] = `Bearer ${authToken}`;
+                console.log('[GlobalRouletteService] Token de autenticação adicionado ao cabeçalho da requisição');
+              } else {
+                console.warn('[GlobalRouletteService] Nenhum token de autenticação encontrado, tentando acessar endpoint sem autenticação');
+              }
+
+              // Fazer a requisição com os headers adequados
+              console.log(`[GlobalRouletteService] Fazendo requisição GET para ${endpoint} com autenticação`);
               response = await axiosInstance.get(endpoint, {
-                headers: {
-                  'bypass-tunnel-reminder': 'true',
-                  'cache-control': 'no-cache',
-                  'pragma': 'no-cache'
-                },
-                timeout: 5000 // Timeout mais curto para evitar esperar muito tempo
+                headers,
+                timeout: 5000, // Timeout mais curto para evitar esperar muito tempo
+                withCredentials: true // Importante: Incluir cookies na requisição
               });
             } catch (endpointError) {
               console.error(`[GlobalRouletteService] Falha ao acessar ${endpoint}:`, endpointError.message);
+              
+              // Tentar identificar se é erro de autenticação
+              if (endpointError.response && endpointError.response.status === 401) {
+                console.error('[GlobalRouletteService] Erro de autenticação (401). Token inválido ou expirado.');
+              }
+              
               throw endpointError; // Propagar erro para ser tratado no bloco catch
             }
             

@@ -228,10 +228,44 @@ export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100)
       return cache[cacheKey].data;
     }
     
+    // Obter token de autenticação
+    let authToken = '';
+    
+    // Verificar várias chaves onde o token pode estar armazenado
+    const possibleKeys = [
+      'auth_token_backup',  // Usado pelo AuthContext
+      'auth_token',         // Usado em alguns componentes
+      'token',              // Usado pelo apiService
+      'authToken'           // Usado em alguns utilitários
+    ];
+    
+    for (const key of possibleKeys) {
+      const storedToken = localStorage.getItem(key);
+      if (storedToken) {
+        authToken = storedToken;
+        console.log(`[API] Usando token de autenticação do localStorage (${key})`);
+        break;
+      }
+    }
+
+    // Configurar headers com autenticação
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+
+    // Adicionar token de autenticação se disponível
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+      console.log('[API] Token de autenticação adicionado ao cabeçalho da requisição');
+    }
+    
     console.log(`[API] Buscando roletas de ${ROULETTES_ENDPOINT} para extrair números da roleta ${canonicalId}`);
     
     // Buscar todas as roletas e filtrar a que precisamos - usando o endpoint base sem parâmetros adicionais
-    const response = await axios.get(ROULETTES_ENDPOINT);
+    const response = await axios.get(ROULETTES_ENDPOINT, {
+      headers,
+      withCredentials: true // Importante: Incluir cookies na requisição
+    });
     
     if (response.data && Array.isArray(response.data)) {
       // Encontrar a roleta específica pelo ID canônico

@@ -23,9 +23,43 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
       return cache[cacheKey].data;
     }
 
+    // Obter token de autenticação
+    let authToken = '';
+    
+    // Verificar várias chaves onde o token pode estar armazenado
+    const possibleKeys = [
+      'auth_token_backup',  // Usado pelo AuthContext
+      'auth_token',         // Usado em alguns componentes
+      'token',              // Usado pelo apiService
+      'authToken'           // Usado em alguns utilitários
+    ];
+    
+    for (const key of possibleKeys) {
+      const storedToken = localStorage.getItem(key);
+      if (storedToken) {
+        authToken = storedToken;
+        console.log(`[API] Usando token de autenticação do localStorage (${key})`);
+        break;
+      }
+    }
+
+    // Configurar headers com autenticação
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+
+    // Adicionar token de autenticação se disponível
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+      console.log('[API] Token de autenticação adicionado ao cabeçalho da requisição');
+    }
+
     // Passo 1: Buscar todas as roletas disponíveis usando apenas o endpoint "/api/roulettes" sem parâmetros
     console.log(`[API] Buscando roletas e seus números do endpoint ${ROULETTES_ENDPOINT}`);
-    const roulettesResponse = await axios.get(ROULETTES_ENDPOINT);
+    const roulettesResponse = await axios.get(ROULETTES_ENDPOINT, {
+      headers,
+      withCredentials: true // Importante: Incluir cookies na requisição
+    });
     
     if (!roulettesResponse.data || !Array.isArray(roulettesResponse.data)) {
       console.error('[API] Resposta inválida da API de roletas');
@@ -97,9 +131,43 @@ export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Pr
       return cache[cacheKey].data;
     }
 
+    // Obter token de autenticação
+    let authToken = '';
+    
+    // Verificar várias chaves onde o token pode estar armazenado
+    const possibleKeys = [
+      'auth_token_backup',  // Usado pelo AuthContext
+      'auth_token',         // Usado em alguns componentes
+      'token',              // Usado pelo apiService
+      'authToken'           // Usado em alguns utilitários
+    ];
+    
+    for (const key of possibleKeys) {
+      const storedToken = localStorage.getItem(key);
+      if (storedToken) {
+        authToken = storedToken;
+        console.log(`[API] Usando token de autenticação do localStorage (${key})`);
+        break;
+      }
+    }
+
+    // Configurar headers com autenticação
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+
+    // Adicionar token de autenticação se disponível
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+      console.log('[API] Token de autenticação adicionado ao cabeçalho da requisição');
+    }
+
     // Buscar todas as roletas para encontrar a desejada
     console.log(`[API] Buscando roletas do endpoint ${ROULETTES_ENDPOINT} para encontrar ID ${roletaId}`);
-    const roulettesResponse = await axios.get(ROULETTES_ENDPOINT);
+    const roulettesResponse = await axios.get(ROULETTES_ENDPOINT, {
+      headers,
+      withCredentials: true // Importante: Incluir cookies na requisição
+    });
     
     if (!roulettesResponse.data || !Array.isArray(roulettesResponse.data)) {
       console.error('[API] Resposta inválida da API de roletas');
