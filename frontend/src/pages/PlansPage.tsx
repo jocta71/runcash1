@@ -919,28 +919,7 @@ const PlansPage = () => {
                         <p className="text-gray-400 text-sm mt-4">{plan.description}</p>
                       </div>
                       
-                      <div className="space-y-4 mb-8">
-                        <h4 className="text-sm uppercase tracking-wider text-gray-500 font-medium mb-2">
-                          Recursos incluídos
-                        </h4>
-                        
-                        <ul className="space-y-3">
-                          {plan.features.map((feature, idx) => (
-                            <li key={idx} className="flex items-start">
-                              <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mr-3 mt-0.5 ${
-                                plan.id === 'pro' 
-                                  ? 'bg-[#00FF00]/20' 
-                                  : 'bg-neutral-800'
-                              }`}>
-                                <Check className={`h-3 w-3 ${
-                                  plan.id === 'pro' ? 'text-[#00FF00]' : 'text-gray-400'
-                                }`} />
-                              </div>
-                              <span className="text-sm text-gray-300">{feature}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                      <div className="mt-10"></div>
                       
                       <Button
                         onClick={() => handleSelectPlan(plan.id)}
