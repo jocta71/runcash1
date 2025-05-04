@@ -34,7 +34,7 @@ export const RouletteApi = {
       console.log('[API] Buscando todas as roletas disponíveis');
       const response = await axios.get(ENDPOINTS.ROULETTES);
       
-      if (!response.data || !response.data.data) {
+      if (!response.data) {
         console.error('[API] Resposta inválida da API de roletas:', response.data);
         return {
           error: true,
@@ -44,7 +44,10 @@ export const RouletteApi = {
         };
       }
       
-      const roulettes = Array.isArray(response.data.data) ? response.data.data : response.data.data;
+      // Verificar se a resposta é um array diretamente ou está em um campo 'data'
+      const roulettes = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data.data ? response.data.data : []);
       
       console.log(`[API] ✅ Obtidas ${roulettes.length} roletas`);
       
