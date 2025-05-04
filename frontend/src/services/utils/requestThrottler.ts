@@ -14,8 +14,8 @@ const subscribers: Map<string, Array<(data: any) => void>> = new Map();
 // Mapa para armazenar o cache de resposta por endpoint
 const responseCache: Map<string, {data: any, timestamp: number}> = new Map();
 
-// Intervalo mínimo entre requisições (30 segundos)
-const MIN_REQUEST_INTERVAL = 30 * 1000; 
+// Intervalo mínimo entre requisições (8 segundos)
+const MIN_REQUEST_INTERVAL = 8 * 1000;
 
 // Tempo de validade do cache (5 minutos)
 const CACHE_VALIDITY = 5 * 60 * 1000;

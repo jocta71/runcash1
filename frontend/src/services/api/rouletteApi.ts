@@ -1,13 +1,12 @@
 import axios from 'axios';
 import { ENDPOINTS } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
-// Importar dados mockados
+// Importar dados mockados e RequestThrottler
 import mockRouletteData from '../../assets/data/mockRoulettes.json';
+import { RequestThrottler } from '../utils/requestThrottler';
 
-// Variáveis para controle de polling
-let lastFetchTime = 0;
-let cachedRoulettes: any[] = [];
-const POLLING_INTERVAL = 8000; // 8 segundos em milissegundos
+// Chave única para throttling da API de roletas
+const ROULETTES_API_KEY = 'api_roulettes_all';
 
 // Tipo para resposta de erro
 interface ApiErrorResponse {
@@ -36,69 +35,52 @@ export const RouletteApi = {
    */
   async fetchAllRoulettes(): Promise<ApiResponse<any[]>> {
     try {
-      const now = Date.now();
-      const timeElapsed = now - lastFetchTime;
+      // Usar o RequestThrottler para gerenciar o intervalo entre requisições
+      const result = await RequestThrottler.scheduleRequest(
+        ROULETTES_API_KEY,
+        async () => {
+          console.log('[API] Buscando todas as roletas disponíveis');
+          const response = await axios.get(ENDPOINTS.ROULETTES);
+          
+          if (!response.data) {
+            throw new Error('Resposta inválida da API de roletas');
+          }
+          
+          // Verificar se a resposta é um array diretamente ou está em um campo 'data'
+          const roulettes = Array.isArray(response.data) 
+            ? response.data 
+            : (response.data.data ? response.data.data : []);
+          
+          console.log(`[API] ✅ Obtidas ${roulettes.length} roletas`);
+          
+          // Processar cada roleta para extrair campos relevantes
+          return roulettes.map((roulette: any) => {
+            // Garantir que temos o campo roleta_id em cada objeto
+            if (!roulette.roleta_id && roulette._id) {
+              const numericId = getNumericId(roulette._id);
+              console.log(`[API] Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
+              roulette.roleta_id = numericId;
+            }
+            return roulette;
+          });
+        },
+        false, // não forçar execução
+        false, // usar cache quando disponível
+        60000  // cache válido por 60 segundos
+      );
       
-      // Verificar se já passou o tempo mínimo desde a última requisição
-      if (timeElapsed < POLLING_INTERVAL && cachedRoulettes.length > 0) {
-        console.log(`[API] Usando dados em cache. Próxima requisição em ${Math.ceil((POLLING_INTERVAL - timeElapsed)/1000)}s`);
+      if (result) {
         return {
           error: false,
-          data: cachedRoulettes
+          data: result
         };
       }
       
-      console.log('[API] Buscando todas as roletas disponíveis');
-      lastFetchTime = now;
+      // Se o throttler retornar null, verificar se temos erro de cache
+      throw new Error('Erro ao buscar dados de roletas');
       
-      const response = await axios.get(ENDPOINTS.ROULETTES);
-      
-      if (!response.data) {
-        console.error('[API] Resposta inválida da API de roletas:', response.data);
-        return {
-          error: true,
-          code: 'INVALID_RESPONSE',
-          message: 'Resposta inválida da API',
-          statusCode: response.status
-        };
-      }
-      
-      // Verificar se a resposta é um array diretamente ou está em um campo 'data'
-      const roulettes = Array.isArray(response.data) 
-        ? response.data 
-        : (response.data.data ? response.data.data : []);
-      
-      console.log(`[API] ✅ Obtidas ${roulettes.length} roletas`);
-      
-      // Processar cada roleta para extrair campos relevantes
-      const processedRoulettes = roulettes.map((roulette: any) => {
-        // Garantir que temos o campo roleta_id em cada objeto
-        if (!roulette.roleta_id && roulette._id) {
-          const numericId = getNumericId(roulette._id);
-          console.log(`[API] Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
-          roulette.roleta_id = numericId;
-        }
-        return roulette;
-      });
-      
-      // Armazenar em cache para futuras requisições
-      cachedRoulettes = [...processedRoulettes];
-      
-      return {
-        error: false,
-        data: processedRoulettes
-      };
     } catch (error: any) {
       console.error('[API] Erro ao buscar roletas:', error);
-      
-      // Se temos um cache e ocorreu um erro, usar o cache como fallback
-      if (cachedRoulettes.length > 0) {
-        console.log('[API] Usando cache como fallback devido a erro na requisição');
-        return {
-          error: false,
-          data: cachedRoulettes
-        };
-      }
       
       // Verificar se é erro de autenticação
       if (error.response?.status === 401) {
