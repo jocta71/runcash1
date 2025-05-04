@@ -63,6 +63,7 @@ const PlansPage = () => {
   const [paymentStatus, setPaymentStatus] = useState<string>('PENDING');
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [checkingInterval, setCheckingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [retryCount, setRetryCount] = useState<number>(0);
   
   // Limpar temporizadores quando o componente é desmontado
   useEffect(() => {
@@ -179,9 +180,38 @@ const PlansPage = () => {
     setIsRefreshing(true);
     setError(null);
     
+    // Variável para controlar o uso do fallback
+    const useFallback = retryCount > 2;
+    
     try {
-      console.log('Carregando QR code PIX para o pagamento:', paymentData.paymentId);
-      const pixData = await getAsaasPixQrCode(paymentData.paymentId);
+      console.log('Carregando QR code PIX para o pagamento:', paymentData.paymentId, useFallback ? '(usando fallback)' : '');
+      
+      // Se estamos no terceiro retry ou mais, usar o endpoint de fallback
+      let pixData;
+      if (useFallback) {
+        try {
+          // Usar o endpoint de fallback que sempre retorna um QR code
+          const response = await fetch(`/api/asaas-pix-qrcode-fallback?paymentId=${paymentData.paymentId}`);
+          const data = await response.json();
+          
+          if (data.success && data.qrCode) {
+            console.log('Usando QR code de fallback');
+            pixData = {
+              qrCodeImage: data.qrCode.encodedImage,
+              qrCodeText: data.qrCode.payload,
+              expirationDate: data.qrCode.expirationDate
+            };
+          } else {
+            throw new Error('Falha no fallback');
+          }
+        } catch (fallbackError) {
+          console.error('Erro no endpoint de fallback:', fallbackError);
+          throw new Error('Não foi possível carregar o QR Code mesmo com fallback');
+        }
+      } else {
+        // Usar o endpoint normal
+        pixData = await getAsaasPixQrCode(paymentData.paymentId);
+      }
       
       console.log('Dados do QR code recebidos:', {
         temImagem: !!pixData.qrCodeImage,
@@ -193,10 +223,15 @@ const PlansPage = () => {
       if (!pixData.qrCodeImage || !pixData.qrCodeText) {
         console.error('QR Code PIX inválido:', pixData);
         setError('QR Code PIX não disponível. Tente novamente em alguns segundos.');
+        // Incrementar contador de tentativas
+        setRetryCount(prev => prev + 1);
         // Tentar novamente após 3 segundos
         setTimeout(() => loadPixQrCode(), 3000);
         return;
       }
+      
+      // Reset do contador de tentativas após sucesso
+      setRetryCount(0);
       
       setPaymentData({
         ...paymentData,
@@ -215,16 +250,26 @@ const PlansPage = () => {
     } catch (error) {
       console.error('Erro detalhado ao carregar QR Code PIX:', error);
       setIsRefreshing(false);
-      setError('Não foi possível carregar o QR Code PIX. Tente recarregar a página.');
       
-      // Tentar novamente após 5 segundos
-      toast({
-        variant: "destructive",
-        title: "Erro no QR Code",
-        description: "Tentando novamente em 5 segundos...",
-      });
+      // Incrementar contador de tentativas
+      setRetryCount(prev => prev + 1);
       
-      setTimeout(() => loadPixQrCode(), 5000);
+      // Ajustar mensagem com base no número de tentativas
+      if (retryCount >= 4) {
+        setError('Não foi possível carregar o QR Code. Use a opção de copiar o código PIX.');
+      } else {
+        setError('Aguarde, tentando recuperar o QR Code...');
+        
+        // Tentar novamente após um tempo progressivo
+        const timeout = Math.min(2000 + retryCount * 1000, 5000);
+        toast({
+          variant: "destructive",
+          title: "Erro no QR Code",
+          description: `Tentando novamente em ${timeout/1000} segundos...`,
+        });
+        
+        setTimeout(() => loadPixQrCode(), timeout);
+      }
     }
   };
 

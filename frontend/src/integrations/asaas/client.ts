@@ -246,23 +246,70 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
   try {
     console.log(`Buscando QR code PIX: paymentId=${paymentId}`);
     
-    const response = await api.get<PixQrCodeResponse>(`api/asaas-pix-qrcode?paymentId=${paymentId}`);
+    // Adicionar timestamp para evitar cache
+    const timestamp = new Date().getTime();
+    const response = await api.get<PixQrCodeResponse>(`api/asaas-pix-qrcode?paymentId=${paymentId}&_t=${timestamp}`);
     
-    console.log('Resposta da API de QR code PIX:', response.data);
+    console.log('Resposta da API de QR code PIX:', {
+      success: response.data?.success,
+      statusCode: response.status,
+      temQrCode: !!response.data?.qrCode,
+      temEncodedImage: !!response.data?.qrCode?.encodedImage,
+      temPayload: !!response.data?.qrCode?.payload,
+    });
     
     if (!response.data?.success) {
-      throw new Error('Falha ao buscar QR code PIX');
+      console.error('Resposta sem sucesso da API de QR code:', response.data);
+      throw new Error('Falha ao buscar QR code PIX: API retornou falha');
     }
     
+    // Verificar se a resposta contém os dados necessários
+    if (!response.data.qrCode) {
+      console.error('Resposta não contém objeto qrCode:', response.data);
+      throw new Error('Falha ao buscar QR code PIX: Resposta inválida');
+    }
+    
+    if (!response.data.qrCode.encodedImage) {
+      console.error('Resposta não contém encodedImage:', response.data.qrCode);
+      throw new Error('QR code PIX sem imagem');
+    }
+    
+    if (!response.data.qrCode.payload) {
+      console.error('Resposta não contém payload:', response.data.qrCode);
+      throw new Error('QR code PIX sem código de texto');
+    }
+    
+    // Extrair dados da resposta e validar
+    const encodedImage = response.data.qrCode.encodedImage;
+    const payload = response.data.qrCode.payload;
+    
+    console.log('QR code obtido com sucesso:', {
+      imagemLength: encodedImage.length,
+      payloadLength: payload.length,
+      inicioImagem: encodedImage.substring(0, 30),
+      temPrefixoData: encodedImage.startsWith('data:'),
+      expirationDate: response.data.qrCode.expirationDate
+    });
+    
     return {
-      qrCodeImage: response.data.qrCode.encodedImage,
-      qrCodeText: response.data.qrCode.payload,
+      qrCodeImage: encodedImage,
+      qrCodeText: payload,
       expirationDate: response.data.qrCode.expirationDate
     };
   } catch (error) {
     console.error('Erro ao buscar QR code PIX no Asaas:', error);
     
     if (error instanceof AxiosError) {
+      console.error('Detalhes do erro Axios:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: error.config?.headers
+        }
+      });
       throw new Error(`Falha ao buscar QR code PIX: ${error.response?.data?.error || error.message}`);
     }
     
