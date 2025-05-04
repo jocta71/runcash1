@@ -849,10 +849,11 @@ const Index = () => {
         
         console.log(`[Index] ✅ Recebidas ${rouletteData.length} roletas`);
         
-        // Ordenar por nome para exibição
+        // Ordenar por nome para exibição - acessando propriedades de forma segura
         rouletteData.sort((a, b) => {
-          const nameA = a.nome || a.name || '';
-          const nameB = b.nome || b.name || '';
+          // Acessar name ou qualquer campo que contenha o nome de forma segura
+          const nameA = (a as any).nome || (a as any).name || '';
+          const nameB = (b as any).nome || (b as any).name || '';
           return nameA.localeCompare(nameB);
         });
         
