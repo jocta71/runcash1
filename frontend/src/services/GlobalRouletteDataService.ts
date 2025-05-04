@@ -131,79 +131,45 @@ class GlobalRouletteDataService {
     try {
       this._currentFetchPromise = new Promise<any[]>(async (resolve) => {
         try {
-          console.log('[GlobalRouletteService] Requisições para /api/roulettes desativadas, usando dados locais');
+          console.log('[GlobalRouletteService] Buscando dados das roletas da API');
           
-          // Tentar usar dados do cache primeiro
-          const cachedData = localStorage.getItem('roulette_data_cache');
-          if (cachedData) {
-            try {
-              const parsedData = JSON.parse(cachedData);
-              console.log(`[GlobalRouletteService] Usando dados em cache com ${parsedData.data?.length || 0} roletas`);
-              this.rouletteData = parsedData.data || [];
-              this.notifySubscribers();
-              resolve(this.rouletteData);
-              return;
-            } catch (cacheError) {
-              console.error('[GlobalRouletteService] Erro ao usar cache:', cacheError);
-            }
+          // Importar o serviço RouletteApi dinamicamente para evitar dependência circular
+          const rouletteApiModule = await import('../services/api/rouletteApi');
+          const RouletteApi = rouletteApiModule.RouletteApi;
+          
+          // Buscar dados da API
+          const response = await RouletteApi.fetchAllRoulettes();
+          
+          // Verificar se é um erro ou se não tem a propriedade 'data'
+          if (response.error || !('data' in response)) {
+            console.error(`[GlobalRouletteService] Erro ao buscar roletas: ${response.message || 'Resposta inválida'}`);
+            
+            // Tentar usar dados em cache
+            this.tryUseCachedData(resolve);
+            return;
           }
           
-          // Se não houver cache, usar dados mockados
-          console.log('[GlobalRouletteService] Sem cache disponível, usando dados mockados');
+          // Verificar se os dados são válidos
+          if (!response.data || !Array.isArray(response.data)) {
+            console.error('[GlobalRouletteService] Resposta inválida da API:', response);
+            
+            // Tentar usar dados em cache
+            this.tryUseCachedData(resolve);
+            return;
+          }
           
-          // Dados mockados básicos de roletas
-          const mockRoulettes = [
-            {
-              id: '1',
-              nome: 'Roleta Europeia VIP',
-              status: 'online',
-              provider: 'Evolution',
-              numero: [
-                { numero: 12, cor: 'vermelho', timestamp: new Date().toISOString() },
-                { numero: 35, cor: 'preto', timestamp: new Date().toISOString() },
-                { numero: 0, cor: 'verde', timestamp: new Date().toISOString() },
-                { numero: 26, cor: 'preto', timestamp: new Date().toISOString() },
-                { numero: 3, cor: 'vermelho', timestamp: new Date().toISOString() }
-              ]
-            },
-            {
-              id: '2',
-              nome: 'Roleta Brasileira',
-              status: 'online',
-              provider: 'Pragmatic Play',
-              numero: [
-                { numero: 7, cor: 'vermelho', timestamp: new Date().toISOString() },
-                { numero: 15, cor: 'preto', timestamp: new Date().toISOString() },
-                { numero: 21, cor: 'vermelho', timestamp: new Date().toISOString() },
-                { numero: 0, cor: 'verde', timestamp: new Date().toISOString() },
-                { numero: 18, cor: 'vermelho', timestamp: new Date().toISOString() }
-              ]
-            },
-            {
-              id: '3',
-              nome: 'Lightning Roulette',
-              status: 'online',
-              provider: 'Evolution',
-              numero: [
-                { numero: 25, cor: 'vermelho', timestamp: new Date().toISOString() },
-                { numero: 10, cor: 'preto', timestamp: new Date().toISOString() },
-                { numero: 36, cor: 'vermelho', timestamp: new Date().toISOString() },
-                { numero: 23, cor: 'vermelho', timestamp: new Date().toISOString() },
-                { numero: 5, cor: 'vermelho', timestamp: new Date().toISOString() }
-              ]
-            }
-          ];
+          console.log(`[GlobalRouletteService] ✅ Obtidas ${response.data.length} roletas da API`);
           
-          // Atualizar dados e notificar
-          this.rouletteData = mockRoulettes;
+          // Atualizar dados
+          this.rouletteData = response.data;
           
-          // Salvar mock em cache para uso futuro
+          // Salvar em cache para uso futuro
           try {
             localStorage.setItem('roulette_data_cache', JSON.stringify({
               timestamp: Date.now(),
-              data: mockRoulettes
+              data: response.data
             }));
-            console.log('[GlobalRouletteService] Dados mockados salvos em cache para uso futuro');
+            console.log('[GlobalRouletteService] Dados salvos em cache para uso futuro');
           } catch (storageError) {
             console.warn('[GlobalRouletteService] Erro ao salvar cache:', storageError);
           }
@@ -211,10 +177,12 @@ class GlobalRouletteDataService {
           // Notificar assinantes sobre os novos dados
           this.notifySubscribers();
           
-          resolve(mockRoulettes);
+          resolve(this.rouletteData);
         } catch (error) {
           console.error('[GlobalRouletteService] Erro ao processar dados:', error);
-          resolve(this.rouletteData);
+          
+          // Tentar usar dados em cache
+          this.tryUseCachedData(resolve);
         } finally {
           this.isFetching = false;
           this._currentFetchPromise = null;

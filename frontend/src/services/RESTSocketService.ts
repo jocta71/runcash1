@@ -147,54 +147,47 @@ class RESTSocketService {
   private async fetchDataFromREST() {
     try {
       const startTime = Date.now();
-      console.log('[RESTSocketService] Requisições para /api/roulettes desativadas, usando dados mockados');
+      console.log('[RESTSocketService] Buscando dados da API em:', this.pollingEndpoint);
       
-      // Usar dados mockados em vez de buscar da API
-      const mockData = [
-        {
-          id: '1',
-          nome: 'Roleta Europeia VIP',
-          status: 'online',
-          provider: 'Evolution',
-          numero: Array.from({length: 5}, (_, i) => ({
-            numero: Math.floor(Math.random() * 37),
-            cor: i % 2 === 0 ? 'vermelho' : 'preto',
-            timestamp: new Date(Date.now() - i * 60000).toISOString()
-          }))
-        },
-        {
-          id: '2',
-          nome: 'Roleta Brasileira',
-          status: 'online',
-          provider: 'Pragmatic Play',
-          numero: Array.from({length: 5}, (_, i) => ({
-            numero: Math.floor(Math.random() * 37),
-            cor: i % 3 === 0 ? 'vermelho' : (i % 3 === 1 ? 'preto' : 'verde'),
-            timestamp: new Date(Date.now() - i * 60000).toISOString()
-          }))
-        },
-        {
-          id: '3',
-          nome: 'Lightning Roulette',
-          status: 'online',
-          provider: 'Evolution',
-          numero: Array.from({length: 5}, (_, i) => ({
-            numero: Math.floor(Math.random() * 37),
-            cor: i % 2 === 0 ? 'vermelho' : 'preto',
-            timestamp: new Date(Date.now() - i * 60000).toISOString()
-          }))
-        }
-      ];
+      // Importar o ApiService dinamicamente para evitar dependência circular
+      const apiServiceModule = await import('./apiService');
+      const apiService = apiServiceModule.default;
+      
+      // Chamada à API real
+      const response = await apiService.get(this.pollingEndpoint);
+      
+      if (!response || !response.data) {
+        console.warn('[RESTSocketService] Resposta da API vazia ou inválida:', response);
+        return false;
+      }
+      
+      const data = Array.isArray(response.data) ? response.data : 
+                  (response.data.data ? response.data.data : []);
       
       const endTime = Date.now();
-      console.log(`[RESTSocketService] Dados mockados gerados em ${endTime - startTime}ms`);
+      console.log(`[RESTSocketService] Dados obtidos da API em ${endTime - startTime}ms: ${data.length} roletas`);
       
-      // Processar os dados mockados como eventos
-      this.processDataAsEvents(mockData);
+      // Salvar no cache para uso offline
+      try {
+        localStorage.setItem('roulettes_data_cache', JSON.stringify({
+          timestamp: Date.now(),
+          data: data
+        }));
+      } catch (cacheError) {
+        console.warn('[RESTSocketService] Erro ao salvar cache:', cacheError);
+      }
+      
+      // Processar os dados como eventos
+      this.processDataAsEvents(data);
       
       return true;
     } catch (error) {
-      console.error('[RESTSocketService] Erro ao gerar dados mockados:', error);
+      console.error('[RESTSocketService] Erro ao buscar dados da API:', error);
+      
+      // Tentar usar cache como fallback
+      console.log('[RESTSocketService] Tentando usar cache como fallback');
+      this.loadCachedData();
+      
       return false;
     }
   }
@@ -600,68 +593,19 @@ class RESTSocketService {
   // Método para processar dados do serviço centralizado
   private async processDataFromCentralService() {
     try {
-      console.log('[RESTSocketService] Requisições para /api/roulettes são desativadas. Usando dados mockados.');
+      console.log('[RESTSocketService] Processando dados do serviço centralizado');
       
-      // Criar dados mockados para 3 roletas
-      const mockData = [
-        {
-          id: '1',
-          nome: 'Roleta A',
-          status: 'active',
-          provider: 'Evolution',
-          estado_estrategia: 'win',
-          vitorias: 15,
-          derrotas: 5,
-          numero_gatilho: 12,
-          terminais_gatilho: [1, 2, 3],
-          numero: Array.from({ length: 5 }, () => ({
-            numero: Math.floor(Math.random() * 37),
-            cor: ['red', 'black', 'green'][Math.floor(Math.random() * 3)],
-            timestamp: new Date(Date.now() - Math.floor(Math.random() * 3600000)).toISOString()
-          }))
-        },
-        {
-          id: '2',
-          nome: 'Roleta B',
-          status: 'active',
-          provider: 'Pragmatic',
-          estado_estrategia: 'loss',
-          vitorias: 10,
-          derrotas: 8,
-          numero_gatilho: 7,
-          terminais_gatilho: [4, 5, 6],
-          numero: Array.from({ length: 5 }, () => ({
-            numero: Math.floor(Math.random() * 37),
-            cor: ['red', 'black', 'green'][Math.floor(Math.random() * 3)],
-            timestamp: new Date(Date.now() - Math.floor(Math.random() * 3600000)).toISOString()
-          }))
-        },
-        {
-          id: '3',
-          nome: 'Roleta C',
-          status: 'inactive',
-          provider: 'Playtech',
-          estado_estrategia: 'waiting',
-          vitorias: 20,
-          derrotas: 3,
-          numero_gatilho: 22,
-          terminais_gatilho: [7, 8, 9],
-          numero: Array.from({ length: 5 }, () => ({
-            numero: Math.floor(Math.random() * 37),
-            cor: ['red', 'black', 'green'][Math.floor(Math.random() * 3)],
-            timestamp: new Date(Date.now() - Math.floor(Math.random() * 3600000)).toISOString()
-          }))
-        }
-      ];
-      
-      console.log('[RESTSocketService] Processando dados mockados:', mockData.length, 'roletas');
+      // Obter os dados do serviço global
+      const rouletteData = globalRouletteDataService.getAllRoulettes();
       
       // Registrar esta chamada como bem-sucedida
       const now = Date.now();
-      this.lastReceivedData.set('endpoint-base', { timestamp: now, data: { count: mockData.length } });
+      this.lastReceivedData.set('endpoint-base', { timestamp: now, data: { count: rouletteData.length } });
+      
+      console.log('[RESTSocketService] Processando dados:', rouletteData.length, 'roletas');
       
       // Para cada roleta, processar os dados
-      for (const roulette of mockData) {
+      for (const roulette of rouletteData) {
         if (!roulette || !roulette.id) continue;
         
         // Registrar timestamp para cada roleta
@@ -681,7 +625,7 @@ class RESTSocketService {
                          !existingHistory.includes(numbers[0]);
           
           if (isNewData) {
-            console.log(`[RESTSocketService] Novos números mockados para roleta ${roulette.nome || roulette.id}`);
+            console.log(`[RESTSocketService] Novos números para roleta ${roulette.nome || roulette.id}`);
             
             // Mesclar, evitando duplicações e preservando ordem
             const mergedNumbers = this.mergeNumbersWithoutDuplicates(numbers, existingHistory);
@@ -700,7 +644,7 @@ class RESTSocketService {
                 numero: lastNumber.numero,
                 cor: lastNumber.cor || this.determinarCorNumero(lastNumber.numero),
                 timestamp: lastNumber.timestamp || new Date().toISOString(),
-                source: 'mock-data' // Marcar a origem para depuração
+                source: 'api-data'
               };
               
               // Notificar os listeners sobre o novo número
@@ -720,7 +664,7 @@ class RESTSocketService {
             vitorias: roulette.vitorias || 0,
             derrotas: roulette.derrotas || 0,
             terminais_gatilho: roulette.terminais_gatilho || [],
-            source: 'mock-data' // Marcar a origem para depuração
+            source: 'api-data'
           };
           
           // Notificar os listeners sobre a atualização de estratégia
@@ -728,10 +672,10 @@ class RESTSocketService {
         }
       }
       
-      console.log('[RESTSocketService] Processamento de dados mockados concluído');
+      console.log('[RESTSocketService] Processamento de dados concluído');
       return true;
     } catch (error) {
-      console.error('[RESTSocketService] Erro ao processar dados mockados:', error);
+      console.error('[RESTSocketService] Erro ao processar dados:', error);
       return false;
     }
   }

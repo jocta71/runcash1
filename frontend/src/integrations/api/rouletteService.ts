@@ -1,5 +1,15 @@
 import axios from 'axios';
 import { getRouletteTypeByName } from '../../utils/roulette-utils';
+import * as RouletteApi from '../../services/api/rouletteApi';
+
+// Função auxiliar para determinar a cor de um número
+function determinarCorNumero(numero: number): string {
+  if (numero === 0) return 'verde';
+  if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(numero)) {
+    return 'vermelho';
+  }
+  return 'preto';
+}
 
 // Tipos para a API
 export interface RouletteData {
@@ -200,25 +210,53 @@ export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100)
       return cache[cacheKey].data;
     }
     
-    console.log(`[API] Requisições para /api/roulettes desativadas, usando dados mockados para roleta ${canonicalId}`);
+    console.log(`[API] Buscando números para roleta ${canonicalId} da API`);
     
-    // Gerar números mockados
-    const mockNumbers = Array.from({length: limit}, (_, i) => ({
-      numero: Math.floor(Math.random() * 37),
-      cor: ['vermelho', 'preto', 'verde'][Math.floor(Math.random() * 3)],
-      timestamp: new Date(Date.now() - i * 60000).toISOString()
-    }));
+    // Buscar os dados das roletas
+    const response = await RouletteApi.RouletteApi.fetchAllRoulettes();
+    
+    // Verificar se houve erro na busca
+    if (response.error || !('data' in response)) {
+      console.error(`[API] Erro ao buscar roletas para obter números: ${response.message || 'Resposta inválida'}`);
+      throw new Error(response.message || 'Resposta inválida');
+    }
+    
+    // Encontrar a roleta específica
+    const roleta = response.data.find((r: any) => 
+      r._id === canonicalId || 
+      r.id === canonicalId || 
+      mapToCanonicalRouletteId(r.id || '') === canonicalId
+    );
+    
+    if (!roleta) {
+      console.warn(`[API] Roleta não encontrada para ID ${canonicalId}`);
+      return [];
+    }
+    
+    // Extrair números da roleta
+    let numbers: any[] = [];
+    
+    if (roleta.numero && Array.isArray(roleta.numero)) {
+      numbers = roleta.numero.map((n: any) => ({
+        numero: n.numero || n.number || 0,
+        cor: n.cor || determinarCorNumero(n.numero || n.number || 0),
+        timestamp: n.timestamp || new Date().toISOString()
+      }));
+    }
+    
+    // Limitar ao número solicitado
+    const limitedNumbers = numbers.slice(0, limit);
     
     // Armazenar em cache
     cache[cacheKey] = {
-      data: mockNumbers,
+      data: limitedNumbers,
       timestamp: Date.now()
     };
     
-    console.log(`[API] ✅ Mockados ${mockNumbers.length} números para roleta ${canonicalId}`);
-    return mockNumbers;
+    console.log(`[API] ✅ Obtidos ${limitedNumbers.length} números para roleta ${canonicalId}`);
+    return limitedNumbers;
   } catch (error) {
-    console.error(`[API] Erro ao gerar números mockados para roleta ${canonicalId}:`, error);
+    console.error(`[API] Erro ao buscar números para roleta ${canonicalId}:`, error);
     return [];
   }
 }

@@ -1,13 +1,8 @@
 import axios from 'axios';
 import { ENDPOINTS } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
-// Importar dados mockados e RequestThrottler
+// Importar dados mockados
 import mockRouletteData from '../../assets/data/mockRoulettes.json';
-import { RequestThrottler } from '../utils/requestThrottler';
-
-// Chave única para throttling da API de roletas
-const ROULETTES_API_KEY = 'api_roulettes_all';
-const ROULETTE_HISTORY_KEY = 'api_roulette_history'; // Nova chave para o histórico
 
 // Tipo para resposta de erro
 interface ApiErrorResponse {
@@ -31,55 +26,46 @@ type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
  */
 export const RouletteApi = {
   /**
-   * Busca todas as roletas disponíveis respeitando o intervalo de polling
+   * Busca todas as roletas disponíveis
    * @returns Resposta da API com roletas ou erro
    */
   async fetchAllRoulettes(): Promise<ApiResponse<any[]>> {
     try {
-      // Usar o RequestThrottler para gerenciar o intervalo entre requisições
-      const result = await RequestThrottler.scheduleRequest(
-        ROULETTES_API_KEY,
-        async () => {
-          console.log('[API] Buscando todas as roletas disponíveis');
-          const response = await axios.get(ENDPOINTS.ROULETTES);
-          
-          if (!response.data) {
-            throw new Error('Resposta inválida da API de roletas');
-          }
-          
-          // Verificar se a resposta é um array diretamente ou está em um campo 'data'
-          const roulettes = Array.isArray(response.data) 
-            ? response.data 
-            : (response.data.data ? response.data.data : []);
-          
-          console.log(`[API] ✅ Obtidas ${roulettes.length} roletas`);
-          
-          // Processar cada roleta para extrair campos relevantes
-          return roulettes.map((roulette: any) => {
-            // Garantir que temos o campo roleta_id em cada objeto
-            if (!roulette.roleta_id && roulette._id) {
-              const numericId = getNumericId(roulette._id);
-              console.log(`[API] Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
-              roulette.roleta_id = numericId;
-            }
-            return roulette;
-          });
-        },
-        false, // não forçar execução
-        false, // usar cache quando disponível
-        60000  // cache válido por 60 segundos
-      );
+      console.log('[API] Buscando todas as roletas disponíveis');
+      const response = await axios.get(ENDPOINTS.ROULETTES);
       
-      if (result) {
+      if (!response.data) {
+        console.error('[API] Resposta inválida da API de roletas:', response.data);
         return {
-          error: false,
-          data: result
+          error: true,
+          code: 'INVALID_RESPONSE',
+          message: 'Resposta inválida da API',
+          statusCode: response.status
         };
       }
       
-      // Se o throttler retornar null, verificar se temos erro de cache
-      throw new Error('Erro ao buscar dados de roletas');
+      // Verificar se a resposta é um array diretamente ou está em um campo 'data'
+      const roulettes = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data.data ? response.data.data : []);
       
+      console.log(`[API] ✅ Obtidas ${roulettes.length} roletas`);
+      
+      // Processar cada roleta para extrair campos relevantes
+      const processedRoulettes = roulettes.map((roulette: any) => {
+        // Garantir que temos o campo roleta_id em cada objeto
+        if (!roulette.roleta_id && roulette._id) {
+          const numericId = getNumericId(roulette._id);
+          console.log(`[API] Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
+          roulette.roleta_id = numericId;
+        }
+        return roulette;
+      });
+      
+      return {
+        error: false,
+        data: processedRoulettes
+      };
     } catch (error: any) {
       console.error('[API] Erro ao buscar roletas:', error);
       
@@ -225,34 +211,23 @@ export const RouletteApi = {
     try {
       console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
       
-      // Usar o RequestThrottler para gerenciar o intervalo entre requisições
-      const result = await RequestThrottler.scheduleRequest(
-        `${ROULETTE_HISTORY_KEY}_${rouletteName}`,
-        async () => {
-          const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
-          
-          if (!response.data || !Array.isArray(response.data)) {
-            throw new Error('Resposta inválida da API de histórico');
-          }
-          
-          console.log(`[API] ✅ Obtidos ${response.data.length} números históricos`);
-          return response.data;
-        },
-        false, // não forçar execução
-        false, // usar cache quando disponível
-        30000  // cache válido por 30 segundos (metade do tempo das roletas)
-      );
+      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
       
-      if (result) {
+      if (!response.data || !Array.isArray(response.data)) {
+        console.error('[API] Resposta inválida do histórico:', response.data);
         return {
-          error: false,
-          data: result
+          error: true,
+          code: 'INVALID_RESPONSE',
+          message: 'Resposta inválida da API de histórico',
+          statusCode: response.status
         };
       }
       
-      // Se o throttler retornar null, temos um erro
-      throw new Error('Erro ao buscar histórico da roleta');
-      
+      console.log(`[API] ✅ Obtidos ${response.data.length} números históricos`);
+      return {
+        error: false,
+        data: response.data
+      };
     } catch (error: any) {
       console.error(`[API] Erro ao buscar histórico da roleta ${rouletteName}:`, error);
       

@@ -121,30 +121,24 @@ class ApiService {
    * @returns Promise com a resposta
    */
   public async getRoulette<T = any>(id: string, dataType: string = 'basic'): Promise<AxiosResponse<T>> {
-    console.log(`[API] Requisições para /roulettes/${id}/${dataType} desativadas, usando dados mockados`);
+    console.log(`[API] Buscando dados da roleta ${id} (tipo: ${dataType})`);
     
-    // Dados mockados para simular a resposta da API
-    const mockData = {
-      success: true,
-      data: {
-        id: id,
-        name: `Roleta ${id}`,
-        provider: 'Evolution',
-        status: 'online',
-        numbers: dataType === 'basic' ? [12, 35, 0, 26, 3] : 
-                 [12, 35, 0, 26, 3, 15, 4, 0, 32, 15, 18, 21, 9, 7, 0],
-        lastUpdated: new Date().toISOString()
+    try {
+      // Montar URL com base no tipo de dados solicitado
+      let url = `/roulettes/${id}`;
+      
+      if (dataType !== 'basic') {
+        url += `/${dataType}`;
       }
-    };
-    
-    // Simular resposta do axios
-    return {
-      data: mockData as any as T,
-      status: 200,
-      statusText: 'OK',
-      headers: {},
-      config: {} as any
-    };
+      
+      // Fazer requisição à API
+      const response = await this.api.get<T>(url);
+      console.log(`[API] ✅ Dados obtidos para roleta ${id}`);
+      return response;
+    } catch (error) {
+      console.error(`[API] Erro ao buscar dados da roleta ${id}:`, error);
+      throw error;
+    }
   }
   
   /**
