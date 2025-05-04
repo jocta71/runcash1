@@ -56,14 +56,13 @@ const PlansPage = () => {
   const [paymentData, setPaymentData] = useState<{
     subscriptionId?: string;
     paymentId?: string;
-    pixCodeImage?: string;
-    pixCodeText?: string;
+    qrCodeImage?: string;
+    qrCodeText?: string;
     expirationDate?: Date;
   }>({});
   const [paymentStatus, setPaymentStatus] = useState<string>('PENDING');
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [checkingInterval, setCheckingInterval] = useState<NodeJS.Timeout | null>(null);
-  const [retryCount, setRetryCount] = useState<number>(0);
   
   // Limpar temporizadores quando o componente é desmontado
   useEffect(() => {
@@ -96,6 +95,18 @@ const PlansPage = () => {
     }
   }, [checkoutState]);
 
+  // Adicionar log para as props que serão passadas para PixPayment
+  useEffect(() => {
+    if (checkoutState === 'WAITING_PAYMENT') {
+      console.log('Valores que serão passados para PixPayment:', {
+        qrCodeImage: paymentData.qrCodeImage || '',
+        qrCodeText: paymentData.qrCodeText || '',
+        paymentStatus,
+        expirationTime: timeLeft
+      });
+    }
+  }, [checkoutState, paymentData, paymentStatus, timeLeft]);
+  
   // Calcular tempo restante para pagamento
   useEffect(() => {
     if (!paymentData.expirationDate) return;
@@ -180,96 +191,35 @@ const PlansPage = () => {
     setIsRefreshing(true);
     setError(null);
     
-    // Variável para controlar o uso do fallback
-    const useFallback = retryCount > 2;
-    
     try {
-      console.log('Carregando QR code PIX para o pagamento:', paymentData.paymentId, useFallback ? '(usando fallback)' : '');
+      console.log('Carregando QR code PIX para o pagamento:', paymentData.paymentId);
+      const pixData = await getAsaasPixQrCode(paymentData.paymentId);
       
-      // Se estamos no terceiro retry ou mais, usar o endpoint de fallback
-      let pixData;
-      if (useFallback) {
-        try {
-          // Usar o endpoint de fallback que sempre retorna um QR code
-          const response = await fetch(`/api/asaas-pix-qrcode-fallback?paymentId=${paymentData.paymentId}`);
-          const data = await response.json();
-          
-          if (data.success && data.qrCode) {
-            console.log('Usando QR code de fallback');
-            pixData = {
-              qrCodeImage: data.qrCode.encodedImage,
-              qrCodeText: data.qrCode.payload,
-              expirationDate: data.qrCode.expirationDate
-            };
-          } else {
-            throw new Error('Falha no fallback');
-          }
-        } catch (fallbackError) {
-          console.error('Erro no endpoint de fallback:', fallbackError);
-          throw new Error('Não foi possível carregar o QR Code mesmo com fallback');
-        }
-      } else {
-        // Usar o endpoint normal
-        pixData = await getAsaasPixQrCode(paymentData.paymentId);
-      }
-      
-      console.log('Dados do QR code recebidos:', {
-        temImagem: !!pixData.qrCodeImage,
-        tamanhoImagem: pixData.qrCodeImage?.length || 0,
-        temTexto: !!pixData.qrCodeText,
-        prefixoImagem: pixData.qrCodeImage?.substring(0, 30) || ''
-      });
+      console.log('Dados recebidos da API getAsaasPixQrCode:', pixData);
       
       if (!pixData.qrCodeImage || !pixData.qrCodeText) {
-        console.error('QR Code PIX inválido:', pixData);
         setError('QR Code PIX não disponível. Tente novamente em alguns segundos.');
-        // Incrementar contador de tentativas
-        setRetryCount(prev => prev + 1);
         // Tentar novamente após 3 segundos
         setTimeout(() => loadPixQrCode(), 3000);
         return;
       }
       
-      // Reset do contador de tentativas após sucesso
-      setRetryCount(0);
-      
-      setPaymentData({
+      // Atualiza o estado com os dados recebidos
+      const updatedPaymentData = {
         ...paymentData,
-        pixCodeImage: pixData.qrCodeImage,
-        pixCodeText: pixData.qrCodeText,
+        qrCodeImage: pixData.qrCodeImage,
+        qrCodeText: pixData.qrCodeText,
         expirationDate: pixData.expirationDate ? new Date(pixData.expirationDate) : undefined
-      });
+      };
       
+      console.log('Dados salvos no estado paymentData:', updatedPaymentData);
+      
+      setPaymentData(updatedPaymentData);
       setIsRefreshing(false);
-      
-      // Exibir toast indicando que QR code foi carregado com sucesso
-      toast({
-        title: "QR Code PIX pronto",
-        description: "Escaneie o QR code para realizar o pagamento."
-      });
     } catch (error) {
-      console.error('Erro detalhado ao carregar QR Code PIX:', error);
       setIsRefreshing(false);
-      
-      // Incrementar contador de tentativas
-      setRetryCount(prev => prev + 1);
-      
-      // Ajustar mensagem com base no número de tentativas
-      if (retryCount >= 4) {
-        setError('Não foi possível carregar o QR Code. Use a opção de copiar o código PIX.');
-      } else {
-        setError('Aguarde, tentando recuperar o QR Code...');
-        
-        // Tentar novamente após um tempo progressivo
-        const timeout = Math.min(2000 + retryCount * 1000, 5000);
-        toast({
-          variant: "destructive",
-          title: "Erro no QR Code",
-          description: `Tentando novamente em ${timeout/1000} segundos...`,
-        });
-        
-        setTimeout(() => loadPixQrCode(), timeout);
-      }
+      setError('Não foi possível carregar o QR Code PIX. Tente recarregar a página.');
+      console.error('Erro ao carregar QR Code PIX:', error);
     }
   };
 
@@ -590,8 +540,8 @@ const PlansPage = () => {
                 
                 {(checkoutState === 'WAITING_PAYMENT' || checkoutState === 'PAYMENT_RECEIVED') && (
                   <PixPayment
-                    qrCodeImage={paymentData.pixCodeImage || ''}
-                    qrCodeText={paymentData.pixCodeText || ''}
+                    qrCodeImage={paymentData.qrCodeImage || ''}
+                    qrCodeText={paymentData.qrCodeText || ''}
                     paymentStatus={paymentStatus}
                     expirationTime={timeLeft}
                     onRefreshStatus={handleRefreshStatus}
@@ -618,96 +568,96 @@ const PlansPage = () => {
           </div>
         ) : (
           <>
-            <h1 className="text-3xl font-bold text-center mb-2">Escolha o plano ideal para você</h1>
-            <p className="text-gray-400 text-center mb-10">
-              Assine e tenha acesso a todos os recursos da plataforma.
-            </p>
+        <h1 className="text-3xl font-bold text-center mb-2">Escolha o plano ideal para você</h1>
+        <p className="text-gray-400 text-center mb-10">
+          Assine e tenha acesso a todos os recursos da plataforma.
+        </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-              {filteredPlans.map(plan => (
-                <div 
-                  key={plan.id}
-                  className={`border rounded-lg p-6 flex flex-col ${
-                    currentPlan?.id === plan.id 
-                      ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
-                      : plan.id === 'pro' 
-                        ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
-                        : 'border-gray-700 bg-vegas-black/40'
-                  }`}
-                >
-                  {plan.id === 'pro' && (
-                    <div className="absolute right-0 top-0 bg-vegas-gold text-black text-xs px-4 py-1 transform translate-x-2 translate-y-3 rotate-45">
-                      Popular
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold">{plan.name}</h3>
-                    {currentPlan?.id === plan.id && (
-                      <span className="bg-vegas-gold text-black text-xs px-2 py-1 rounded-full">
-                        Plano Atual
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="mt-4 mb-2">
-                    <span className="text-3xl font-bold">
-                      R$ {plan.price.toFixed(2)}
-                    </span>
-                    <span className="text-sm text-gray-400">
-                      /mês
-                    </span>
-                  </div>
-                  
-                  <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
-                  
-                  <ul className="space-y-3 mb-6 flex-grow">
-                    {plan.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-start">
-                        <Check className="h-5 w-5 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  
-                  <Button
-                    onClick={() => handleSelectPlan(plan.id)}
-                    className={
-                      currentPlan?.id === plan.id 
-                        ? "bg-gray-700 hover:bg-gray-600" 
-                        : plan.id === 'pro'
-                          ? "bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-                          : "bg-vegas-gold/80 hover:bg-vegas-gold text-black"
-                    }
-                    disabled={currentPlan?.id === plan.id}
-                  >
-                    {currentPlan?.id === plan.id 
-                      ? "Plano Atual" 
-                      : "Assinar Agora"}
-                  </Button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          {filteredPlans.map(plan => (
+            <div 
+              key={plan.id}
+              className={`border rounded-lg p-6 flex flex-col ${
+                currentPlan?.id === plan.id 
+                  ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
+                  : plan.id === 'pro' 
+                    ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
+                    : 'border-gray-700 bg-vegas-black/40'
+              }`}
+            >
+              {plan.id === 'pro' && (
+                <div className="absolute right-0 top-0 bg-vegas-gold text-black text-xs px-4 py-1 transform translate-x-2 translate-y-3 rotate-45">
+                  Popular
                 </div>
-              ))}
+              )}
+              
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold">{plan.name}</h3>
+                {currentPlan?.id === plan.id && (
+                  <span className="bg-vegas-gold text-black text-xs px-2 py-1 rounded-full">
+                    Plano Atual
+                  </span>
+                )}
+              </div>
+              
+              <div className="mt-4 mb-2">
+                <span className="text-3xl font-bold">
+                  R$ {plan.price.toFixed(2)}
+                </span>
+                <span className="text-sm text-gray-400">
+                  /mês
+                </span>
+              </div>
+              
+              <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
+              
+              <ul className="space-y-3 mb-6 flex-grow">
+                {plan.features.map((feature, idx) => (
+                  <li key={idx} className="flex items-start">
+                    <Check className="h-5 w-5 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              
+              <Button
+                onClick={() => handleSelectPlan(plan.id)}
+                className={
+                  currentPlan?.id === plan.id 
+                    ? "bg-gray-700 hover:bg-gray-600" 
+                    : plan.id === 'pro'
+                      ? "bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+                      : "bg-vegas-gold/80 hover:bg-vegas-gold text-black"
+                }
+                disabled={currentPlan?.id === plan.id}
+              >
+                {currentPlan?.id === plan.id 
+                  ? "Plano Atual" 
+                  : "Assinar Agora"}
+              </Button>
+            </div>
+          ))}
+        </div>
+        
+        <div className="mt-12 bg-vegas-black/30 p-6 rounded-lg border border-gray-800 max-w-4xl mx-auto">
+          <h2 className="text-xl font-bold mb-4">Dúvidas Frequentes</h2>
+          
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-semibold mb-2">Como funciona o sistema de assinatura?</h3>
+              <p className="text-sm text-gray-400">
+                Nossas assinaturas são cobradas mensalmente e o pagamento é processado via PIX através da plataforma Asaas.
+              </p>
             </div>
             
-            <div className="mt-12 bg-vegas-black/30 p-6 rounded-lg border border-gray-800 max-w-4xl mx-auto">
-              <h2 className="text-xl font-bold mb-4">Dúvidas Frequentes</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-semibold mb-2">Como funciona o sistema de assinatura?</h3>
-                  <p className="text-sm text-gray-400">
-                    Nossas assinaturas são cobradas mensalmente e o pagamento é processado via PIX através da plataforma Asaas.
-                  </p>
-                </div>
-                
-                <div>
-                  <h3 className="font-semibold mb-2">Posso cancelar a qualquer momento?</h3>
-                  <p className="text-sm text-gray-400">
-                    Sim, você pode cancelar sua assinatura a qualquer momento. O acesso aos recursos premium permanecerá ativo até o final do período pago.
-                  </p>
-                </div>
-              </div>
+            <div>
+              <h3 className="font-semibold mb-2">Posso cancelar a qualquer momento?</h3>
+              <p className="text-sm text-gray-400">
+                Sim, você pode cancelar sua assinatura a qualquer momento. O acesso aos recursos premium permanecerá ativo até o final do período pago.
+              </p>
             </div>
+          </div>
+        </div>
           </>
         )}
       </div>

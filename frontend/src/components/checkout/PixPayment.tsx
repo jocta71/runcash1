@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { PaymentStatus } from './PaymentStatus';
-import { Check, Copy, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Check, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface PixPaymentProps {
@@ -23,34 +23,17 @@ export function PixPayment({
   isRefreshing
 }: PixPaymentProps) {
   const [copied, setCopied] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  const [retries, setRetries] = useState(0);
   const { toast } = useToast();
 
-  // Resetar estado de erro da imagem quando receber novos dados
+  // Debug para verificar os valores recebidos
   useEffect(() => {
-    if (qrCodeImage) {
-      setImageError(false);
-      console.log('Recebidos novos dados de QR code:', { 
-        tamanho: qrCodeImage?.length,
-        inicio: qrCodeImage?.substring(0, 20) 
-      });
-    }
-  }, [qrCodeImage]);
-
-  // Tentar novamente após erro na imagem
-  useEffect(() => {
-    if (imageError && retries < 3) {
-      const timer = setTimeout(() => {
-        console.log(`Tentativa ${retries + 1} de recarregar o QR code...`);
-        setImageError(false);
-        setRetries(prev => prev + 1);
-        onRefreshStatus();
-      }, 3000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [imageError, retries, onRefreshStatus]);
+    console.log("PixPayment recebeu:", { 
+      qrCodeImage, 
+      qrCodeText, 
+      paymentStatus, 
+      expirationTime 
+    });
+  }, [qrCodeImage, qrCodeText, paymentStatus, expirationTime]);
 
   const copyToClipboard = async () => {
     try {
@@ -71,40 +54,6 @@ export function PixPayment({
     }
   };
 
-  // Função para formatar corretamente a imagem do QR Code
-  const formatQrCodeImage = (imageData: string) => {
-    if (!imageData) {
-      console.error('Dados de imagem vazios');
-      return '';
-    }
-
-    console.log('Formatando QR code:', {
-      tamanho: imageData.length,
-      comecoComData: imageData.startsWith('data:'),
-      comecoComBase64: imageData.startsWith('base64,'),
-      primeirosCaracteres: imageData.substring(0, 30)
-    });
-
-    // Se a string já começa com data:image, usá-la diretamente
-    if (imageData.startsWith('data:image')) {
-      return imageData;
-    }
-    
-    // Se começa com "base64," adicionar apenas o prefixo data:image/png;
-    if (imageData.startsWith('base64,')) {
-      return `data:image/png;${imageData}`;
-    }
-    
-    // Caso contrário, adicionar o prefixo completo
-    return `data:image/png;base64,${imageData}`;
-  };
-
-  // Callback para quando a imagem não carregar
-  const handleImageError = () => {
-    console.error('Erro ao carregar imagem do QR code');
-    setImageError(true);
-  };
-
   return (
     <Card className="w-full">
       <CardContent className="pt-6">
@@ -118,29 +67,16 @@ export function PixPayment({
           
           {/* QR Code */}
           <div className="bg-white p-4 rounded-lg">
-            {(!qrCodeImage || imageError) ? (
-              isRefreshing ? (
-                <div className="w-48 h-48 flex flex-col items-center justify-center bg-gray-100">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400 mb-2" />
-                  <p className="text-xs text-gray-500">Carregando QR Code...</p>
-                </div>
-              ) : (
-                <div className="w-48 h-48 flex flex-col items-center justify-center bg-gray-100">
-                  <AlertTriangle className="h-8 w-8 text-yellow-500 mb-2" />
-                  <p className="text-xs text-gray-500 text-center px-2">
-                    {retries >= 3 
-                      ? "Não foi possível carregar o QR Code. Tente copiar o código PIX."
-                      : "Tentando recarregar o QR Code..."}
-                  </p>
-                </div>
-              )
-            ) : (
+            {qrCodeImage ? (
               <img 
-                src={formatQrCodeImage(qrCodeImage)} 
+                src={qrCodeImage.startsWith('data:') ? qrCodeImage : `data:image/png;base64,${qrCodeImage}`} 
                 alt="QR Code PIX" 
                 className="w-48 h-48 mx-auto"
-                onError={handleImageError}
               />
+            ) : (
+              <div className="w-48 h-48 flex items-center justify-center bg-gray-100">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              </div>
             )}
           </div>
           
@@ -166,7 +102,6 @@ export function PixPayment({
           onClick={copyToClipboard}
           variant="outline"
           className="w-full flex items-center justify-center gap-2"
-          disabled={!qrCodeText}
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           {copied ? "Copiado!" : "Copiar código PIX"}
