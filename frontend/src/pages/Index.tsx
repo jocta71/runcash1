@@ -815,6 +815,114 @@ const Index = () => {
     }
   };
 
+  // Modificar o useEffect para incluir diagnóstico
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        console.log('[Index] 📊 Iniciando carregamento de roletas...');
+        
+        // Importar utilitários de diagnóstico
+        try {
+          const diagnostics = await import('@/services/GlobalRouletteDataService')
+            .then(module => module.diagnosticarCarregamentoRoletas)
+            .catch(() => null);
+            
+          if (diagnostics) {
+            console.log('[Index] Executando diagnóstico do serviço de roletas');
+            diagnostics();
+          }
+        } catch (diagError) {
+          console.warn('[Index] Diagnóstico não disponível:', diagError);
+        }
+        
+        // Buscar todas as roletas com seus números
+        const rouletteData = await RouletteRepository.fetchAllRoulettesWithNumbers();
+        
+        if (!rouletteData || rouletteData.length === 0) {
+          console.warn('[Index] Nenhuma roleta retornada pela API');
+          setError('Nenhuma roleta disponível. A API retornou uma lista vazia.');
+          return;
+        }
+        
+        console.log(`[Index] ✅ Recebidas ${rouletteData.length} roletas`);
+        
+        // Ordenar por nome para exibição
+        rouletteData.sort((a, b) => {
+          const nameA = a.nome || a.name || '';
+          const nameB = b.nome || b.name || '';
+          return nameA.localeCompare(nameB);
+        });
+        
+        setRoulettes(rouletteData);
+        setFilteredRoulettes(rouletteData);
+        console.log(`[Index] ✅ ${rouletteData.length} roletas processadas e ordenadas`);
+      } catch (err) {
+        console.error('[Index] ❌ Erro ao buscar roletas:', err);
+        setError('Não foi possível carregar as roletas disponíveis.');
+        
+        // Tentar recuperação de erro com chamada direta
+        try {
+          console.log('[Index] Tentando chamada direta à API como fallback');
+          const response = await fetch('/api/roulettes', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            credentials: 'include'
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            // Processar resposta
+            if (Array.isArray(data) && data.length > 0) {
+              console.log(`[Index] ✅ Recuperação bem-sucedida via fallback: ${data.length} roletas`);
+              setRoulettes(data);
+              setFilteredRoulettes(data);
+              setError(null);
+            } else {
+              console.warn('[Index] Resposta do fallback não é um array válido');
+            }
+          }
+        } catch (fallbackErr) {
+          console.error('[Index] Falha na recuperação alternativa:', fallbackErr);
+        }
+      } finally {
+        setIsLoading(false);
+        
+        // Liberação forçada após timeout
+        setTimeout(() => {
+          if (isLoading) {
+            console.log('[Index] Forçando liberação após timeout');
+            setIsLoading(false);
+          }
+        }, 5000);
+      }
+    };
+    
+    // Registrar listeners para eventos
+    const handleDataUpdate = () => {
+      console.log('[Index] Evento de atualização de dados recebido, atualizando UI');
+      fetchData();
+    };
+    
+    // Inicializar registros de eventos
+    EventService.on('roulettes_loaded', handleDataUpdate);
+    
+    // Iniciar carregamento de dados
+    fetchData();
+    
+    // Limpeza
+    return () => {
+      EventService.off('roulettes_loaded', handleDataUpdate);
+      isMounted.current = false;
+    };
+  }, []);
+
   return (
     <Layout>
       <div className="container mx-auto px-4 pt-4 md:pt-8 min-h-[80vh] relative">
@@ -1115,18 +1223,15 @@ const Index = () => {
                                     
                                     <Button
                                       type="button"
-                                      disabled={verifyingPayment}
+                                      className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded flex items-center space-x-2"
                                       onClick={() => checkPaymentStatusManually(paymentId)}
-                                      className="bg-[#00FF00] hover:bg-[#00CC00] text-black font-bold"
                                     >
                                       {verifyingPayment ? (
-                                        <>
-                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                          Verificando...
-                                        </>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
                                       ) : (
-                                        'Já paguei'
+                                        <PackageOpen className="h-4 w-4" />
                                       )}
+                                      <span>Verificar pagamento</span>
                                     </Button>
                                   </div>
                                 </div>

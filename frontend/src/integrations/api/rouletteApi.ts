@@ -31,34 +31,58 @@ export const formatRouletteData = (roleta: any): any => {
 };
 
 /**
- * Adapter para garantir consistência na estrutura de resposta da API
- * Usado para corrigir problemas de incompatibilidade entre serviços
+ * Normaliza a resposta da API para garantir que estamos sempre retornando um array de roletas
+ * mesmo quando o formato da resposta é inconsistente
+ * @param apiResponse Resposta da API que pode estar em diferentes formatos
+ * @returns Array normalizado de objetos de roleta
  */
-export const normalizeRouletteApiResponse = (data: any): any[] => {
-  // Verificar se é um array
-  if (!Array.isArray(data)) {
-    console.warn('[API] Dados recebidos da API não são um array, convertendo...');
-    
-    // Tentar extrair dados de diferentes formatos comuns de resposta
-    if (data && typeof data === 'object') {
-      if (Array.isArray(data.data)) {
-        return data.data.map(formatRouletteData);
-      } else if (Array.isArray(data.roulettes)) {
-        return data.roulettes.map(formatRouletteData);
-      } else if (data.id) {
-        // É um único objeto, converter para array
-        return [formatRouletteData(data)];
-      }
-    }
-    
-    // Fallback para array vazio
-    console.error('[API] Não foi possível normalizar resposta da API:', data);
-    return [];
+export function normalizeRouletteApiResponse(apiResponse: any): any[] {
+  console.log('[API] Normalizando resposta da API', typeof apiResponse);
+  
+  // Caso 1: É um array - retorna diretamente
+  if (Array.isArray(apiResponse)) {
+    console.log(`[API] Resposta já é um array com ${apiResponse.length} itens`);
+    return apiResponse;
   }
   
-  // É um array, formatar cada item
-  return data.map(formatRouletteData);
-};
+  // Caso 2: Objeto com propriedade data que é um array
+  if (apiResponse && typeof apiResponse === 'object' && apiResponse.data && Array.isArray(apiResponse.data)) {
+    console.log(`[API] Resposta contém data que é um array com ${apiResponse.data.length} itens`);
+    return apiResponse.data;
+  }
+  
+  // Caso 3: Objeto com propriedade data que contém roletas
+  if (apiResponse && typeof apiResponse === 'object' && apiResponse.data && typeof apiResponse.data === 'object') {
+    // Se data não é um array mas contém roletas como propriedades
+    if (!Array.isArray(apiResponse.data)) {
+      const roletasArray = Object.values(apiResponse.data);
+      if (roletasArray.length > 0) {
+        console.log(`[API] Convertido objeto para array com ${roletasArray.length} itens`);
+        return roletasArray;
+      }
+    }
+  }
+  
+  // Caso 4: Tentativa de extrair roletas diretamente do objeto
+  if (apiResponse && typeof apiResponse === 'object') {
+    // Tentativa de identificar se o objeto contém roletas diretamente
+    const potentialRoletas = Object.values(apiResponse).filter((item: any) => 
+      item && typeof item === 'object' && 
+      // Verificar se tem propriedades típicas de roleta
+      (item.nome || item.name || item.roleta_id || item._id || 
+       (item.numbers && Array.isArray(item.numbers)))
+    );
+    
+    if (potentialRoletas.length > 0) {
+      console.log(`[API] Extraídos ${potentialRoletas.length} potenciais objetos de roleta`);
+      return potentialRoletas;
+    }
+  }
+  
+  // Se não conseguirmos extrair nenhum array válido, retornamos um array vazio
+  console.warn('[API] ⚠️ Não foi possível normalizar a resposta da API, retornando array vazio');
+  return [];
+}
 
 /**
  * Busca todas as roletas e inclui os números mais recentes para cada uma.

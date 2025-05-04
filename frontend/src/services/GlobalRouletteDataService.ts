@@ -41,6 +41,7 @@ class GlobalRouletteDataService {
   private pollingTimer: number | null = null;
   private subscribers: Map<string, SubscriberCallback> = new Map();
   private _currentFetchPromise: Promise<any[]> | null = null;
+  private fetchError: Error | null = null;
   
   // Construtor privado para garantir Singleton
   private constructor() {
@@ -111,132 +112,144 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca os dados das roletas do endpoint /api/roulettes
-   * IMPORTANTE: Não adicione parâmetros de timestamp ou outros à URL
+   * Verifica e normaliza a estrutura de dados de roleta recebida para garantir compatibilidade
+   * @param data Dados recebidos da API em qualquer formato
+   * @returns Array de objetos de roleta normalizados e prontos para uso
+   */
+  private normalizeRouletteData(data: any): any[] {
+    if (!data) {
+      console.error('[GlobalRouletteDataService] Dados inexistentes ou nulos');
+      return [];
+    }
+
+    // Imprimir informações de diagnóstico sobre o formato dos dados
+    console.log('[GlobalRouletteDataService] 📊 Formato dos dados recebidos:', {
+      tipo: typeof data,
+      isArray: Array.isArray(data),
+      tamanho: Array.isArray(data) ? data.length : (data && typeof data === 'object' ? Object.keys(data).length : 0),
+      amostra: Array.isArray(data) && data.length > 0 ? 
+        Object.keys(data[0]).slice(0, 10) : 
+        (data && typeof data === 'object' ? Object.keys(data).slice(0, 10) : 'N/A')
+    });
+
+    // Caso 1: Já é um array - verificar se é um array válido com dados de roleta
+    if (Array.isArray(data)) {
+      if (data.length === 0) {
+        console.warn('[GlobalRouletteDataService] Array vazio recebido');
+        return [];
+      }
+
+      // Verificar se tem formato esperado
+      const primeiroItem = data[0];
+      if (primeiroItem && typeof primeiroItem === 'object') {
+        // Verificar se tem propriedades esperadas de uma roleta
+        const temFormatoRoleta = 
+          (primeiroItem.nome || primeiroItem.name) && 
+          (primeiroItem.id || primeiroItem._id || primeiroItem.roleta_id);
+
+        if (temFormatoRoleta) {
+          console.log(`[GlobalRouletteDataService] ✅ Array com ${data.length} roletas válidas`);
+          return data;
+        } else {
+          console.warn('[GlobalRouletteDataService] Array com formato inesperado:', 
+            Object.keys(primeiroItem).slice(0, 10));
+        }
+      }
+    }
+
+    // Caso 2: É um objeto com uma propriedade que contém um array de roletas
+    if (data && typeof data === 'object') {
+      // Verificar propriedades comuns que podem conter arrays de roletas
+      for (const prop of ['data', 'roletas', 'roulettes', 'items', 'results']) {
+        if (data[prop] && Array.isArray(data[prop]) && data[prop].length > 0) {
+          console.log(`[GlobalRouletteDataService] ✅ Extraindo array de ${data[prop].length} roletas da propriedade '${prop}'`);
+          return this.normalizeRouletteData(data[prop]); // Verifica recursivamente
+        }
+      }
+
+      // Tentar extrair valores do objeto diretamente
+      const valores = Object.values(data);
+      if (valores.length > 0 && valores.every(v => v && typeof v === 'object')) {
+        console.log(`[GlobalRouletteDataService] Tentando extrair ${valores.length} objetos como roletas`);
+        return valores;
+      }
+    }
+
+    console.error('[GlobalRouletteDataService] ❌ Formato de dados não reconhecido:', data);
+    return [];
+  }
+  
+  /**
+   * Método principal para buscar dados das roletas.
+   * Este método agora usa a normalização para garantir consistência.
+   * @returns Array de objetos de roleta (vazio se ocorrer erro)
    */
   private async fetchRouletteData(): Promise<any[]> {
     if (this.isFetching) {
-      console.log('[GlobalRouletteDataService] Já existe uma busca em andamento, aguardando...');
-      return this.rouletteData;
+      console.log('[GlobalRouletteDataService] Já existe uma busca em andamento, ignorando');
+      return this.rouletteData || [];
     }
 
+    this.isFetching = true;
+    console.log('[GlobalRouletteDataService] 🔄 Iniciando busca de dados de roletas...');
+
     try {
-      this.isFetching = true;
-      
-      // Obter token de autenticação de várias fontes
-      let authToken = '';
-      
-      // Função para obter cookies
-      const getCookie = (name: string) => {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(';').shift();
-        return undefined;
-      };
-      
-      // Tentar obter dos cookies primeiro (mais confiável)
-      const tokenCookie = getCookie('token') || getCookie('token_alt');
-      if (tokenCookie) {
-        authToken = tokenCookie;
-        console.log('[GlobalRouletteDataService] Usando token de autenticação dos cookies');
-      } else {
-        // Se não encontrou nos cookies, verificar localStorage
-        const possibleKeys = [
-          'auth_token_backup', // Usado pelo AuthContext
-          'token',             // Nome do cookie usado na requisição bem-sucedida
-          'auth_token',        // Usado em alguns componentes
-          'authToken'          // Usado em alguns utilitários
-        ];
-        
-        for (const key of possibleKeys) {
-          const storedToken = localStorage.getItem(key);
-          if (storedToken) {
-            authToken = storedToken;
-            console.log(`[GlobalRouletteDataService] Usando token de autenticação do localStorage (${key})`);
-            
-            // Restaurar para cookies se necessário
-            try {
-              document.cookie = `token=${authToken}; path=/; max-age=2592000`;
-              document.cookie = `token_alt=${authToken}; path=/; max-age=2592000; SameSite=Lax`;
-              console.log('[GlobalRouletteDataService] Token restaurado para cookies');
-            } catch (cookieError) {
-              console.warn('[GlobalRouletteDataService] Erro ao restaurar token para cookies:', cookieError);
-            }
-            
-            break;
-          }
-        }
-      }
+      // Limpar qualquer erro anterior
+      this.fetchError = null;
 
-      // Usar endpoint base sem parâmetros adicionais
-      const endpoint = `/api/roulettes`;
-      console.log(`[GlobalRouletteDataService] Buscando dados de ${endpoint}`);
-      
-      // Configurar headers exatamente como na requisição bem-sucedida
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'accept': 'application/json, text/plain, */*'
-      };
-
-      // Adicionar token de autenticação se disponível
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-        console.log('[GlobalRouletteDataService] Token de autenticação adicionado ao cabeçalho da requisição');
-      } else {
-        console.warn('[GlobalRouletteDataService] Nenhum token de autenticação encontrado, tentando acessar endpoint sem autenticação');
-      }
-
-      console.log('[GlobalRouletteDataService] Iniciando requisição fetch...');
-      const response = await fetch(endpoint, {
+      // Buscar dados da API
+      console.log('[GlobalRouletteDataService] Fazendo requisição à API...');
+      const response = await fetch('/api/roulettes', {
         method: 'GET',
-        headers,
-        credentials: 'include' // Importante: Incluir cookies na requisição
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        credentials: 'include' // Importante: enviar cookies com a requisição
       });
 
-      console.log(`[GlobalRouletteDataService] Resposta recebida com status: ${response.status}`);
-      
       if (!response.ok) {
-        throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
       }
 
-      console.log('[GlobalRouletteDataService] Convertendo resposta para JSON...');
+      // Extrair e processar dados
+      console.log('[GlobalRouletteDataService] Dados recebidos, processando...');
       const data = await response.json();
       
-      // Diagnosticar estrutura dos dados
-      console.log(`[GlobalRouletteDataService] Tipo de dados recebidos: ${typeof data}`);
-      console.log(`[GlobalRouletteDataService] É array? ${Array.isArray(data)}`);
+      // Usar a função de normalização para garantir formato consistente
+      const normalizedData = this.normalizeRouletteData(data);
       
-      if (Array.isArray(data)) {
-        console.log(`[GlobalRouletteDataService] Tamanho do array: ${data.length}`);
-        if (data.length > 0) {
-          console.log('[GlobalRouletteDataService] Estrutura do primeiro item:', JSON.stringify(data[0]).substring(0, 500) + '...');
-          
-          // Verificar se os dados têm a estrutura esperada
-          const hasMissingFields = data.some(item => !item.id || !item.nome);
-          if (hasMissingFields) {
-            console.warn('[GlobalRouletteDataService] ATENÇÃO: Alguns itens não têm os campos obrigatórios (id/nome)');
-          }
-        } else {
-          console.warn('[GlobalRouletteDataService] ALERTA: Array de dados vazio recebido da API');
-        }
+      if (normalizedData.length === 0) {
+        console.warn('[GlobalRouletteDataService] ⚠️ Nenhuma roleta encontrada após normalização');
+        this.fetchError = new Error('Nenhuma roleta encontrada nos dados');
       } else {
-        console.error('[GlobalRouletteDataService] ERRO: Dados recebidos não são um array!');
-        console.log('[GlobalRouletteDataService] Dados recebidos:', data);
+        console.log(`[GlobalRouletteDataService] ✅ ${normalizedData.length} roletas processadas com sucesso`);
+        this.rouletteData = normalizedData;
+        this.lastFetchTime = Date.now();
+        
+        // Salvar em cache
+        try {
+          localStorage.setItem('roulette_data_cache', JSON.stringify({
+            data: this.rouletteData,
+            timestamp: this.lastFetchTime
+          }));
+          console.log('[GlobalRouletteDataService] Dados salvos em cache');
+        } catch (cacheError) {
+          console.warn('[GlobalRouletteDataService] Erro ao salvar cache:', cacheError);
+        }
+        
+        // Notificar assinantes
+        this.notifySubscribers();
       }
       
-      this.lastFetchTime = Date.now();
-      this.rouletteData = Array.isArray(data) ? data : [];
-      
-      console.log(`[GlobalRouletteDataService] Antes de notificar: ${this.subscribers.size} assinantes`);
-      this.notifySubscribers();
-      console.log(`[GlobalRouletteDataService] ✅ Dados atualizados: ${Array.isArray(data) ? data.length : 0} roletas`);
-      
-      return this.rouletteData;
+      return this.rouletteData || [];
     } catch (error) {
-      console.error('[GlobalRouletteDataService] Erro ao buscar dados das roletas:', error);
-      return this.rouletteData;
+      console.error('[GlobalRouletteDataService] ❌ Erro ao buscar dados:', error);
+      this.fetchError = error;
+      return this.rouletteData || [];
     } finally {
       this.isFetching = false;
+      console.log('[GlobalRouletteDataService] Busca de dados concluída');
     }
   }
   
