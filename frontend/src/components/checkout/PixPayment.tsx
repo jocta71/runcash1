@@ -44,6 +44,16 @@ export function PixPayment({
     }
   };
 
+  // Função para formatar corretamente a imagem do QR Code
+  const formatQrCodeImage = (imageData: string) => {
+    // Se a string já começa com data:image, usá-la diretamente
+    if (imageData.startsWith('data:image')) {
+      return imageData;
+    }
+    // Caso contrário, adicionar o prefixo necessário
+    return `data:image/png;base64,${imageData}`;
+  };
+
   return (
     <Card className="w-full">
       <CardContent className="pt-6">
@@ -59,7 +69,7 @@ export function PixPayment({
           <div className="bg-white p-4 rounded-lg">
             {qrCodeImage ? (
               <img 
-                src={`data:image/png;base64,${qrCodeImage}`} 
+                src={formatQrCodeImage(qrCodeImage)} 
                 alt="QR Code PIX" 
                 className="w-48 h-48 mx-auto"
               />

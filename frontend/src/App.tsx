@@ -29,6 +29,7 @@ const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
+const DebugQrCodePage = lazy(() => import("@/pages/debug-qrcode"));
 // Comentando a importação da página de checkout, já que agora está integrada nos planos
 // const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 // Comentando a importação da página de teste do Asaas
@@ -295,6 +296,14 @@ const App = () => {
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
                                 <PaymentSuccessPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/debug/qrcode" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <DebugQrCodePage />
                               </Suspense>
                             </ProtectedRoute>
                           } />

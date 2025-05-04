@@ -183,7 +183,15 @@ const PlansPage = () => {
       console.log('Carregando QR code PIX para o pagamento:', paymentData.paymentId);
       const pixData = await getAsaasPixQrCode(paymentData.paymentId);
       
+      console.log('Dados do QR code recebidos:', {
+        temImagem: !!pixData.qrCodeImage,
+        tamanhoImagem: pixData.qrCodeImage?.length || 0,
+        temTexto: !!pixData.qrCodeText,
+        prefixoImagem: pixData.qrCodeImage?.substring(0, 30) || ''
+      });
+      
       if (!pixData.qrCodeImage || !pixData.qrCodeText) {
+        console.error('QR Code PIX inválido:', pixData);
         setError('QR Code PIX não disponível. Tente novamente em alguns segundos.');
         // Tentar novamente após 3 segundos
         setTimeout(() => loadPixQrCode(), 3000);
@@ -198,10 +206,25 @@ const PlansPage = () => {
       });
       
       setIsRefreshing(false);
+      
+      // Exibir toast indicando que QR code foi carregado com sucesso
+      toast({
+        title: "QR Code PIX pronto",
+        description: "Escaneie o QR code para realizar o pagamento."
+      });
     } catch (error) {
+      console.error('Erro detalhado ao carregar QR Code PIX:', error);
       setIsRefreshing(false);
       setError('Não foi possível carregar o QR Code PIX. Tente recarregar a página.');
-      console.error('Erro ao carregar QR Code PIX:', error);
+      
+      // Tentar novamente após 5 segundos
+      toast({
+        variant: "destructive",
+        title: "Erro no QR Code",
+        description: "Tentando novamente em 5 segundos...",
+      });
+      
+      setTimeout(() => loadPixQrCode(), 5000);
     }
   };
 
