@@ -23,35 +23,63 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
       return cache[cacheKey].data;
     }
 
-    // Obter token de autenticação
+    // Obter token de autenticação de várias fontes
     let authToken = '';
     
-    // Verificar várias chaves onde o token pode estar armazenado
-    const possibleKeys = [
-      'auth_token_backup',  // Usado pelo AuthContext
-      'auth_token',         // Usado em alguns componentes
-      'token',              // Usado pelo apiService
-      'authToken'           // Usado em alguns utilitários
-    ];
+    // Verificar token nos cookies (prioridade 1)
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift();
+      return undefined;
+    };
     
-    for (const key of possibleKeys) {
-      const storedToken = localStorage.getItem(key);
-      if (storedToken) {
-        authToken = storedToken;
-        console.log(`[API] Usando token de autenticação do localStorage (${key})`);
-        break;
+    // Tentar obter dos cookies primeiro (mais confiável)
+    const tokenCookie = getCookie('token') || getCookie('token_alt');
+    if (tokenCookie) {
+      authToken = tokenCookie;
+      console.log('[API] Usando token de autenticação dos cookies');
+    } else {
+      // Se não encontrou nos cookies, verificar localStorage
+      const possibleKeys = [
+        'auth_token_backup',  // Usado pelo AuthContext
+        'token',              // Nome do cookie usado na requisição bem-sucedida
+        'auth_token',         // Usado em alguns componentes
+        'authToken'           // Usado em alguns utilitários
+      ];
+      
+      for (const key of possibleKeys) {
+        const storedToken = localStorage.getItem(key);
+        if (storedToken) {
+          authToken = storedToken;
+          console.log(`[API] Usando token de autenticação do localStorage (${key})`);
+          
+          // Restaurar para cookies se necessário
+          try {
+            document.cookie = `token=${authToken}; path=/; max-age=2592000`;
+            document.cookie = `token_alt=${authToken}; path=/; max-age=2592000; SameSite=Lax`;
+            console.log('[API] Token restaurado para cookies');
+          } catch (cookieError) {
+            console.warn('[API] Erro ao restaurar token para cookies:', cookieError);
+          }
+          
+          break;
+        }
       }
     }
 
-    // Configurar headers com autenticação
+    // Configurar headers exatamente como na requisição bem-sucedida
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'accept': 'application/json, text/plain, */*'
     };
 
     // Adicionar token de autenticação se disponível
     if (authToken) {
       headers['Authorization'] = `Bearer ${authToken}`;
       console.log('[API] Token de autenticação adicionado ao cabeçalho da requisição');
+    } else {
+      console.warn('[API] Nenhum token de autenticação encontrado, tentando acessar endpoint sem autenticação');
     }
 
     // Passo 1: Buscar todas as roletas disponíveis usando apenas o endpoint "/api/roulettes" sem parâmetros
@@ -131,35 +159,63 @@ export const fetchRouletteWithNumbers = async (roletaId: string, limit = 20): Pr
       return cache[cacheKey].data;
     }
 
-    // Obter token de autenticação
+    // Obter token de autenticação de várias fontes
     let authToken = '';
     
-    // Verificar várias chaves onde o token pode estar armazenado
-    const possibleKeys = [
-      'auth_token_backup',  // Usado pelo AuthContext
-      'auth_token',         // Usado em alguns componentes
-      'token',              // Usado pelo apiService
-      'authToken'           // Usado em alguns utilitários
-    ];
+    // Verificar token nos cookies (prioridade 1)
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift();
+      return undefined;
+    };
     
-    for (const key of possibleKeys) {
-      const storedToken = localStorage.getItem(key);
-      if (storedToken) {
-        authToken = storedToken;
-        console.log(`[API] Usando token de autenticação do localStorage (${key})`);
-        break;
+    // Tentar obter dos cookies primeiro (mais confiável)
+    const tokenCookie = getCookie('token') || getCookie('token_alt');
+    if (tokenCookie) {
+      authToken = tokenCookie;
+      console.log('[API] Usando token de autenticação dos cookies');
+    } else {
+      // Se não encontrou nos cookies, verificar localStorage
+      const possibleKeys = [
+        'auth_token_backup',  // Usado pelo AuthContext
+        'token',              // Nome do cookie usado na requisição bem-sucedida
+        'auth_token',         // Usado em alguns componentes
+        'authToken'           // Usado em alguns utilitários
+      ];
+      
+      for (const key of possibleKeys) {
+        const storedToken = localStorage.getItem(key);
+        if (storedToken) {
+          authToken = storedToken;
+          console.log(`[API] Usando token de autenticação do localStorage (${key})`);
+          
+          // Restaurar para cookies se necessário
+          try {
+            document.cookie = `token=${authToken}; path=/; max-age=2592000`;
+            document.cookie = `token_alt=${authToken}; path=/; max-age=2592000; SameSite=Lax`;
+            console.log('[API] Token restaurado para cookies');
+          } catch (cookieError) {
+            console.warn('[API] Erro ao restaurar token para cookies:', cookieError);
+          }
+          
+          break;
+        }
       }
     }
 
-    // Configurar headers com autenticação
+    // Configurar headers exatamente como na requisição bem-sucedida
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'accept': 'application/json, text/plain, */*'
     };
 
     // Adicionar token de autenticação se disponível
     if (authToken) {
       headers['Authorization'] = `Bearer ${authToken}`;
       console.log('[API] Token de autenticação adicionado ao cabeçalho da requisição');
+    } else {
+      console.warn('[API] Nenhum token de autenticação encontrado, tentando acessar endpoint sem autenticação');
     }
 
     // Buscar todas as roletas para encontrar a desejada

@@ -2,13 +2,10 @@ import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
 
 /**
- * IMPORTANTE: Este serviço deve acessar apenas o endpoint /api/roulettes
- * Outros endpoints como /api/roletas ou /api/ROULETTES foram removidos
- * para garantir consistência e evitar problemas.
+ * IMPORTANTE: Este serviço deve acessar APENAS a rota /api/roulettes sem parâmetros adicionais!
+ * Adicionar parâmetros de timestamp ou outros valores à URL causa falhas na API.
  * 
- * ATUALIZAÇÃO: O endpoint deve ser usado exatamente como /api/roulettes
- * sem parâmetros adicionais (como timestamps). Adicionar parâmetros à URL
- * causa falhas na API.
+ * Este serviço fornece acesso global aos dados das roletas.
  */
 
 // Intervalo de polling padrão em milissegundos (4 segundos)
@@ -52,7 +49,7 @@ class GlobalRouletteDataService {
   }
 
   /**
-   * Obtém a instância única do serviço
+   * Retorna a instância singleton do serviço
    */
   public static getInstance(): GlobalRouletteDataService {
     if (!GlobalRouletteDataService.instance) {
@@ -114,290 +111,102 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados das roletas da API (usando limit=1000) - método principal
-   * @returns Promise com dados das roletas
+   * Busca os dados das roletas do endpoint /api/roulettes
+   * IMPORTANTE: Não adicione parâmetros de timestamp ou outros à URL
    */
-  public async fetchRouletteData(): Promise<any[]> {
-    // Verificar antes se o usuário tem assinatura ativa
-    // Importar dinamicamente para evitar dependência circular
-    const apiServiceModule = await import('../services/apiService');
-    const apiService = apiServiceModule.default;
-    
-    try {
-      console.log('[GlobalRouletteService] Verificando status da assinatura...');
-      const { hasSubscription, subscription } = await apiService.checkSubscriptionStatus();
-      
-      // Detectar se o usuário tem uma assinatura mas está inativa
-      const hasInactiveSubscription = !hasSubscription && subscription && subscription.status;
-      
-      if (hasInactiveSubscription) {
-        console.log(`[GlobalRouletteService] Usuário possui assinatura INATIVA com status: ${subscription.status}`);
-        
-        // Verificar se temos dados em cache como plano de contingência
-        try {
-          const cachedData = localStorage.getItem('roulette_data_cache');
-          if (cachedData) {
-            const parsedData = JSON.parse(cachedData);
-            const cacheAge = Date.now() - (parsedData.timestamp || 0);
-            
-            // Usar cache para assinaturas inativas mesmo se for mais antigo (48 horas)
-            if (cacheAge < 172800000) {
-              console.log('[GlobalRouletteService] Usando dados em cache para assinatura inativa (idade: ' + 
-                Math.round(cacheAge/60000) + ' minutos)');
-              this.rouletteData = parsedData.data || [];
-              this.notifySubscribers();
-              
-              // Disparar evento de assinatura inativa
-              window.dispatchEvent(new CustomEvent('subscription:inactive', { 
-                detail: {
-                  subscription,
-                  message: 'Sua assinatura está inativa. Usando dados em cache limitados.',
-                  cacheAge: Math.round(cacheAge/60000)
-                }
-              }));
-              
-              return this.rouletteData;
-            }
-          }
-        } catch (cacheError) {
-          console.error('[GlobalRouletteService] Erro ao acessar cache para assinatura inativa:', cacheError);
-        }
-      }
-      
-      if (!hasSubscription) {
-        console.log('[GlobalRouletteService] Usuário sem assinatura ativa, mas permitindo acesso aos dados');
-        
-        // Verificar se temos dados em cache em localStorage como medida de fallback
-        try {
-          const cachedData = localStorage.getItem('roulette_data_cache');
-          if (cachedData) {
-            const parsedData = JSON.parse(cachedData);
-            const cacheAge = Date.now() - (parsedData.timestamp || 0);
-            
-            // Para diagnosticar melhor o conteúdo do cache
-            console.log(`[GlobalRouletteService] Cache disponível com ${parsedData.data?.length || 0} roletas e idade de ${Math.round(cacheAge/60000)} minutos`);
-            
-            // Usar cache mesmo se for antigo em caso de erro no servidor (aumentar para 24 horas)
-            if (cacheAge < 86400000) {
-              console.log('[GlobalRouletteService] Usando dados em cache como fallback (idade: ' + 
-                Math.round(cacheAge/60000) + ' minutos)');
-              
-              // Notificar com dados do cache
-              this.rouletteData = parsedData.data || [];
-              this.notifySubscribers();
-              
-              return this.rouletteData;
-            }
-          }
-        } catch (cacheError) {
-          console.error('[GlobalRouletteService] Erro ao acessar cache:', cacheError);
-        }
-        
-        // Não disparamos mais o evento para exibir o modal de assinatura
-        // Permitimos que a requisição continue normalmente
-        
-        // Log do plano do usuário para diagnóstico
-        if (subscription) {
-          console.log(`[GlobalRouletteService] Usuário com assinatura ativa: Plano ${subscription.plan || 'Desconhecido'}, Status: ${subscription.status}`);
-        }
-        
-        // Continuamos com a requisição normal sem mostrar o modal
-      } else {
-        // Log do plano do usuário para diagnóstico
-        if (subscription) {
-          console.log(`[GlobalRouletteService] Usuário com assinatura ativa: Plano ${subscription.plan || 'Desconhecido'}, Status: ${subscription.status}`);
-        }
-      }
-      
-      // Evitar requisições simultâneas
-      if (this.isFetching) {
-        console.log('[GlobalRouletteService] Requisição já em andamento, aguardando...');
-        
-        // Aguardar a conclusão da requisição atual
-        if (this._currentFetchPromise) {
-          return this._currentFetchPromise;
-        }
-        
-        return this.rouletteData;
-      }
-      
-      // Verificar se já fizemos uma requisição recentemente
-      const now = Date.now();
-      const timeSinceLastRequest = now - this.lastFetchTime;
-      
-      if (timeSinceLastRequest < 2000 && this.rouletteData.length > 0) {
-        console.log(`[GlobalRouletteService] Requisição recente (${timeSinceLastRequest}ms atrás), retornando dados em cache`);
-        return this.rouletteData;
-      }
-      
-      // Sinalizar que estamos buscando dados
-      this.isFetching = true;
-      this.lastFetchTime = now;
-      
-      const axiosInstance = apiService.getInstance();
-      
-      try {
-        this._currentFetchPromise = new Promise<any[]>(async (resolve) => {
-          try {
-            console.log('[GlobalRouletteService] Buscando dados de roletas...');
-            
-            // Usar apenas o endpoint /api/roulettes sem timestamp para evitar problemas de conexão
-            const endpoint = `/api/roulettes`;
-            
-            console.log(`[GlobalRouletteService] Acessando endpoint: ${endpoint}`);
-            let response = null;
-            
-            try {
-              // Obter o token de autenticação de várias fontes possíveis
-              let authToken = '';
-              
-              // Estratégia 1: Verificar em localStorage
-              try {
-                // Verificar em várias chaves conhecidas
-                const possibleKeys = [
-                  'auth_token_backup',  // Usado pelo AuthContext
-                  'auth_token',         // Usado em alguns componentes
-                  'token',              // Usado pelo apiService
-                  'authToken'           // Usado em alguns utilitários
-                ];
-                
-                for (const key of possibleKeys) {
-                  const storedToken = localStorage.getItem(key);
-                  if (storedToken) {
-                    authToken = storedToken;
-                    console.log(`[GlobalRouletteService] Usando token de autenticação do localStorage (${key})`);
-                    break;
-                  }
-                }
-              } catch (tokenError) {
-                console.warn('[GlobalRouletteService] Erro ao obter token do localStorage:', tokenError);
-              }
-              
-              // Configurar headers com autenticação
-              const headers: Record<string, string> = {
-                'bypass-tunnel-reminder': 'true',
-                'cache-control': 'no-cache',
-                'pragma': 'no-cache',
-                'Content-Type': 'application/json'
-              };
-
-              // Adicionar token de autenticação se disponível
-              if (authToken) {
-                headers['Authorization'] = `Bearer ${authToken}`;
-                console.log('[GlobalRouletteService] Token de autenticação adicionado ao cabeçalho da requisição');
-              } else {
-                console.warn('[GlobalRouletteService] Nenhum token de autenticação encontrado, tentando acessar endpoint sem autenticação');
-              }
-
-              // Fazer a requisição com os headers adequados
-              console.log(`[GlobalRouletteService] Fazendo requisição GET para ${endpoint} com autenticação`);
-              response = await axiosInstance.get(endpoint, {
-                headers,
-                timeout: 5000, // Timeout mais curto para evitar esperar muito tempo
-                withCredentials: true // Importante: Incluir cookies na requisição
-              });
-            } catch (endpointError) {
-              console.error(`[GlobalRouletteService] Falha ao acessar ${endpoint}:`, endpointError.message);
-              
-              // Tentar identificar se é erro de autenticação
-              if (endpointError.response && endpointError.response.status === 401) {
-                console.error('[GlobalRouletteService] Erro de autenticação (401). Token inválido ou expirado.');
-              }
-              
-              throw endpointError; // Propagar erro para ser tratado no bloco catch
-            }
-            
-            if (response && response.status === 200 && Array.isArray(response.data)) {
-              console.log(`[GlobalRouletteService] Recebidos ${response.data.length} registros da API via ${endpoint}`);
-              
-              // Processar e armazenar os dados
-              this.rouletteData = response.data;
-              
-              // Salvar em cache para utilização offline
-              try {
-                localStorage.setItem('roulette_data_cache', JSON.stringify({
-                  timestamp: Date.now(),
-                  data: response.data
-                }));
-                console.log('[GlobalRouletteService] Dados salvos em cache para uso offline');
-              } catch (storageError) {
-                console.warn('[GlobalRouletteService] Erro ao salvar cache:', storageError);
-              }
-              
-              // Notificar assinantes sobre os novos dados
-              this.notifySubscribers();
-              
-              resolve(response.data);
-            } else {
-              console.warn('[GlobalRouletteService] Resposta inesperada da API, tentando usar cache');
-              
-              // Tentar usar cache se disponível
-              try {
-                const cachedData = localStorage.getItem('roulette_data_cache');
-                if (cachedData) {
-                  const parsedData = JSON.parse(cachedData);
-                  const cacheAge = Date.now() - (parsedData.timestamp || 0);
-                  
-                  console.log(`[GlobalRouletteService] Usando cache com ${parsedData.data?.length || 0} roletas e idade de ${Math.round(cacheAge/60000)} minutos`);
-                  this.rouletteData = parsedData.data || [];
-                  this.notifySubscribers();
-                }
-              } catch (cacheError) {
-                console.error('[GlobalRouletteService] Erro ao usar cache:', cacheError);
-              }
-              
-              resolve(this.rouletteData);
-            }
-          } catch (error) {
-            console.error('[GlobalRouletteService] Erro ao buscar dados da API:', error);
-            
-            // Tentar usar cache se disponível
-            try {
-              const cachedData = localStorage.getItem('roulette_data_cache');
-              if (cachedData) {
-                const parsedData = JSON.parse(cachedData);
-                console.log('[GlobalRouletteService] Usando dados em cache devido a erro na API');
-                this.rouletteData = parsedData.data || [];
-                this.notifySubscribers();
-              }
-            } catch (cacheError) {
-              console.error('[GlobalRouletteService] Erro ao usar cache:', cacheError);
-            }
-            
-            resolve(this.rouletteData);
-          } finally {
-            this.isFetching = false;
-            this._currentFetchPromise = null;
-          }
-        });
-        
-        return await this._currentFetchPromise;
-      } catch (err) {
-        console.error('[GlobalRouletteService] Erro ao buscar dados:', err);
-        this.isFetching = false;
-        this._currentFetchPromise = null;
-        return this.rouletteData;
-      }
-    } catch (error) {
-      console.error('[GlobalRouletteService] Erro ao verificar assinatura:', error);
-      this.isFetching = false;
-      
-      // Tentar usar cache em caso de erro
-      try {
-        const cachedData = localStorage.getItem('roulette_data_cache');
-        if (cachedData) {
-          const parsedData = JSON.parse(cachedData);
-          console.log('[GlobalRouletteService] Usando dados em cache devido a erro na verificação de assinatura');
-          this.rouletteData = parsedData.data || [];
-        }
-      } catch (cacheError) {
-        console.error('[GlobalRouletteService] Erro ao usar cache:', cacheError);
-      }
-      
-      // Notificar assinantes para evitar travamentos na interface
-      this.notifySubscribers();
-      
+  private async fetchRouletteData(): Promise<any[]> {
+    if (this.isFetching) {
+      console.log('[GlobalRouletteDataService] Já existe uma busca em andamento, aguardando...');
       return this.rouletteData;
+    }
+
+    try {
+      this.isFetching = true;
+      
+      // Obter token de autenticação de várias fontes
+      let authToken = '';
+      
+      // Função para obter cookies
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop()?.split(';').shift();
+        return undefined;
+      };
+      
+      // Tentar obter dos cookies primeiro (mais confiável)
+      const tokenCookie = getCookie('token') || getCookie('token_alt');
+      if (tokenCookie) {
+        authToken = tokenCookie;
+        console.log('[GlobalRouletteDataService] Usando token de autenticação dos cookies');
+      } else {
+        // Se não encontrou nos cookies, verificar localStorage
+        const possibleKeys = [
+          'auth_token_backup', // Usado pelo AuthContext
+          'token',             // Nome do cookie usado na requisição bem-sucedida
+          'auth_token',        // Usado em alguns componentes
+          'authToken'          // Usado em alguns utilitários
+        ];
+        
+        for (const key of possibleKeys) {
+          const storedToken = localStorage.getItem(key);
+          if (storedToken) {
+            authToken = storedToken;
+            console.log(`[GlobalRouletteDataService] Usando token de autenticação do localStorage (${key})`);
+            
+            // Restaurar para cookies se necessário
+            try {
+              document.cookie = `token=${authToken}; path=/; max-age=2592000`;
+              document.cookie = `token_alt=${authToken}; path=/; max-age=2592000; SameSite=Lax`;
+              console.log('[GlobalRouletteDataService] Token restaurado para cookies');
+            } catch (cookieError) {
+              console.warn('[GlobalRouletteDataService] Erro ao restaurar token para cookies:', cookieError);
+            }
+            
+            break;
+          }
+        }
+      }
+
+      // Usar endpoint base sem parâmetros adicionais
+      const endpoint = `/api/roulettes`;
+      console.log(`[GlobalRouletteDataService] Buscando dados de ${endpoint}`);
+      
+      // Configurar headers exatamente como na requisição bem-sucedida
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'accept': 'application/json, text/plain, */*'
+      };
+
+      // Adicionar token de autenticação se disponível
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+        console.log('[GlobalRouletteDataService] Token de autenticação adicionado ao cabeçalho da requisição');
+      } else {
+        console.warn('[GlobalRouletteDataService] Nenhum token de autenticação encontrado, tentando acessar endpoint sem autenticação');
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers,
+        credentials: 'include' // Importante: Incluir cookies na requisição
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      this.lastFetchTime = Date.now();
+      this.rouletteData = data;
+      this.notifySubscribers();
+      console.log(`[GlobalRouletteDataService] ✅ Dados atualizados: ${data.length} roletas`);
+      return data;
+    } catch (error) {
+      console.error('[GlobalRouletteDataService] Erro ao buscar dados das roletas:', error);
+      return this.rouletteData;
+    } finally {
+      this.isFetching = false;
     }
   }
   
