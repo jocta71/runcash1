@@ -29,6 +29,7 @@ const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 // Comentando a importação da página de teste do Asaas
 // const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 
@@ -256,12 +257,29 @@ const App = () => {
                           <Route path="/pagamento" element={
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
-                                <PaymentPage />
+                                <CheckoutPage />
                               </Suspense>
                             </ProtectedRoute>
                           } />
                           
                           <Route path="/pagamento/:planId" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <CheckoutPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Mantendo a rota antiga para compatibilidade */}
+                          <Route path="/payment" element={
+                            <ProtectedRoute>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <PaymentPage />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          <Route path="/payment/:planId" element={
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
                                 <PaymentPage />
