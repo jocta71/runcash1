@@ -41,21 +41,23 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
       status === 'AWAITING_CONFIRMATION' || 
       status === 'WAITING_FOR_BANK_CONFIRMATION') {
     return (
-      <div className="flex flex-col items-center justify-center">
-        <div className="w-24 h-24 mb-4">
+      <div className="flex flex-col items-center justify-center relative">
+        <div className="absolute -top-10 -right-10 w-20 h-20 bg-blue-500/20 rounded-full blur-xl"></div>
+        <div className="absolute -bottom-10 -left-10 w-20 h-20 bg-green-500/20 rounded-full blur-xl"></div>
+        <div className="w-28 h-28 mb-4 relative z-10">
           {remoteLoadingAnimation ? (
             <Lottie animationData={remoteLoadingAnimation} loop={true} />
           ) : (
-            <RotateCw className="h-8 w-8 animate-spin text-vegas-gold" />
+            <RotateCw className="h-10 w-10 animate-spin text-blue-400" />
           )}
         </div>
-        <div className="text-center">
-          <h3 className="text-lg font-medium text-vegas-gold mb-1">
+        <div className="text-center relative z-10">
+          <h3 className="text-lg font-medium text-blue-300 mb-2">
             {status === 'PENDING' || status === 'AWAITING_PAYMENT' 
               ? "Aguardando pagamento" 
               : "Processando pagamento"}
           </h3>
-          <p className="text-sm text-neutral-400">
+          <p className="text-sm text-gray-300">
             {message || (
               status === 'PENDING' || status === 'AWAITING_PAYMENT'
                 ? "Estamos aguardando a confirmação do seu pagamento."
@@ -70,17 +72,19 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
   // Se o status for LOADING, mostrar a animação
   if (status === 'LOADING') {
     return (
-      <div className="flex flex-col items-center justify-center">
-        <div className="w-24 h-24 mb-4">
+      <div className="flex flex-col items-center justify-center relative">
+        <div className="absolute -top-10 -right-10 w-20 h-20 bg-blue-500/20 rounded-full blur-xl"></div>
+        <div className="absolute -bottom-10 -left-10 w-20 h-20 bg-green-500/20 rounded-full blur-xl"></div>
+        <div className="w-28 h-28 mb-4 relative z-10">
           {remoteLoadingAnimation ? (
             <Lottie animationData={remoteLoadingAnimation} loop={true} />
           ) : (
-            <RotateCw className="h-8 w-8 animate-spin text-vegas-gold" />
+            <RotateCw className="h-10 w-10 animate-spin text-blue-400" />
           )}
         </div>
-        <div className="text-center">
-          <h3 className="text-lg font-medium text-vegas-gold mb-1">Carregando</h3>
-          <p className="text-sm text-neutral-400">{message || "Aguarde um momento..."}</p>
+        <div className="text-center relative z-10">
+          <h3 className="text-lg font-medium text-blue-300 mb-2">Carregando</h3>
+          <p className="text-sm text-gray-300">{message || "Aguarde um momento..."}</p>
         </div>
       </div>
     );
@@ -90,7 +94,7 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
   const statusConfig = {
     // Status de carregamento
     LOADING: {
-      icon: <RotateCw className="h-5 w-5 animate-spin text-vegas-gold" />,
+      icon: <RotateCw className="h-5 w-5 animate-spin text-blue-400" />,
       title: "Carregando",
       description: message || "Aguarde um momento enquanto carregamos as informações.",
       variant: "default" as const,
@@ -227,19 +231,22 @@ export function PaymentStatus({ status, message }: PaymentStatusProps) {
 
   // Custom styling based on variant
   const variantStyles = {
-    default: "bg-neutral-800 text-neutral-300 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]",
-    success: "bg-neutral-800 text-green-400 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]",
-    warning: "bg-neutral-800 text-yellow-400 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]",
-    destructive: "bg-neutral-800 text-red-400 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]",
+    default: "bg-gradient-to-br from-[#111c26] to-[#152635] text-gray-300 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.3),inset_-2px_-2px_5px_rgba(255,255,255,0.05)]",
+    success: "bg-gradient-to-br from-[#112b1d] to-[#153525] text-green-400 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.3),inset_-2px_-2px_5px_rgba(255,255,255,0.05)]",
+    warning: "bg-gradient-to-br from-[#2b2411] to-[#353015] text-yellow-400 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.3),inset_-2px_-2px_5px_rgba(255,255,255,0.05)]",
+    destructive: "bg-gradient-to-br from-[#2b1115] to-[#351518] text-red-400 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.3),inset_-2px_-2px_5px_rgba(255,255,255,0.05)]",
   };
 
   return (
-    <Alert className={`${variantStyles[config.variant]} rounded-xl border-0`}>
-      <div className="flex items-start">
-        <div className="mr-3 mt-0.5 bg-neutral-700 p-1.5 rounded-full shadow-[2px_2px_3px_rgba(0,0,0,0.2),inset_1px_1px_1px_rgba(40,40,40,0.5)]">{config.icon}</div>
+    <Alert className={`${variantStyles[config.variant]} rounded-xl border-none relative overflow-hidden backdrop-blur-sm`}>
+      <div className="absolute -top-8 -right-8 w-16 h-16 bg-blue-500/10 rounded-full blur-xl"></div>
+      <div className="absolute -bottom-8 -left-8 w-16 h-16 bg-green-500/10 rounded-full blur-xl"></div>
+      
+      <div className="flex items-start relative z-10">
+        <div className="mr-3 mt-0.5 bg-gradient-to-br from-[#15202e] to-[#1d2a3a] p-2 rounded-full shadow-[2px_2px_4px_rgba(0,0,0,0.3),inset_1px_1px_1px_rgba(255,255,255,0.05)]">{config.icon}</div>
         <div>
-          <AlertTitle className="mb-1 text-vegas-gold">{config.title}</AlertTitle>
-          <AlertDescription className="text-neutral-400">{config.description}</AlertDescription>
+          <AlertTitle className="mb-1 text-blue-300">{config.title}</AlertTitle>
+          <AlertDescription className="text-gray-300">{config.description}</AlertDescription>
         </div>
       </div>
     </Alert>
