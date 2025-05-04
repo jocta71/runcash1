@@ -1,0 +1,122 @@
+[
+  {
+    "id": "1",
+    "_id": "1",
+    "roleta_id": "1",
+    "nome": "Roleta Europeia VIP",
+    "status": "online",
+    "provider": "Evolution",
+    "estado_estrategia": "NEUTRO",
+    "vitorias": 10,
+    "derrotas": 5,
+    "numero_gatilho": 0,
+    "terminais_gatilho": [],
+    "numero": [
+      {
+        "numero": 25,
+        "cor": "vermelho",
+        "timestamp": "2025-05-03T22:01:00.000Z"
+      },
+      {
+        "numero": 7,
+        "cor": "preto",
+        "timestamp": "2025-05-03T22:00:00.000Z"
+      },
+      {
+        "numero": 19,
+        "cor": "vermelho",
+        "timestamp": "2025-05-03T21:59:00.000Z"
+      },
+      {
+        "numero": 32,
+        "cor": "preto",
+        "timestamp": "2025-05-03T21:58:00.000Z"
+      },
+      {
+        "numero": 0,
+        "cor": "verde",
+        "timestamp": "2025-05-03T21:57:00.000Z"
+      }
+    ]
+  },
+  {
+    "id": "2",
+    "_id": "2",
+    "roleta_id": "2",
+    "nome": "Roleta Brasileira",
+    "status": "online",
+    "provider": "Pragmatic Play",
+    "estado_estrategia": "POSITIVO",
+    "vitorias": 15,
+    "derrotas": 3,
+    "numero_gatilho": 0,
+    "terminais_gatilho": [],
+    "numero": [
+      {
+        "numero": 12,
+        "cor": "vermelho",
+        "timestamp": "2025-05-03T22:01:30.000Z"
+      },
+      {
+        "numero": 5,
+        "cor": "vermelho",
+        "timestamp": "2025-05-03T22:00:30.000Z"
+      },
+      {
+        "numero": 22,
+        "cor": "preto",
+        "timestamp": "2025-05-03T21:59:30.000Z"
+      },
+      {
+        "numero": 0,
+        "cor": "verde",
+        "timestamp": "2025-05-03T21:58:30.000Z"
+      },
+      {
+        "numero": 17,
+        "cor": "preto",
+        "timestamp": "2025-05-03T21:57:30.000Z"
+      }
+    ]
+  },
+  {
+    "id": "3",
+    "_id": "3",
+    "roleta_id": "3",
+    "nome": "Lightning Roulette",
+    "status": "online",
+    "provider": "Evolution",
+    "estado_estrategia": "ALERTA",
+    "vitorias": 8,
+    "derrotas": 7,
+    "numero_gatilho": 0,
+    "terminais_gatilho": [],
+    "numero": [
+      {
+        "numero": 31,
+        "cor": "preto",
+        "timestamp": "2025-05-03T22:02:00.000Z"
+      },
+      {
+        "numero": 14,
+        "cor": "vermelho",
+        "timestamp": "2025-05-03T22:01:00.000Z"
+      },
+      {
+        "numero": 9,
+        "cor": "vermelho",
+        "timestamp": "2025-05-03T22:00:00.000Z"
+      },
+      {
+        "numero": 28,
+        "cor": "preto",
+        "timestamp": "2025-05-03T21:59:00.000Z"
+      },
+      {
+        "numero": 11,
+        "cor": "preto",
+        "timestamp": "2025-05-03T21:58:00.000Z"
+      }
+    ]
+  }
+] 
