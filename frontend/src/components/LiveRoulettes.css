@@ -1,0 +1,144 @@
+.live-roulettes {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  border-radius: 8px;
+  background-color: #f5f5f5;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.connected {
+  background-color: #4caf50;
+  color: white;
+}
+
+.disconnected {
+  background-color: #f44336;
+  color: white;
+}
+
+button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.connect-btn {
+  background-color: #2196f3;
+  color: white;
+}
+
+.disconnect-btn {
+  background-color: #757575;
+  color: white;
+}
+
+.loading, .error, .reconnect-prompt {
+  padding: 20px;
+  text-align: center;
+  border-radius: 4px;
+  margin: 20px 0;
+}
+
+.loading {
+  background-color: #e3f2fd;
+}
+
+.error {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.data-container {
+  margin-top: 20px;
+}
+
+.roulette-card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  background-color: white;
+}
+
+.roulettes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.number {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 30px;
+  margin-right: 5px;
+  font-weight: bold;
+  color: white;
+}
+
+.red {
+  background-color: #e53935;
+}
+
+.black {
+  background-color: #212121;
+}
+
+.green {
+  background-color: #43a047;
+}
+
+.upgrade-notice {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #fff8e1;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.upgrade-btn {
+  background-color: #ff9800;
+  color: white;
+  margin-top: 10px;
+}
+
+.view-details-btn {
+  background-color: #673ab7;
+  color: white;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.update-notification {
+  padding: 10px;
+  background-color: #e8f5e9;
+  border-radius: 4px;
+  margin-top: 10px;
+  text-align: center;
+  font-style: italic;
+} 
