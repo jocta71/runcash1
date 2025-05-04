@@ -1,34 +1,23 @@
 import axios from 'axios';
+import { ENDPOINTS } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
-import { getLogger } from '../utils/logger';
 
-// Constantes
-const ENDPOINTS = {
-  ROULETTES: '/api/roulettes',
-  ROULETTE_HISTORY: '/api/roulette-history'
-};
-
-// Logger para o módulo
-const logger = getLogger('RouletteApi');
-
-// Função para obter o token de autenticação do localStorage
-const getAuthToken = (): string | null => {
-  try {
-    return localStorage.getItem('auth_token');
-  } catch (error) {
-    console.error('Erro ao obter token de autenticação:', error);
-    return null;
-  }
-};
-
-// Tipagem para respostas da API
-export interface ApiResponse<T> {
+// Tipo para resposta de erro
+interface ApiErrorResponse {
   error: boolean;
-  code?: string;
-  message?: string;
-  statusCode?: number;
-  data?: T;
+  code: string;
+  message: string;
+  statusCode: number;
 }
+
+// Tipo para resposta bem-sucedida
+interface ApiSuccessResponse<T> {
+  error: false;
+  data: T;
+}
+
+// União de tipos para resposta da API
+type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
 
 /**
  * Cliente de API para comunicação com os endpoints de roleta
@@ -40,25 +29,11 @@ export const RouletteApi = {
    */
   async fetchAllRoulettes(): Promise<ApiResponse<any[]>> {
     try {
-      logger.info('Buscando todas as roletas disponíveis');
-      
-      // Obter token do localStorage
-      const token = getAuthToken();
-      
-      // Configurar headers com o token de autenticação
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-        logger.debug('Token de autenticação incluído na requisição');
-      } else {
-        logger.warn('Token de autenticação não encontrado');
-      }
-      
-      // Fazer a requisição incluindo o token
-      const response = await axios.get(ENDPOINTS.ROULETTES, { headers });
+      console.log('[API] Buscando todas as roletas disponíveis');
+      const response = await axios.get(ENDPOINTS.ROULETTES);
       
       if (!response.data || !response.data.data) {
-        logger.error('Resposta inválida da API de roletas:', response.data);
+        console.error('[API] Resposta inválida da API de roletas:', response.data);
         return {
           error: true,
           code: 'INVALID_RESPONSE',
@@ -69,14 +44,14 @@ export const RouletteApi = {
       
       const roulettes = Array.isArray(response.data.data) ? response.data.data : response.data.data;
       
-      logger.info(`✅ Obtidas ${roulettes.length} roletas`);
+      console.log(`[API] ✅ Obtidas ${roulettes.length} roletas`);
       
       // Processar cada roleta para extrair campos relevantes
       const processedRoulettes = roulettes.map((roulette: any) => {
         // Garantir que temos o campo roleta_id em cada objeto
         if (!roulette.roleta_id && roulette._id) {
           const numericId = getNumericId(roulette._id);
-          logger.debug(`Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
+          console.log(`[API] Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
           roulette.roleta_id = numericId;
         }
         return roulette;
@@ -130,23 +105,11 @@ export const RouletteApi = {
    */
   async fetchRouletteById(id: string): Promise<ApiResponse<any>> {
     try {
-      logger.info(`Buscando roleta com ID: ${id}`);
+      console.log(`[API] Buscando roleta com ID: ${id}`);
       // Converter para ID numérico para normalização
       const numericId = getNumericId(id);
       
-      // Obter token do localStorage
-      const token = getAuthToken();
-      
-      // Configurar headers com o token de autenticação
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-        logger.debug('Token de autenticação incluído na requisição');
-      } else {
-        logger.warn('Token de autenticação não encontrado');
-      }
-      
-      // Buscar todas as roletas com autenticação
+      // Buscar todas as roletas e filtrar localmente
       const allRoulettes = await this.fetchAllRoulettes();
       
       // Verificar se houve erro na busca de todas as roletas
@@ -162,14 +125,14 @@ export const RouletteApi = {
       );
       
       if (roulette) {
-        logger.info(`✅ Roleta encontrada: ${roulette.nome || roulette.name}`);
+        console.log(`[API] ✅ Roleta encontrada: ${roulette.nome || roulette.name}`);
         return {
           error: false,
           data: roulette
         };
       }
       
-      logger.warn(`❌ Roleta com ID ${numericId} não encontrada`);
+      console.warn(`[API] ❌ Roleta com ID ${numericId} não encontrada`);
       return {
         error: true,
         code: 'ROULETTE_NOT_FOUND',
@@ -177,7 +140,7 @@ export const RouletteApi = {
         statusCode: 404
       };
     } catch (error: any) {
-      logger.error(`Erro ao buscar roleta ${id}:`, error);
+      console.error(`[API] Erro ao buscar roleta ${id}:`, error);
       return {
         error: true,
         code: 'FETCH_ERROR',
@@ -241,24 +204,12 @@ export const RouletteApi = {
    */
   async fetchRouletteHistory(rouletteName: string): Promise<ApiResponse<number[]>> {
     try {
-      logger.info(`Buscando histórico para roleta: ${rouletteName}`);
+      console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
       
-      // Obter token do localStorage
-      const token = getAuthToken();
-      
-      // Configurar headers com o token de autenticação
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-        logger.debug('Token de autenticação incluído na requisição');
-      } else {
-        logger.warn('Token de autenticação não encontrado');
-      }
-      
-      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`, { headers });
+      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
       
       if (!response.data || !Array.isArray(response.data)) {
-        logger.error('Resposta inválida do histórico:', response.data);
+        console.error('[API] Resposta inválida do histórico:', response.data);
         return {
           error: true,
           code: 'INVALID_RESPONSE',
@@ -267,13 +218,13 @@ export const RouletteApi = {
         };
       }
       
-      logger.info(`✅ Obtidos ${response.data.length} números históricos`);
+      console.log(`[API] ✅ Obtidos ${response.data.length} números históricos`);
       return {
         error: false,
         data: response.data
       };
     } catch (error: any) {
-      logger.error(`Erro ao buscar histórico da roleta ${rouletteName}:`, error);
+      console.error(`[API] Erro ao buscar histórico da roleta ${rouletteName}:`, error);
       
       // Verificar se é erro de autenticação
       if (error.response?.status === 401) {

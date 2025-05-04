@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import NumberHistory from '../NumberHistory';
 import globalRouletteDataService from '../../../../services/GlobalRouletteDataService';
-import { useAuth } from '../../../../context/AuthContext';
 import './RouletteCard.css';
 
 // Adiciona regra global para corrigir posicionamento de dropdowns
@@ -42,9 +41,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
   const lastNumberRef = useRef<number | null>(null);
   const fetchCountRef = useRef(0);
   const subscriberId = useRef(`roulette-card-${rouletteId}-${Date.now()}`);
-  
-  // Auth context para obter o token
-  const { token } = useAuth();
   
   // Função para processar dados da roleta do serviço centralizado
   const processRouletteData = () => {
@@ -145,7 +141,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
       console.log(`[RouletteCard] Cancelando inscrição para roleta ${rouletteId}`);
       globalRouletteDataService.unsubscribe(subscriberId.current);
     };
-  }, [rouletteId, token]); // Recriar efeito se o ID da roleta ou token mudar
+  }, [rouletteId]); // Recriar efeito se o ID da roleta mudar
   
   // Formatar timestamp
   const formatTimestamp = (timestamp: string | number) => {

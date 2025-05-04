@@ -103,22 +103,15 @@ class ApiService {
    * @returns Promise com o status da assinatura
    */
   public async checkSubscriptionStatus(): Promise<{ hasSubscription: boolean; subscription?: any }> {
-    try {
-      console.log('[API] Verificação de status de assinatura desativada. Retornando acesso liberado.');
-      
-      // Retornar resultado padrão (assinatura ativa)
-      return {
-        hasSubscription: true,
-        subscription: {
-          status: 'active',
-          plan: 'default',
-          features: []
-        }
-      };
-    } catch (error) {
-      console.error('[API] Erro ao processar status da assinatura:', error);
-      return { hasSubscription: true };
-    }
+    // Não precisamos verificar no frontend, o backend já faz isso
+    return {
+      hasSubscription: true,
+      subscription: {
+        status: 'active',
+        plan: 'default',
+        features: []
+      }
+    };
   }
   
   /**
@@ -128,7 +121,7 @@ class ApiService {
    * @returns Promise com a resposta
    */
   public async getRoulette<T = any>(id: string, dataType: string = 'basic'): Promise<AxiosResponse<T>> {
-    // Usuário com assinatura - fazer a requisição normal
+    // Fazer a requisição diretamente sem verificar assinatura
     return this.get<T>(`/roulettes/${id}/${dataType}`);
   }
   
