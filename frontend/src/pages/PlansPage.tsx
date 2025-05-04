@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { Check, Loader2, ArrowLeft, CheckCircle, CreditCard, Percent } from 'lucide-react';
+import { Check, Loader2, ArrowLeft, CheckCircle, CreditCard, Percent, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
@@ -839,140 +839,180 @@ const PlansPage = () => {
           </div>
         ) : (
           <>
-        <div className="text-center mb-12">
-          <h1 className="text-3xl font-bold text-white mb-3 relative inline-block">
-            Escolha o plano ideal para você
-            <div className="absolute h-1 w-1/2 bg-gradient-to-r from-blue-500 to-purple-500 bottom-0 left-1/4 rounded-full"></div>
-          </h1>
-          <p className="text-neutral-400 max-w-2xl mx-auto">
-            Assine e tenha acesso a todos os recursos da plataforma. Escolha o plano que melhor se adapta às suas necessidades.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {filteredPlans.map(plan => {
-            // Definir paleta de cores com base no plano
-            let gradientColors = 
-              plan.id === 'pro' 
-                ? 'from-blue-900 via-blue-800 to-blue-600' 
-                : 'from-purple-900 via-purple-800 to-purple-600';
-            
-            let shadowColor = 
-              plan.id === 'pro' 
-                ? 'rgba(59, 130, 246, 0.3)' 
-                : 'rgba(147, 51, 234, 0.3)'; 
-            
-            let accentColor = 
-              plan.id === 'pro' 
-                ? 'blue-500' 
-                : 'purple-500';
-            
-            let priceColor = 
-              plan.id === 'pro' 
-                ? 'text-blue-300' 
-                : 'text-purple-300';
-            
-            return (
-              <div 
-                key={plan.id}
-                className={`relative rounded-2xl p-8 flex flex-col transition-all duration-300 hover:translate-y-[-5px] overflow-hidden 
-                  ${currentPlan?.id === plan.id 
-                    ? 'shadow-[0_0_25px_rgba(212,175,55,0.3)] border-vegas-gold' 
-                    : `shadow-[8px_8px_16px_rgba(0,0,0,0.3),-8px_-8px_16px_rgba(30,30,30,0.4)] shadow-${shadowColor} border-t border-l border-neutral-800/50`}`}
-                style={{
-                  background: `radial-gradient(circle at top right, transparent 0%, rgba(0, 0, 0, 0.4) 100%), 
-                              linear-gradient(to bottom right, var(--tw-gradient-stops))`,
-                }}
-              >
-                {/* Efeito de brilho do card */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${plan.id === 'pro' ? 'from-blue-900 via-blue-800 to-blue-600' : 'from-purple-900 via-purple-800 to-purple-600'} opacity-20 rounded-2xl`}></div>
-                
-                {/* Emblema para o plano recomendado */}
-                {plan.id === 'pro' && (
-                  <div className="absolute -right-10 top-7 bg-vegas-gold text-black text-xs px-10 py-1 transform rotate-45 font-medium shadow-md">
-                    Recomendado
-                  </div>
-                )}
-                
-                {/* Cabeçalho do plano */}
-                <div className="flex justify-between items-center relative z-10 mb-2">
-                  <h3 className="text-2xl font-bold text-white">{plan.name}</h3>
-                  {currentPlan?.id === plan.id && (
-                    <span className="bg-vegas-gold text-black text-xs px-3 py-1 rounded-full font-medium">
-                      Plano Atual
-                    </span>
-                  )}
-                </div>
-                
-                {/* Preço */}
-                <div className="relative z-10 mt-3 mb-4">
-                  <div className="flex items-baseline">
-                    <span className={`text-3xl font-bold text-white bg-neutral-800/30 px-3 py-1 rounded-lg shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]`}>
-                      R$ {plan.price.toFixed(2)}
-                    </span>
-                    <span className="text-neutral-400 ml-1">
-                      /mês
-                    </span>
-                  </div>
-                  <p className="text-sm text-neutral-400 mt-2">{plan.description}</p>
-                </div>
-                
-                {/* Recursos */}
-                <p className="text-sm text-neutral-400 mb-3 relative z-10">Inclui:</p>
-                <ul className="space-y-2 mb-6 flex-grow relative z-10">
-                  {plan.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-start">
-                      <span className={`flex items-center justify-center ${plan.id === 'pro' ? 'text-blue-500' : 'text-purple-500'} mr-3 bg-neutral-800/50 p-1.5 rounded-full shadow-[2px_2px_3px_rgba(0,0,0,0.2),inset_1px_1px_1px_rgba(40,40,40,0.5)]`}>
-                        <Check className="h-4 w-4" />
-                      </span>
-                      <span className="text-sm text-neutral-300">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                
-                {/* Botão */}
-                <Button
-                  onClick={() => handleSelectPlan(plan.id)}
-                  disabled={currentPlan?.id === plan.id}
-                  className={`relative z-10 w-full py-2 rounded-xl font-medium shadow-[4px_4px_8px_rgba(0,0,0,0.2),-4px_-4px_8px_rgba(40,40,40,0.3)] hover:shadow-[2px_2px_4px_rgba(0,0,0,0.2),-2px_-2px_4px_rgba(40,40,40,0.3),inset_2px_2px_4px_rgba(0,0,0,0.2),inset_-2px_-2px_4px_rgba(40,40,40,0.3)] hover:translate-y-0.5 transition-all duration-200
-                  ${currentPlan?.id === plan.id 
-                    ? "bg-neutral-800 text-neutral-400 cursor-not-allowed" 
-                    : plan.id === 'pro'
-                      ? "bg-blue-800 text-blue-100"
-                      : "bg-purple-800 text-purple-100"}`}
-                >
-                  {currentPlan?.id === plan.id 
-                    ? "Plano Atual" 
-                    : "Assinar Agora"}
-                </Button>
-              </div>
-            );
-          })}
-        </div>
-        
-        <div className="mt-12 bg-neutral-900 p-8 rounded-2xl shadow-[8px_8px_16px_rgba(0,0,0,0.3),-8px_-8px_16px_rgba(30,30,30,0.4)] border-t border-l border-neutral-800/50 max-w-4xl mx-auto">
-          <h2 className="text-2xl font-bold mb-6 text-vegas-gold">Dúvidas Frequentes</h2>
+        <div className="relative overflow-hidden min-h-[80vh] py-16">
+          {/* Backdrops e efeitos de luz */}
+          <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+            <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-vegas-gold/10 rounded-full blur-[120px] animate-pulse"></div>
+            <div className="absolute bottom-[-30%] right-[-10%] w-[60%] h-[60%] bg-vegas-gold/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
+            <div className="absolute top-[20%] right-[20%] w-5 h-5 bg-vegas-gold rounded-full blur-sm animate-ping"></div>
+            <div className="absolute bottom-[30%] left-[20%] w-3 h-3 bg-vegas-gold rounded-full blur-sm animate-ping" style={{ animationDelay: '2s' }}></div>
+            <div className="absolute top-[50%] left-[50%] w-4 h-4 bg-white rounded-full blur-sm animate-ping" style={{ animationDelay: '1.5s' }}></div>
+            <div className="absolute top-[5%] left-[15%] w-1 h-10 bg-vegas-gold/50 rounded-full animate-[pulse_4s_infinite]"></div>
+            <div className="absolute top-[80%] right-[15%] w-1 h-10 bg-vegas-gold/50 rounded-full animate-[pulse_5s_infinite]"></div>
+          </div>
           
-          <div className="space-y-6">
-            <div className="bg-neutral-800/50 p-5 rounded-xl shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]">
-              <h3 className="font-semibold mb-3 text-white">Como funciona o sistema de assinatura?</h3>
-              <p className="text-sm text-neutral-400">
-                Nossas assinaturas são cobradas mensalmente e o pagamento é processado via PIX através da plataforma Asaas.
+          <div className="container mx-auto relative z-10">
+            <div className="text-center mb-16 max-w-3xl mx-auto">
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-vegas-gold via-yellow-200 to-vegas-gold">
+                Escolha o plano ideal para você
+              </h1>
+              <div className="h-1 w-24 bg-gradient-to-r from-vegas-gold/0 via-vegas-gold to-vegas-gold/0 mx-auto mb-6"></div>
+              <p className="text-lg text-gray-400">
+                Assine e tenha acesso a todos os recursos da plataforma que vão transformar sua experiência.
               </p>
             </div>
-            
-            <div className="bg-neutral-800/50 p-5 rounded-xl shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]">
-              <h3 className="font-semibold mb-3 text-white">Posso cancelar a qualquer momento?</h3>
-              <p className="text-sm text-neutral-400">
-                Sim, você pode cancelar sua assinatura a qualquer momento. O acesso aos recursos premium permanecerá ativo até o final do período pago.
-              </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-4xl mx-auto">
+              {filteredPlans.map(plan => (
+                <div 
+                  key={plan.id}
+                  className={`relative group transition-all duration-500 hover:-translate-y-2`}
+                >
+                  {/* Card backdrop glow */}
+                  <div className={`absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+                    plan.id === 'pro' ? 'bg-vegas-gold/20' : 'bg-vegas-gold/10'
+                  } blur-xl -z-10`}></div>
+                  
+                  {/* Card */}
+                  <div className={`rounded-2xl overflow-hidden transition-all duration-300 shadow-[0_0_60px_rgba(0,0,0,0.3)] backdrop-blur-sm ${
+                    currentPlan?.id === plan.id 
+                      ? 'bg-gradient-to-br from-neutral-900/95 to-neutral-800/95 border border-vegas-gold' 
+                      : plan.id === 'pro' 
+                        ? 'bg-gradient-to-br from-neutral-900/95 to-neutral-800/95 border border-vegas-gold/50' 
+                        : 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border border-neutral-700/50'
+                  }`}>
+                    {/* Destaque do plano recomendado */}
+                    {plan.id === 'pro' && (
+                      <div className="absolute -right-1 -top-1 z-10">
+                        <div className="relative">
+                          <div className="bg-vegas-gold text-black text-xs font-bold px-5 py-1 rounded-br-lg rounded-tl-lg shadow-lg transform rotate-0">
+                            RECOMENDADO
+                          </div>
+                          <div className="absolute -bottom-1 -left-4 w-4 h-4 bg-vegas-gold/80 clip-path-triangle"></div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="p-8">
+                      <div className="mb-8">
+                        <span className={`text-sm uppercase tracking-widest font-medium ${
+                          plan.id === 'pro' ? 'text-vegas-gold' : 'text-gray-400'
+                        }`}>
+                          {plan.name}
+                        </span>
+                        
+                        <div className="mt-4 flex items-end">
+                          <div className={`rounded-lg py-2 px-4 inline-block ${
+                            plan.id === 'pro'
+                              ? 'bg-vegas-gold/20 shadow-[0_0_15px_rgba(212,175,55,0.15)]'
+                              : 'bg-neutral-800/80'
+                          }`}>
+                            <span className="text-4xl font-bold text-white">
+                              R$ {plan.price.toFixed(2)}
+                            </span>
+                          </div>
+                          <span className="text-sm text-gray-400 ml-2 mb-1">
+                            /mês
+                          </span>
+                        </div>
+                        
+                        <p className="text-gray-400 text-sm mt-4">{plan.description}</p>
+                      </div>
+                      
+                      <div className="space-y-4 mb-8">
+                        <h4 className="text-sm uppercase tracking-wider text-gray-500 font-medium mb-2">
+                          Recursos incluídos
+                        </h4>
+                        
+                        <ul className="space-y-3">
+                          {plan.features.map((feature, idx) => (
+                            <li key={idx} className="flex items-start">
+                              <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mr-3 mt-0.5 ${
+                                plan.id === 'pro' 
+                                  ? 'bg-vegas-gold/20' 
+                                  : 'bg-neutral-800'
+                              }`}>
+                                <Check className={`h-3 w-3 ${
+                                  plan.id === 'pro' ? 'text-vegas-gold' : 'text-gray-400'
+                                }`} />
+                              </div>
+                              <span className="text-sm text-gray-300">{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <Button
+                        onClick={() => handleSelectPlan(plan.id)}
+                        className={`w-full py-6 rounded-xl font-medium transition-all duration-300 ${
+                          currentPlan?.id === plan.id 
+                            ? "bg-neutral-700 hover:bg-neutral-600 text-gray-300 cursor-not-allowed" 
+                            : plan.id === 'pro'
+                              ? "bg-gradient-to-r from-vegas-gold/90 to-yellow-600/90 hover:from-vegas-gold hover:to-yellow-600 text-black shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+                              : "bg-neutral-800 hover:bg-neutral-700 text-vegas-gold border border-vegas-gold/30"
+                        }`}
+                        disabled={currentPlan?.id === plan.id}
+                      >
+                        <div className="relative">
+                          <span className={`transition-all duration-300 ${
+                            currentPlan?.id === plan.id ? '' : 'group-hover:-translate-y-8 group-hover:opacity-0'
+                          }`}>
+                            {currentPlan?.id === plan.id 
+                              ? "Plano Atual" 
+                              : "Assinar Agora"}
+                          </span>
+                          
+                          {currentPlan?.id !== plan.id && (
+                            <span className="absolute inset-0 flex items-center justify-center translate-y-8 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                              Começar <ArrowRight className="ml-2 h-4 w-4" />
+                            </span>
+                          )}
+                        </div>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
             
-            <div className="bg-neutral-800/50 p-5 rounded-xl shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]">
-              <h3 className="font-semibold mb-3 text-white">Existe período de testes?</h3>
-              <p className="text-sm text-neutral-400">
-                Nosso plano Free já oferece acesso à plataforma com recursos básicos, permitindo que você experimente antes de assinar um plano pago.
-              </p>
+            <div className="mt-20 max-w-4xl mx-auto">
+              <div className="bg-gradient-to-br from-neutral-900/95 to-neutral-800/95 rounded-2xl p-8 border border-neutral-700/50 backdrop-blur-sm shadow-[0_0_60px_rgba(0,0,0,0.3)]">
+                <h2 className="text-2xl font-bold mb-6 text-vegas-gold">Dúvidas Frequentes</h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <div className="bg-neutral-800/50 rounded-lg p-4 backdrop-blur-sm hover:bg-neutral-800/80 transition-all duration-300">
+                      <h3 className="font-semibold mb-2 text-white">Como funciona o sistema de assinatura?</h3>
+                      <p className="text-sm text-gray-400">
+                        Nossas assinaturas são cobradas mensalmente e o pagamento é processado via PIX através da plataforma Asaas.
+                      </p>
+                    </div>
+                    
+                    <div className="bg-neutral-800/50 rounded-lg p-4 backdrop-blur-sm hover:bg-neutral-800/80 transition-all duration-300">
+                      <h3 className="font-semibold mb-2 text-white">Como posso obter suporte?</h3>
+                      <p className="text-sm text-gray-400">
+                        Nossa equipe de suporte está disponível 24/7 para ajudar com qualquer dúvida ou problema que você possa ter.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="bg-neutral-800/50 rounded-lg p-4 backdrop-blur-sm hover:bg-neutral-800/80 transition-all duration-300">
+                      <h3 className="font-semibold mb-2 text-white">Posso cancelar a qualquer momento?</h3>
+                      <p className="text-sm text-gray-400">
+                        Sim, você pode cancelar sua assinatura a qualquer momento. O acesso aos recursos premium permanecerá ativo até o final do período pago.
+                      </p>
+                    </div>
+                    
+                    <div className="bg-neutral-800/50 rounded-lg p-4 backdrop-blur-sm hover:bg-neutral-800/80 transition-all duration-300">
+                      <h3 className="font-semibold mb-2 text-white">Há garantia de reembolso?</h3>
+                      <p className="text-sm text-gray-400">
+                        Oferecemos garantia de satisfação de 14 dias. Se você não estiver satisfeito com nosso serviço, reembolsaremos seu pagamento.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

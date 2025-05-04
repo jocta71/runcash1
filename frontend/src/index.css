@@ -381,3 +381,24 @@
     transform: translateX(0) rotate(0deg);
   }
 }
+
+/* Adicionar estilos personalizados */
+.clip-path-triangle {
+  clip-path: polygon(0 0, 100% 100%, 100% 0);
+}
+
+.animate-floating {
+  animation: floating 3s ease-in-out infinite;
+}
+
+@keyframes floating {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
