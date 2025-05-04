@@ -230,7 +230,7 @@ export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100)
     
     console.log(`[API] Buscando roletas de ${ROULETTES_ENDPOINT} para extrair números da roleta ${canonicalId}`);
     
-    // Agora buscamos todas as roletas e filtramos a que precisamos
+    // Buscar todas as roletas e filtrar a que precisamos - usando o endpoint base sem parâmetros adicionais
     const response = await axios.get(ROULETTES_ENDPOINT);
     
     if (response.data && Array.isArray(response.data)) {

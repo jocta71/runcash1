@@ -6,13 +6,13 @@ import axios from 'axios';
 const cache: Record<string, { data: any, timestamp: number }> = {};
 const CACHE_TTL = 60000; // 1 minuto em milissegundos
 
-// Endpoint fixo para roletas - sempre usar este endpoint específico
+// Endpoint fixo para roletas - sempre usar este endpoint específico sem parâmetros adicionais
 const ROULETTES_ENDPOINT = '/api/roulettes';
 
 /**
  * Busca todas as roletas e inclui os números mais recentes para cada uma.
  * Esta API combina os dados que normalmente seriam buscados separadamente.
- * IMPORTANTE: Utiliza apenas o endpoint "/api/roulettes" conforme especificado.
+ * IMPORTANTE: Utiliza apenas o endpoint "/api/roulettes" conforme especificado, sem parâmetros adicionais.
  */
 export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
   try {
@@ -23,7 +23,7 @@ export const fetchRoulettesWithNumbers = async (limit = 20): Promise<any[]> => {
       return cache[cacheKey].data;
     }
 
-    // Passo 1: Buscar todas as roletas disponíveis usando apenas o endpoint "/api/roulettes"
+    // Passo 1: Buscar todas as roletas disponíveis usando apenas o endpoint "/api/roulettes" sem parâmetros
     console.log(`[API] Buscando roletas e seus números do endpoint ${ROULETTES_ENDPOINT}`);
     const roulettesResponse = await axios.get(ROULETTES_ENDPOINT);
     

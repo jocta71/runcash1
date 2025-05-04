@@ -5,6 +5,10 @@ import EventService from './EventService';
  * IMPORTANTE: Este serviço deve acessar apenas o endpoint /api/roulettes
  * Outros endpoints como /api/roletas ou /api/ROULETTES foram removidos
  * para garantir consistência e evitar problemas.
+ * 
+ * ATUALIZAÇÃO: O endpoint deve ser usado exatamente como /api/roulettes
+ * sem parâmetros adicionais (como timestamps). Adicionar parâmetros à URL
+ * causa falhas na API.
  */
 
 // Intervalo de polling padrão em milissegundos (4 segundos)
@@ -237,9 +241,8 @@ class GlobalRouletteDataService {
           try {
             console.log('[GlobalRouletteService] Buscando dados de roletas...');
             
-            // Usar apenas o endpoint /api/roulettes com timestamp para evitar cache
-            const timestamp = Date.now();
-            const endpoint = `/api/roulettes?_t=${timestamp}`;
+            // Usar apenas o endpoint /api/roulettes sem timestamp para evitar problemas de conexão
+            const endpoint = `/api/roulettes`;
             
             console.log(`[GlobalRouletteService] Acessando endpoint: ${endpoint}`);
             let response = null;
