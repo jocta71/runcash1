@@ -19,6 +19,21 @@ const DETAILED_LIMIT = 1000;
 // Tipo para os callbacks de inscrição
 type SubscriberCallback = () => void;
 
+// Interface para resposta da API (temporária até importação dinâmica)
+interface ApiErrorResponse {
+  error: boolean;
+  code: string;
+  message: string;
+  statusCode: number;
+}
+
+interface ApiSuccessResponse<T> {
+  error: false;
+  data: T;
+}
+
+type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
+
 /**
  * Serviço Global para centralizar requisições de dados das roletas
  * Este serviço implementa o padrão Singleton para garantir apenas uma instância
@@ -134,9 +149,8 @@ class GlobalRouletteDataService {
           // Verificar se existe um token de autenticação
           const token = localStorage.getItem('token');
           if (!token) {
-            console.warn('[GlobalRouletteService] Token de autenticação não encontrado. Usando cache como fallback.');
-            this.tryUseCachedData(resolve);
-            return;
+            console.warn('[GlobalRouletteService] Token de autenticação não encontrado. Tentando buscar dados mesmo assim...');
+            // Continuar mesmo sem token - tentar requisição anônima
           }
           
           console.log('[GlobalRouletteService] Buscando dados das roletas da API');
@@ -145,49 +159,99 @@ class GlobalRouletteDataService {
           const rouletteApiModule = await import('../services/api/rouletteApi');
           const RouletteApi = rouletteApiModule.RouletteApi;
           
-          // Buscar dados da API
-          const response = await RouletteApi.fetchAllRoulettes();
-          
-          // Verificar se é um erro ou se não tem a propriedade 'data'
-          if (response.error || !('data' in response)) {
-            console.error(`[GlobalRouletteService] Erro ao buscar roletas: ${response.message || 'Resposta inválida'}`);
-            
-            // Tentar usar dados em cache
-            this.tryUseCachedData(resolve);
-            return;
-          }
-          
-          // Verificar se os dados são válidos
-          if (!response.data || !Array.isArray(response.data)) {
-            console.error('[GlobalRouletteService] Resposta inválida da API:', response);
-            
-            // Tentar usar dados em cache
-            this.tryUseCachedData(resolve);
-            return;
-          }
-          
-          console.log(`[GlobalRouletteService] ✅ Obtidas ${response.data.length} roletas da API`);
-          
-          // Atualizar dados
-          this.rouletteData = response.data;
-          
-          // Salvar em cache para uso futuro
           try {
-            localStorage.setItem('roulette_data_cache', JSON.stringify({
-              timestamp: Date.now(),
-              data: response.data
-            }));
-            console.log('[GlobalRouletteService] Dados salvos em cache para uso futuro');
-          } catch (storageError) {
-            console.warn('[GlobalRouletteService] Erro ao salvar cache:', storageError);
+            // Buscar dados da API com timeout de 10 segundos
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Timeout ao buscar dados da API')), 10000);
+            });
+            
+            // Tentar primeiro com a rota normal
+            const response = await Promise.race([
+              RouletteApi.fetchAllRoulettes(),
+              timeoutPromise
+            ]) as ApiResponse<any[]>;
+            
+            // Verificar se é um erro ou se não tem a propriedade 'data'
+            if (response.error || !('data' in response)) {
+              console.error(`[GlobalRouletteService] Erro ao buscar roletas: ${response.message || 'Resposta inválida'}`);
+              
+              // Tentar usar dados em cache
+              this.tryUseCachedData(resolve);
+              return;
+            }
+            
+            // Verificar se os dados são válidos
+            if (!response.data || !Array.isArray(response.data)) {
+              console.error('[GlobalRouletteService] Resposta inválida da API:', response);
+              
+              // Tentar usar dados em cache
+              this.tryUseCachedData(resolve);
+              return;
+            }
+            
+            console.log(`[GlobalRouletteService] ✅ Obtidas ${response.data.length} roletas da API`);
+            
+            // Atualizar dados
+            this.rouletteData = response.data;
+            
+            // Salvar em cache para uso futuro
+            try {
+              localStorage.setItem('roulette_data_cache', JSON.stringify({
+                timestamp: Date.now(),
+                data: response.data
+              }));
+              console.log('[GlobalRouletteService] Dados salvos em cache para uso futuro');
+            } catch (storageError) {
+              console.warn('[GlobalRouletteService] Erro ao salvar cache:', storageError);
+            }
+            
+            // Notificar assinantes sobre os novos dados
+            this.notifySubscribers();
+            
+            resolve(this.rouletteData);
+          } catch (apiError) {
+            console.error('[GlobalRouletteService] Erro na primeira tentativa de API:', apiError);
+            
+            // Tentar rota alternativa se a primeira falhar
+            try {
+              console.log('[GlobalRouletteService] Tentando rota alternativa /api/ROULETTES...');
+              const alternativeResponse = await fetch('/api/ROULETTES');
+              if (alternativeResponse.ok) {
+                const data = await alternativeResponse.json();
+                console.log('[GlobalRouletteService] Dados recebidos da rota alternativa:', data);
+                
+                // Verificar se os dados são um array
+                const rouletteData = Array.isArray(data) ? data : 
+                                   (data.data && Array.isArray(data.data) ? data.data : []);
+                
+                if (rouletteData.length > 0) {
+                  // Atualizar dados
+                  this.rouletteData = rouletteData;
+                  
+                  // Salvar em cache
+                  localStorage.setItem('roulette_data_cache', JSON.stringify({
+                    timestamp: Date.now(),
+                    data: rouletteData
+                  }));
+                  
+                  // Notificar assinantes
+                  this.notifySubscribers();
+                  
+                  resolve(this.rouletteData);
+                  return;
+                }
+              }
+              
+              // Se chegou aqui, a rota alternativa falhou
+              throw new Error('Falha na rota alternativa');
+            } catch (altError) {
+              console.error('[GlobalRouletteService] Erro na rota alternativa:', altError);
+              // Passar para o uso de cache
+              this.tryUseCachedData(resolve);
+            }
           }
-          
-          // Notificar assinantes sobre os novos dados
-          this.notifySubscribers();
-          
-          resolve(this.rouletteData);
         } catch (error) {
-          console.error('[GlobalRouletteService] Erro ao processar dados:', error);
+          console.error('[GlobalRouletteService] Erro geral ao processar dados:', error);
           
           // Tentar usar dados em cache
           this.tryUseCachedData(resolve);
@@ -347,20 +411,79 @@ class GlobalRouletteDataService {
    */
   private tryUseCachedData(resolve: (value: any[]) => void): void {
     try {
-      const cachedData = localStorage.getItem('roulette_data_cache');
-      if (cachedData) {
-        const parsedData = JSON.parse(cachedData);
-        const cacheAge = Date.now() - (parsedData.timestamp || 0);
+      // Verificar se existe cache
+      const cachedDataString = localStorage.getItem('roulette_data_cache');
+      if (!cachedDataString) {
+        console.warn('[GlobalRouletteService] Sem dados em cache disponíveis');
         
-        console.log(`[GlobalRouletteService] Usando cache com ${parsedData.data?.length || 0} roletas e idade de ${Math.round(cacheAge/60000)} minutos`);
-        this.rouletteData = parsedData.data || [];
+        // Sem cache disponível, retornar dados vazios ou mockados
+        // Em vez de array vazio, usar dados simulados básicos
+        const mockData = [
+          { id: '2010096', nome: 'Speed Auto Roulette', numero: [] },
+          { id: '2010016', nome: 'Immersive Roulette', numero: [] },
+          { id: '2010017', nome: 'Roulette VIP', numero: [] }
+        ];
+        
+        this.rouletteData = mockData;
+        
+        console.log('[GlobalRouletteService] Usando dados mockados básicos na ausência de cache');
         this.notifySubscribers();
+        resolve(this.rouletteData);
+        return;
       }
-    } catch (cacheError) {
-      console.error('[GlobalRouletteService] Erro ao usar cache:', cacheError);
+      
+      // Parsear o cache
+      const cachedData = JSON.parse(cachedDataString);
+      
+      // Verificar se o cache é válido e não está expirado (2 horas = 7200000 ms)
+      const CACHE_TTL = 7200000;
+      const now = Date.now();
+      
+      if (cachedData && cachedData.data && Array.isArray(cachedData.data) && 
+          cachedData.timestamp && (now - cachedData.timestamp < CACHE_TTL)) {
+        console.log(`[GlobalRouletteService] Usando dados em cache de ${new Date(cachedData.timestamp).toLocaleTimeString()}`);
+        
+        // Atualizar dados com o cache
+        this.rouletteData = cachedData.data;
+        this.notifySubscribers();
+        resolve(this.rouletteData);
+      } else {
+        console.warn('[GlobalRouletteService] Cache expirado ou inválido');
+        
+        // Mesmo com cache expirado, usar como fallback se tivermos dados
+        if (cachedData && cachedData.data && Array.isArray(cachedData.data) && cachedData.data.length > 0) {
+          console.log('[GlobalRouletteService] Usando cache expirado como fallback');
+          this.rouletteData = cachedData.data;
+          this.notifySubscribers();
+          resolve(this.rouletteData);
+        } else {
+          // Sem cache válido, retornar dados simulados básicos
+          const mockData = [
+            { id: '2010096', nome: 'Speed Auto Roulette', numero: [] },
+            { id: '2010016', nome: 'Immersive Roulette', numero: [] },
+            { id: '2010017', nome: 'Roulette VIP', numero: [] }
+          ];
+          
+          this.rouletteData = mockData;
+          
+          console.log('[GlobalRouletteService] Usando dados mockados básicos');
+          this.notifySubscribers();
+          resolve(this.rouletteData);
+        }
+      }
+    } catch (error) {
+      console.error('[GlobalRouletteService] Erro ao processar cache:', error);
+      
+      // Em caso de erro, retornar array vazio ou dados simulados
+      const mockData = [
+        { id: '2010096', nome: 'Speed Auto Roulette', numero: [] },
+        { id: '2010016', nome: 'Immersive Roulette', numero: [] }
+      ];
+      
+      this.rouletteData = mockData;
+      this.notifySubscribers();
+      resolve(this.rouletteData);
     }
-    
-    resolve(this.rouletteData);
   }
 }
 

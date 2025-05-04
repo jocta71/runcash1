@@ -104,12 +104,15 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
+  const [loadingTimeout, setLoadingTimeout] = useState<boolean>(false); // Estado para controlar timeout do carregamento
+  const [reloadingData, setReloadingData] = useState<boolean>(false); // Estado para controlar feedback visual ao recarregar
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null); // Referência para o timeout
   
   // Hooks
   const navigate = useNavigate();
@@ -165,12 +168,27 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Configurar loading inicial
     setLoading(true);
     
+    // Configurar um timeout para caso o carregamento demore demais
+    // Define um timeout de 15 segundos para mostrar uma mensagem amigável
+    timeoutRef.current = setTimeout(() => {
+      if (loading && !hasRealData) {
+        console.log('[RouletteCard] Timeout de carregamento atingido');
+        setLoadingTimeout(true);
+      }
+    }, 15000);
+    
     // Assinar atualizações do gerenciador global
     const unsubscribe = dataManager.subscribe(componentId, handleDataUpdate);
     
     // Limpar inscrição ao desmontar o componente
     return () => {
       unsubscribe();
+      
+      // Limpar timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
       
       // Certificar-se de limpar qualquer outro recurso de requisição
       if (intervalRef.current) {
@@ -408,9 +426,83 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           ) : (
             <div className="text-center text-gray-400 py-2 w-full">
               {loading ? (
-                <div className="flex items-center justify-center">
-                  <Loader2 className="h-4 w-4 animate-spin mr-2 text-vegas-green" />
-                  Carregando números...
+                <div className="flex flex-col items-center justify-center">
+                  <div className="flex items-center justify-center mb-2">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2 text-vegas-green" />
+                    Carregando números...
+                  </div>
+                  {loadingTimeout && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      <p>O carregamento está demorando mais que o normal.</p>
+                      <button 
+                        onClick={() => {
+                          setLoadingTimeout(false);
+                          setLoading(true);
+                          setReloadingData(true); // Ativar efeito visual de recarregamento
+                          
+                          // Forçar atualização dos dados
+                          globalRouletteDataService.forceUpdate();
+                          
+                          // Reiniciar o timeout
+                          if (timeoutRef.current) {
+                            clearTimeout(timeoutRef.current);
+                          }
+                          timeoutRef.current = setTimeout(() => {
+                            setLoadingTimeout(true);
+                            setReloadingData(false); // Desativar efeito após timeout
+                          }, 15000);
+                          
+                          // Desativar efeito visual após 2 segundos para dar feedback
+                          setTimeout(() => {
+                            setReloadingData(false);
+                          }, 2000);
+                        }}
+                        className={`px-3 py-1 mt-2 text-xs ${reloadingData 
+                          ? 'bg-vegas-green/40 text-white animate-pulse' 
+                          : 'bg-vegas-green/20 text-vegas-green hover:bg-vegas-green/30'} 
+                          transition-colors rounded-md flex items-center justify-center`}
+                        disabled={reloadingData}
+                      >
+                        {reloadingData ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            Recarregando...
+                          </>
+                        ) : 'Tentar novamente'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center">
+                  <p className="mb-2">Erro ao carregar números</p>
+                  <button 
+                    onClick={() => {
+                      setError(null);
+                      setLoading(true);
+                      setReloadingData(true); // Ativar efeito visual
+                      
+                      // Forçar atualização dos dados
+                      globalRouletteDataService.forceUpdate();
+                      
+                      // Desativar efeito visual após 2 segundos
+                      setTimeout(() => {
+                        setReloadingData(false);
+                      }, 2000);
+                    }}
+                    className={`px-3 py-1 text-xs ${reloadingData 
+                      ? 'bg-vegas-green/40 text-white animate-pulse' 
+                      : 'bg-vegas-green/20 text-vegas-green hover:bg-vegas-green/30'} 
+                      transition-colors rounded-md flex items-center justify-center`}
+                    disabled={reloadingData}
+                  >
+                    {reloadingData ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        Recarregando...
+                      </>
+                    ) : 'Tentar novamente'}
+                  </button>
                 </div>
               ) : "Nenhum número disponível"}
             </div>
