@@ -193,7 +193,7 @@ class GlobalRouletteDataService {
   
   /**
    * Método principal para buscar dados das roletas.
-   * Este método agora usa a normalização para garantir consistência.
+   * Este método agora usa a normalização e mecanismo de retry para garantir consistência.
    * @returns Array de objetos de roleta (vazio se ocorrer erro)
    */
   private async fetchRouletteData(): Promise<any[]> {
@@ -240,6 +240,12 @@ class GlobalRouletteDataService {
           if (token) {
             authToken = token;
             console.log(`[GlobalRouletteDataService] ✅ Token encontrado no localStorage: ${key}`);
+            
+            // Restaurar para cookies também
+            document.cookie = `token=${token}; path=/; max-age=2592000; SameSite=Lax`;
+            document.cookie = `token_alt=${token}; path=/; max-age=2592000; SameSite=Lax`;
+            console.log('[GlobalRouletteDataService] Token restaurado para cookies');
+            
             break;
           }
         }
@@ -259,13 +265,13 @@ class GlobalRouletteDataService {
         console.warn('[GlobalRouletteDataService] ⚠️ Nenhum token de autenticação encontrado, a requisição pode falhar com 401');
       }
 
-      // Buscar dados da API
+      // Buscar dados da API (usando o mecanismo de retry)
       console.log('[GlobalRouletteDataService] Fazendo requisição à API...');
-      const response = await fetch('/api/roulettes', {
+      const response = await this.fetchWithRetry('/api/roulettes', {
         method: 'GET',
         headers,
         credentials: 'include' // Importante: enviar cookies com a requisição
-      });
+      }, 2); // Permitir até 2 tentativas de retry
 
       if (!response.ok) {
         throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
@@ -382,6 +388,41 @@ class GlobalRouletteDataService {
   }
   
   /**
+   * Verifica se os dados estão expirados ou indisponíveis e força atualização se necessário
+   * Chamado quando um componente solicita dados mas o serviço retorna vazio
+   */
+  public checkAndForceRefreshIfNeeded(): void {
+    const now = Date.now();
+    const needsRefresh = 
+      this.rouletteData.length === 0 || // Sem dados
+      (now - this.lastFetchTime > 30000); // Dados com mais de 30 segundos
+    
+    if (needsRefresh && !this.isFetching) {
+      console.log('[GlobalRouletteDataService] 🔄 Forçando atualização devido a dados ausentes ou expirados');
+      
+      // Se houver dados antigos no localStorage, vamos restaurá-los temporariamente
+      try {
+        const cacheData = localStorage.getItem('roulette_data_cache');
+        if (cacheData) {
+          const parsed = JSON.parse(cacheData);
+          if (parsed.data && Array.isArray(parsed.data) && parsed.data.length > 0) {
+            console.log(`[GlobalRouletteDataService] ⚠️ Usando ${parsed.data.length} roletas do cache temporariamente`);
+            this.rouletteData = parsed.data;
+            
+            // Notificar assinantes sobre os dados do cache
+            this.notifySubscribers();
+          }
+        }
+      } catch (e) {
+        console.warn('[GlobalRouletteDataService] Erro ao restaurar dados do cache:', e);
+      }
+      
+      // Iniciar uma nova busca
+      this.fetchRouletteData();
+    }
+  }
+
+  /**
    * Obtém todos os dados das roletas
    * @returns Array com todas as roletas
    */
@@ -392,11 +433,8 @@ class GlobalRouletteDataService {
     if (count === 0) {
       console.warn('[GlobalRouletteService] ATENÇÃO: Retornando array vazio de roletas!');
       
-      // Verificar se devemos iniciar uma busca
-      if (!this.isFetching && Date.now() - this.lastFetchTime > MIN_FORCE_INTERVAL) {
-        console.log('[GlobalRouletteService] Iniciando busca automática de dados devido a pedido com dados vazios');
-        this.fetchRouletteData();
-      }
+      // Verificar e forçar atualização se necessário
+      this.checkAndForceRefreshIfNeeded();
     }
     
     // Garantir que sempre retorne um array, mesmo se rouletteData for undefined
@@ -734,19 +772,25 @@ export function diagnosticarCarregamentoRoletas(): void {
     const globalService = GlobalRouletteDataService.getInstance();
     console.log('✅ Instância do serviço global obtida com sucesso');
     
-    // Verificar dados em cache
+    // Verificar dados em cache na memória
     const cachedData = globalService.getAllRoulettes();
     if (cachedData && cachedData.length > 0) {
-      console.log(`✅ Dados em cache disponíveis: ${cachedData.length} roletas`);
-      console.log('Amostra de dados:', cachedData.slice(0, 2));
+      console.log(`✅ Dados em cache da memória disponíveis: ${cachedData.length} roletas`);
+      console.log('Amostra de dados:', cachedData.slice(0, 2).map(r => ({
+        id: r.id,
+        nome: r.nome || r.name,
+        numeros: Array.isArray(r.numero) ? r.numero.length : 0
+      })));
     } else {
-      console.log('❌ Nenhum dado em cache disponível');
+      console.log('❌ Nenhum dado em cache na memória disponível');
     }
     
     // Verificar status de busca
     console.log(`Estado de busca: ${globalService.isFetchingData() ? 'Em andamento' : 'Inativo'}`);
     console.log(`Último erro: ${globalService.getLastError() ? globalService.getLastError()?.message : 'Nenhum'}`);
     
+    // Executar verificação e atualização forçada se necessário
+    globalService.checkAndForceRefreshIfNeeded();
   } catch (error) {
     console.error('❌ Erro ao acessar o serviço global:', error);
   }
@@ -764,6 +808,13 @@ export function diagnosticarCarregamentoRoletas(): void {
         console.log(`Idade do cache: ${Math.round((Date.now() - parsedCache.timestamp) / 1000)} segundos`);
         if (parsedCache.data && Array.isArray(parsedCache.data)) {
           console.log(`Número de roletas em cache: ${parsedCache.data.length}`);
+          
+          // Tentar restaurar o cache se o serviço estiver sem dados
+          const globalService = GlobalRouletteDataService.getInstance();
+          const currentData = globalService.getAllRoulettes();
+          if (currentData.length === 0 && parsedCache.data.length > 0) {
+            console.log('⚠️ Serviço está sem dados mas cache tem dados. Recomendação: reiniciar a página');
+          }
         } else {
           console.log('❌ Formato de cache inválido (data não é um array)');
         }
@@ -783,77 +834,115 @@ export function diagnosticarCarregamentoRoletas(): void {
   let foundToken = false;
   
   try {
-    for (const key of possibleKeys) {
-      const token = localStorage.getItem(key);
-      if (token) {
-        foundToken = true;
-        console.log(`✅ Token encontrado com a chave: ${key}`);
-        // Não mostrar o token completo por segurança
-        console.log(`Token: ${token.substring(0, 10)}...${token.substring(token.length - 5)}`);
-        
-        try {
-          // Verificar se é um JWT válido tentando decodificar o payload
-          const parts = token.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            console.log('JWT parece válido, payload contém:', Object.keys(payload).join(', '));
-            
-            // Verificar expiração
-            if (payload.exp) {
-              const expTime = payload.exp * 1000; // Converter para milissegundos
-              const now = Date.now();
-              if (expTime > now) {
-                console.log(`✅ Token válido por mais ${Math.round((expTime - now) / 1000 / 60)} minutos`);
-              } else {
-                console.log('❌ Token EXPIRADO! Expirou há', Math.round((now - expTime) / 1000 / 60), 'minutos');
-              }
+    // Verificar cookies primeiro (mais confiável)
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift();
+      return undefined;
+    };
+    
+    // Verificar cookies de autenticação
+    const tokenCookie = getCookie('token') || getCookie('token_alt');
+    if (tokenCookie) {
+      foundToken = true;
+      console.log('✅ Token encontrado nos cookies');
+      // Não mostrar o token completo por segurança
+      console.log(`Token: ${tokenCookie.substring(0, 10)}...${tokenCookie.substring(tokenCookie.length - 5)}`);
+      
+      try {
+        // Verificar se é um JWT válido
+        const parts = tokenCookie.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          console.log('JWT válido, payload contém:', Object.keys(payload).join(', '));
+          
+          // Verificar expiração
+          if (payload.exp) {
+            const expTime = payload.exp * 1000;
+            const now = Date.now();
+            if (expTime > now) {
+              console.log(`✅ Token válido por mais ${Math.round((expTime - now) / 1000 / 60)} minutos`);
+            } else {
+              console.log('❌ Token EXPIRADO! Expirou há', Math.round((now - expTime) / 1000 / 60), 'minutos');
             }
-          } else {
-            console.log('⚠️ Token não parece ser um JWT válido (não tem 3 partes)');
           }
-        } catch (e) {
-          console.log('⚠️ Não foi possível decodificar o token como JWT');
         }
-        
-        break;
+      } catch (e) {
+        console.log('⚠️ Não foi possível decodificar o token como JWT');
+      }
+    }
+    
+    // Se não encontrou nos cookies, verificar localStorage
+    if (!foundToken) {
+      for (const key of possibleKeys) {
+        const token = localStorage.getItem(key);
+        if (token) {
+          foundToken = true;
+          console.log(`✅ Token encontrado no localStorage: ${key}`);
+          console.log(`Token: ${token.substring(0, 10)}...${token.substring(token.length - 5)}`);
+          
+          // Recomendar restaurar para cookies
+          console.log('⚠️ Token encontrado apenas no localStorage, não nos cookies');
+          console.log('Recomendação: Restaurar o token para cookies');
+          console.log(`document.cookie = "token=${token}; path=/; max-age=2592000; SameSite=Lax";`);
+          
+          break;
+        }
       }
     }
     
     if (!foundToken) {
       console.log('❌ PROBLEMA CRÍTICO: Nenhum token de autenticação encontrado!');
       console.log('Isso pode causar falhas 401 Unauthorized nas chamadas à API');
-    }
-    
-    // Verificar cookies
-    console.log('\n📋 Verificação de cookies:');
-    const cookies = document.cookie.split(';');
-    let foundAuthCookie = false;
-    
-    if (cookies.length > 0) {
-      console.log(`Total de cookies: ${cookies.length}`);
-      for (const cookie of cookies) {
-        const [name, value] = cookie.trim().split('=');
-        if (name && ['token', 'auth', 'jwt', 'authorization'].some(k => name.toLowerCase().includes(k))) {
-          console.log(`✅ Cookie de autenticação encontrado: ${name}`);
-          foundAuthCookie = true;
-        }
-      }
-      
-      if (!foundAuthCookie) {
-        console.log('⚠️ Nenhum cookie de autenticação encontrado pelos nomes comuns');
-      }
-    } else {
-      console.log('⚠️ Nenhum cookie disponível');
+      console.log('Recomendação: Fazer logout e login novamente');
     }
   } catch (authError) {
     console.error('❌ Erro ao verificar autenticação:', authError);
   }
   
-  // Informações sobre o endpoint
-  console.log('\n📋 Informações do endpoint:');
-  console.log('URL da API de roletas: /api/roulettes');
-  console.log('IMPORTANTE: Este endpoint deve ser acessado SEM parâmetros de timestamp ou outras querystrings');
-  console.log('IMPORTANTE: O endpoint deve receber o token JWT no cabeçalho Authorization: Bearer {token}');
+  // Testar uma requisição direta à API
+  console.log('\n📋 Teste de conexão direta com a API:');
+  try {
+    console.log('Iniciando teste de conexão direta com /api/roulettes...');
+    // Este teste será assíncrono, então o resultado aparecerá no console depois
+    fetch('/api/roulettes', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      credentials: 'include'
+    })
+    .then(response => {
+      console.log(`Resposta da API: ${response.status} ${response.statusText}`);
+      if (response.ok) {
+        console.log('✅ API respondeu com sucesso (200 OK)');
+        return response.json();
+      } else if (response.status === 401) {
+        console.log('❌ API retornou erro de autenticação (401 Unauthorized)');
+        console.log('Problema confirmado: Token inválido ou ausente');
+      } else {
+        console.log(`❌ API retornou erro: ${response.status}`);
+      }
+      return null;
+    })
+    .then(data => {
+      if (data) {
+        console.log(`✅ Dados recebidos: ${Array.isArray(data) ? data.length : 'não é array'} itens`);
+      }
+    })
+    .catch(error => {
+      console.error('❌ Erro na requisição de teste:', error);
+    });
+  } catch (e) {
+    console.error('❌ Erro ao tentar teste direto com a API:', e);
+  }
   
   console.log('\n==================== FIM DO DIAGNÓSTICO ====================');
+  console.log('Recomendações gerais:');
+  console.log('1. Se não há dados de roletas, tente recarregar a página');
+  console.log('2. Se o erro persistir, faça logout e login novamente');
+  console.log('3. Verifique a conexão com a internet');
+  console.log('4. Limpe o cache do navegador se o problema continuar');
 } 
