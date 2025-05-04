@@ -15,10 +15,15 @@ const jwt = require('jsonwebtoken');
 // Carregar variáveis de ambiente
 dotenv.config();
 
-// Extrair variáveis de ambiente
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'runcashh_secret_key';
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash';
+// Configuração
+const PORT = process.env.PORT || 5000;
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
+const JWT_SECRET = process.env.JWT_SECRET || "runcash_jwt_secret_key_2023";
+
+console.log('=== RunCash Unified Server ===');
+console.log(`PORT: ${PORT}`);
+console.log(`MONGODB_URI: ${MONGODB_URI ? MONGODB_URI.replace(/:.*@/, ':****@') : 'Não definida'}`);
+console.log('Diretório atual:', process.cwd());
 
 // Verificar e atualizar configuração do callback do Google
 try {
@@ -53,10 +58,23 @@ app.use(async (req, res, next) => {
     const authHeader = req.headers.authorization;
     const cookies = req.cookies || {};
     
-    // Se não tiver header de autorização, bloquear o acesso
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log(`[FIREWALL ROOT ${requestId}] Acesso bloqueado a ${path} - Sem autorização`);
-      console.log(`[FIREWALL ROOT ${requestId}] IP: ${req.ip}`);
+    // Tentar obter token do header de autorização ou do cookie
+    let token = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+      console.log(`Headers de auth: ${authHeader}`);
+    } else if (cookies.token) {
+      token = cookies.token;
+    }
+    
+    console.log(`Cookies disponíveis: ${JSON.stringify(cookies)}`);
+    
+    if (!token) {
+      // Usuário não autenticado - bloquear acesso
+      console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO: Acesso não autenticado à rota ${path}`);
+      console.log(`[FIREWALL ROOT ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+      console.log(`[FIREWALL ROOT ${requestId}] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress}`);
       console.log(`[FIREWALL ROOT ${requestId}] User-Agent: ${req.headers['user-agent']}`);
       console.log(`[FIREWALL ROOT ${requestId}] Timestamp: ${new Date().toISOString()}`);
       
@@ -77,9 +95,6 @@ app.use(async (req, res, next) => {
     }
     
     try {
-      // Extrair token
-      const token = authHeader.split(' ')[1];
-      
       // Verificar token
       console.log(`Token encontrado no header: ${token.substring(0, 15)}...`);
       const decoded = jwt.verify(token, JWT_SECRET);
@@ -112,68 +127,97 @@ app.use(async (req, res, next) => {
         });
       };
       
-      // Verificar assinatura
+      // Executar a verificação de assinatura
       const result = await checkSubscriptionPromise();
       
-      // Se o resultado for um objeto com código e dados, o middleware bloqueou o acesso
-      if (result !== true) {
-        console.log(`[FIREWALL ROOT ${requestId}] Acesso bloqueado a ${path} - Sem assinatura válida`);
+      // Se o resultado for true, significa que o usuário passou na verificação
+      if (result === true) {
+        return next();
+      } else {
+        // Se não, retornar a resposta apropriada
         return res.status(result.code).json(result.data);
       }
-      
-      // Se chegou aqui, o usuário passou por todas as verificações
-      console.log(`[FIREWALL ROOT ${requestId}] Acesso permitido a ${path} - Token e assinatura válidos`);
-      next();
     } catch (error) {
-      console.log(`[FIREWALL ROOT ${requestId}] Erro ao verificar token: ${error.message}`);
+      console.error(`[FIREWALL ROOT ${requestId}] Erro ao verificar token:`, error);
+      
       return res.status(401).json({
         success: false,
-        message: 'Token inválido ou expirado.',
+        message: 'Token de autenticação inválido ou expirado.',
         code: 'INVALID_TOKEN',
         requestId: requestId,
         timestamp: new Date().toISOString()
       });
     }
-  } else {
-    // Para todas as outras rotas, continuar normalmente
-    next();
   }
+  
+  // Se não for a rota específica, continuar para o próximo middleware
+  next();
 });
 
-// Configurar CORS
-app.use(cors());
-
-// Configurar middleware para parsing de JSON e URL encoded
+// Middlewares básicos
+app.use(cors({
+  origin: [
+    'https://runcashh11.vercel.app',
+    'https://runcash5.vercel.app', 
+    'http://localhost:3000', 
+    'http://localhost:5173', 
+    'https://runcashh1.vercel.app'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 
+                 'ngrok-skip-browser-warning', 'bypass-tunnel-reminder', 'cache-control', 'pragma'],
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Registrar rotas públicas - NOVIDADE: API pública com dados criptografados
-// Estas rotas não requerem autenticação, mas os dados são criptografados
-console.log('[Server] Registrando rotas públicas para roletas com dados criptografados');
-const publicRouletteRoutes = require('./routes/publicRouletteRoutes');
-app.use('/api/public', publicRouletteRoutes);
-
-// Carregar outros middlewares e rotas da API
-console.log('[Server] Carregando outros middlewares e rotas da API');
-
-// Carregar routes do diretório /api se existir
-try {
-  const apiPath = path.join(__dirname, 'api');
-  if (fs.existsSync(apiPath)) {
-    console.log('[Server] Diretório /api encontrado, carregando rotas...');
-    
-    // Carregar rotas individuais
-    try {
-      const routesPath = path.join(apiPath, 'routes');
-      if (fs.existsSync(routesPath)) {
-        // ... resto do código
-      }
-    } catch (err) {
-      console.error('Erro ao carregar rotas individuais:', err);
-    }
+// Verificar se a pasta api existe e carregar o index.js da API
+const apiIndexPath = path.join(__dirname, 'api', 'index.js');
+if (fs.existsSync(apiIndexPath)) {
+  console.log('Carregando API principal de api/index.js...');
+  try {
+    // Montar a API no caminho /api
+    const apiApp = require('./api/index.js');
+    app.use('/api', apiApp);
+    console.log('API principal carregada com sucesso no caminho /api');
+  } catch (err) {
+    console.error('Erro ao carregar API principal:', err);
   }
-} catch (err) {
-  console.error('Erro ao carregar rotas da API:', err);
+} else {
+  console.log('Arquivo api/index.js não encontrado, carregando rotas básicas...');
+  
+  // Importar algumas rotas diretas da API, se disponíveis
+  try {
+    if (fs.existsSync(path.join(__dirname, 'api', 'routes'))) {
+      // Tentar carregar rotas individuais
+      try {
+        const rouletteHistoryRouter = require('./api/routes/rouletteHistoryApi');
+        app.use('/api/roulettes/history', rouletteHistoryRouter);
+        console.log('Rota /api/roulettes/history carregada');
+      } catch (err) {
+        console.log('Rota de histórico de roletas não disponível:', err.message);
+      }
+      
+      try {
+        const strategiesRouter = require('./api/routes/strategies');
+        app.use('/api/strategies', strategiesRouter);
+        console.log('Rota /api/strategies carregada');
+      } catch (err) {
+        console.log('Rota de estratégias não disponível:', err.message);
+      }
+    }
+    
+    // Carregar rotas de roleta do diretório principal
+    try {
+      const rouletteRoutes = require('./routes/rouletteRoutes');
+      app.use('/api', rouletteRoutes);
+      console.log('Rotas de roleta carregadas do diretório principal');
+    } catch (err) {
+      console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
+    }
+  } catch (err) {
+    console.error('Erro ao carregar rotas individuais:', err);
+  }
 }
 
 // Configurar endpoints base para verificação
@@ -298,6 +342,5 @@ server.listen(PORT, () => {
   console.log('[Server] Endpoints disponíveis:');
   console.log('- / (status do servidor)');
   console.log('- /api (rotas da API principal)');
-  console.log('- /api/public (nova API pública com dados criptografados)');
   console.log('- /emit-event (compatibilidade com WebSocket, se ativado)');
 });
