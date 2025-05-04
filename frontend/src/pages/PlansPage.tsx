@@ -195,13 +195,22 @@ const PlansPage = () => {
       console.log('Carregando QR code PIX para o pagamento:', paymentData.paymentId);
       const pixData = await getAsaasPixQrCode(paymentData.paymentId);
       
-      console.log('Dados recebidos da API getAsaasPixQrCode:', pixData);
+      console.log('Dados recebidos da API getAsaasPixQrCode:', 
+        pixData.qrCodeImage ? 
+          { ...pixData, qrCodeImage: `${pixData.qrCodeImage.substring(0, 30)}... (${pixData.qrCodeImage.length} chars)` } : 
+          pixData
+      );
       
       if (!pixData.qrCodeImage || !pixData.qrCodeText) {
+        console.error('QR Code PIX não disponível na resposta:', pixData);
         setError('QR Code PIX não disponível. Tente novamente em alguns segundos.');
         // Tentar novamente após 3 segundos
         setTimeout(() => loadPixQrCode(), 3000);
         return;
+      }
+      
+      if (pixData.qrCodeImage.length < 100) {
+        console.warn('QR Code PIX possivelmente incompleto ou inválido. Tamanho:', pixData.qrCodeImage.length);
       }
       
       // Atualiza o estado com os dados recebidos
@@ -212,14 +221,19 @@ const PlansPage = () => {
         expirationDate: pixData.expirationDate ? new Date(pixData.expirationDate) : undefined
       };
       
-      console.log('Dados salvos no estado paymentData:', updatedPaymentData);
+      console.log('Dados salvos no estado paymentData:', 
+        { ...updatedPaymentData, qrCodeImage: updatedPaymentData.qrCodeImage ? 
+          `${updatedPaymentData.qrCodeImage.substring(0, 30)}... (${updatedPaymentData.qrCodeImage.length} chars)` : 
+          'undefined' 
+        }
+      );
       
       setPaymentData(updatedPaymentData);
       setIsRefreshing(false);
     } catch (error) {
       setIsRefreshing(false);
-      setError('Não foi possível carregar o QR Code PIX. Tente recarregar a página.');
       console.error('Erro ao carregar QR Code PIX:', error);
+      setError('Não foi possível carregar o QR Code PIX. Tente recarregar a página.');
     }
   };
 
@@ -387,11 +401,23 @@ const PlansPage = () => {
       
       console.log('Assinatura criada:', subscription);
       
+      // Verificar se a resposta já contém o QR code
+      const qrCodeFromResponse = subscription.qrCode;
+      
       // Atualizar dados de pagamento
       setPaymentData({
         subscriptionId: subscription.subscriptionId,
-        paymentId: subscription.paymentId
+        paymentId: subscription.paymentId,
+        // Se o QR code já estiver na resposta, usá-lo diretamente
+        ...(qrCodeFromResponse && {
+          qrCodeImage: qrCodeFromResponse.encodedImage,
+          qrCodeText: qrCodeFromResponse.payload,
+          expirationDate: qrCodeFromResponse.expirationDate ? new Date(qrCodeFromResponse.expirationDate) : undefined
+        })
       });
+      
+      // Log para depuração
+      console.log('QR code na resposta da assinatura:', qrCodeFromResponse ? 'Presente' : 'Ausente');
       
       // Se for plano gratuito, concluir diretamente
       if (selectedPlan.id === 'free') {

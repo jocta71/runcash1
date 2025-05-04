@@ -28,11 +28,19 @@ export function PixPayment({
   // Debug para verificar os valores recebidos
   useEffect(() => {
     console.log("PixPayment recebeu:", { 
-      qrCodeImage, 
-      qrCodeText, 
+      qrCodeImage: qrCodeImage ? `${qrCodeImage.substring(0, 30)}... (${qrCodeImage.length} chars)` : 'VAZIO', 
+      qrCodeImageLength: qrCodeImage?.length || 0,
+      qrCodeText: qrCodeText ? `${qrCodeText.substring(0, 30)}... (${qrCodeText.length} chars)` : 'VAZIO',
       paymentStatus, 
       expirationTime 
     });
+    
+    // Tentar mostrar a imagem no console como base64
+    if (qrCodeImage && qrCodeImage.length > 0) {
+      console.log('QR Code pronto para teste:', qrCodeImage.startsWith('data:') ? 
+        'Já começa com data:' : 
+        'Precisa adicionar prefixo data:image/png;base64,');
+    }
   }, [qrCodeImage, qrCodeText, paymentStatus, expirationTime]);
 
   const copyToClipboard = async () => {
@@ -67,15 +75,29 @@ export function PixPayment({
           
           {/* QR Code */}
           <div className="bg-white p-4 rounded-lg">
-            {qrCodeImage ? (
+            {qrCodeImage && qrCodeImage.length > 100 ? (
               <img 
                 src={qrCodeImage.startsWith('data:') ? qrCodeImage : `data:image/png;base64,${qrCodeImage}`} 
                 alt="QR Code PIX" 
                 className="w-48 h-48 mx-auto"
+                onError={(e) => {
+                  console.error('Erro ao carregar imagem QR code:', e);
+                  // Mostrar feedback visual em caso de erro na imagem
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.parentElement?.classList.add('error-loading-qr');
+                }}
               />
             ) : (
-              <div className="w-48 h-48 flex items-center justify-center bg-gray-100">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              <div className="w-48 h-48 flex flex-col items-center justify-center bg-gray-100">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400 mb-2" />
+                <p className="text-xs text-gray-500">
+                  {qrCodeImage ? 'QR Code inválido ou incompleto' : 'Carregando QR Code...'}
+                </p>
+                {qrCodeImage && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Tamanho: {qrCodeImage.length} caracteres
+                  </p>
+                )}
               </div>
             )}
           </div>

@@ -85,6 +85,11 @@ export interface SubscriptionResponse {
   paymentId: string;
   redirectUrl?: string;
   status: string;
+  qrCode?: {
+    encodedImage: string;
+    payload: string;
+    expirationDate?: string;
+  };
 }
 
 /**
@@ -164,7 +169,8 @@ export const createAsaasSubscription = async (
       subscriptionId: response.data.data.subscriptionId,
       paymentId: response.data.data.paymentId || '',
       redirectUrl: response.data.data.redirectUrl,
-      status: response.data.data.status || 'PENDING'
+      status: response.data.data.status || 'PENDING',
+      qrCode: response.data.data.qrCode
     };
   } catch (error) {
     console.error('Erro ao criar assinatura no Asaas:', error);
@@ -226,12 +232,19 @@ export const findAsaasPayment = async (paymentId: string, force: boolean = false
  */
 interface PixQrCodeResponse {
   success: boolean;
-  qrCode: {
+  data?: {
+    qrCode: {
+      encodedImage: string;
+      payload: string;
+      expirationDate?: string;
+    };
+  };
+  qrCode?: {
     encodedImage: string;
     payload: string;
     expirationDate?: string;
   };
-  payment: any;
+  payment?: any;
 }
 
 /**
@@ -254,19 +267,28 @@ export const getAsaasPixQrCode = async (paymentId: string): Promise<{
       throw new Error('Falha ao buscar QR code PIX');
     }
     
+    // Verificação da estrutura da resposta para lidar com diferentes formatos
+    // Verificamos se a resposta está no formato completo data.data.qrCode ou no formato direto data.qrCode
+    const qrCodeData = response.data.data?.qrCode || response.data.qrCode;
+    
+    if (!qrCodeData) {
+      console.error('QR code PIX: estrutura da resposta inválida:', response.data);
+      throw new Error('Estrutura da resposta de QR code inválida');
+    }
+    
     // Verificando se os dados estão presentes
-    if (!response.data.qrCode.encodedImage) {
+    if (!qrCodeData.encodedImage) {
       console.warn('QR code PIX: encodedImage não encontrado na resposta');
     }
     
-    if (!response.data.qrCode.payload) {
+    if (!qrCodeData.payload) {
       console.warn('QR code PIX: payload não encontrado na resposta');
     }
     
     const result = {
-      qrCodeImage: response.data.qrCode.encodedImage,
-      qrCodeText: response.data.qrCode.payload,
-      expirationDate: response.data.qrCode.expirationDate
+      qrCodeImage: qrCodeData.encodedImage || '',
+      qrCodeText: qrCodeData.payload || '',
+      expirationDate: qrCodeData.expirationDate
     };
     
     console.log('Dados de QR code PIX formatados:', {
