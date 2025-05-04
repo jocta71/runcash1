@@ -9,7 +9,6 @@ import { RequestThrottler } from './utils/requestThrottler';
 import { getLogger } from './utils/logger';
 import config from '@/config/env';
 import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
-import { processRouletteData } from '../integrations/api/rouletteService';
 
 const logger = getLogger('FetchService');
 
@@ -627,59 +626,20 @@ class FetchService {
       // Construir URL com base nas configurações
       const url = `${this.apiBaseUrl}/roulettes`;
       
-      // Obter token de autenticação do localStorage
-      const token = localStorage.getItem('@runcash:token') || localStorage.getItem('auth_token');
-      
-      // Preparar cabeçalhos com token de autenticação
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json'
-      };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers
-      });
+      const response = await fetch(url);
       
       if (!response.ok) {
-        // Verificar se é erro de autenticação
-        if (response.status === 401) {
-          logger.error('Autenticação necessária para acessar dados das roletas');
-          EventService.emitGlobalEvent('auth:required', {
-            resource: 'roulettes',
-            timestamp: new Date().toISOString()
-          });
-          throw new Error('Autenticação necessária para acessar dados das roletas');
-        }
-        
-        // Verificar se é erro de assinatura
-        if (response.status === 403) {
-          logger.error('Assinatura necessária para acessar dados das roletas');
-          EventService.emitGlobalEvent('subscription:required', {
-            resource: 'roulettes',
-            timestamp: new Date().toISOString()
-          });
-          throw new Error('Assinatura necessária para acessar dados das roletas');
-        }
-        
         throw new Error(`Erro ao buscar roletas: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
       
-      // Verificar se a resposta agora está no formato { success, data }
-      const rouletteData = data.data && Array.isArray(data.data) ? data.data : 
-                           Array.isArray(data) ? data : [];
-      
-      if (!rouletteData.length) {
-        logger.warn('API de roletas retornou array vazio ou formato inválido');
+      if (!Array.isArray(data)) {
+        throw new Error('Resposta inválida da API: não é um array');
       }
       
-      // Processar dados com o transformador de objetos importado
-      const processedData = rouletteData.map(processRouletteData);
+      // Processar dados com o transformador de objetos
+      const processedData = data.map(this.processRouletteData);
       
       logger.info(`✅ Encontradas ${processedData.length} roletas`);
       

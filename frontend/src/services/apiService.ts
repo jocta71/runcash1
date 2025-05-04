@@ -18,7 +18,7 @@ class ApiService {
     // Adicionar interceptor para incluir token em todas as requisições
     this.api.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('@runcash:token') || localStorage.getItem('auth_token') || localStorage.getItem('token');
+        const token = localStorage.getItem('token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -128,27 +128,6 @@ class ApiService {
    * @returns Promise com a resposta
    */
   public async getRoulette<T = any>(id: string, dataType: string = 'basic'): Promise<AxiosResponse<T>> {
-    // Verificar primeiro se o usuário tem assinatura ativa
-    const { hasSubscription } = await this.checkSubscriptionStatus();
-    
-    if (!hasSubscription) {
-      // Usuário sem assinatura - retornar resposta simulada com mensagem de erro
-      console.log('[API] Requisição a api/roulettes bloqueada - usuário sem assinatura');
-      
-      return {
-        data: {
-          success: false,
-          message: 'Para acessar estes dados, é necessário ter uma assinatura ativa',
-          error: 'SUBSCRIPTION_REQUIRED',
-          requiresSubscription: true
-        } as any as T,
-        status: 403,
-        statusText: 'Forbidden',
-        headers: {},
-        config: {} as any
-      };
-    }
-    
     // Usuário com assinatura - fazer a requisição normal
     return this.get<T>(`/roulettes/${id}/${dataType}`);
   }

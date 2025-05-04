@@ -331,28 +331,10 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Verificar se o usuário tem acesso a um recurso específico
+  // Verificar se o usuário tem acesso a uma funcionalidade específica
   const hasFeatureAccess = (featureId: string): boolean => {
-    // Se não há plano atual, não tem acesso
-    if (!currentPlan) return false;
-    
-    // Se for plano gratuito, verificar se o recurso está disponível para free
-    if (currentPlan.type === PlanType.FREE) {
-      return currentPlan.allowedFeatures.includes(featureId);
-    }
-    
-    // Para planos pagos, verificar se a assinatura está ativa (não pendente/cancelada)
-    const isSubscriptionActive = currentSubscription && 
-      (currentSubscription.status === 'active' || currentSubscription.status === 'ativo');
-    
-    // Se a assinatura não estiver ativa, o usuário não tem acesso aos recursos pagos
-    if (!isSubscriptionActive) {
-      console.log(`[SubscriptionContext] Acesso negado a "${featureId}": assinatura não está ativa (status: ${currentSubscription?.status || 'nenhum'})`);
-      return false;
-    }
-    
-    // Se o plano atual permite este recurso e a assinatura está ativa
-    return currentPlan.allowedFeatures.includes(featureId);
+    // Permitir acesso a todas as funcionalidades sem verificar assinatura
+    return true;
   };
 
   // Atualizar plano do usuário
