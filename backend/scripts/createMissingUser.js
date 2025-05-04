@@ -21,19 +21,21 @@ async function createMissingUser() {
 
     const db = client.db(dbName);
     
-    // Dados do usuário específico
-    const userId = '6816b00331290465766ba6760'; // ID do usuário da imagem
+    // Dados do usuário específico - Usando o ID diretamente da imagem
+    // Note: o formato correto deve ser uma string de 24 caracteres hexadecimais
+    // Vamos verificar primeiramente se o usuário existe pelo email
+    const email = 'teste12354@teste12354.com';
     const customerId = 'cus_000006678324';
     
-    // Verificar se o usuário já existe
-    const existingUser = await db.collection('users').findOne({ _id: new ObjectId(userId) });
+    // Verificar se o usuário já existe pelo email
+    const existingUser = await db.collection('users').findOne({ email: email });
     
     if (existingUser) {
-      console.log('Usuário já existe. Atualizando customerId...');
+      console.log('Usuário encontrado pelo email. Atualizando customerId...');
       
       // Atualizar o usuário com o customerId correto
       const updateResult = await db.collection('users').updateOne(
-        { _id: new ObjectId(userId) },
+        { email: email },
         { 
           $set: { 
             customerId: customerId,
@@ -44,12 +46,12 @@ async function createMissingUser() {
       );
       
       console.log(`Usuário atualizado: ${updateResult.modifiedCount > 0 ? 'Sim' : 'Não'}`);
+      console.log(`ID do usuário: ${existingUser._id}`);
     } else {
       console.log('Criando novo usuário...');
       
-      // Criar novo usuário com o ID especificado
+      // Criar novo usuário com o email especificado
       const newUser = {
-        _id: new ObjectId(userId),
         username: 'teste12354',
         email: 'teste12354@teste12354.com',
         password: '$2a$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', // Hash de senha fictício
@@ -61,9 +63,10 @@ async function createMissingUser() {
         __v: 0
       };
       
-      // Inserir o usuário com o ID específico
+      // Inserir o usuário
       const insertResult = await db.collection('users').insertOne(newUser);
       console.log(`Usuário criado: ${insertResult.acknowledged ? 'Sim' : 'Não'}`);
+      console.log(`ID do usuário: ${insertResult.insertedId}`);
     }
     
     // Verificar a assinatura
@@ -80,13 +83,15 @@ async function createMissingUser() {
       console.log(`- Valor: ${subscription.value}`);
       console.log(`- Próximo pagamento: ${subscription.nextDueDate}`);
       
-      // Adicionar o userId à assinatura se ainda não tiver
-      if (!subscription.userId) {
+      // Obter usuário atualizado
+      const updatedUser = await db.collection('users').findOne({ email: email });
+      
+      if (updatedUser && !subscription.userId) {
         console.log('Adicionando userId à assinatura...');
         
         const updateSubscriptionResult = await db.collection('userSubscriptions').updateOne(
           { _id: subscription._id },
-          { $set: { userId: userId } }
+          { $set: { userId: updatedUser._id.toString() } }
         );
         
         console.log(`Assinatura atualizada: ${updateSubscriptionResult.modifiedCount > 0 ? 'Sim' : 'Não'}`);
