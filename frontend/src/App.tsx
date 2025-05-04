@@ -29,7 +29,8 @@ const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
-const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+// Comentando a importação da página de checkout, já que agora está integrada nos planos
+// const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 // Comentando a importação da página de teste do Asaas
 // const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 
@@ -254,6 +255,8 @@ const App = () => {
                             </ProtectedRoute>
                           } />
                           
+                          {/* Rotas de pagamento removidas, pois o checkout agora está integrado na página de planos */}
+                          {/* 
                           <Route path="/pagamento" element={
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
@@ -269,6 +272,7 @@ const App = () => {
                               </Suspense>
                             </ProtectedRoute>
                           } />
+                          */}
                           
                           {/* Mantendo a rota antiga para compatibilidade */}
                           <Route path="/payment" element={
