@@ -186,22 +186,52 @@ class GlobalRouletteDataService {
         console.warn('[GlobalRouletteDataService] Nenhum token de autenticação encontrado, tentando acessar endpoint sem autenticação');
       }
 
+      console.log('[GlobalRouletteDataService] Iniciando requisição fetch...');
       const response = await fetch(endpoint, {
         method: 'GET',
         headers,
         credentials: 'include' // Importante: Incluir cookies na requisição
       });
 
+      console.log(`[GlobalRouletteDataService] Resposta recebida com status: ${response.status}`);
+      
       if (!response.ok) {
         throw new Error(`Erro ${response.status}: ${response.statusText}`);
       }
 
+      console.log('[GlobalRouletteDataService] Convertendo resposta para JSON...');
       const data = await response.json();
+      
+      // Diagnosticar estrutura dos dados
+      console.log(`[GlobalRouletteDataService] Tipo de dados recebidos: ${typeof data}`);
+      console.log(`[GlobalRouletteDataService] É array? ${Array.isArray(data)}`);
+      
+      if (Array.isArray(data)) {
+        console.log(`[GlobalRouletteDataService] Tamanho do array: ${data.length}`);
+        if (data.length > 0) {
+          console.log('[GlobalRouletteDataService] Estrutura do primeiro item:', JSON.stringify(data[0]).substring(0, 500) + '...');
+          
+          // Verificar se os dados têm a estrutura esperada
+          const hasMissingFields = data.some(item => !item.id || !item.nome);
+          if (hasMissingFields) {
+            console.warn('[GlobalRouletteDataService] ATENÇÃO: Alguns itens não têm os campos obrigatórios (id/nome)');
+          }
+        } else {
+          console.warn('[GlobalRouletteDataService] ALERTA: Array de dados vazio recebido da API');
+        }
+      } else {
+        console.error('[GlobalRouletteDataService] ERRO: Dados recebidos não são um array!');
+        console.log('[GlobalRouletteDataService] Dados recebidos:', data);
+      }
+      
       this.lastFetchTime = Date.now();
-      this.rouletteData = data;
+      this.rouletteData = Array.isArray(data) ? data : [];
+      
+      console.log(`[GlobalRouletteDataService] Antes de notificar: ${this.subscribers.size} assinantes`);
       this.notifySubscribers();
-      console.log(`[GlobalRouletteDataService] ✅ Dados atualizados: ${data.length} roletas`);
-      return data;
+      console.log(`[GlobalRouletteDataService] ✅ Dados atualizados: ${Array.isArray(data) ? data.length : 0} roletas`);
+      
+      return this.rouletteData;
     } catch (error) {
       console.error('[GlobalRouletteDataService] Erro ao buscar dados das roletas:', error);
       return this.rouletteData;
@@ -240,6 +270,34 @@ class GlobalRouletteDataService {
   }
   
   /**
+   * Força uma atualização imediata dos dados com limpeza de cache
+   * Útil quando enfrentar problemas de carregamento
+   */
+  public forceUpdateAndClearCache(): void {
+    console.log('[GlobalRouletteService] Forçando atualização e limpeza de cache');
+    
+    // Limpar dados atuais
+    this.rouletteData = [];
+    
+    // Cancelar qualquer busca em andamento
+    this.isFetching = false;
+    
+    // Redefinir última hora de busca
+    this.lastFetchTime = 0;
+    
+    // Limpar cache do localStorage se existir
+    try {
+      localStorage.removeItem('roulette_data_cache');
+      console.log('[GlobalRouletteService] Cache de localStorage limpo');
+    } catch (e) {
+      console.warn('[GlobalRouletteService] Erro ao limpar cache de localStorage:', e);
+    }
+    
+    // Forçar nova busca
+    this.fetchRouletteData();
+  }
+  
+  /**
    * Obtém a roleta pelo nome
    * @param rouletteName Nome da roleta
    * @returns Objeto com dados da roleta ou undefined
@@ -256,7 +314,21 @@ class GlobalRouletteDataService {
    * @returns Array com todas as roletas
    */
   public getAllRoulettes(): any[] {
-    return this.rouletteData;
+    const count = this.rouletteData?.length || 0;
+    console.log(`[GlobalRouletteService] getAllRoulettes chamado, retornando ${count} roletas`);
+    
+    if (count === 0) {
+      console.warn('[GlobalRouletteService] ATENÇÃO: Retornando array vazio de roletas!');
+      
+      // Verificar se devemos iniciar uma busca
+      if (!this.isFetching && Date.now() - this.lastFetchTime > MIN_FORCE_INTERVAL) {
+        console.log('[GlobalRouletteService] Iniciando busca automática de dados devido a pedido com dados vazios');
+        this.fetchRouletteData();
+      }
+    }
+    
+    // Garantir que sempre retorne um array, mesmo se rouletteData for undefined
+    return Array.isArray(this.rouletteData) ? this.rouletteData : [];
   }
   
   /**
@@ -274,17 +346,40 @@ class GlobalRouletteDataService {
    * @param callback Função a ser chamada quando houver atualização
    */
   public subscribe(id: string, callback: SubscriberCallback): void {
-    if (!id || typeof callback !== 'function') {
-      console.error('[GlobalRouletteService] ID ou callback inválido para subscription');
+    if (!id || typeof id !== 'string') {
+      console.error('[GlobalRouletteService] ID inválido para subscription:', id);
       return;
     }
     
+    if (typeof callback !== 'function') {
+      console.error('[GlobalRouletteService] Callback inválido para subscription (não é uma função)');
+      return;
+    }
+    
+    // Verificar se já existe assinante com este ID
+    if (this.subscribers.has(id)) {
+      console.log(`[GlobalRouletteService] Assinante com ID ${id} já está registrado, atualizando callback`);
+    } else {
+      console.log(`[GlobalRouletteService] Novo assinante registrado: ${id}`);
+    }
+    
     this.subscribers.set(id, callback);
-    console.log(`[GlobalRouletteService] Novo assinante registrado: ${id}`);
     
     // Chamar o callback imediatamente se já tivermos dados
     if (this.rouletteData.length > 0) {
-      callback();
+      console.log(`[GlobalRouletteService] Notificando imediatamente o assinante ${id} com ${this.rouletteData.length} roletas`);
+      try {
+        callback();
+      } catch (error) {
+        console.error(`[GlobalRouletteService] Erro ao notificar inicialmente o assinante ${id}:`, error);
+      }
+    } else {
+      console.log(`[GlobalRouletteService] Sem dados disponíveis para notificar o assinante ${id} imediatamente`);
+      // Forçar uma atualização para buscar dados
+      if (!this.isFetching) {
+        console.log(`[GlobalRouletteService] Forçando busca de dados para o novo assinante ${id}`);
+        this.fetchRouletteData();
+      }
     }
   }
   
@@ -312,13 +407,31 @@ class GlobalRouletteDataService {
   private notifySubscribers(): void {
     console.log(`[GlobalRouletteService] Notificando ${this.subscribers.size} assinantes`);
     
+    if (this.subscribers.size === 0) {
+      console.warn('[GlobalRouletteService] ATENÇÃO: Não há assinantes registrados para receber dados!');
+      console.log('[GlobalRouletteService] Verifique se os componentes estão chamando subscribe() corretamente');
+      return;
+    }
+    
+    if (this.rouletteData.length === 0) {
+      console.warn('[GlobalRouletteService] ATENÇÃO: Notificando assinantes com array vazio de dados!');
+    }
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
     this.subscribers.forEach((callback, id) => {
       try {
+        console.log(`[GlobalRouletteService] Notificando assinante: ${id}`);
         callback();
+        successCount++;
       } catch (error) {
         console.error(`[GlobalRouletteService] Erro ao notificar assinante ${id}:`, error);
+        errorCount++;
       }
     });
+    
+    console.log(`[GlobalRouletteService] Notificação concluída: ${successCount} com sucesso, ${errorCount} com erros`);
   }
   
   /**
@@ -345,6 +458,72 @@ class GlobalRouletteDataService {
     this.subscribers.clear();
     console.log('[GlobalRouletteService] Serviço encerrado e recursos liberados');
   }
+
+  /**
+   * Método de diagnóstico para verificar o estado atual do serviço
+   * Pode ser chamado de qualquer parte da aplicação para depuração
+   */
+  public diagnosticarEstado(): void {
+    console.group('🔍 DIAGNÓSTICO DO SERVIÇO DE ROLETAS');
+    console.log(`- Última atualização: ${new Date(this.lastFetchTime).toLocaleTimeString()}`);
+    console.log(`- Tempo desde última atualização: ${Date.now() - this.lastFetchTime}ms`);
+    console.log(`- Buscando dados agora: ${this.isFetching ? 'SIM' : 'NÃO'}`);
+    console.log(`- Polling ativo: ${this.pollingTimer !== null ? 'SIM' : 'NÃO'}`);
+    console.log(`- Número de assinantes: ${this.subscribers.size}`);
+    console.log(`- Dados disponíveis: ${this.rouletteData.length} roletas`);
+    
+    if (this.rouletteData.length === 0) {
+      console.warn('⚠️ ALERTA: Não há dados de roletas carregados!');
+    }
+    
+    if (this.subscribers.size === 0) {
+      console.warn('⚠️ ALERTA: Não há componentes registrados para receber dados!');
+    }
+    
+    // Verificar token de autenticação
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift();
+      return undefined;
+    };
+    
+    const tokenCookie = getCookie('token') || getCookie('token_alt');
+    if (tokenCookie) {
+      console.log('- Token nos cookies: SIM');
+    } else {
+      console.warn('⚠️ ALERTA: Não há token de autenticação nos cookies!');
+      
+      // Verificar localStorage
+      const possibleKeys = ['auth_token_backup', 'token', 'auth_token', 'authToken'];
+      let foundToken = false;
+      
+      for (const key of possibleKeys) {
+        if (localStorage.getItem(key)) {
+          console.log(`- Token no localStorage (${key}): SIM`);
+          foundToken = true;
+          break;
+        }
+      }
+      
+      if (!foundToken) {
+        console.error('❌ ERRO CRÍTICO: Não há token de autenticação em nenhum local!');
+      }
+    }
+    
+    console.log('- Lista de assinantes:');
+    this.subscribers.forEach((_, id) => {
+      console.log(`  * ${id}`);
+    });
+    
+    console.groupEnd();
+    
+    // Tentar uma atualização forçada se não houver dados
+    if (this.rouletteData.length === 0 && !this.isFetching) {
+      console.log('🔄 Iniciando atualização forçada de dados...');
+      this.fetchRouletteData();
+    }
+  }
 }
 
 // Exportar a instância única do serviço
@@ -352,3 +531,25 @@ const globalRouletteDataService = GlobalRouletteDataService.getInstance();
 export default globalRouletteDataService;
 // Também exportar a classe para permitir o uso de getInstance() diretamente
 export { GlobalRouletteDataService }; 
+
+/**
+ * Função utilitária para diagnosticar problemas de carregamento de roletas
+ * Pode ser chamada de qualquer componente
+ */
+export function diagnosticarCarregamentoRoletas(): void {
+  console.log('🔧 Iniciando diagnóstico do serviço de roletas...');
+  
+  try {
+    // Obter instância e chamar método de diagnóstico
+    const service = GlobalRouletteDataService.getInstance();
+    service.diagnosticarEstado();
+    
+    // Tenta forçar uma atualização se necessário
+    if (service.getAllRoulettes().length === 0) {
+      console.log('🔄 Forçando atualização de dados através do diagnóstico');
+      service.forceUpdateAndClearCache();
+    }
+  } catch (error) {
+    console.error('❌ Erro durante diagnóstico do serviço de roletas:', error);
+  }
+} 
