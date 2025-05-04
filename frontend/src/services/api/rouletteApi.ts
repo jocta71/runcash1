@@ -22,6 +22,42 @@ interface ApiSuccessResponse<T> {
 type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
 
 /**
+ * Função para decriptografar dados vindo da API
+ * Deve corresponder à implementação de encryptRouletteData no servidor
+ */
+const decryptRouletteData = (encryptedResponse: any): any => {
+  try {
+    if (!encryptedResponse || !encryptedResponse.encryptedData || encryptedResponse.format !== 'encrypted') {
+      // Resposta não está criptografada, retornar como está
+      return encryptedResponse;
+    }
+    
+    const crypto = require('crypto-js');
+    const secretKey = process.env.REACT_APP_ROULETTE_SECRET_KEY || 'frontend-roulette-key-123456';
+    
+    // Separar IV e dados criptografados
+    const [ivHex, encryptedHex] = encryptedResponse.encryptedData.split(':');
+    
+    // Usar CryptoJS para decriptografar no navegador
+    const iv = crypto.enc.Hex.parse(ivHex);
+    const encrypted = crypto.enc.Hex.parse(encryptedHex);
+    
+    const decrypted = crypto.AES.decrypt(
+      { ciphertext: encrypted },
+      crypto.enc.Utf8.parse(secretKey),
+      { iv: iv, mode: crypto.mode.CTR, padding: crypto.pad.NoPadding }
+    );
+    
+    const decryptedString = decrypted.toString(crypto.enc.Utf8);
+    return JSON.parse(decryptedString);
+  } catch (error) {
+    console.error('[API] Erro ao decriptografar dados:', error);
+    // Em caso de falha, retornar dados originais
+    return encryptedResponse;
+  }
+};
+
+/**
  * Cliente de API para comunicação com os endpoints de roleta
  */
 export const RouletteApi = {
@@ -29,10 +65,26 @@ export const RouletteApi = {
    * Busca todas as roletas disponíveis
    * @returns Resposta da API com roletas ou erro
    */
-  async fetchAllRoulettes(): Promise<ApiResponse<any[]>> {
+  async fetchAllRoulettes(useEncryption = false): Promise<ApiResponse<any[]>> {
     try {
       console.log('[API] Buscando todas as roletas disponíveis');
-      const response = await axios.get(ENDPOINTS.ROULETTES);
+      
+      // Adicionar cabeçalho de formato seguro se solicitado
+      const headers = useEncryption ? { 'x-secure-format': 'true' } : {};
+      
+      const response = await axios.get(ENDPOINTS.ROULETTES, { headers });
+      
+      // Verificar se os dados estão criptografados
+      if (response.data && response.data.format === 'encrypted') {
+        console.log('[API] Recebidos dados criptografados, decodificando...');
+        const decryptedData = decryptRouletteData(response.data);
+        
+        if (decryptedData.error) {
+          return decryptedData;
+        }
+        
+        response.data = decryptedData;
+      }
       
       if (!response.data) {
         console.error('[API] Resposta inválida da API de roletas:', response.data);
@@ -106,16 +158,17 @@ export const RouletteApi = {
   /**
    * Busca uma roleta específica pelo ID
    * @param id ID da roleta a ser buscada
+   * @param useEncryption Indica se deve usar criptografia
    * @returns Resposta da API com a roleta ou erro
    */
-  async fetchRouletteById(id: string): Promise<ApiResponse<any>> {
+  async fetchRouletteById(id: string, useEncryption = false): Promise<ApiResponse<any>> {
     try {
       console.log(`[API] Buscando roleta com ID: ${id}`);
       // Converter para ID numérico para normalização
       const numericId = getNumericId(id);
       
       // Buscar todas as roletas e filtrar localmente
-      const allRoulettes = await this.fetchAllRoulettes();
+      const allRoulettes = await this.fetchAllRoulettes(useEncryption);
       
       // Verificar se houve erro na busca de todas as roletas
       if (allRoulettes.error) {
@@ -158,9 +211,10 @@ export const RouletteApi = {
   /**
    * Busca a estratégia atual para uma roleta
    * @param id ID da roleta
+   * @param useEncryption Indica se deve usar criptografia
    * @returns Objeto de estratégia ou null
    */
-  async fetchRouletteStrategy(id: string): Promise<ApiResponse<any>> {
+  async fetchRouletteStrategy(id: string, useEncryption = false): Promise<ApiResponse<any>> {
     try {
       console.log(`[API] Buscando estratégia para roleta ID: ${id}`);
       
@@ -168,7 +222,7 @@ export const RouletteApi = {
       const numericId = getNumericId(id);
       
       // Buscar dados da roleta que já incluem a estratégia
-      const rouletteResponse = await this.fetchRouletteById(numericId);
+      const rouletteResponse = await this.fetchRouletteById(numericId, useEncryption);
       
       if (rouletteResponse.error) {
         return rouletteResponse;
@@ -205,13 +259,32 @@ export const RouletteApi = {
   /**
    * Busca o histórico de números de uma roleta específica
    * @param rouletteName Nome da roleta
+   * @param useEncryption Indica se deve usar criptografia
    * @returns Resposta da API com o histórico ou erro
    */
-  async fetchRouletteHistory(rouletteName: string): Promise<ApiResponse<number[]>> {
+  async fetchRouletteHistory(rouletteName: string, useEncryption = false): Promise<ApiResponse<number[]>> {
     try {
       console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
       
-      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
+      // Adicionar cabeçalho de formato seguro se solicitado
+      const headers = useEncryption ? { 'x-secure-format': 'true' } : {};
+      
+      const response = await axios.get(
+        `${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`,
+        { headers }
+      );
+      
+      // Verificar se os dados estão criptografados
+      if (response.data && response.data.format === 'encrypted') {
+        console.log('[API] Recebidos dados criptografados, decodificando...');
+        const decryptedData = decryptRouletteData(response.data);
+        
+        if (decryptedData.error) {
+          return decryptedData;
+        }
+        
+        response.data = decryptedData;
+      }
       
       if (!response.data || !Array.isArray(response.data)) {
         console.error('[API] Resposta inválida do histórico:', response.data);

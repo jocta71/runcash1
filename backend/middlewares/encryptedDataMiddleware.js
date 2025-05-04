@@ -40,18 +40,16 @@ const encryptResponseData = async (req, res, next) => {
       // Criptografar os dados com Iron
       const encryptedData = await Iron.seal(payload, ENCRYPTION_KEY, Iron.defaults);
       
-      // Gerar ID para debugging e formato similar ao concorrente
+      // Gerar ID para debugging
       const requestId = crypto.randomBytes(4).toString('hex');
       
-      // Criar resposta no formato similar ao observado no concorrente
-      const responseFormat = {
-        event: "update",
-        id: Math.floor(Math.random() * 10) + 1, // Um número aleatório entre 1 e 10
-        data: `Fe26_${crypto.randomBytes(8).toString('hex')}${encryptedData}`
-      };
-      
       // Responder com dados criptografados
-      return originalJson.call(this, responseFormat);
+      return originalJson.call(this, {
+        _encryption: 'Fe26.2',
+        data: encryptedData,
+        requestId,
+        timestamp: Date.now()
+      });
     } catch (error) {
       console.error('[ENCRYPT] Erro ao criptografar dados:', error);
       
@@ -73,9 +71,7 @@ const encryptResponseData = async (req, res, next) => {
  */
 const decryptData = async (encryptedData, key) => {
   try {
-    // Remover o prefixo Fe26_ e qualquer parte do hash adicional
-    const cleanData = encryptedData.replace(/^Fe26_[a-f0-9]{16}/, '');
-    const decrypted = await Iron.unseal(cleanData, key, Iron.defaults);
+    const decrypted = await Iron.unseal(encryptedData, key, Iron.defaults);
     return decrypted.data;
   } catch (error) {
     console.error('Erro ao descriptografar dados:', error);
@@ -84,6 +80,5 @@ const decryptData = async (encryptedData, key) => {
 };
 
 module.exports = {
-  encryptResponseData,
-  decryptData
+  encryptResponseData
 }; 
