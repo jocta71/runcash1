@@ -56,8 +56,21 @@ app.use(async (req, res, next) => {
     
     // Verificar se o usuário está autenticado
     const authHeader = req.headers.authorization;
+    const cookies = req.cookies || {};
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Tentar obter token do header de autorização ou do cookie
+    let token = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+      console.log(`Headers de auth: ${authHeader}`);
+    } else if (cookies.token) {
+      token = cookies.token;
+    }
+    
+    console.log(`Cookies disponíveis: ${JSON.stringify(cookies)}`);
+    
+    if (!token) {
       // Usuário não autenticado - bloquear acesso
       console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO: Acesso não autenticado à rota ${path}`);
       console.log(`[FIREWALL ROOT ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
@@ -81,117 +94,51 @@ app.use(async (req, res, next) => {
       });
     }
     
-    // Extrair token do cabeçalho
-    const token = authHeader.split(' ')[1];
-    
     try {
-      // Verificar se o token é válido
+      // Verificar token
+      console.log(`Token encontrado no header: ${token.substring(0, 15)}...`);
       const decoded = jwt.verify(token, JWT_SECRET);
       
       // Definir informações do usuário na requisição
-      req.usuario = decoded;
+      req.user = decoded;
+      console.log(`Token verificado com sucesso, usuário: ${req.user.id}`);
       
-      // Verificar se o parâmetro customerId existe no token
-      if (!decoded.customerId) {
-        // Verificar se há customerId persistido no banco de dados
-        console.log(`[FIREWALL ROOT ${requestId}] Token válido, mas sem customerId. Verificando no banco...`);
-        
-        try {
-          // Conectar ao MongoDB
-          const client = new MongoClient(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-          await client.connect();
-          const db = client.db();
-          
-          // Buscar usuário no banco
-          const user = await db.collection('users').findOne({ id: decoded.id });
-          
-          if (user && user.customerId) {
-            decoded.customerId = user.customerId;
-            console.log(`[FIREWALL ROOT ${requestId}] CustomerId encontrado no banco: ${user.customerId}`);
-          } else {
-            // Usuário sem customerId - bloquear acesso
-            console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO: Usuário sem ID Asaas`);
-            
-            // Fechar conexão com MongoDB
-            await client.close();
-            
-            return res.status(403).json({
-              success: false,
-              message: 'Assinatura necessária para acessar este recurso.',
-              code: 'SUBSCRIPTION_REQUIRED',
-              requestId: requestId,
-              timestamp: new Date().toISOString()
-            });
-          }
-          
-          // Fechar conexão com MongoDB
-          await client.close();
-        } catch (dbError) {
-          console.error(`[FIREWALL ROOT ${requestId}] Erro ao verificar banco de dados:`, dbError);
-          
-          return res.status(500).json({
-            success: false,
-            message: 'Erro interno ao verificar assinatura.',
-            code: 'INTERNAL_ERROR',
-            requestId: requestId,
-            timestamp: new Date().toISOString()
-          });
-        }
-      }
+      // Importar e usar o middleware de verificação de assinatura
+      const { checkSubscription } = require('./middleware/subscriptionCheck');
       
-      // Verificar assinatura Asaas
-      if (decoded.customerId) {
-        try {
-          // Importar serviço Asaas
-          const asaasService = require('./services/asaasService');
+      // Criar uma função para simular o middleware Express com promessa
+      const checkSubscriptionPromise = () => {
+        return new Promise((resolve, reject) => {
+          // Simular os objetos req/res/next do Express
+          const nextFunction = () => {
+            resolve(true); // Se o middleware chama next(), significa que o usuário pode acessar
+          };
           
-          // Verificar status da assinatura
-          const subscriptionStatus = await asaasService.checkSubscriptionStatus(decoded.customerId);
+          const resObject = {
+            status: (code) => ({
+              json: (data) => {
+                resolve({ code, data }); // Retorna o código e dados se o middleware bloquear
+              }
+            })
+          };
           
-          if (subscriptionStatus.hasActiveSubscription) {
-            console.log(`[FIREWALL ROOT ${requestId}] ✓ Assinatura ativa verificada. Permitindo acesso.`);
-            // Usuário com assinatura válida - permitir acesso
-            return next();
-          } else {
-            // Usuário sem assinatura ativa - bloquear acesso
-            console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO: Sem assinatura ativa. Status: ${subscriptionStatus.status}`);
-            
-            return res.status(403).json({
-              success: false,
-              message: 'Assinatura ativa necessária para acessar este recurso.',
-              code: 'ACTIVE_SUBSCRIPTION_REQUIRED',
-              status: subscriptionStatus.status,
-              requestId: requestId,
-              timestamp: new Date().toISOString()
-            });
-          }
-        } catch (asaasError) {
-          console.error(`[FIREWALL ROOT ${requestId}] Erro ao verificar assinatura Asaas:`, asaasError);
-          
-          return res.status(500).json({
-            success: false,
-            message: 'Erro interno ao verificar assinatura.',
-            code: 'ASAAS_SERVICE_ERROR',
-            requestId: requestId,
-            timestamp: new Date().toISOString()
-          });
-        }
-      } else {
-        // Usuário sem customerId - bloquear acesso
-        console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO: Usuário sem ID Asaas após todas as verificações`);
-        
-        return res.status(403).json({
-          success: false,
-          message: 'Assinatura necessária para acessar este recurso.',
-          code: 'SUBSCRIPTION_REQUIRED',
-          requestId: requestId,
-          timestamp: new Date().toISOString()
+          // Chamar o middleware
+          checkSubscription(req, resObject, nextFunction).catch(reject);
         });
+      };
+      
+      // Executar a verificação de assinatura
+      const result = await checkSubscriptionPromise();
+      
+      // Se o resultado for true, significa que o usuário passou na verificação
+      if (result === true) {
+        return next();
+      } else {
+        // Se não, retornar a resposta apropriada
+        return res.status(result.code).json(result.data);
       }
-    } catch (jwtError) {
-      // Token inválido - bloquear acesso
-      console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO: Token JWT inválido`);
-      console.log(`[FIREWALL ROOT ${requestId}] Erro: ${jwtError.message}`);
+    } catch (error) {
+      console.error(`[FIREWALL ROOT ${requestId}] Erro ao verificar token:`, error);
       
       return res.status(401).json({
         success: false,
