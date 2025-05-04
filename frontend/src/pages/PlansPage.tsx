@@ -839,92 +839,139 @@ const PlansPage = () => {
           </div>
         ) : (
           <>
-        <h1 className="text-3xl font-bold text-center mb-2">Escolha o plano ideal para você</h1>
-        <p className="text-gray-400 text-center mb-10">
-          Assine e tenha acesso a todos os recursos da plataforma.
-        </p>
+        <div className="text-center mb-12">
+          <h1 className="text-3xl font-bold text-white mb-3 relative inline-block">
+            Escolha o plano ideal para você
+            <div className="absolute h-1 w-1/2 bg-gradient-to-r from-blue-500 to-purple-500 bottom-0 left-1/4 rounded-full"></div>
+          </h1>
+          <p className="text-neutral-400 max-w-2xl mx-auto">
+            Assine e tenha acesso a todos os recursos da plataforma. Escolha o plano que melhor se adapta às suas necessidades.
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {filteredPlans.map(plan => (
-            <div 
-              key={plan.id}
-              className={`border rounded-lg p-6 flex flex-col ${
-                currentPlan?.id === plan.id 
-                  ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
-                  : plan.id === 'pro' 
-                    ? 'border-vegas-gold bg-vegas-black/60 relative overflow-hidden' 
-                    : 'border-gray-700 bg-vegas-black/40'
-              }`}
-            >
-              {plan.id === 'pro' && (
-                <div className="absolute right-0 top-0 bg-vegas-gold text-black text-xs px-4 py-1 transform translate-x-2 translate-y-3 rotate-45">
-                  Popular
-                </div>
-              )}
-              
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold">{plan.name}</h3>
-                {currentPlan?.id === plan.id && (
-                  <span className="bg-vegas-gold text-black text-xs px-2 py-1 rounded-full">
-                    Plano Atual
-                  </span>
-                )}
-              </div>
-              
-              <div className="mt-4 mb-2">
-                <span className="text-3xl font-bold">
-                  R$ {plan.price.toFixed(2)}
-                </span>
-                <span className="text-sm text-gray-400">
-                  /mês
-                </span>
-              </div>
-              
-              <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
-              
-              <ul className="space-y-3 mb-6 flex-grow">
-                {plan.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-start">
-                    <Check className="h-5 w-5 text-vegas-gold mr-2 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-              
-              <Button
-                onClick={() => handleSelectPlan(plan.id)}
-                className={
-                  currentPlan?.id === plan.id 
-                    ? "bg-gray-700 hover:bg-gray-600" 
-                    : plan.id === 'pro'
-                      ? "bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-                      : "bg-vegas-gold/80 hover:bg-vegas-gold text-black"
-                }
-                disabled={currentPlan?.id === plan.id}
+          {filteredPlans.map(plan => {
+            // Definir paleta de cores com base no plano
+            let gradientColors = 
+              plan.id === 'pro' 
+                ? 'from-blue-900 via-blue-800 to-blue-600' 
+                : 'from-purple-900 via-purple-800 to-purple-600';
+            
+            let shadowColor = 
+              plan.id === 'pro' 
+                ? 'rgba(59, 130, 246, 0.3)' 
+                : 'rgba(147, 51, 234, 0.3)'; 
+            
+            let accentColor = 
+              plan.id === 'pro' 
+                ? 'blue-500' 
+                : 'purple-500';
+            
+            let priceColor = 
+              plan.id === 'pro' 
+                ? 'text-blue-300' 
+                : 'text-purple-300';
+            
+            return (
+              <div 
+                key={plan.id}
+                className={`relative rounded-2xl p-8 flex flex-col transition-all duration-300 hover:translate-y-[-5px] overflow-hidden 
+                  ${currentPlan?.id === plan.id 
+                    ? 'shadow-[0_0_25px_rgba(212,175,55,0.3)] border-vegas-gold' 
+                    : `shadow-[8px_8px_16px_rgba(0,0,0,0.3),-8px_-8px_16px_rgba(30,30,30,0.4)] shadow-${shadowColor} border-t border-l border-neutral-800/50`}`}
+                style={{
+                  background: `radial-gradient(circle at top right, transparent 0%, rgba(0, 0, 0, 0.4) 100%), 
+                              linear-gradient(to bottom right, var(--tw-gradient-stops))`,
+                }}
               >
-                {currentPlan?.id === plan.id 
-                  ? "Plano Atual" 
-                  : "Assinar Agora"}
-              </Button>
-            </div>
-          ))}
+                {/* Efeito de brilho do card */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${plan.id === 'pro' ? 'from-blue-900 via-blue-800 to-blue-600' : 'from-purple-900 via-purple-800 to-purple-600'} opacity-20 rounded-2xl`}></div>
+                
+                {/* Emblema para o plano recomendado */}
+                {plan.id === 'pro' && (
+                  <div className="absolute -right-10 top-7 bg-vegas-gold text-black text-xs px-10 py-1 transform rotate-45 font-medium shadow-md">
+                    Recomendado
+                  </div>
+                )}
+                
+                {/* Cabeçalho do plano */}
+                <div className="flex justify-between items-center relative z-10 mb-2">
+                  <h3 className="text-2xl font-bold text-white">{plan.name}</h3>
+                  {currentPlan?.id === plan.id && (
+                    <span className="bg-vegas-gold text-black text-xs px-3 py-1 rounded-full font-medium">
+                      Plano Atual
+                    </span>
+                  )}
+                </div>
+                
+                {/* Preço */}
+                <div className="relative z-10 mt-3 mb-4">
+                  <div className="flex items-baseline">
+                    <span className={`text-3xl font-bold text-white bg-neutral-800/30 px-3 py-1 rounded-lg shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]`}>
+                      R$ {plan.price.toFixed(2)}
+                    </span>
+                    <span className="text-neutral-400 ml-1">
+                      /mês
+                    </span>
+                  </div>
+                  <p className="text-sm text-neutral-400 mt-2">{plan.description}</p>
+                </div>
+                
+                {/* Recursos */}
+                <p className="text-sm text-neutral-400 mb-3 relative z-10">Inclui:</p>
+                <ul className="space-y-2 mb-6 flex-grow relative z-10">
+                  {plan.features.map((feature, idx) => (
+                    <li key={idx} className="flex items-start">
+                      <span className={`flex items-center justify-center ${plan.id === 'pro' ? 'text-blue-500' : 'text-purple-500'} mr-3 bg-neutral-800/50 p-1.5 rounded-full shadow-[2px_2px_3px_rgba(0,0,0,0.2),inset_1px_1px_1px_rgba(40,40,40,0.5)]`}>
+                        <Check className="h-4 w-4" />
+                      </span>
+                      <span className="text-sm text-neutral-300">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                
+                {/* Botão */}
+                <Button
+                  onClick={() => handleSelectPlan(plan.id)}
+                  disabled={currentPlan?.id === plan.id}
+                  className={`relative z-10 w-full py-2 rounded-xl font-medium shadow-[4px_4px_8px_rgba(0,0,0,0.2),-4px_-4px_8px_rgba(40,40,40,0.3)] hover:shadow-[2px_2px_4px_rgba(0,0,0,0.2),-2px_-2px_4px_rgba(40,40,40,0.3),inset_2px_2px_4px_rgba(0,0,0,0.2),inset_-2px_-2px_4px_rgba(40,40,40,0.3)] hover:translate-y-0.5 transition-all duration-200
+                  ${currentPlan?.id === plan.id 
+                    ? "bg-neutral-800 text-neutral-400 cursor-not-allowed" 
+                    : plan.id === 'pro'
+                      ? "bg-blue-800 text-blue-100"
+                      : "bg-purple-800 text-purple-100"}`}
+                >
+                  {currentPlan?.id === plan.id 
+                    ? "Plano Atual" 
+                    : "Assinar Agora"}
+                </Button>
+              </div>
+            );
+          })}
         </div>
         
-        <div className="mt-12 bg-vegas-black/30 p-6 rounded-lg border border-gray-800 max-w-4xl mx-auto">
-          <h2 className="text-xl font-bold mb-4">Dúvidas Frequentes</h2>
+        <div className="mt-12 bg-neutral-900 p-8 rounded-2xl shadow-[8px_8px_16px_rgba(0,0,0,0.3),-8px_-8px_16px_rgba(30,30,30,0.4)] border-t border-l border-neutral-800/50 max-w-4xl mx-auto">
+          <h2 className="text-2xl font-bold mb-6 text-vegas-gold">Dúvidas Frequentes</h2>
           
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-semibold mb-2">Como funciona o sistema de assinatura?</h3>
-              <p className="text-sm text-gray-400">
+          <div className="space-y-6">
+            <div className="bg-neutral-800/50 p-5 rounded-xl shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]">
+              <h3 className="font-semibold mb-3 text-white">Como funciona o sistema de assinatura?</h3>
+              <p className="text-sm text-neutral-400">
                 Nossas assinaturas são cobradas mensalmente e o pagamento é processado via PIX através da plataforma Asaas.
               </p>
             </div>
             
-            <div>
-              <h3 className="font-semibold mb-2">Posso cancelar a qualquer momento?</h3>
-              <p className="text-sm text-gray-400">
+            <div className="bg-neutral-800/50 p-5 rounded-xl shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]">
+              <h3 className="font-semibold mb-3 text-white">Posso cancelar a qualquer momento?</h3>
+              <p className="text-sm text-neutral-400">
                 Sim, você pode cancelar sua assinatura a qualquer momento. O acesso aos recursos premium permanecerá ativo até o final do período pago.
+              </p>
+            </div>
+            
+            <div className="bg-neutral-800/50 p-5 rounded-xl shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(50,50,50,0.3)]">
+              <h3 className="font-semibold mb-3 text-white">Existe período de testes?</h3>
+              <p className="text-sm text-neutral-400">
+                Nosso plano Free já oferece acesso à plataforma com recursos básicos, permitindo que você experimente antes de assinar um plano pago.
               </p>
             </div>
           </div>
