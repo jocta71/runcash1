@@ -3,6 +3,8 @@ import { ENDPOINTS } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
 // Importar dados mockados
 import mockRouletteData from '../../assets/data/mockRoulettes.json';
+import { ApiResponse } from '../types/apiTypes';
+import { decryptApiData } from '../../utils/decryptionUtils';
 
 // Tipo para resposta de erro
 interface ApiErrorResponse {
@@ -22,42 +24,6 @@ interface ApiSuccessResponse<T> {
 type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
 
 /**
- * Função para decriptografar dados vindo da API
- * Deve corresponder à implementação de encryptRouletteData no servidor
- */
-const decryptRouletteData = (encryptedResponse: any): any => {
-  try {
-    if (!encryptedResponse || !encryptedResponse.encryptedData || encryptedResponse.format !== 'encrypted') {
-      // Resposta não está criptografada, retornar como está
-      return encryptedResponse;
-    }
-    
-    const crypto = require('crypto-js');
-    const secretKey = process.env.REACT_APP_ROULETTE_SECRET_KEY || 'frontend-roulette-key-123456';
-    
-    // Separar IV e dados criptografados
-    const [ivHex, encryptedHex] = encryptedResponse.encryptedData.split(':');
-    
-    // Usar CryptoJS para decriptografar no navegador
-    const iv = crypto.enc.Hex.parse(ivHex);
-    const encrypted = crypto.enc.Hex.parse(encryptedHex);
-    
-    const decrypted = crypto.AES.decrypt(
-      { ciphertext: encrypted },
-      crypto.enc.Utf8.parse(secretKey),
-      { iv: iv, mode: crypto.mode.CTR, padding: crypto.pad.NoPadding }
-    );
-    
-    const decryptedString = decrypted.toString(crypto.enc.Utf8);
-    return JSON.parse(decryptedString);
-  } catch (error) {
-    console.error('[API] Erro ao decriptografar dados:', error);
-    // Em caso de falha, retornar dados originais
-    return encryptedResponse;
-  }
-};
-
-/**
  * Cliente de API para comunicação com os endpoints de roleta
  */
 export const RouletteApi = {
@@ -65,26 +31,10 @@ export const RouletteApi = {
    * Busca todas as roletas disponíveis
    * @returns Resposta da API com roletas ou erro
    */
-  async fetchAllRoulettes(useEncryption = false): Promise<ApiResponse<any[]>> {
+  async fetchAllRoulettes(): Promise<ApiResponse<any[]>> {
     try {
       console.log('[API] Buscando todas as roletas disponíveis');
-      
-      // Adicionar cabeçalho de formato seguro se solicitado
-      const headers = useEncryption ? { 'x-secure-format': 'true' } : {};
-      
-      const response = await axios.get(ENDPOINTS.ROULETTES, { headers });
-      
-      // Verificar se os dados estão criptografados
-      if (response.data && response.data.format === 'encrypted') {
-        console.log('[API] Recebidos dados criptografados, decodificando...');
-        const decryptedData = decryptRouletteData(response.data);
-        
-        if (decryptedData.error) {
-          return decryptedData;
-        }
-        
-        response.data = decryptedData;
-      }
+      const response = await axios.get(ENDPOINTS.ROULETTES);
       
       if (!response.data) {
         console.error('[API] Resposta inválida da API de roletas:', response.data);
@@ -96,10 +46,13 @@ export const RouletteApi = {
         };
       }
       
+      // Descriptografar a resposta (se estiver criptografada)
+      const decryptedData = await decryptApiData(response.data);
+      
       // Verificar se a resposta é um array diretamente ou está em um campo 'data'
-      const roulettes = Array.isArray(response.data) 
-        ? response.data 
-        : (response.data.data ? response.data.data : []);
+      const roulettes = Array.isArray(decryptedData) 
+        ? decryptedData 
+        : (decryptedData.data ? decryptedData.data : []);
       
       console.log(`[API] ✅ Obtidas ${roulettes.length} roletas`);
       
@@ -107,7 +60,10 @@ export const RouletteApi = {
       const processedRoulettes = roulettes.map((roulette: any) => {
         // Garantir que temos o campo roleta_id em cada objeto
         if (!roulette.roleta_id && roulette._id) {
-          const numericId = getNumericId(roulette._id);
+          const numericId = typeof roulette._id === 'string' 
+            ? roulette._id.replace(/[^0-9]/g, '').substring(0, 8) 
+            : Math.floor(Math.random() * 1000000).toString();
+          
           console.log(`[API] Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
           roulette.roleta_id = numericId;
         }
@@ -158,17 +114,16 @@ export const RouletteApi = {
   /**
    * Busca uma roleta específica pelo ID
    * @param id ID da roleta a ser buscada
-   * @param useEncryption Indica se deve usar criptografia
    * @returns Resposta da API com a roleta ou erro
    */
-  async fetchRouletteById(id: string, useEncryption = false): Promise<ApiResponse<any>> {
+  async fetchRouletteById(id: string): Promise<ApiResponse<any>> {
     try {
       console.log(`[API] Buscando roleta com ID: ${id}`);
       // Converter para ID numérico para normalização
       const numericId = getNumericId(id);
       
       // Buscar todas as roletas e filtrar localmente
-      const allRoulettes = await this.fetchAllRoulettes(useEncryption);
+      const allRoulettes = await this.fetchAllRoulettes();
       
       // Verificar se houve erro na busca de todas as roletas
       if (allRoulettes.error) {
@@ -211,10 +166,9 @@ export const RouletteApi = {
   /**
    * Busca a estratégia atual para uma roleta
    * @param id ID da roleta
-   * @param useEncryption Indica se deve usar criptografia
    * @returns Objeto de estratégia ou null
    */
-  async fetchRouletteStrategy(id: string, useEncryption = false): Promise<ApiResponse<any>> {
+  async fetchRouletteStrategy(id: string): Promise<ApiResponse<any>> {
     try {
       console.log(`[API] Buscando estratégia para roleta ID: ${id}`);
       
@@ -222,7 +176,7 @@ export const RouletteApi = {
       const numericId = getNumericId(id);
       
       // Buscar dados da roleta que já incluem a estratégia
-      const rouletteResponse = await this.fetchRouletteById(numericId, useEncryption);
+      const rouletteResponse = await this.fetchRouletteById(numericId);
       
       if (rouletteResponse.error) {
         return rouletteResponse;
@@ -259,32 +213,13 @@ export const RouletteApi = {
   /**
    * Busca o histórico de números de uma roleta específica
    * @param rouletteName Nome da roleta
-   * @param useEncryption Indica se deve usar criptografia
    * @returns Resposta da API com o histórico ou erro
    */
-  async fetchRouletteHistory(rouletteName: string, useEncryption = false): Promise<ApiResponse<number[]>> {
+  async fetchRouletteHistory(rouletteName: string): Promise<ApiResponse<number[]>> {
     try {
       console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
       
-      // Adicionar cabeçalho de formato seguro se solicitado
-      const headers = useEncryption ? { 'x-secure-format': 'true' } : {};
-      
-      const response = await axios.get(
-        `${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`,
-        { headers }
-      );
-      
-      // Verificar se os dados estão criptografados
-      if (response.data && response.data.format === 'encrypted') {
-        console.log('[API] Recebidos dados criptografados, decodificando...');
-        const decryptedData = decryptRouletteData(response.data);
-        
-        if (decryptedData.error) {
-          return decryptedData;
-        }
-        
-        response.data = decryptedData;
-      }
+      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
       
       if (!response.data || !Array.isArray(response.data)) {
         console.error('[API] Resposta inválida do histórico:', response.data);
@@ -331,6 +266,89 @@ export const RouletteApi = {
         error: true,
         code: 'FETCH_ERROR',
         message: error.response?.data?.message || error.message || 'Erro ao buscar histórico da roleta',
+        statusCode: error.response?.status || 500
+      };
+    }
+  },
+  
+  /**
+   * Busca detalhes de uma roleta específica
+   * @param id ID da roleta
+   * @returns Resposta da API com os detalhes da roleta ou erro
+   */
+  async fetchRouletteDetails(id: string): Promise<ApiResponse<any>> {
+    try {
+      console.log(`[API] Buscando detalhes da roleta: ${id}`);
+      const response = await axios.get(`${ENDPOINTS.ROULETTES}/${id}`);
+      
+      if (!response.data) {
+        console.error('[API] Resposta inválida da API para detalhes da roleta:', response.data);
+        return {
+          error: true,
+          code: 'INVALID_RESPONSE',
+          message: 'Resposta inválida da API',
+          statusCode: response.status
+        };
+      }
+      
+      // Descriptografar a resposta (se estiver criptografada)
+      const decryptedData = await decryptApiData(response.data);
+      
+      console.log(`[API] ✅ Obtidos detalhes da roleta ${id}`);
+      
+      return {
+        error: false,
+        data: decryptedData
+      };
+    } catch (error: any) {
+      console.error(`[API] Erro ao buscar detalhes da roleta ${id}:`, error);
+      
+      return {
+        error: true,
+        code: 'FETCH_ERROR',
+        message: error.response?.data?.message || error.message || `Erro ao buscar detalhes da roleta ${id}`,
+        statusCode: error.response?.status || 500
+      };
+    }
+  },
+  
+  /**
+   * Busca os números recentes de uma roleta
+   * @param id ID da roleta
+   * @param limit Limite de números a retornar
+   * @returns Resposta da API com os números da roleta ou erro
+   */
+  async fetchRouletteNumbers(id: string, limit: number = 50): Promise<ApiResponse<any>> {
+    try {
+      console.log(`[API] Buscando números da roleta: ${id} (limite: ${limit})`);
+      const response = await axios.get(`${ENDPOINTS.ROULETTES}/${id}/numbers?limit=${limit}`);
+      
+      if (!response.data) {
+        console.error('[API] Resposta inválida da API para números da roleta:', response.data);
+        return {
+          error: true,
+          code: 'INVALID_RESPONSE',
+          message: 'Resposta inválida da API',
+          statusCode: response.status
+        };
+      }
+      
+      // Descriptografar a resposta (se estiver criptografada)
+      const decryptedData = await decryptApiData(response.data);
+      
+      console.log(`[API] ✅ Obtidos ${decryptedData.numbers?.length || 0} números da roleta ${id}`);
+      
+      return {
+        error: false,
+        data: decryptedData
+      };
+    } catch (error: any) {
+      console.error(`[API] Erro ao buscar números da roleta ${id}:`, error);
+      
+      return {
+        error: true,
+        code: 'FETCH_ERROR',
+        message: error.response?.data?.message || error.message || `Erro ao buscar números da roleta ${id}`,
         statusCode: error.response?.status || 500
       };
     }

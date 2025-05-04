@@ -37,23 +37,14 @@ const listRoulettes = async (req, res) => {
       }
     }
     
-    const responseData = {
+    return res.json({
       success: true,
       data: limited ? roulettes.slice(0, limit) : roulettes,
       limited,
       totalCount: roulettes.length,
       availableCount: limited ? limit : roulettes.length,
       userPlan: req.userPlan.type
-    };
-    
-    // Verificar se o cliente solicitou dados criptografados
-    const useEncryption = req.query.format === 'encrypted' || req.headers['x-secure-format'] === 'true';
-    
-    if (useEncryption) {
-      return res.json(encryptRouletteData(responseData));
-    }
-    
-    return res.json(responseData);
+    });
   } catch (error) {
     console.error('Erro ao listar roletas:', error);
     return res.status(500).json({
@@ -233,10 +224,7 @@ const getDetailedRouletteData = async (req, res) => {
     // Gerar estatísticas avançadas
     const stats = generateRouletteStats(allNumbers.map(n => n.number));
     
-    // Verificar se o cliente solicitou dados criptografados
-    const useEncryption = req.query.format === 'encrypted' || req.headers['x-secure-format'] === 'true';
-    
-    const responseData = {
+    return res.json({
       success: true,
       data: {
         id: roulette._id,
@@ -251,13 +239,7 @@ const getDetailedRouletteData = async (req, res) => {
         stats,
         lastUpdated: new Date()
       }
-    };
-    
-    if (useEncryption) {
-      return res.json(encryptRouletteData(responseData));
-    }
-    
-    return res.json(responseData);
+    });
   } catch (error) {
     console.error('Erro ao obter dados detalhados da roleta:', error);
     return res.status(500).json({
@@ -845,60 +827,6 @@ const checkAlternatingColors = (numbers) => {
   };
 };
 
-/**
- * Função de utilidade para criptografar dados de roleta
- * Torna mais difícil para concorrentes interceptarem e entenderem os dados
- */
-const encryptRouletteData = (data) => {
-  try {
-    // Converter objeto em string JSON
-    const jsonString = JSON.stringify(data);
-    
-    // Criptografar usando chave secreta do servidor
-    const crypto = require('crypto');
-    const algorithm = 'aes-256-ctr';
-    const secretKey = process.env.ROULETTE_SECRET_KEY || 'default-roulette-secret-key-123456';
-    const iv = crypto.randomBytes(16);
-    
-    const cipher = crypto.createCipheriv(algorithm, secretKey, iv);
-    const encrypted = Buffer.concat([cipher.update(jsonString), cipher.final()]);
-    
-    // Converter para formato de string que pode ser transmitido
-    return {
-      encryptedData: iv.toString('hex') + ':' + encrypted.toString('hex'),
-      timestamp: new Date().toISOString(),
-      format: 'encrypted'
-    };
-  } catch (error) {
-    console.error('Erro ao criptografar dados:', error);
-    // Em caso de erro, retornar os dados originais
-    return data;
-  }
-};
-
-/**
- * Decriptografa dados de roleta (função complementar para teste)
- */
-const decryptRouletteData = (encryptedString) => {
-  try {
-    const crypto = require('crypto');
-    const algorithm = 'aes-256-ctr';
-    const secretKey = process.env.ROULETTE_SECRET_KEY || 'default-roulette-secret-key-123456';
-    
-    const [ivHex, encryptedHex] = encryptedString.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const encrypted = Buffer.from(encryptedHex, 'hex');
-    
-    const decipher = crypto.createDecipheriv(algorithm, secretKey, iv);
-    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-    
-    return JSON.parse(decrypted.toString());
-  } catch (error) {
-    console.error('Erro ao decriptografar dados:', error);
-    return null;
-  }
-};
-
 module.exports = {
   listRoulettes,
   getBasicRouletteData,
@@ -907,8 +835,5 @@ module.exports = {
   getRouletteStatistics,
   getHistoricalData,
   getNumbersBatch,
-  getFreePreview,
-  // Exportar funções de criptografia para uso em outros módulos
-  encryptRouletteData,
-  decryptRouletteData
+  getFreePreview
 }; 

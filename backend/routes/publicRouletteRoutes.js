@@ -37,12 +37,12 @@ async function connectToMongoDB() {
 
 /**
  * @route   GET /api/roulettes
- * @desc    Lista todas as roletas disponíveis (agora pública sem necessidade de autenticação)
+ * @desc    Lista todas as roletas disponíveis (pública com dados criptografados)
  * @access  Público
  */
-router.get('/roulettes', async (req, res) => {
+router.get('/roulettes', encryptResponseData, async (req, res) => {
   try {
-    console.log(`[API] Acesso à rota pública /api/roulettes sem necessidade de autenticação`);
+    console.log(`[API] Acesso à rota pública /api/roulettes com dados criptografados`);
     
     // Garantir que estamos conectados ao MongoDB
     const isConnected = await connectToMongoDB();
@@ -58,9 +58,9 @@ router.get('/roulettes', async (req, res) => {
       { $project: { _id: 0, id: 1, nome: "$_id" } }
     ]).toArray();
     
-    console.log(`[API] Processadas ${roulettes.length} roletas (endpoint público)`);
+    console.log(`[API] Processadas ${roulettes.length} roletas (endpoint público criptografado)`);
     
-    // Retornar dados
+    // Retornar dados (serão criptografados pelo middleware encryptResponseData)
     return res.json(roulettes);
   } catch (error) {
     console.error('[API] Erro ao listar roletas:', error);
@@ -74,10 +74,10 @@ router.get('/roulettes', async (req, res) => {
 
 /**
  * @route   GET /api/roulettes/:id
- * @desc    Obtém dados de uma roleta específica
+ * @desc    Obtém dados de uma roleta específica (com dados criptografados)
  * @access  Público
  */
-router.get('/roulettes/:id', async (req, res) => {
+router.get('/roulettes/:id', encryptResponseData, async (req, res) => {
   try {
     // Garantir que estamos conectados ao MongoDB
     const isConnected = await connectToMongoDB();
@@ -117,7 +117,7 @@ router.get('/roulettes/:id', async (req, res) => {
       dados_completos: numeros
     };
     
-    // Retornar dados
+    // Retornar dados (serão criptografados pelo middleware)
     return res.json(resposta);
   } catch (error) {
     console.error('[API] Erro ao buscar dados da roleta:', error);
