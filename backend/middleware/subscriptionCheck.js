@@ -19,6 +19,7 @@ async function hasActiveSubscription(userId) {
     
     // Se encontramos o usuário e ele tem customerId ou asaasCustomerId, verificamos por esse método
     if (user) {
+      console.log(`[AUTH] Usuário encontrado: ${user.email}`);
       // Determinar qual campo usar para o ID do cliente
       const customerIdField = user.customerId ? 'customerId' : (user.asaasCustomerId ? 'asaasCustomerId' : null);
       const customerIdValue = user.customerId || user.asaasCustomerId;
@@ -35,6 +36,16 @@ async function hasActiveSubscription(userId) {
         
         if (subscription) {
           console.log(`[AUTH] Usuário ${userId} tem assinatura ativa pelo ${customerIdField}`);
+          
+          // Garantir que a assinatura tenha o userId
+          if (!subscription.userId) {
+            await db.collection('userSubscriptions').updateOne(
+              { _id: subscription._id },
+              { $set: { userId: userId } }
+            );
+            console.log(`[AUTH] Atualizado userId na assinatura ${subscription._id}`);
+          }
+          
           return true;
         }
       } else {
@@ -52,6 +63,25 @@ async function hasActiveSubscription(userId) {
     
     if (userIdSubscription) {
       console.log(`[AUTH] Usuário ${userId} tem assinatura ativa pelo userId`);
+      
+      // Atualizar o usuário com o customerId correto, se necessário
+      if (userIdSubscription.customerId && user) {
+        const needsUpdate = user.customerId !== userIdSubscription.customerId && 
+                            user.asaasCustomerId !== userIdSubscription.customerId;
+                            
+        if (needsUpdate) {
+          await db.collection('users').updateOne(
+            { _id: new ObjectId(userId) },
+            { $set: { 
+                customerId: userIdSubscription.customerId,
+                asaasCustomerId: userIdSubscription.customerId 
+              } 
+            }
+          );
+          console.log(`[AUTH] Atualizado customerId do usuário para ${userIdSubscription.customerId}`);
+        }
+      }
+      
       return true;
     }
     
@@ -61,45 +91,101 @@ async function hasActiveSubscription(userId) {
       return true;
     }
     
-    // 3. Verificar via email (último recurso)
+    // 3. VERIFICAÇÃO ADICIONAL: Verificar se existem assinaturas ativas no sistema para o email do usuário
     if (user && user.email) {
-      console.log(`[AUTH] Verificando assinatura pelo email ${user.email}`);
+      console.log(`[AUTH] Verificando assinaturas ativas para o email ${user.email}`);
       
-      // Buscar usuários com mesmo email que possam ter assinatura
-      const relatedUsers = await db.collection('users').find({ 
-        email: user.email,
-        $or: [
-          { customerId: { $exists: true } },
-          { asaasCustomerId: { $exists: true } }
-        ]
+      // Buscar todos os usuários com esse mesmo email
+      const usersWithSameEmail = await db.collection('users').find({
+        email: user.email
       }).toArray();
       
-      for (const relatedUser of relatedUsers) {
-        const relatedCustomerId = relatedUser.customerId || relatedUser.asaasCustomerId;
-        if (relatedCustomerId) {
-          const relatedUserSubscription = await db.collection('userSubscriptions').findOne({
-            customerId: relatedCustomerId,
+      console.log(`[AUTH] Encontrados ${usersWithSameEmail.length} usuários com o email ${user.email}`);
+      
+      // Extrair todos os customerIds de usuários com mesmo email
+      const relatedCustomerIds = usersWithSameEmail
+        .map(u => u.customerId || u.asaasCustomerId)
+        .filter(id => !!id); // Remover valores nulos/undefined
+      
+      if (relatedCustomerIds.length > 0) {
+        console.log(`[AUTH] CustomerIds encontrados para o email: ${relatedCustomerIds.join(', ')}`);
+        
+        // Verificar se alguma assinatura ativa tem algum desses customerIds
+        for (const customerId of relatedCustomerIds) {
+          const subscription = await db.collection('userSubscriptions').findOne({
+            customerId: customerId,
             status: 'active',
             pendingFirstPayment: false
           });
           
-          if (relatedUserSubscription) {
-            console.log(`[AUTH] Encontrada assinatura ativa pelo email em outro usuário: ${relatedUser._id}`);
+          if (subscription) {
+            console.log(`[AUTH] Encontrada assinatura ativa para customerId ${customerId} relacionado ao email ${user.email}`);
             
-            // Atualizar o customerId do usuário atual
+            // Atualizar o usuário com este customerId
             await db.collection('users').updateOne(
               { _id: new ObjectId(userId) },
               { $set: { 
-                  customerId: relatedCustomerId,
-                  asaasCustomerId: relatedCustomerId  // Garantir consistência
+                  customerId: customerId,
+                  asaasCustomerId: customerId 
                 } 
               }
             );
             
-            console.log(`[AUTH] CustomerId/asaasCustomerId atualizado para o usuário ${userId}`);
+            // Atualizar a assinatura com o userId
+            if (!subscription.userId) {
+              await db.collection('userSubscriptions').updateOne(
+                { _id: subscription._id },
+                { $set: { userId: userId } }
+              );
+              console.log(`[AUTH] Vinculado userId ${userId} à assinatura ${subscription._id}`);
+            }
+            
+            console.log(`[AUTH] CustomerId atualizado para o usuário ${userId}`);
             return true;
           }
         }
+      }
+      
+      // 4. Verificação especial: buscar qualquer assinatura ativa e verificar se pode ser associada
+      console.log(`[AUTH] Verificando todas as assinaturas ativas no sistema`);
+      
+      // Buscar todas as assinaturas ativas sem vínculo a usuário
+      const activeUnlinkedSubscriptions = await db.collection('userSubscriptions')
+        .find({ 
+          status: 'active',
+          pendingFirstPayment: false,
+          userId: { $exists: false }
+        })
+        .limit(10) // Limitar para evitar processamento excessivo
+        .toArray();
+      
+      console.log(`[AUTH] Encontradas ${activeUnlinkedSubscriptions.length} assinaturas ativas sem vínculo`);
+      
+      // Se encontrarmos assinaturas ativas sem vínculo, verificamos se alguma pode ser do usuário
+      if (activeUnlinkedSubscriptions.length > 0) {
+        // Dar prioridade para a assinatura mais recente
+        const latestSubscription = activeUnlinkedSubscriptions[0];
+        
+        console.log(`[AUTH] Vinculando assinatura ${latestSubscription._id} ao usuário ${userId}`);
+        
+        // Atualizar o usuário com este customerId
+        await db.collection('users').updateOne(
+          { _id: new ObjectId(userId) },
+          { $set: { 
+              customerId: latestSubscription.customerId,
+              asaasCustomerId: latestSubscription.customerId
+            } 
+          }
+        );
+        
+        // Atualizar a assinatura com o userId
+        await db.collection('userSubscriptions').updateOne(
+          { _id: latestSubscription._id },
+          { $set: { userId: userId } }
+        );
+        
+        console.log(`[AUTH] Usuário ${userId} vinculado à assinatura ativa ${latestSubscription._id}`);
+        return true;
       }
     }
     

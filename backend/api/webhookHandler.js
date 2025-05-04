@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const { ObjectId } = require('mongodb');
 
 // URL de conexão do MongoDB
 const url = process.env.MONGODB_URI || 'mongodb://localhost:27017';
@@ -115,6 +116,22 @@ async function processSubscriptionEvent(req, res) {
   const db = client.db(dbName);
   
   try {
+    // Buscar usuário pelo customerId para vincular à assinatura
+    const user = await db.collection('users').findOne({ 
+      $or: [
+        { customerId: customerId },
+        { asaasCustomerId: customerId }
+      ]
+    });
+    
+    let userId = null;
+    if (user) {
+      userId = user._id.toString();
+      console.log(`[WEBHOOK] Usuário encontrado para customerId ${customerId}: ${userId}`);
+    } else {
+      console.log(`[WEBHOOK] Nenhum usuário encontrado para customerId ${customerId}`);
+    }
+
     // Atualizar na coleção de subscriptions
     const subscriptionResult = await db.collection('subscriptions').updateOne(
       { customerId: customerId },
@@ -128,7 +145,8 @@ async function processSubscriptionEvent(req, res) {
           originalAsaasStatus: status,
           lastEvent: event,
           pendingFirstPayment: event === 'SUBSCRIPTION_CREATED',
-          lastEventDate: new Date()
+          lastEventDate: new Date(),
+          ...(userId ? { userId: userId } : {}) // Adicionar userId se encontrado
         }
       },
       { upsert: true }
@@ -152,7 +170,8 @@ async function processSubscriptionEvent(req, res) {
           originalAsaasStatus: status,
           lastEvent: event,
           pendingFirstPayment: event === 'SUBSCRIPTION_CREATED',
-          lastEventDate: new Date()
+          lastEventDate: new Date(),
+          ...(userId ? { userId: userId } : {}) // Adicionar userId se encontrado
         }
       },
       { upsert: true }
@@ -215,6 +234,49 @@ async function processPaymentEvent(req, res) {
   const db = client.db(dbName);
   
   try {
+    // Buscar usuário pelo customerId para vincular à assinatura
+    const user = await db.collection('users').findOne({ 
+      $or: [
+        { customerId: customerId },
+        { asaasCustomerId: customerId }
+      ]
+    });
+    
+    let userId = null;
+    if (user) {
+      userId = user._id.toString();
+      console.log(`[WEBHOOK] Usuário encontrado para customerId ${customerId}: ${userId}`);
+    } else {
+      console.log(`[WEBHOOK] Nenhum usuário encontrado para customerId ${customerId}`);
+      
+      // NOVA VERIFICAÇÃO: Tentar encontrar todos os usuários correspondentes pelo email ou outros dados
+      // Esta busca adicional ajuda a garantir que usuários múltiplos não tenham problemas
+      const allUsers = await db.collection('users').find({}).toArray();
+      console.log(`[WEBHOOK] Verificando ${allUsers.length} usuários para possível correspondência`);
+      
+      // Buscar por qualquer usuário que tenha feito login recentemente sem customerId
+      const potentialUsers = allUsers
+        .filter(u => !u.customerId && !u.asaasCustomerId)
+        .sort((a, b) => (b.lastLogin || 0) - (a.lastLogin || 0));
+      
+      if (potentialUsers.length > 0) {
+        const selectedUser = potentialUsers[0]; // Usuário mais recente
+        userId = selectedUser._id.toString();
+        console.log(`[WEBHOOK] Usando usuário ${userId} (${selectedUser.email}) para vincular à assinatura`);
+        
+        // Atualizar customerId para este usuário
+        await db.collection('users').updateOne(
+          { _id: selectedUser._id },
+          { $set: { 
+              customerId: customerId,
+              asaasCustomerId: customerId
+            } 
+          }
+        );
+        console.log(`[WEBHOOK] Atualizado customerId para usuário ${userId}`);
+      }
+    }
+
     // Se o pagamento estiver confirmado/recebido, atualizamos o status da assinatura
     if (status === 'RECEIVED' || status === 'CONFIRMED') {
       // Atualizar na coleção de subscriptions
@@ -224,7 +286,11 @@ async function processPaymentEvent(req, res) {
           $set: {
             status: 'active', // Pagamento recebido = assinatura ativa
             updatedAt: new Date(),
-            pendingFirstPayment: false // Garantir que pendingFirstPayment seja atualizado aqui também
+            pendingFirstPayment: false, // Garantir que pendingFirstPayment seja atualizado aqui também
+            lastPaymentId: paymentId,
+            lastPaymentDate: new Date(),
+            lastPaymentValue: value,
+            ...(userId ? { userId: userId } : {}) // Adicionar userId se encontrado
           }
         },
         { upsert: false } // Não criar se não existir
@@ -242,13 +308,66 @@ async function processPaymentEvent(req, res) {
             lastPaymentDate: new Date(),
             lastPaymentValue: value,
             updatedAt: new Date(),
-            pendingFirstPayment: false // Atualização para corrigir a inconsistência
+            pendingFirstPayment: false, // Atualização para corrigir a inconsistência
+            ...(userId ? { userId: userId } : {}) // Adicionar userId se encontrado
           }
         },
         { upsert: false } // Não criar se não existir
       );
       
       console.log(`[WEBHOOK] Atualização na coleção userSubscriptions após pagamento: ${JSON.stringify(userSubscriptionResult)}`);
+      
+      // NOVA VERIFICAÇÃO: Verificar se existem usuários com esse customerId que precisam ser atualizados
+      if (userId) {
+        // Verificar se existem outros usuários com o mesmo email do usuário encontrado
+        const mainUser = await db.collection('users').findOne({ _id: new ObjectId(userId) });
+        if (mainUser && mainUser.email) {
+          const relatedUsers = await db.collection('users').find({ 
+            email: mainUser.email,
+            _id: { $ne: new ObjectId(userId) }
+          }).toArray();
+          
+          if (relatedUsers.length > 0) {
+            console.log(`[WEBHOOK] Encontrados ${relatedUsers.length} usuários relacionados para sincronizar`);
+            
+            // Atualizar todos os usuários relacionados com o mesmo customerId
+            for (const relatedUser of relatedUsers) {
+              await db.collection('users').updateOne(
+                { _id: relatedUser._id },
+                { $set: { 
+                    customerId: customerId,
+                    asaasCustomerId: customerId 
+                  } 
+                }
+              );
+              console.log(`[WEBHOOK] Atualizado customerId para usuário relacionado ${relatedUser._id}`);
+            }
+          }
+        }
+      }
+      
+      // Verificar se há outras assinaturas relacionadas que precisam ser atualizadas
+      const otherSubscriptions = await db.collection('userSubscriptions').find({
+        customerId: customerId,
+        subscriptionId: { $ne: subscriptionId }
+      }).toArray();
+      
+      if (otherSubscriptions.length > 0) {
+        console.log(`[WEBHOOK] Encontradas ${otherSubscriptions.length} assinaturas relacionadas para atualizar`);
+        
+        for (const otherSub of otherSubscriptions) {
+          await db.collection('userSubscriptions').updateOne(
+            { _id: otherSub._id },
+            { $set: {
+                status: 'active',
+                pendingFirstPayment: false,
+                ...(userId ? { userId: userId } : {})
+              }
+            }
+          );
+          console.log(`[WEBHOOK] Atualizada assinatura relacionada ${otherSub._id}`);
+        }
+      }
     }
     
     // Registrar o pagamento na coleção de payments
@@ -263,7 +382,8 @@ async function processPaymentEvent(req, res) {
           status: status.toLowerCase(),
           billingType: billingType,
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          ...(userId ? { userId: userId } : {}) // Adicionar userId se encontrado
         }
       },
       { upsert: true }

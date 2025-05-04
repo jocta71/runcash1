@@ -36,41 +36,69 @@ export interface RouletteStrategy {
 export const ROLETAS_CANONICAS: any[] = [];
 
 /**
- * Mapeamento de IDs de roletas para o formato canônico
- * Cada roleta deve ter um ID único e consistente
+ * Mapeamento canônico de nomes de roletas para IDs
+ * Usado para normalizar os nomes de diferentes origens
  */
-const rouletteIdMappings: Record<string, string> = {
-  // Mapeamentos conhecidos
-  'immersive_roulette': 'immersive',
-  'roulette_lobby': 'lobby',
-  'auto_roulette': 'auto',
-  'lightning_roulette': 'lightning',
-  'speed_roulette': 'speed',
-  'vivo_roleta_zeus': 'zeus_vivo',
-  'vivo_roleta_brasileira': 'brasileira_vivo',
-  'roleta_brasileira': 'brasileira'
+export const mapToCanonicalRouletteId = (id: string): string => {
+  // Converter para minúsculas e remover espaços
+  const normalizedId = id.toLowerCase().trim();
+  
+  // Tabela de mapeamento para nomes conhecidos
+  const mappings: Record<string, string> = {
+    'lightning': 'lightning-roulette',
+    'lightning roulette': 'lightning-roulette',
+    'xxxtreme': 'xxxtreme-lightning',
+    'xxxtreme lightning': 'xxxtreme-lightning',
+    'immersive': 'immersive-roulette',
+    'immersive roulette': 'immersive-roulette',
+    'auto': 'auto-roulette',
+    'auto roulette': 'auto-roulette',
+    'vivo': 'vivo-roulette',
+    'vivo roulette': 'vivo-roulette',
+    'american': 'american-roulette',
+    'american roulette': 'american-roulette',
+    'european': 'european-roulette',
+    'european roulette': 'european-roulette',
+    'french': 'french-roulette',
+    'french roulette': 'french-roulette',
+  };
+  
+  // Verificar se temos um mapeamento para este ID
+  return mappings[normalizedId] || normalizedId;
 };
 
 /**
- * Mapeia o ID da roleta para o formato canônico
- * @param originalId ID original ou nome da roleta
- * @returns ID canônico normalizado
+ * Simplifica nome da roleta para formato canônico
+ * @param nomeBruto Nome bruto da roleta
+ * @returns Nome simplificado e padronizado
  */
-export function mapToCanonicalRouletteId(originalId: string): string {
-  // Se o ID já estiver no mapeamento, retornar o valor mapeado
-  if (rouletteIdMappings[originalId.toLowerCase()]) {
-    return rouletteIdMappings[originalId.toLowerCase()];
-  }
+export const simplificarNomeRoleta = (nomeBruto: string): string => {
+  if (!nomeBruto) return '';
   
-  // Para IDs não mapeados, normalizar para lowercase e remover espaços/caracteres especiais
-  return originalId
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '');
-}
+  // Converter para minúsculas e remover espaços extras
+  let nome = nomeBruto.toLowerCase().trim();
+  
+  // Remover palavras comuns que não ajudam na identificação
+  nome = nome.replace(/\broulette\b|\bruleta\b|\bcasino\b|\blive\b|\bevo\b/g, '');
+  
+  // Remover caracteres especiais
+  nome = nome.replace(/[^\w\s-]/g, '');
+  
+  // Remover espaços extras e no início/fim
+  nome = nome.replace(/\s+/g, ' ').trim();
+  
+  // Se ficar vazio, retornar o original
+  return nome || nomeBruto.toLowerCase().trim();
+};
 
 // Configuração básica para todas as APIs
 const apiBaseUrl = '/api'; // Usar o endpoint relativo para aproveitar o proxy
+
+/**
+ * IMPORTANTE: Sempre utilizar apenas o endpoint /api/roulettes
+ * Outros endpoints como /api/roletas ou /api/ROULETTES foram desativados
+ */
+const ROULETTES_ENDPOINT = `${apiBaseUrl}/roulettes`;
 
 // Cache para evitar múltiplas solicitações para os mesmos dados
 const cache: Record<string, { data: any, timestamp: number }> = {};
@@ -200,10 +228,10 @@ export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100)
       return cache[cacheKey].data;
     }
     
-    console.log(`[API] Buscando roletas para extrair números da roleta ${canonicalId}`);
+    console.log(`[API] Buscando roletas de ${ROULETTES_ENDPOINT} para extrair números da roleta ${canonicalId}`);
     
     // Agora buscamos todas as roletas e filtramos a que precisamos
-    const response = await axios.get(`${apiBaseUrl}/roulettes`);
+    const response = await axios.get(ROULETTES_ENDPOINT);
     
     if (response.data && Array.isArray(response.data)) {
       // Encontrar a roleta específica pelo ID canônico

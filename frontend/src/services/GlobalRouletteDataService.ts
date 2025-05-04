@@ -1,6 +1,12 @@
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
 
+/**
+ * IMPORTANTE: Este serviço deve acessar apenas o endpoint /api/roulettes
+ * Outros endpoints como /api/roletas ou /api/ROULETTES foram removidos
+ * para garantir consistência e evitar problemas.
+ */
+
 // Intervalo de polling padrão em milissegundos (4 segundos)
 const POLLING_INTERVAL = 4000;
 
@@ -231,43 +237,29 @@ class GlobalRouletteDataService {
           try {
             console.log('[GlobalRouletteService] Buscando dados de roletas...');
             
-            // Tentar vários endpoints diferentes para aumentar as chances de sucesso
-            // Adicionar timestamp para evitar cache
+            // Usar apenas o endpoint /api/roulettes com timestamp para evitar cache
             const timestamp = Date.now();
-            const endpoints = [
-              `/api/roulettes?_t=${timestamp}`,
-              `/api/roletas?_t=${timestamp}`,
-              `/api/ROULETTES?_t=${timestamp}`
-            ];
+            const endpoint = `/api/roulettes?_t=${timestamp}`;
             
+            console.log(`[GlobalRouletteService] Acessando endpoint: ${endpoint}`);
             let response = null;
-            let successEndpoint = '';
             
-            // Tentar cada endpoint em sequência
-            for (const endpoint of endpoints) {
-              try {
-                console.log(`[GlobalRouletteService] Tentando endpoint: ${endpoint}`);
-                response = await axiosInstance.get(endpoint, {
-                  headers: {
-                    'bypass-tunnel-reminder': 'true',
-                    'cache-control': 'no-cache',
-                    'pragma': 'no-cache'
-                  },
-                  timeout: 5000 // Timeout mais curto para evitar esperar muito tempo
-                });
-                
-                if (response.status === 200 && Array.isArray(response.data)) {
-                  successEndpoint = endpoint;
-                  break;
-                }
-              } catch (endpointError) {
-                console.warn(`[GlobalRouletteService] Falha ao acessar ${endpoint}:`, endpointError.message);
-                // Continuar para o próximo endpoint
-              }
+            try {
+              response = await axiosInstance.get(endpoint, {
+                headers: {
+                  'bypass-tunnel-reminder': 'true',
+                  'cache-control': 'no-cache',
+                  'pragma': 'no-cache'
+                },
+                timeout: 5000 // Timeout mais curto para evitar esperar muito tempo
+              });
+            } catch (endpointError) {
+              console.error(`[GlobalRouletteService] Falha ao acessar ${endpoint}:`, endpointError.message);
+              throw endpointError; // Propagar erro para ser tratado no bloco catch
             }
             
             if (response && response.status === 200 && Array.isArray(response.data)) {
-              console.log(`[GlobalRouletteService] Recebidos ${response.data.length} registros da API via ${successEndpoint}`);
+              console.log(`[GlobalRouletteService] Recebidos ${response.data.length} registros da API via ${endpoint}`);
               
               // Processar e armazenar os dados
               this.rouletteData = response.data;
