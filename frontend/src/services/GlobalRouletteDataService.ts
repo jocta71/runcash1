@@ -131,6 +131,14 @@ class GlobalRouletteDataService {
     try {
       this._currentFetchPromise = new Promise<any[]>(async (resolve) => {
         try {
+          // Verificar se existe um token de autenticação
+          const token = localStorage.getItem('token');
+          if (!token) {
+            console.warn('[GlobalRouletteService] Token de autenticação não encontrado. Usando cache como fallback.');
+            this.tryUseCachedData(resolve);
+            return;
+          }
+          
           console.log('[GlobalRouletteService] Buscando dados das roletas da API');
           
           // Importar o serviço RouletteApi dinamicamente para evitar dependência circular

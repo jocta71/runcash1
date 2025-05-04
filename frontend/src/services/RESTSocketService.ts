@@ -147,6 +147,15 @@ class RESTSocketService {
   private async fetchDataFromREST() {
     try {
       const startTime = Date.now();
+      
+      // Verificar se existe um token de autenticação
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.warn('[RESTSocketService] Token de autenticação não encontrado. Usando cache como fallback.');
+        this.loadCachedData();
+        return false;
+      }
+      
       console.log('[RESTSocketService] Buscando dados da API em:', this.pollingEndpoint);
       
       // Importar o ApiService dinamicamente para evitar dependência circular
@@ -593,6 +602,14 @@ class RESTSocketService {
   // Método para processar dados do serviço centralizado
   private async processDataFromCentralService() {
     try {
+      // Verificar se existe um token de autenticação
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.warn('[RESTSocketService] Token de autenticação não encontrado. Usando cache para o serviço centralizado.');
+        this.loadCachedData();
+        return false;
+      }
+      
       console.log('[RESTSocketService] Processando dados do serviço centralizado');
       
       // Obter os dados do serviço global
