@@ -29,6 +29,7 @@ const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
 const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
 const TestPage = lazy(() => import("@/pages/TestPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
+const GerenciarChavesPage = lazy(() => import("@/pages/GerenciarChaves"));
 // Comentando a importação da página de checkout, já que agora está integrada nos planos
 // const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 // Comentando a importação da página de teste do Asaas
@@ -200,6 +201,15 @@ const App = () => {
                             <ProtectedRoute>
                               <Suspense fallback={<LoadingScreen />}>
                                 <Index />
+                              </Suspense>
+                            </ProtectedRoute>
+                          } />
+                          
+                          {/* Rota para página de gerenciamento de chaves de acesso API */}
+                          <Route path="/gerenciar-chaves" element={
+                            <ProtectedRoute requireAuth={true}>
+                              <Suspense fallback={<LoadingScreen />}>
+                                <GerenciarChavesPage />
                               </Suspense>
                             </ProtectedRoute>
                           } />

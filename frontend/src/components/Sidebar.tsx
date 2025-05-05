@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LifeBuoy, ChevronDown, Gamepad2, Globe, Send, X, Settings, CreditCard, Package } from 'lucide-react';
+import { LifeBuoy, ChevronDown, Gamepad2, Globe, Send, X, Settings, CreditCard, Package, Key } from 'lucide-react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 interface SidebarProps {
@@ -32,6 +32,8 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
       setActiveSettingsTab('billing');
     } else if (pathname.includes('/planos')) {
       setActiveSettingsTab('plans');
+    } else if (pathname.includes('/gerenciar-chaves')) {
+      setActiveSettingsTab('api-keys');
     }
   }, [location.pathname]);
   
@@ -39,6 +41,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     { id: 'account-information', label: 'Conta', icon: Settings },
     { id: 'billing', label: 'Pagamentos', icon: CreditCard },
     { id: 'plans', label: 'Planos', icon: Package },
+    { id: 'api-keys', label: 'Chaves API', icon: Key },
   ];
   
   const handleSettingsItemClick = (id: string) => {
@@ -50,6 +53,8 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
       navigate('/billing');
     } else if (id === 'plans') {
       navigate('/planos');
+    } else if (id === 'api-keys') {
+      navigate('/gerenciar-chaves');
     }
   };
   

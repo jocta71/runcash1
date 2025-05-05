@@ -136,6 +136,15 @@ if (fs.existsSync(apiIndexPath)) {
     } catch (err) {
       console.log('Rotas de roleta não disponíveis no diretório principal:', err.message);
     }
+    
+    // Carregar rotas de assinatura (incluindo acesso à chave de criptografia)
+    try {
+      const subscriptionRoutes = require('./routes/subscriptionRoutes');
+      app.use('/api/subscription', subscriptionRoutes);
+      console.log('Rotas de assinatura carregadas do diretório principal');
+    } catch (err) {
+      console.log('Rotas de assinatura não disponíveis no diretório principal:', err.message);
+    }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
   }

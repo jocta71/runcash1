@@ -402,3 +402,6 @@
     transform: translateY(0px);
   }
 }
+
+/* Importações de estilos de componentes e páginas */
+@import './styles/gerenciar-chaves.css';
