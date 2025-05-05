@@ -1,105 +1,179 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import LiveRoulettesDisplay from '@/components/roulette/LiveRoulettesDisplay';
-// <<< Tipagem RouletteData pode precisar ser ajustada ou vir de outro lugar >>>
-// import { RouletteData } from '@/integrations/api/rouletteService'; 
+import { RouletteData } from '@/integrations/api/rouletteService';
+// import axios from 'axios'; // Removido - não precisamos mais de requisições diretas
 import { Loader2 } from 'lucide-react';
-// import EventService from '@/services/EventService'; // Remover se não usado diretamente aqui
-// import RouletteFeedService from '@/services/RouletteFeedService'; // <<< REMOVIDO
-import UnifiedRouletteClient from '@/services/UnifiedRouletteClient'; // <<< ADICIONADO
+import EventService from '@/services/EventService';
+import RouletteFeedService from '@/services/RouletteFeedService';
 
-// <<< Definir tipo RouletteData localmente ou importar de local correto >>>
-interface RouletteData { 
-  id: string;
-  _id?: string; // Para compatibilidade
-  name?: string;
-  nome?: string;
-  numero?: any[]; // Ajustar tipo se soubermos a estrutura exata
-  [key: string]: any; // Permitir outras propriedades
-}
+// Flag para controlar se o componente já foi inicializado
+let IS_COMPONENT_INITIALIZED = false;
 
 const LiveRoulettePage: React.FC = () => {
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  // const [initialized, setInitialized] = useState<boolean>(false); // Estado de inicialização agora é do UnifiedClient
+  const [initialized, setInitialized] = useState<boolean>(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
   
-  // <<< Obter instância do UnifiedRouletteClient >>>
-  const unifiedClient = UnifiedRouletteClient.getInstance();
-
-  // <<< Remover useCallback de addNewNumberToRoulette se não for mais necessário >>>
-  // A lógica de atualização agora vem principalmente do UnifiedClient
-
-  // <<< Remover determinarCorNumero se não for usado diretamente aqui >>>
-
-  // <<< REFAZER useEffect >>>
-  useEffect(() => {
-    console.log('[LiveRoulettePage] Montando e buscando dados do UnifiedClient');
-    
-    // Função para processar dados recebidos
-    const processUpdate = (updatedData: any[] | any) => {
-        let updatedRoulettes: RouletteData[] = [];
-        if (Array.isArray(updatedData)) {
-            updatedRoulettes = updatedData;
-        } else if (updatedData && typeof updatedData === 'object' && updatedData.id) {
-            // Se for um objeto único, tentar atualizar ou adicionar na lista
-            setRoulettes(prev => {
-                 const existingIndex = prev.findIndex(r => r.id === updatedData.id);
-                 if (existingIndex > -1) {
-                     const newState = [...prev];
-                     newState[existingIndex] = updatedData; // Substitui roleta existente
-                     return newState;
-                 } else {
-                     return [...prev, updatedData]; // Adiciona nova roleta
-                 }
-            });
-            setLastUpdateTime(Date.now());
-            return; // Sai pois já atualizou o estado
-        } else {
-             console.warn('[LiveRoulettePage] Dados de atualização inválidos recebidos', updatedData);
-             return; // Ignora atualização inválida
-        }
-        
-        if (updatedRoulettes && updatedRoulettes.length > 0) {
-            console.log(`[LiveRoulettePage] Atualizando com ${updatedRoulettes.length} roletas`);
-            setRoulettes(updatedRoulettes);
-            setLoading(false); 
-            setLastUpdateTime(Date.now()); 
-        } else {
-             // Se receber array vazio, talvez manter os dados antigos ou limpar?
-             // setLoading(false); // Pode parar loading mesmo sem dados novos
-        }
-    };
-
-    // Obter dados iniciais do UnifiedClient
-    const initialData = unifiedClient.getAllRoulettes();
-    if (initialData && initialData.length > 0) {
-      console.log(`[LiveRoulettePage] Carregados ${initialData.length} roletas iniciais do UnifiedClient`);
-      setRoulettes(initialData);
-      setLoading(false);
-    } else {
-      console.log('[LiveRoulettePage] Aguardando primeira atualização do UnifiedClient...');
-      setLoading(true); // Manter loading até receber dados
+  // Obter referência ao serviço de feed centralizado sem inicializar novo polling
+  const feedService = useMemo(() => {
+    // Verificar se o sistema já foi inicializado globalmente
+    if (window.isRouletteSystemInitialized && window.isRouletteSystemInitialized()) {
+      console.log('[LiveRoulettePage] Usando sistema de roletas já inicializado');
+      // Recuperar o serviço do sistema global
+      return window.getRouletteSystem 
+        ? window.getRouletteSystem().rouletteFeedService 
+        : RouletteFeedService.getInstance();
     }
-
-    // Inscrever-se no evento 'update' do UnifiedClient
-    const unsubscribe = unifiedClient.on('update', processUpdate);
     
-    // <<< Remover lógica de timer de verificação e EventService.on >>>
-    /*
+    // Fallback para o comportamento padrão
+    console.log('[LiveRoulettePage] Sistema global não detectado, usando instância padrão');
+    return RouletteFeedService.getInstance();
+  }, []);
+
+  // Função para adicionar um novo número a uma roleta específica
+  const addNewNumberToRoulette = useCallback((rouletteId: string, newNumberData: any) => {
+    setRoulettes(prevRoulettes => {
+      return prevRoulettes.map(roleta => {
+        // Verificar se é a roleta certa
+        if (roleta.id === rouletteId || roleta._id === rouletteId || 
+            (roleta as any).canonicalId === rouletteId) {
+          // Criar um novo número no formato correto
+          const newNumber = {
+            numero: newNumberData.numero,
+            cor: newNumberData.cor || determinarCorNumero(newNumberData.numero),
+            timestamp: newNumberData.timestamp || new Date().toISOString()
+          };
+
+          // Verificar se o array numero existe e é um array
+          const numeros = Array.isArray(roleta.numero) ? [...roleta.numero] : [];
+          
+          // Adicionar o novo número no início do array (mais recente primeiro)
+          return {
+            ...roleta,
+            numero: [newNumber, ...numeros]
+          };
+        }
+        return roleta;
+      });
+    });
+    
+    // Atualizar timestamp da última atualização
+    setLastUpdateTime(Date.now());
+  }, []);
+
+  // Função para determinar a cor de um número da roleta
+  const determinarCorNumero = (numero: number): string => {
+    if (numero === 0) return 'verde';
+    
+    const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
+  };
+
+  // Efeito para buscar os dados iniciais
+  useEffect(() => {
+    // Verificar se o componente já foi inicializado antes
+    if (IS_COMPONENT_INITIALIZED) {
+      console.log('[LiveRoulettePage] Componente já inicializado, evitando dupla inicialização');
+      return;
+    }
+    
+    // Marcar como inicializado para evitar inicializações múltiplas
+    IS_COMPONENT_INITIALIZED = true;
+    
+    console.log('[LiveRoulettePage] Inicializando componente');
+    
+    // Inicializar o serviço de feed, que agora só busca dados iniciais uma vez
+    feedService.initialize()
+      .then(() => {
+        console.log('[LiveRoulettePage] Serviço de feed inicializado com sucesso');
+        setInitialized(true);
+        
+        // Obter dados do serviço após inicialização
+        const rouletteData = Object.values(feedService.getAllRoulettes());
+        if (rouletteData.length > 0) {
+          console.log(`[LiveRoulettePage] Carregados ${rouletteData.length} roletas do serviço`);
+          setRoulettes(rouletteData);
+          setLoading(false);
+        } else {
+          // Se não temos dados ainda, aguardar até 5 segundos
+          setTimeout(() => {
+            const delayedData = Object.values(feedService.getAllRoulettes());
+            console.log(`[LiveRoulettePage] Carregados ${delayedData.length} roletas após aguardar`);
+            setRoulettes(delayedData);
+            setLoading(false);
+          }, 5000);
+        }
+      })
+      .catch(err => {
+        console.error('[LiveRoulettePage] Erro ao inicializar serviço de feed:', err);
+        setError('Erro ao carregar dados. Por favor, tente novamente.');
+        setLoading(false);
+      });
+    
+    // Inscrever-se no evento de atualização de dados
+    const handleDataUpdated = (updateData: any) => {
+      console.log('[LiveRoulettePage] Recebida atualização de dados');
+      
+      // Obter dados atualizados do cache
+      const updatedRoulettes = Object.values(feedService.getAllRoulettes());
+      
+      if (updatedRoulettes && updatedRoulettes.length > 0) {
+        console.log(`[LiveRoulettePage] Atualizando com ${updatedRoulettes.length} roletas`);
+        setRoulettes(updatedRoulettes);
+        setLoading(false); // Garantir que o loading seja desativado ao receber dados
+        setLastUpdateTime(Date.now()); // Registrar momento da atualização
+      }
+    };
+    
+    // Registrar manipulador para evento de socket (caso a versão use sockets)
+    const handleSocketUpdate = (event: any) => {
+      if (event && event.type === 'new_number' && event.roleta_id && event.numero) {
+        console.log(`[LiveRoulettePage] Recebido novo número via socket: ${event.numero} para roleta ${event.roleta_id}`);
+        addNewNumberToRoulette(event.roleta_id, {
+          numero: event.numero,
+          timestamp: event.timestamp
+        });
+      }
+    };
+    
+    // Inscrever-se nos eventos
     EventService.on('roulette:data-updated', handleDataUpdated);
     EventService.on('roulette:new-number', handleSocketUpdate);
-    const updateCheckTimer = setInterval(() => { ... }, 10000);
-    */
+    
+    // Iniciar timer para verificar atualizações periódicas
+    const updateCheckTimer = setInterval(() => {
+      // Verificar quanto tempo se passou desde a última atualização
+      const timeSinceLastUpdate = Date.now() - lastUpdateTime;
+      
+      if (timeSinceLastUpdate > 30000) { // 30 segundos sem atualizações
+        console.log('[LiveRoulettePage] Mais de 30s sem atualizações, verificando novos dados...');
+        
+        // Forçar uma atualização manual dos dados
+        feedService.refreshCache()
+          .then(() => {
+            console.log('[LiveRoulettePage] Dados atualizados manualmente');
+            const refreshedData = Object.values(feedService.getAllRoulettes());
+            setRoulettes(refreshedData);
+            setLastUpdateTime(Date.now());
+          })
+          .catch(err => {
+            console.error('[LiveRoulettePage] Erro ao atualizar dados manualmente:', err);
+          });
+      }
+    }, 10000); // Verificar a cada 10 segundos
     
     return () => {
-      console.log('[LiveRoulettePage] Desmontando e cancelando inscrição');
-      unsubscribe();
-      // Limpar outros listeners ou timers se necessário
-      // clearInterval(updateCheckTimer);
+      // Limpar listeners ao desmontar
+      EventService.off('roulette:data-updated', handleDataUpdated);
+      EventService.off('roulette:new-number', handleSocketUpdate);
+      clearInterval(updateCheckTimer);
+      // Não resetamos IS_COMPONENT_INITIALIZED pois queremos garantir que só haja
+      // uma inicialização durante todo o ciclo de vida da aplicação
     };
-  }, [unifiedClient]); // Depender apenas do unifiedClient
+  }, [feedService, addNewNumberToRoulette, lastUpdateTime]);
 
   return (
     <>
@@ -111,41 +185,40 @@ const LiveRoulettePage: React.FC = () => {
         <h1 className="text-3xl font-bold mb-6">Roletas ao vivo</h1>
         
         {/* Indicador de última atualização */}
-        {!loading && (
-          <div className="text-sm text-gray-500 mb-4 flex justify-between items-center">
-            <span>Última atualização: {new Date(lastUpdateTime).toLocaleTimeString()}</span>
+        {initialized && !loading && (
+          <div className="text-sm text-gray-500 mb-4">
+            Última atualização: {new Date(lastUpdateTime).toLocaleTimeString()}
             <button 
               onClick={() => {
-                console.log('[LiveRoulettePage] Forçando atualização via UnifiedClient...');
-                setLoading(true); // Mostrar loading ao forçar
-                // <<< Usar unifiedClient.forceUpdate() >>>
-                unifiedClient.forceUpdate()
-                  .catch(err => {
-                      console.error('[LiveRoulettePage] Erro ao forçar atualização:', err);
-                      setError('Falha ao forçar atualização.');
+                setLoading(true);
+                feedService.refreshCache()
+                  .then(() => {
+                    const refreshedData = Object.values(feedService.getAllRoulettes());
+                    setRoulettes(refreshedData);
+                    setLastUpdateTime(Date.now());
+                    setLoading(false);
                   })
-                  .finally(() => {
-                       // O loading será removido quando o evento 'update' chegar
-                       // setTimeout(() => setLoading(false), 1000); // Ou remover após um tempo
-                  });
+                  .catch(() => setLoading(false));
               }}
-              className="text-xs text-blue-400 hover:text-blue-300 ml-4"
-              title="Forçar Atualização"
+              className="ml-2 text-blue-500 hover:text-blue-700"
             >
-              (Atualizar)
+              Atualizar agora
             </button>
           </div>
         )}
         
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-            <span className="block sm:inline">{error}</span>
-          </div>
-        )}
-
         {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <Loader2 className="h-12 w-12 animate-spin text-vegas-green" />
+          <div className="flex justify-center items-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2">Carregando roletas...</span>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        ) : roulettes.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-gray-500">Nenhuma roleta disponível no momento.</p>
           </div>
         ) : (
           <LiveRoulettesDisplay roulettesData={roulettes} />
