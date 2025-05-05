@@ -263,18 +263,45 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
             console.log(`[${componentId}] Resultado de processRouletteData para atualização:`, processed === null ? 'NULL' : `Status: ${processed.status}, UltimoNum: ${processed.ultimoNumero}, CountNums: ${processed.numeros.length}`);
 
             if (processed !== null) { 
-                 // console.log(`[${componentId}] Atualizando estado com dados processados:`, processed); // Log pode ser descomentado se necessário
+                 // console.log(`[${componentId}] Atualizando estado com dados processados:`, processed); 
                  setRouletteData(currentData => {
-                     const isNew = currentData?.ultimoNumero !== undefined && 
-                                   currentData?.ultimoNumero !== null && 
-                                   processed.ultimoNumero !== currentData?.ultimoNumero && 
-                                   processed.ultimoNumero !== null;
-                     if(isNew) {
-                         console.log(`%c[${componentId}] NOVO NÚMERO: ${processed.ultimoNumero}`, 'color: lightgreen; font-weight: bold;');
-                         setIsNewNumber(true);
-                         setTimeout(() => setIsNewNumber(false), 2000); // Resetar após 2s
+                     // Se não houver dados anteriores, simplesmente retorna os processados
+                     if (!currentData) {
+                         return processed;
                      }
-                     return processed; 
+                     
+                     // Verifica se o último número da atualização é realmente novo
+                     const newNumberObject = processed.numeros.length > 0 ? processed.numeros[0] : null;
+                     const isTrulyNewNumber = newNumberObject && 
+                                            currentData.numeros.length > 0 && 
+                                            newNumberObject.numero !== currentData.numeros[0].numero;
+
+                     let updatedNumeros = currentData.numeros;
+
+                     if (isTrulyNewNumber) {
+                         console.log(`%c[${componentId}] NOVO NÚMERO ADICIONADO: ${newNumberObject.numero}`, 'color: lightgreen; font-weight: bold;');
+                         // Adiciona o novo número no início e mantém o limite (e.g., 10)
+                         updatedNumeros = [newNumberObject, ...currentData.numeros].slice(0, 10);
+                         
+                         // Lógica de destaque visual (pode ser ajustada se necessário)
+                         setIsNewNumber(true);
+                         setTimeout(() => setIsNewNumber(false), 2000); 
+                     } else if (processed.numeros.length > 0 && currentData.numeros.length === 0) {
+                         // Caso especial: Se não havia números antes e a atualização trouxe algum
+                          console.log(`[${componentId}] Preenchendo números iniciais da atualização.`);
+                          updatedNumeros = processed.numeros.slice(0, 10);
+                     } else {
+                         // Se não for um número novo, mantém os números atuais, mas atualiza outras infos
+                         // Isso evita que a lista pisque ou reordene desnecessariamente
+                         updatedNumeros = currentData.numeros;
+                     }
+
+                     // Retorna o novo estado combinando infos recentes com a lista de números atualizada
+                     return {
+                         ...processed, // Pega ID, nome, status, provider, winRate, streak, lastUpdate da atualização
+                         numeros: updatedNumeros, // Usa a lista de números atualizada (com o novo adicionado ou não)
+                         ultimoNumero: processed.ultimoNumero // Garante que o último número exibido fora da lista seja o mais recente
+                     };
                  });
                  setIsLoading(false);
                  setError(null);
