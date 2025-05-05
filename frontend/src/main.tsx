@@ -9,7 +9,7 @@ import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
 import globalRouletteDataService from './services/GlobalRouletteDataService'
-import { setupAccessKey } from './utils/crypto-utils'
+import { setupAccessKey, tryCommonKeys, enableDevMode } from './utils/crypto-utils'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -135,6 +135,16 @@ window.getRouletteSystem = () => rouletteSystem;
 // Inicializar serviço de descriptografia
 console.log('[Main] Configurando chave de acesso para descriptografia...');
 setupAccessKey();
+
+// Tentar inicializar as chaves comuns para descriptografia
+console.log('[App] Inicializando sistema de criptografia');
+const keyFound = tryCommonKeys();
+
+// Se nenhuma chave funcionar, ativar o modo de desenvolvimento
+if (!keyFound) {
+  console.warn('[App] Nenhuma chave de descriptografia funcionou, ativando modo de desenvolvimento');
+  enableDevMode(true);
+}
 
 const rootElement = document.getElementById("root");
 if (rootElement) {

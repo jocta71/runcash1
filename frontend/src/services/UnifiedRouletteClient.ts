@@ -10,7 +10,7 @@
  */
 
 import { ENDPOINTS } from './api/endpoints';
-import { cryptoService, extractAndSetAccessKeyFromEvent } from '../utils/crypto-utils';
+import { cryptoService, extractAndSetAccessKeyFromEvent, setApiKey } from '../utils/crypto-utils';
 import EventBus from './EventBus';
 import axios from 'axios';
 
@@ -465,189 +465,111 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Processa dados criptografados do stream
+   * Processa dados criptografados recebidos do servidor
    */
-  private async handleEncryptedData(data: any): Promise<void> {
-    this.log('Processando dados criptografados');
+  private handleEncryptedData(encryptedData: any): void {
+    console.log('[UnifiedRouletteClient] Processando dados criptografados');
     
-    // Log detalhado do formato de dados recebido
-    if (typeof data === 'string') {
-      this.log(`Dados criptografados em formato string (tamanho: ${data.length})`);
-      this.log(`Amostra: ${data.substring(0, 100)}...`);
-    } else {
-      this.log(`Dados criptografados em formato objeto`);
-      
-      try {
-        const jsonString = JSON.stringify(data);
-        this.log(`Amostra JSON: ${jsonString.substring(0, 150)}...`);
-      } catch (e) {
-        this.log(`Não foi possível converter objeto para JSON para exibição`);
-      }
-    }
-    
-    // Verificar se temos a chave de acesso
-    if (!cryptoService.hasAccessKey()) {
-      this.log('Não há chave de acesso disponível para descriptografia');
-      
-      // Tentar extrair chave de acesso dos próprios dados, se possível
-      try {
-        if (extractAndSetAccessKeyFromEvent(data)) {
-          this.log('✅ Chave de acesso extraída e configurada a partir dos dados criptografados');
-          
-          // Tentar processar novamente agora que temos a chave
-          if (cryptoService.hasAccessKey()) {
-            this.log('Tentando processar dados novamente com a nova chave');
-            // Chamar recursivamente com a nova chave
-            this.handleEncryptedData(data);
-            return;
-          }
-        } else {
-          this.log('⚠️ Não foi possível extrair chave de acesso dos dados');
-        }
-      } catch (e) {
-        this.log('Erro ao tentar extrair chave de acesso:', e);
-      }
-      
-      // Notificar que os dados estão criptografados e precisamos de uma chave
-      EventBus.emit('roulette:encrypted-data', {
-        timestamp: new Date().toISOString(),
-        hasAccessKey: false,
-        message: 'Chave de acesso não encontrada. Dados criptografados não podem ser processados.'
-      });
-      
-      // Emitir evento com dados criptografados
-      this.emit('update', { encrypted: true, raw: data });
-      return;
-    }
-    
-    // Tentar descriptografar
     try {
-      this.log('Tentando descriptografar dados com a chave disponível');
+      // Tentar extrair a chave de acesso dos dados
+      this.extractAccessKey(encryptedData);
       
-      // Processar diferentes formatos de entrada
-      let decryptedData;
-      
-      if (typeof data === 'string') {
-        // Verificar se é um formato JSON com campo encryptedData
-        if (data.includes('"encryptedData"') && data.includes('"encrypted":true')) {
-          try {
-            const jsonData = JSON.parse(data);
-            if (jsonData.encrypted && jsonData.encryptedData) {
-              this.log('Formato JSON com encryptedData detectado');
-              decryptedData = await cryptoService.decryptData(jsonData.encryptedData);
-            }
-          } catch (e) {
-            this.log('Falha ao processar como JSON, tratando como string criptografada direta');
-            // Tratar como string criptografada direta
-            decryptedData = await cryptoService.decryptData(data);
-          }
-        } else if (data.startsWith('Fe26.2')) {
-          // String no formato Iron direto
-          this.log('Formato Iron direto detectado');
-          decryptedData = await cryptoService.decryptData(data);
-        } else {
-          this.log('Formato de dados não reconhecido para descriptografia padrão, tentando abordagem genérica');
+      // Processar os dados criptografados
+      cryptoService.processEncryptedData(encryptedData)
+        .then(decryptedData => {
+          console.log('[UnifiedRouletteClient] Dados descriptografados com sucesso');
           
-          // Tentar descriptografar diretamente, deixando o crypto-utils determinar o formato
-          try {
-            decryptedData = await cryptoService.decryptData(data);
-          } catch (decryptError) {
-            this.error('Falha na abordagem genérica:', decryptError);
-            throw new Error('Formato de dados criptografados não reconhecido');
+          // Se temos dados reais, processar normalmente
+          if (decryptedData && decryptedData.data) {
+            this.handleDecryptedData(decryptedData.data);
+          } else {
+            console.warn('[UnifiedRouletteClient] Dados descriptografados sem estrutura esperada');
           }
-        }
-      } else if (data && typeof data === 'object') {
-        // Objeto com campo encryptedData
-        if (data.encrypted === true && data.encryptedData) {
-          this.log('Objeto com campo encryptedData detectado');
-          decryptedData = await cryptoService.processEncryptedData(data);
-        } else if (data.encrypted === true && data.data) {
-          // Alguns formatos usam o campo 'data' diretamente
-          this.log('Objeto com campo data e encrypted=true detectado');
-          decryptedData = await cryptoService.decryptData(data.data);
-        } else if (data.content) {
-          // Formato alternativo usando campo 'content'
-          this.log('Objeto com campo content detectado');
-          decryptedData = await cryptoService.decryptData(data.content);
-        } else {
-          this.error('Objeto não contém dados criptografados reconhecíveis');
-          throw new Error('Objeto sem dados criptografados válidos');
-        }
-      } else {
-        this.error('Tipo de dados não suportado para descriptografia');
-        throw new Error('Tipo de dados não suportado para descriptografia');
-      }
-      
-      // Verificar resultado da descriptografia
-      if (!decryptedData) {
-        this.error('Descriptografia retornou dados vazios ou nulos');
-        throw new Error('Resultado da descriptografia inválido');
-      }
-      
-      this.log('Dados descriptografados com sucesso:', 
-        JSON.stringify(decryptedData).substring(0, 100) + '...');
-      
-      // Verificar a estrutura dos dados descriptografados
-      let rouletteData = decryptedData;
-      
-      // Verificar se os dados estão em um campo aninhado como .data
-      if (decryptedData.data && (Array.isArray(decryptedData.data) || 
-          decryptedData.data.roletas || 
-          (typeof decryptedData.data === 'object' && Object.keys(decryptedData.data).length > 0))) {
-        this.log('Dados encontrados no campo .data');
-        rouletteData = decryptedData.data;
-      }
-      
-      // Verificar se os dados estão no campo .roletas
-      if (rouletteData.roletas && Array.isArray(rouletteData.roletas)) {
-        this.log(`Encontrado array de roletas: ${rouletteData.roletas.length} roletas`);
-        rouletteData = rouletteData.roletas;
-      }
-      
-      // Se temos um array vazio ou objeto vazio, tentar usar a simulação como fallback
-      if ((Array.isArray(rouletteData) && rouletteData.length === 0) || 
-          (typeof rouletteData === 'object' && Object.keys(rouletteData).length === 0)) {
-        this.log('Dados descriptografados vazios, usando simulação como fallback');
-        this.useSimulatedData();
-        return;
-      }
-      
-      // Atualizar cache
-      this.updateCache(rouletteData);
-      
-      // Notificar sobre atualização
-      this.emit('update', rouletteData);
-      EventBus.emit('roulette:data-updated', {
-        timestamp: new Date().toISOString(),
-        data: rouletteData,
-        source: 'sse-decrypted'
-      });
-      
-      // Log adicional para debug
-      if (Array.isArray(rouletteData)) {
-        this.log(`Processados ${rouletteData.length} itens descriptografados`);
-        
-        // Listar roletas processadas
-        rouletteData.forEach((roleta, index) => {
-          if (roleta && roleta.nome) {
-            this.log(`Roleta ${index+1}: ${roleta.nome} (ID: ${roleta.id}), último número: ${roleta.ultimoNumero || 'N/A'}`);
-          }
+        })
+        .catch(error => {
+          console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
+          this.notify('error', 'Erro ao processar dados criptografados');
         });
-      } else if (rouletteData.numeros && Array.isArray(rouletteData.numeros)) {
-        this.log(`Processada roleta "${rouletteData.nome}" com ${rouletteData.numeros.length} números, último: ${rouletteData.ultimoNumero || 'N/A'}`);
-      }
     } catch (error) {
-      this.error('Erro ao descriptografar dados:', error);
+      console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
+      this.notify('error', 'Erro ao processar dados criptografados');
+    }
+  }
+  
+  /**
+   * Tenta extrair a chave de acesso dos dados recebidos
+   * Esta função analisa os dados e procura por campos que possam conter a chave
+   */
+  private extractAccessKey(data: any): boolean {
+    console.log('[UnifiedRouletteClient] Tentando extrair chave de acesso dos dados');
+    
+    try {
+      // Se for uma string, tentar converter para objeto
+      let dataObj = data;
+      if (typeof data === 'string') {
+        // Verificar se é um JSON
+        if (data.startsWith('{') || data.startsWith('[')) {
+          try {
+            dataObj = JSON.parse(data);
+          } catch (e) {
+            console.log('[UnifiedRouletteClient] Dados não são JSON válido');
+          }
+        }
+      }
       
-      // Notificar erro de descriptografia
-      EventBus.emit('roulette:decryption-error', {
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
-        data: typeof data === 'string' ? data.substring(0, 50) + '...' : 'formato objeto'
-      });
+      // Procurar campos comuns que possam conter a chave
+      if (typeof dataObj === 'object' && dataObj !== null) {
+        // Campos possíveis para a chave de acesso
+        const possibleKeyFields = [
+          'accessKey', 'key', 'apiKey', 'token', 'secret', 
+          'auth.key', 'auth.token', 'authorization', 'decrypt_key',
+          'meta.key', 'metadata.key', 'header.key'
+        ];
+        
+        for (const field of possibleKeyFields) {
+          const keys = field.split('.');
+          let value = dataObj;
+          
+          // Navegar na estrutura para encontrar o campo aninhado
+          for (const key of keys) {
+            value = value?.[key];
+            if (value === undefined) break;
+          }
+          
+          // Se encontramos um valor que parece ser uma chave
+          if (typeof value === 'string' && value.length > 8) {
+            console.log(`[UnifiedRouletteClient] Possível chave encontrada no campo ${field}`);
+            const keySet = setApiKey(value);
+            
+            if (keySet) {
+              console.log('[UnifiedRouletteClient] Chave de acesso configurada com sucesso');
+              return true;
+            }
+          }
+        }
+        
+        // Tentar encontrar o hash na própria estrutura do formato Iron
+        if (typeof data === 'string' && data.startsWith('Fe26.2*')) {
+          const parts = data.split('*');
+          if (parts.length >= 2) {
+            const hash = parts[1];
+            if (hash && hash.length > 8) {
+              console.log('[UnifiedRouletteClient] Tentando usar o hash como chave:', hash);
+              const keySet = setApiKey(hash);
+              if (keySet) {
+                console.log('[UnifiedRouletteClient] Hash configurado como chave de acesso');
+                return true;
+              }
+            }
+          }
+        }
+      }
       
-      // Usar dados simulados após falha
-      this.useSimulatedData();
+      console.log('[UnifiedRouletteClient] Nenhuma chave de acesso encontrada nos dados');
+      return false;
+    } catch (error) {
+      console.error('[UnifiedRouletteClient] Erro ao extrair chave de acesso:', error);
+      return false;
     }
   }
   
@@ -1043,6 +965,63 @@ class UnifiedRouletteClient {
     
     // Notificar assinantes
     this.emit('message', data);
+  }
+  
+  /**
+   * Processa dados descriptografados
+   */
+  private handleDecryptedData(data: any): void {
+    console.log('[UnifiedRouletteClient] Processando dados descriptografados');
+    
+    try {
+      // Verificar a estrutura dos dados descriptografados
+      let rouletteData = data;
+      
+      // Verificar se os dados estão no campo .roletas
+      if (rouletteData.roletas && Array.isArray(rouletteData.roletas)) {
+        console.log(`[UnifiedRouletteClient] Encontrado array de roletas: ${rouletteData.roletas.length} roletas`);
+        rouletteData = rouletteData.roletas;
+      }
+      
+      // Se temos um array vazio ou objeto vazio, usar simulação
+      if ((Array.isArray(rouletteData) && rouletteData.length === 0) || 
+          (typeof rouletteData === 'object' && Object.keys(rouletteData).length === 0)) {
+        console.log('[UnifiedRouletteClient] Dados vazios, ignorando');
+        return;
+      }
+      
+      // Atualizar cache
+      this.updateCache(rouletteData);
+      
+      // Notificar sobre atualização
+      this.emit('update', rouletteData);
+      EventBus.emit('roulette:data-updated', {
+        timestamp: new Date().toISOString(),
+        data: rouletteData,
+        source: 'sse-decrypted'
+      });
+      
+      // Log adicional para debug
+      if (Array.isArray(rouletteData)) {
+        console.log(`[UnifiedRouletteClient] Processados ${rouletteData.length} itens`);
+      }
+    } catch (error) {
+      console.error('[UnifiedRouletteClient] Erro ao processar dados descriptografados:', error);
+    }
+  }
+  
+  /**
+   * Mostra uma notificação para o usuário
+   */
+  private notify(type: string, message: string): void {
+    console.log(`[UnifiedRouletteClient] Notificação (${type}): ${message}`);
+    
+    // Emitir evento de notificação
+    EventBus.emit('notification', {
+      type,
+      message,
+      timestamp: new Date().toISOString()
+    });
   }
 }
 

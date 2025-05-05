@@ -3,7 +3,7 @@
  * Execute com: npx ts-node test-crypto.ts
  */
 
-import { cryptoService, setAccessKey } from './utils/crypto-utils';
+import { cryptoService, setAccessKey, enableDevMode, isDevModeEnabled, tryCommonKeys } from './utils/crypto-utils';
 
 // Dados criptografados para teste
 const encryptedData = {
@@ -17,9 +17,28 @@ const encryptedData = {
 // Dados em formato de 3 partes
 const ironThreeParts = "Fe26.2*bcf3ce05f3baa107058d6e4ef7bb9718*ynzV/q7fkJnO3BzLUG9wXjbvjXS9HvPZKRXCZq7IqS4ylO+P9JwIdvg4tHCbpV0Y+8cYt8iJpCE88v2YZ0AtcnlxUYfCGhPMTbcJ+PsEvnbouh+/qvFhsU/3nI3I";
 
+// Dados com possível chave de acesso
+const dataWithKey = {
+  "encrypted": true,
+  "format": "iron",
+  "accessKey": "test-access-key-2023",
+  "encryptedData": ironThreeParts,
+  "message": "Dados criptografados com chave incluída.",
+};
+
 async function testDecryption() {
   try {
     console.log("=== TESTE DE DESCRIPTOGRAFIA ===");
+    
+    // PARTE 1: Teste de chaves comuns
+    console.log("\n=== PARTE 1: Teste de chaves comuns ===");
+    
+    console.log("Tentando chaves comuns...");
+    const keysFound = tryCommonKeys();
+    console.log(`Resultado: ${keysFound ? '✅ Chave encontrada' : '❌ Nenhuma chave funcionou'}`);
+    
+    // PARTE 2: Teste com chaves específicas
+    console.log("\n=== PARTE 2: Teste com chaves específicas ===");
     
     // Configurar a chave de acesso para teste
     console.log("Configurando chave de acesso...");
@@ -66,6 +85,63 @@ async function testDecryption() {
       } catch (e) {
         console.log("❌ Falha ao descriptografar formato de 3 partes:", e.message);
       }
+    }
+    
+    // PARTE 3: Testar modo de desenvolvimento
+    console.log("\n=== PARTE 3: Teste do modo de desenvolvimento ===");
+    
+    // Desabilitar qualquer chave de acesso
+    setAccessKey('');
+    console.log("Chave de acesso removida");
+    
+    // Verificar se o modo de desenvolvimento funciona
+    console.log("Ativando modo de desenvolvimento");
+    enableDevMode(true);
+    
+    // Verificar se foi ativado
+    const devModeStatus = isDevModeEnabled() ? 'ativado' : 'desativado';
+    console.log(`Status do modo de desenvolvimento: ${devModeStatus}`);
+    
+    // Tentar descriptografar sem chave de acesso com modo de desenvolvimento
+    try {
+      console.log("\n--- Testando descriptografia com modo de desenvolvimento ---");
+      const result = await cryptoService.decryptData(ironThreeParts);
+      console.log("Resultado:", JSON.stringify(result, null, 2));
+      console.log("✅ Modo de desenvolvimento funcionando, dados simulados retornados!");
+    } catch (e) {
+      console.log("❌ Falha ao usar modo de desenvolvimento:", e.message);
+    }
+    
+    // PARTE 4: Testar extração de chave dos dados
+    console.log("\n=== PARTE 4: Teste de extração de chave dos dados ===");
+    
+    // Resetar configurações
+    setAccessKey('');
+    enableDevMode(false);
+    
+    try {
+      console.log("Tentando extrair chave dos dados...");
+      
+      // Importar a função de extração dinamicamente para evitar dependência circular
+      const { extractAndSetAccessKeyFromEvent } = await import('./utils/crypto-utils');
+      
+      // Tentar extrair a chave
+      const keyExtracted = extractAndSetAccessKeyFromEvent(dataWithKey);
+      console.log(`Resultado da extração: ${keyExtracted ? '✅ Chave extraída' : '❌ Nenhuma chave encontrada'}`);
+      
+      // Verificar se a chave foi configurada
+      if (keyExtracted) {
+        try {
+          console.log("Testando descriptografia com a chave extraída...");
+          const result = await cryptoService.decryptData(ironThreeParts);
+          console.log("Resultado:", JSON.stringify(result, null, 2));
+          console.log("✅ Descriptografia com chave extraída funcionou!");
+        } catch (e) {
+          console.log("❌ Falha ao descriptografar com a chave extraída:", e.message);
+        }
+      }
+    } catch (e) {
+      console.log("❌ Erro ao testar extração de chave:", e.message);
     }
     
   } catch (error) {
