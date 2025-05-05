@@ -5,7 +5,17 @@
  * Este script pode ser executado fora do navegador, usando o Node.js.
  */
 
-import { cryptoService, setAccessKey, enableDevMode, isDevModeEnabled, tryCommonKeys } from './utils/crypto-utils';
+import cryptoUtils from './utils/crypto-utils';
+
+// Obter referências aos métodos necessários
+const { 
+  cryptoService, 
+  setAccessKey, 
+  enableDevMode, 
+  isDevModeEnabled, 
+  tryCommonKeys,
+  extractAndSetAccessKeyFromEvent 
+} = cryptoUtils;
 
 // Configurar o teste para ambiente Node.js
 console.log("🔧 Ambiente: Node.js");
@@ -147,9 +157,6 @@ async function testDecryption() {
     
     try {
       console.log("Tentando extrair chave dos dados...");
-      
-      // Importar a função de extração dinamicamente para evitar dependência circular
-      const { extractAndSetAccessKeyFromEvent } = await import('./utils/crypto-utils');
       
       // Tentar extrair a chave
       const keyExtracted = extractAndSetAccessKeyFromEvent(dataWithKey);

@@ -699,6 +699,19 @@ export class CryptoService {
 // Exportar instância singleton
 export const cryptoService = CryptoService.getInstance();
 
+// Adicionar exportação padrão para compatibilidade durante o build
+export default {
+  cryptoService,
+  setAccessKey,
+  hasAccessKey,
+  setupAccessKey,
+  extractAndSetAccessKeyFromEvent,
+  setApiKey,
+  tryCommonKeys,
+  enableDevMode,
+  isDevModeEnabled
+};
+
 /**
  * Função auxiliar para definir a chave de acesso para descriptografia
  * @param key Chave de acesso
