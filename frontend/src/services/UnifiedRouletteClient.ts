@@ -9,6 +9,7 @@
  * do aplicativo usem a mesma fonte de dados.
  */
 
+
 import { ENDPOINTS } from './api/endpoints';
 import EventBus from './EventBus';
 import cryptoService from '../utils/crypto-service';
