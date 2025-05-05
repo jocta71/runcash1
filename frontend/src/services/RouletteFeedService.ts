@@ -551,7 +551,7 @@ export default class RouletteFeedService {
         // Usar cache e resolver imediatamente
         if (Object.values(this.roulettes).length > 0) {
           resolve(Object.values(this.roulettes));
-        } else {
+            } else {
           // Sem dados em cache, resolver com array vazio
           resolve([]);
         }

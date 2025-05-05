@@ -360,10 +360,10 @@ export function useRouletteData(
       if (strategyData) {
         setStrategy(strategyData);
         rouletteStrategyCache.set(canonicalId, strategyData);
-        return true;
+          return true;
       }
       
-      return false;
+        return false;
     } catch (e) {
       console.error(`Erro ao carregar estratégia para ${canonicalId}:`, e);
       return false;
@@ -389,10 +389,10 @@ export function useRouletteData(
         const processedNumbers = processRouletteNumbers(data);
         setNumbers(processedNumbers);
         setHasData(true);
-        return true;
+          return true;
       }
       
-      return false;
+        return false;
     } catch (err: any) {
       logger.error(`❌ Erro ao atualizar roleta ${roletaNome}:`, err.message);
       setError(`Erro ao atualizar dados: ${err.message}`);
@@ -425,7 +425,7 @@ export function useRouletteData(
       const currentRouletteId = canonicalId.toLowerCase();
       const currentRouletteName = roletaNome.toLowerCase();
       
-      // Verificar se o evento é para esta roleta
+    // Verificar se o evento é para esta roleta
       const isForThisRoulette = 
         eventRouletteId === currentRouletteId || 
         eventRouteName === currentRouletteName;
@@ -448,9 +448,9 @@ export function useRouletteData(
         }
         
         return updatedNumbers;
-      });
-      
-      setHasData(true);
+    });
+
+    setHasData(true);
     };
     
     // Função para processar eventos de estratégia
@@ -565,7 +565,7 @@ export function useRouletteData(
         setLoading(false);
       }
     };
-    
+
     // Executar busca inicial
     fetchAllData();
     
