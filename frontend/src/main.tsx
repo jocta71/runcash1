@@ -9,6 +9,7 @@ import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
 import globalRouletteDataService from './services/GlobalRouletteDataService'
+import { setupAccessKey } from './utils/crypto-utils'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -130,6 +131,10 @@ socketService.loadHistoricalRouletteNumbers().catch(err => {
 // Expor globalmente a função para verificar se o sistema foi inicializado
 window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
 window.getRouletteSystem = () => rouletteSystem;
+
+// Inicializar serviço de descriptografia
+console.log('[Main] Configurando chave de acesso para descriptografia...');
+setupAccessKey();
 
 const rootElement = document.getElementById("root");
 if (rootElement) {
