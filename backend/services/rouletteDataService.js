@@ -294,7 +294,10 @@ class RouletteDataService {
   formatRouletteEvent(roleta, numeros) {
     const ultimoNumeroObj = numeros.length > 0 ? numeros[0] : null;
     
-    return {
+    // Log para depurar o array numeros
+    // console.log(`[DEBUG formatRouletteEvent ${roleta.nome}] Recebeu ${numeros?.length} números. Primeiro número obj:`, ultimoNumeroObj);
+
+    const eventoFormatado = {
       type: 'update', // Manter consistente com o frontend
       data: {
         id: roleta.id, // Usar ID que foi passado (provavelmente string de _id)
@@ -308,6 +311,11 @@ class RouletteDataService {
         timestamp: ultimoNumeroObj ? ultimoNumeroObj.timestamp.getTime() : Date.now(), // Timestamp em ms para compatibilidade
       }
     };
+
+    // LOG ADICIONADO PARA VER O RESULTADO DA FORMATAÇÃO
+    console.log(`[DEBUG formatRouletteEvent ${roleta.nome}] Evento formatado:`, JSON.stringify(eventoFormatado));
+
+    return eventoFormatado;
   }
 
   /**
