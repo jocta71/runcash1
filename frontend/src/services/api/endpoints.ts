@@ -1,26 +1,29 @@
 // URLs para os endpoints da API
 export const ENDPOINTS = {
-  // Endpoints de streaming SSE
+  // Endpoints de streaming SSE - único endpoint mantido conforme solicitado
   STREAM: {
-    ROULETTES: 'stream/roulettes',
-    STATS: 'stream/stats',
-    DIAGNOSTIC: 'stream/diagnostic'
+    // Endpoint principal para streaming de roletas
+    ROULETTES: '/api/stream/roulettes',
+    
+    // Endpoint para estatísticas do serviço de streaming
+    STATS: '/api/stream/stats',
+    
+    // Endpoint para diagnóstico do serviço de streaming
+    DIAGNOSTIC: '/api/stream/diagnostic'
   },
 
   // Endpoints para dados históricos
   HISTORICAL: {
-    ALL_ROULETTES: 'historical/all-roulettes',
+    ALL_ROULETTES: '/historical/all-roulettes', // Endpoint para buscar histórico inicial de todas as roletas
   }
 };
 
 // Obtém a URL base da API a partir de variáveis de ambiente
 export const getApiBaseUrl = (): string => {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
-  return baseUrl === '/' ? '' : baseUrl;
+  return import.meta.env.VITE_API_BASE_URL || '/api';
 };
 
 // Obtém a URL completa para um endpoint
 export const getFullUrl = (endpoint: string): string => {
-  const baseUrl = getApiBaseUrl();
-  return `${baseUrl.replace(/\/$/, '')}/${endpoint.replace(/^\//, '')}`;
+  return `${getApiBaseUrl()}${endpoint}`;
 }; 
