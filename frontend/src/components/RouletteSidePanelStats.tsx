@@ -7,7 +7,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import globalRouletteDataService from '../services/GlobalRouletteDataService';
+import { UnifiedRouletteClient } from '../services/UnifiedRouletteClient';
 import { getLogger } from '../services/utils/logger';
 import { uniqueId } from 'lodash';
 import {
@@ -81,63 +81,19 @@ const generateFallbackNumbers = (count: number = 20): number[] => {
   return []; // Retornar array vazio em vez de números aleatórios
 };
 
-// Atualizar a função fetchRouletteHistoricalNumbers para retornar número e timestamp
+// Atualizar a função fetchRouletteHistoricalNumbers para usar UnifiedRouletteClient
 export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Promise<RouletteNumber[]> => {
+  const unifiedClient = UnifiedRouletteClient.getInstance(); // Obter instância
   try {
     logger.info(`Buscando dados históricos para: ${rouletteName}`);
     
-    // Primeiro, tentar buscar dados detalhados com limit=1000
-    logger.info(`Solicitando dados detalhados (limit=1000) para ${rouletteName}`);
-    await globalRouletteDataService.fetchDetailedRouletteData();
+    // Não há mais dados detalhados separados, buscar direto do cliente
+    logger.info(`Buscando roleta ${rouletteName} nos dados do UnifiedClient`);
     
-    // Uma vez que os dados detalhados foram buscados, procurar a roleta específica
-    logger.info(`Buscando roleta ${rouletteName} nos dados detalhados`);
+    // Obter a roleta pelo nome do cliente unificado
+    const targetRoulette = unifiedClient.getRouletteByName(rouletteName);
     
-    // Obter todos os dados detalhados
-    const detailedRoulettes = globalRouletteDataService.getAllDetailedRoulettes();
-    
-    // Procurar a roleta pelo nome nos dados detalhados
-    const targetDetailedRoulette = detailedRoulettes.find((roleta: any) => {
-      const roletaName = roleta.nome || roleta.name || '';
-      return roletaName.toLowerCase() === rouletteName.toLowerCase();
-    });
-    
-    // Se encontrou a roleta nos dados detalhados
-    if (targetDetailedRoulette && targetDetailedRoulette.numero && Array.isArray(targetDetailedRoulette.numero)) {
-      // Extrair números e timestamps
-      const processedDetailedNumbers = targetDetailedRoulette.numero
-        .map((n: any) => {
-          // Converter timestamp para formato de hora (HH:MM)
-          let timeString = "00:00";
-          if (n.timestamp) {
-            try {
-              // Usar diretamente o timestamp da API
-              const date = new Date(n.timestamp);
-              timeString = date.getHours().toString().padStart(2, '0') + ':' + 
-                         date.getMinutes().toString().padStart(2, '0');
-              logger.info(`Timestamp API: ${n.timestamp} convertido para ${timeString}`);
-            } catch (e) {
-              logger.error("Erro ao converter timestamp:", e);
-            }
-          }
-          
-          return { 
-            numero: Number(n.numero), 
-            timestamp: timeString
-          };
-        })
-        .filter((n: any) => !isNaN(n.numero) && n.numero >= 0 && n.numero <= 36);
-      
-      logger.info(`Obtidos ${processedDetailedNumbers.length} números históricos DETALHADOS para ${rouletteName}`);
-      return processedDetailedNumbers;
-    }
-    
-    // Se não encontrou nos dados detalhados, tentar nos dados normais
-    logger.info(`Roleta não encontrada nos dados detalhados, tentando dados normais para ${rouletteName}`);
-    
-    // Obter a roleta pelo nome do serviço global
-    const targetRoulette = globalRouletteDataService.getRouletteByName(rouletteName);
-    
+    // Se encontrou a roleta nos dados do cliente
     if (targetRoulette && targetRoulette.numero && Array.isArray(targetRoulette.numero)) {
       // Extrair números e timestamps
       const processedNumbers = targetRoulette.numero
@@ -146,29 +102,33 @@ export const fetchRouletteHistoricalNumbers = async (rouletteName: string): Prom
           let timeString = "00:00";
           if (n.timestamp) {
             try {
-              // Usar diretamente o timestamp da API
               const date = new Date(n.timestamp);
               timeString = date.getHours().toString().padStart(2, '0') + ':' + 
                          date.getMinutes().toString().padStart(2, '0');
-              logger.info(`Timestamp API: ${n.timestamp} convertido para ${timeString}`);
+              // logger.info(`Timestamp API: ${n.timestamp} convertido para ${timeString}`); // Log opcional
             } catch (e) {
               logger.error("Erro ao converter timestamp:", e);
             }
           }
           
           return { 
-            numero: Number(n.numero), 
+            numero: Number(n.numero ?? n.value), // Usar ?? para fallback
             timestamp: timeString
           };
         })
-        .filter((n: any) => !isNaN(n.numero) && n.numero >= 0 && n.numero <= 36);
+        .filter((n: any) => n && n.numero !== undefined && !isNaN(n.numero) && n.numero >= 0 && n.numero <= 36);
       
-      logger.info(`Obtidos ${processedNumbers.length} números históricos para ${rouletteName} do serviço global`);
+      logger.info(`Obtidos ${processedNumbers.length} números históricos para ${rouletteName} do UnifiedClient`);
       return processedNumbers;
     } else {
-      logger.warn(`Roleta "${rouletteName}" não encontrada ou sem histórico de números`);
+      logger.warn(`Roleta "${rouletteName}" não encontrada ou sem histórico no UnifiedClient`);
       // Se não encontrou a roleta, forçar uma atualização dos dados
-      globalRouletteDataService.forceUpdate();
+      try {
+        await unifiedClient.forceUpdate();
+        logger.info(`Update forçado para ${rouletteName}`);
+      } catch (updateError) {
+        logger.error('Erro ao forçar update:', updateError);
+      }
       return [];
     }
   } catch (error) {
@@ -569,8 +529,11 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
   // Função para processar os dados da roleta - otimizada para menos recálculos
   const handleApiData = useCallback(() => {
-    // Obter os dados do serviço global - estes são os MESMOS dados que o RouletteCard usa
-    const allRoulettes = globalRouletteDataService.getAllRoulettes();
+    // Obter instância do UnifiedClient
+    const unifiedClient = UnifiedRouletteClient.getInstance();
+    
+    // Obter os dados do cliente unificado
+    const allRoulettes = unifiedClient.getAllRoulettes();
     
     if (!allRoulettes || !Array.isArray(allRoulettes) || allRoulettes.length === 0) return;
     
@@ -664,48 +627,41 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     
     setIsLoading(false);
     isInitialRequestDone.current = true;
-  }, [roletaNome]); // Removi historicalNumbers das dependências para evitar recálculos desnecessários
+  }, [roletaNome, historicalNumbers]); // Adicionar historicalNumbers como dependência
 
-  // Efeito para assinar diretamente o globalRouletteDataService - SIMPLIFICADO
+  // Adicionar um useEffect para buscar dados históricos iniciais e escutar eventos
   useEffect(() => {
-    logger.info(`Inicializando histórico para ${roletaNome}`);
-    
-    // Resetar estado
-    isInitialRequestDone.current = false;
+    const unifiedClient = UnifiedRouletteClient.getInstance();
+    logger.info(`[StatsPanel] Montando e buscando histórico para ${roletaNome}`);
     setIsLoading(true);
-    setHistoricalNumbers([]);
-    
-    // Primeiro, solicitar dados detalhados com limit=1000
-    globalRouletteDataService.fetchDetailedRouletteData()
-      .then(() => {
-        logger.info(`Dados detalhados solicitados com limit=1000 para ${roletaNome}`);
-        // Processar dados após a requisição
-        handleApiData();
-      })
-      .catch(error => {
-        logger.error(`Erro ao solicitar dados detalhados: ${error}`);
-      });
-    
-    // Registrar no serviço global com verificação de throttling
-    let lastUpdateTime = 0;
-    const THROTTLE_TIME = 4000; // 4 segundos
-    
-    globalRouletteDataService.subscribe(subscriberId.current, () => {
-      const now = Date.now();
-      // Verificação de throttling para garantir 4s de intervalo entre atualizações
-      if (now - lastUpdateTime < THROTTLE_TIME) return;
-      
-      lastUpdateTime = now;
-      handleApiData();
-    });
-    
-    // Limpar inscrição ao desmontar
-    return () => {
-      globalRouletteDataService.unsubscribe(subscriberId.current);
-    };
-  }, [roletaNome, handleApiData, subscriberId]);
 
-  // Simplificar o useEffect para processar lastNumbers
+    // Buscar histórico inicial
+    fetchRouletteHistoricalNumbers(roletaNome).then(initialHistory => {
+      setHistoricalNumbers(initialHistory);
+      setIsLoading(false);
+      isInitialRequestDone.current = true;
+    });
+
+    // Escutar atualizações gerais de dados
+    const handleUpdate = () => {
+      // Quando os dados gerais atualizam, rebuscar o histórico específico
+      logger.debug(`[StatsPanel] Dados gerais atualizados, re-buscando histórico para ${roletaNome}`);
+      fetchRouletteHistoricalNumbers(roletaNome).then(updatedHistory => {
+        setHistoricalNumbers(updatedHistory);
+      });
+    };
+
+    const listenerId = `stats_panel_${roletaNome}`;
+    unifiedClient.on(listenerId, handleUpdate); // Usar ID único para listener
+
+    return () => {
+      logger.info(`[StatsPanel] Desmontando e removendo listener ${listenerId} para ${roletaNome}`);
+      unifiedClient.off(listenerId, handleUpdate);
+    };
+
+  }, [roletaNome]); // Depender apenas de roletaNome
+
+  // Simplificar o useEffect para processar lastNumbers (mantido como estava)
   useEffect(() => {
     // Verificações rápidas para evitar processamento desnecessário
     if (!lastNumbers?.length || !isInitialRequestDone.current) return;
@@ -736,7 +692,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         return combined.slice(0, 1000);
       });
     }
-  }, [lastNumbers, roletaNome, historicalNumbers]);
+  }, [lastNumbers, historicalNumbers]); // Remover roletaNome, já que não é usado aqui
 
   // Função para mostrar mais números
   const handleShowMore = () => {

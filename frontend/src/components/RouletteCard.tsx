@@ -1,89 +1,30 @@
-import { Loader2 } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { RouletteData } from '@/types';
 import NumberDisplay from './NumberDisplay';
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useRouletteSettingsStore } from '@/stores/rouletteSettingsStore';
 import { cn } from '@/lib/utils';
-import globalRouletteDataService from '@/services/GlobalRouletteDataService';
 import EventBus from '@/services/EventBus';
+import { UnifiedRouletteClient } from '@/services/UnifiedRouletteClient';
+import { getLogger } from '@/services/utils/logger';
+import { Loader2 } from 'lucide-react';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;
 
 // Helper function for controlled logging
+const logger = getLogger('RouletteCard');
 const debugLog = (...args: any[]) => {
   if (DEBUG_ENABLED) {
-    console.log('[DEBUG-RouletteCard]', ...args);
+    // Formatar argumentos em uma string antes de passar para o logger
+    logger.debug(args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+    ).join(' '));
   }
 };
-
-// Modificando a classe GlobalRouletteDataManager para usar o serviço global
-class GlobalRouletteDataManager {
-  private static instance: GlobalRouletteDataManager | null = null;
-  private updateCallbacks: Map<string, (data: any) => void> = new Map();
-  private initialDataLoaded: boolean = false;
-  
-  private constructor() {
-    console.log('[RouletteCard] Inicializando gerenciador de dados');
-  }
-  
-  public static getInstance(): GlobalRouletteDataManager {
-    if (!GlobalRouletteDataManager.instance) {
-      GlobalRouletteDataManager.instance = new GlobalRouletteDataManager();
-    }
-    return GlobalRouletteDataManager.instance;
-  }
-  
-  public subscribe(id: string, callback: (data: any) => void): () => void {
-    console.log(`[RouletteCard] Novo assinante registrado: ${id}`);
-    this.updateCallbacks.set(id, callback);
-    
-    // Usar o globalRouletteDataService para obter dados
-    const currentData = globalRouletteDataService.getAllRoulettes();
-    
-    // Se já temos dados, notificar imediatamente
-    if (currentData && currentData.length > 0) {
-      callback(currentData);
-      this.initialDataLoaded = true;
-    } else {
-      // Forçar uma atualização usando o serviço global
-      globalRouletteDataService.forceUpdate();
-    }
-    
-    // Registrar callback no serviço global para receber atualizações
-    globalRouletteDataService.subscribe(id, () => {
-      const rouletteData = globalRouletteDataService.getAllRoulettes();
-      if (rouletteData && rouletteData.length > 0) {
-        callback(rouletteData);
-      }
-    });
-    
-    // Retornar função para cancelar inscrição
-    return () => {
-      this.updateCallbacks.delete(id);
-      globalRouletteDataService.unsubscribe(id);
-      console.log(`[RouletteCard] Assinante removido: ${id}`);
-    };
-  }
-
-  // Obter dados mais recentes (sem garantia de atualização)
-  public getData(): any[] {
-    return globalRouletteDataService.getAllRoulettes();
-  }
-  
-  // Obter timestamp da última atualização
-  public getLastUpdateTime(): number {
-    return Date.now(); // Usar o timestamp atual como fallback
-  }
-
-  // Verificar se os dados iniciais foram carregados
-  public isInitialized(): boolean {
-    return this.initialDataLoaded;
-  }
-}
 
 interface RouletteCardProps {
   data: RouletteData;
@@ -104,7 +45,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const [rawRouletteData, setRawRouletteData] = useState<any>(null);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
   const [loadingTimeout, setLoadingTimeout] = useState<boolean>(false); // Estado para controlar timeout do carregamento
   const [reloadingData, setReloadingData] = useState<boolean>(false); // Estado para controlar feedback visual ao recarregar
   
@@ -120,23 +60,20 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const { enableSound, enableNotifications } = useRouletteSettingsStore();
   
   // Dados iniciais seguros
-  const safeData = {
+  const safeData = useMemo(() => ({
     id: data?.id || data?._id || 'unknown',
     name: data?.name || data?.nome || 'Roleta sem nome',
-  };
+  }), [data]);
   
   // ID único para este componente
   const componentId = useRef(`roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`).current;
   
-  // Referência ao gerenciador global
-  const dataManager = useMemo(() => GlobalRouletteDataManager.getInstance(), []);
+  // Referência ao cliente unificado
+  const unifiedClient = useMemo(() => UnifiedRouletteClient.getInstance(), []);
   
-  // Função para lidar com atualizações de dados
+  // Função para lidar com atualizações de dados do cliente unificado
   const handleDataUpdate = useCallback((allRoulettes: any[]) => {
-    if (!allRoulettes || !Array.isArray(allRoulettes) || allRoulettes.length === 0) return;
-    
-    // Armazenar todas as roletas
-    setAllRoulettesData(allRoulettes);
+    if (!allRoulettes || !Array.isArray(allRoulettes)) return;
     
     // Encontrar a roleta específica pelo ID ou nome
     const myRoulette = allRoulettes.find((roulette: any) => 
@@ -147,91 +84,96 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     );
     
     if (!myRoulette) {
-      console.warn(`[${componentId}] Roleta com ID ${safeData.id} não encontrada na resposta`);
-        return;
-      }
+      return;
+    }
       
-    // Salvar dados brutos para uso posterior
+    // Salvar dados brutos para uso posterior (se necessário)
     setRawRouletteData(myRoulette);
       
     // Processar os dados da roleta
     processApiData(myRoulette);
         
     // Atualizar timestamp e contador
-        setLastUpdateTime(Date.now());
-        setUpdateCount(prev => prev + 1);
+    setLastUpdateTime(Date.now());
+    setUpdateCount(prev => prev + 1);
     setError(null);
-    setLoading(false);
-  }, [safeData.id, safeData.name]);
+    if(loading) setLoading(false);
+    if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+        setLoadingTimeout(false);
+    }
+
+  }, [safeData.id, safeData.name, componentId]);
   
-  // Efeito para iniciar a busca de dados
+  // Efeito para iniciar a busca de dados e se inscrever em eventos
   useEffect(() => {
-    // Configurar loading inicial
+    logger.info(`[${componentId}] Montando e buscando dados iniciais para ${safeData.name}`);
     setLoading(true);
+    setLoadingTimeout(false);
     
     // Configurar um timeout para caso o carregamento demore demais
-    // Define um timeout de 15 segundos para mostrar uma mensagem amigável
     timeoutRef.current = setTimeout(() => {
-      if (loading && !hasRealData) {
-        console.log('[RouletteCard] Timeout de carregamento atingido');
+      if (loading) {
+        logger.warn(`[${componentId}] Timeout de carregamento atingido para ${safeData.name}`);
         setLoadingTimeout(true);
+        setLoading(false);
+        setError('Não foi possível carregar os dados. Verifique sua conexão.');
       }
     }, 15000);
+
+    // Buscar dados iniciais do cache do cliente unificado
+    const initialData = unifiedClient.getAllRoulettes();
+    if (initialData && initialData.length > 0) {
+       logger.info(`[${componentId}] Dados iniciais encontrados no cache do UnifiedClient`);
+       handleDataUpdate(initialData);
+    } else {
+       logger.info(`[${componentId}] Cache inicial vazio, aguardando dados via SSE...`);
+       unifiedClient.forceUpdate().catch(err => logger.error('Erro ao forçar update inicial:', err));
+    }
     
-    // Assinar atualizações do gerenciador global
-    const unsubscribe = dataManager.subscribe(componentId, handleDataUpdate);
+    // Listener para atualizações gerais do UnifiedClient
+    const updateListenerId = `${componentId}_update`;
+    const generalUpdateHandler = () => {
+        logger.debug(`[${componentId}] Recebido evento de update geral do UnifiedClient`);
+        const allData = unifiedClient.getAllRoulettes();
+        handleDataUpdate(allData);
+    };
+    unifiedClient.on(updateListenerId, generalUpdateHandler);
     
-    // Assinar eventos do EventBus para atualizações SSE
-    EventBus.on('roulette:data-updated', (eventData) => {
-      console.log(`[${componentId}] Evento roulette:data-updated recebido:`, eventData);
-      
-      // Verificar se temos dados válidos no evento
-      if (eventData && eventData.data) {
-        // Se for um array, processamos todas as roletas
-        if (Array.isArray(eventData.data)) {
-          handleDataUpdate(eventData.data);
-        } 
-        // Se for uma roleta única, verificamos se é a nossa e atualizamos
-        else if (eventData.data.id === safeData.id || 
-                eventData.data._id === safeData.id || 
-                eventData.data.name === safeData.name || 
-                eventData.data.nome === safeData.name) {
-          handleDataUpdate([eventData.data]);
+    // Listener específico para novos números (se aplicável/emitido pelo UnifiedClient ou EventBus)
+    const newNumberListenerId = `${componentId}_new_number`;
+    const newNumberHandler = (event: any) => {
+        if (event && (event.roleta_id === safeData.id || event.id === safeData.id) && event.numero !== undefined) {
+             logger.info(`[${componentId}] Evento roulette:new-number recebido: ${event.numero}`);
+             processNewSingleNumber(event.numero);
         }
-      }
-    });
+    };
+    EventBus.on('roulette:new-number', newNumberHandler);
     
     // Limpar inscrição ao desmontar o componente
     return () => {
-      unsubscribe();
+      logger.info(`[${componentId}] Desmontando e limpando listeners para ${safeData.name}`);
+      unifiedClient.off(updateListenerId, generalUpdateHandler);
+      EventBus.off('roulette:new-number', newNumberHandler);
       
-      // Remover listener do EventBus
-      EventBus.off('roulette:data-updated', null);
-      
-      // Limpar timeout
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
-      
-      // Certificar-se de limpar qualquer outro recurso de requisição
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [dataManager, componentId, handleDataUpdate]);
-  
-  // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
-  // Console.log para verificar se há apenas uma fonte de requisições:
-  console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas GlobalRouletteDataManager para obter dados da API.');
+  }, [unifiedClient, componentId, safeData.id, safeData.name, handleDataUpdate]); 
   
   // Função para processar dados da API
   const processApiData = (apiRoulette: any) => {
     debugLog(`Processando dados para roleta ${safeData.name}:`, apiRoulette);
     
     if (!apiRoulette) {
-      console.warn(`[${componentId}] Dados vazios ou inválidos para a roleta ${safeData.name}`);
+      logger.warn(`[${componentId}] Dados vazios ou inválidos para a roleta ${safeData.name}`);
       return;
     }
     
@@ -241,354 +183,192 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     
     // Se não há números, não faz nada
     if (!apiNumbers || apiNumbers.length === 0) {
-      debugLog(`Nenhum número extraído para ${safeData.name} - API response:`, apiRoulette);
+      if (allNumbers.length === 0) setLoading(false);
       return;
     }
     
-    // Verificar se temos números novos
-    const hasNewNumbers = updateNumberSequence(apiNumbers);
-    debugLog(`Novos números encontrados para ${safeData.name}: ${hasNewNumbers ? 'SIM' : 'NÃO'}`);
+    setHasRealData(true);
     
-    // Se não há números novos e já temos dados, não precisamos atualizar a UI
-    if (!hasNewNumbers && hasRealData) {
-      debugLog(`Sem alterações nos números para ${safeData.name} - ignorando atualização`);
-      return;
-    }
+    // Verificar se temos números novos e atualizar estado
+    const hasNew = updateNumberSequence(apiNumbers);
     
-    // Se não tínhamos dados reais antes, atualizamos a UI mesmo sem novos números
-    if (!hasRealData) {
-      setAllNumbers(apiNumbers);
-      setRecentNumbers(apiNumbers.slice(0, 20)); // Mostrar até 20 números recentes
-      setLastNumber(apiNumbers[0]); // O número mais recente
-      setHasRealData(true);
-      debugLog(`Dados iniciais carregados para ${safeData.name} - ${apiNumbers.length} números`);
+    // Tocar som se houver número novo e o som estiver habilitado
+    if (hasNew && enableSound && audioRef.current) {
+      audioRef.current.play().catch(error => console.error("Erro ao tocar som:", error));
     }
   };
 
-  // Função para extrair números da resposta da API
+  // Função para extrair números (pode ser movida para utils)
   const extractNumbers = (apiData: any): number[] => {
-    // Array para armazenar os números
-    let extractedNumbers: number[] = [];
-    
-    try {
-      // Verificar se os dados estão em formato processado pelo UnifiedRouletteClient
-      if (apiData && Array.isArray(apiData.numero) && apiData.numero.length > 0) {
-        console.log(`Extraindo números a partir do campo 'numero' para ${safeData.name}`);
-        
-        // Mapear cada objeto do array para extrair o número
-        extractedNumbers = apiData.numero
-          .map((item: any) => {
-            // Cada item pode ser um número ou um objeto
-            if (typeof item === 'number') {
-              return item;
-            }
-            // Cada item deve ter uma propriedade 'numero'
-            if (item && typeof item === 'object' && 'numero' in item) {
-              return typeof item.numero === 'number' ? item.numero : parseInt(item.numero);
-            }
-            return null;
-          })
-          .filter((n: any) => n !== null && !isNaN(n));
-      } 
-      // Verificar formato de eventos SSE descriptografados
-      else if (apiData && apiData.data && Array.isArray(apiData.data.numeros)) {
-        console.log(`Extraindo números de dados descriptografados SSE para ${safeData.name}`);
-        extractedNumbers = apiData.data.numeros
-          .map((n: any) => typeof n === 'number' ? n : parseInt(n))
-          .filter((n: any) => n !== null && !isNaN(n));
-      }
-      // Verificar outro formato comum em eventos SSE
-      else if (apiData && Array.isArray(apiData.numeros)) {
-        console.log(`Extraindo números do campo 'numeros' para ${safeData.name}`);
-        extractedNumbers = apiData.numeros
-          .map((n: any) => typeof n === 'number' ? n : parseInt(n))
-          .filter((n: any) => n !== null && !isNaN(n));
-      }
-      // Outros formatos de dados possíveis como fallback
-      else if (Array.isArray(apiData.lastNumbers) && apiData.lastNumbers.length > 0) {
-        extractedNumbers = apiData.lastNumbers
-          .map((n: any) => typeof n === 'number' ? n : (typeof n === 'object' && n?.numero ? n.numero : null))
-          .filter((n: any) => n !== null && !isNaN(n));
-      } else if (Array.isArray(apiData.numbers) && apiData.numbers.length > 0) {
-        extractedNumbers = apiData.numbers
-          .map((n: any) => {
-            if (typeof n === 'object' && n) {
-              return n.numero || n.number || n.value;
-            }
-            return typeof n === 'number' ? n : null;
-          })
-          .filter((n: any) => n !== null && !isNaN(n));
-      }
-      
-      // Verificar se há dados criptografados sem processamento
-      if (extractedNumbers.length === 0 && apiData && apiData.encrypted) {
-        console.log(`Dados criptografados recebidos para ${safeData.name}, aguardando processamento`);
-        return []; // Retornar array vazio e aguardar processamento pelo UnifiedRouletteClient
-      }
-      
-      // Se não encontramos números em nenhum dos formatos, log de aviso
-      if (extractedNumbers.length === 0) {
-        console.warn(`Não foi possível extrair números para ${safeData.name}. Estrutura de dados:`, apiData);
+    let extracted: number[] = [];
+    if (apiData && Array.isArray(apiData.numero)) {
+      extracted = apiData.numero
+        .map((item: any) => item?.numero ?? item?.value ?? item)
+        .filter((n: any) => typeof n === 'number' && !isNaN(n) && n >= 0 && n <= 36)
+        .map(Number);
+    } else if (Array.isArray(apiData)) {
+        extracted = apiData.filter((n: any) => typeof n === 'number' && !isNaN(n) && n >= 0 && n <= 36).map(Number);
+    }
+    return extracted;
+  };
+  
+  // Função para atualizar a sequência de números e destacar novo número
+  const updateNumberSequence = (apiNumbers: number[]): boolean => {
+    let hasNew = false;
+    setAllNumbers(prevAllNumbers => {
+      if (!prevAllNumbers || prevAllNumbers.length === 0 || apiNumbers[0] !== prevAllNumbers[0]) {
+        hasNew = true;
+        const newLastNumber = apiNumbers[0];
+        setLastNumber(newLastNumber);
+        setIsNewNumber(true);
+        setTimeout(() => setIsNewNumber(false), 1500);
+        setRecentNumbers(apiNumbers.slice(0, 20)); 
+        return apiNumbers; 
       } else {
-        console.log(`Extraídos ${extractedNumbers.length} números para ${safeData.name}:`, extractedNumbers.slice(0, 5));
+        hasNew = false;
+        return prevAllNumbers;
       }
-    } catch (err) {
-      console.error(`Erro ao extrair números para ${safeData.name}:`, err);
-    }
-    
-    return extractedNumbers;
+    });
+    return hasNew;
+  };
+
+  // Função para processar um único número novo (vindo de evento específico)
+  const processNewSingleNumber = (newNum: number) => {
+       let hasNew = false;
+       setAllNumbers(prevAll => {
+           if (prevAll[0] === newNum) return prevAll;
+           
+           hasNew = true;
+           setLastNumber(newNum);
+           setIsNewNumber(true);
+           setTimeout(() => setIsNewNumber(false), 1500);
+           
+           const updatedAll = [newNum, ...prevAll];
+           setRecentNumbers(updatedAll.slice(0, 20));
+           return updatedAll;
+       });
+
+       if (hasNew && enableSound && audioRef.current) {
+           audioRef.current.play().catch(error => console.error("Erro ao tocar som:", error));
+       }
   };
   
-  // Função para mostrar notificação de novo número
-  const showNumberNotification = useCallback((newNumber: number) => {
-    if (newNumber === undefined || newNumber === null) return;
-    
-    // Obter cor do número a partir dos dados da API
-    let color = 'cinza';
-    
-    if (rawRouletteData && rawRouletteData.numero && rawRouletteData.numero.length > 0) {
-      const matchingNumber = rawRouletteData.numero.find((n: any) => n.numero === newNumber);
-      if (matchingNumber && matchingNumber.cor) {
-        color = matchingNumber.cor.toLowerCase();
-      }
-    }
-    
-    // Mostrar notificação
-    setToastVisible(true);
-    setToastMessage(`Novo número: ${newNumber} (${color})`);
-    setTimeout(() => setToastVisible(false), 3000);
-    
-  }, [rawRouletteData]);
-  
-  // Função para abrir detalhes da roleta
+  // Função para navegar para detalhes
   const handleCardClick = () => {
-    // Removida a navegação para a página de detalhes
-    return; // Não faz nada ao clicar no card
+    if (!isDetailView) {
+      navigate(`/roulette/${safeData.id}`);
+    }
   };
-  
-  // Formatar tempo relativo
+
+  // Calcular tempo desde a última atualização
   const getTimeAgo = () => {
     const seconds = Math.floor((Date.now() - lastUpdateTime) / 1000);
+    if (seconds < 5) return "agora";
     if (seconds < 60) return `${seconds}s atrás`;
-    return `${Math.floor(seconds / 60)}m ${seconds % 60}s atrás`;
+    return `${Math.floor(seconds / 60)}min atrás`;
+  };
+
+  // Determinar cor do número
+  const getNumberColor = (num: number | null): string => {
+    if (num === null) return "bg-gray-700";
+    if (num === 0) return "bg-green-600";
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    return redNumbers.includes(num) ? "bg-red-600" : "bg-gray-900";
   };
   
-  // Determinar a cor do número
-  const getNumberColor = (num: number): string => {
-    if (num === 0) return 'verde';
-    
-    // Números vermelhos na roleta europeia
-    const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
-  };
-
-  // Função para verificar e atualizar sequência de números
-  const updateNumberSequence = (apiNumbers: number[]): boolean => {
-    // Caso 1: Não temos números ainda - inicializar com os da API (já tratado no processApiData)
-    if (allNumbers.length === 0) {
-      return true;
-    }
-    
-    // Caso 2: Verificar se o último número da API é igual ao nosso
-    if (apiNumbers[0] === allNumbers[0]) {
-      // Nenhum número novo
-      return false;
-    }
-    
-    // Caso 3: Temos números novos na API
-    // Procurar por números novos que ainda não estão na nossa lista
-    const newNumbers = [];
-    
-    // Percorrer a lista da API até encontrar um número que já temos
-    for (let i = 0; i < apiNumbers.length; i++) {
-      const apiNum = apiNumbers[i];
-      
-      // Se encontramos um número que já está na nossa lista, paramos
-      if (allNumbers.includes(apiNum)) {
-        break;
-      }
-      
-      // Adicionar o número novo à nossa lista temporária
-      newNumbers.push(apiNum);
-    }
-    
-    // Se encontramos números novos, atualizamos o estado
-    if (newNumbers.length > 0) {
-      debugLog(`${newNumbers.length} novos números para ${safeData.name}: ${newNumbers.join(', ')}`);
-      
-      // Adicionar os novos números no início da nossa lista
-      const updatedAllNumbers = [...newNumbers, ...allNumbers];
-      
-      // Atualizar estados
-      setAllNumbers(updatedAllNumbers);
-      setRecentNumbers(updatedAllNumbers.slice(0, 20));
-      setLastNumber(newNumbers[0]);
-      setIsNewNumber(true);
-      
-      // Mostrar notificação para o primeiro novo número
-      showNumberNotification(newNumbers[0]);
-      
-      // Resetar a animação após 2 segundos
-      setTimeout(() => {
-        setIsNewNumber(false);
-      }, 2000);
-      
-      return true;
-    }
-    
-    return false;
-  };
-
+  // Renderização
   return (
     <Card 
       ref={cardRef}
       className={cn(
-        "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ", 
-        "hover:border-vegas-green/50",
-        isNewNumber ? "border-vegas-green animate-pulse" : "",
-        isDetailView ? "w-full" : "w-full"
+        "roulette-card bg-card border border-border rounded-lg shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-primary/50",
+        isDetailView ? "" : "cursor-pointer"
       )}
       onClick={handleCardClick}
     >
-      {/* Logo de fundo com baixa opacidade e saturação 0 */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-lg">
-        <img 
-          src="/assets/icon-rabbit.svg" 
-          alt="Icon Rabbit" 
-          className="w-[95%] h-auto opacity-[0.025] grayscale filter select-none"
-          style={{ 
-            objectFit: "contain",
-            transformOrigin: "center"
-          }} 
-        />
-      </div>
+      {/* Som para novo número */}
+      {enableSound && <audio ref={audioRef} src="/sounds/coin.mp3" preload="auto" />}
       
-      {/* Reprodutor de áudio (invisível) */}
-      <audio ref={audioRef} src="/sounds/coin.mp3" preload="auto" />
-      
-      <CardContent className="p-4 relative z-10">
-        {/* Cabeçalho */}
+      <CardContent className="p-4">
+        {/* Cabeçalho com Nome e Status */}
         <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold truncate text-white flex items-center">
-            <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
-            {safeData.name}
-          </h3>
-          <div className="flex gap-1 items-center">
-            <Badge 
-              variant={hasRealData ? "secondary" : "default"} 
-              className={`text-xs ${hasRealData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
-            >
-              {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}
-            </Badge>
-          </div>
+          <h3 className="text-lg font-semibold text-white truncate" title={safeData.name}>{safeData.name}</h3>
+          <Badge 
+            variant={loading || loadingTimeout ? "secondary" : (error ? "destructive" : "default")} 
+            className={cn(
+              "text-xs px-2 py-0.5",
+              loading || loadingTimeout ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" :
+              error ? "bg-red-500/20 text-red-400 border-red-500/30" :
+              "bg-green-500/20 text-green-400 border-green-500/30"
+            )}
+          >
+            {loading ? "Carregando..." : (loadingTimeout ? "Aguardando Dados..." : (error ? "Erro" : "Online"))}
+          </Badge>
         </div>
-        
-        {/* Números recentes */}
-        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/50" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
-          {recentNumbers.length > 0 ? (
-            recentNumbers.slice(0, 20).map((num, idx) => (
-            <NumberDisplay 
-              key={`${num}-${idx}`}
-              number={num} 
-              size="small" 
-              highlight={idx === 0 && isNewNumber}
-            />
-            ))
-          ) : (
-            <div className="text-center text-gray-400 py-2 w-full">
-              {loading ? (
-                <div className="flex flex-col items-center justify-center">
-                  <div className="flex items-center justify-center mb-2">
-                    <Loader2 className="h-4 w-4 animate-spin mr-2 text-vegas-green" />
-                    Carregando números...
-                  </div>
-                  {loadingTimeout && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      <p>O carregamento está demorando mais que o normal.</p>
-                      <button 
-                        onClick={() => {
-                          setLoadingTimeout(false);
-                          setLoading(true);
-                          setReloadingData(true); // Ativar efeito visual de recarregamento
-                          
-                          // Forçar atualização dos dados
-                          globalRouletteDataService.forceUpdate();
-                          
-                          // Reiniciar o timeout
-                          if (timeoutRef.current) {
-                            clearTimeout(timeoutRef.current);
-                          }
-                          timeoutRef.current = setTimeout(() => {
-                            setLoadingTimeout(true);
-                            setReloadingData(false); // Desativar efeito após timeout
-                          }, 15000);
-                          
-                          // Desativar efeito visual após 2 segundos para dar feedback
-                          setTimeout(() => {
-                            setReloadingData(false);
-                          }, 2000);
-                        }}
-                        className={`px-3 py-1 mt-2 text-xs ${reloadingData 
-                          ? 'bg-vegas-green/40 text-white animate-pulse' 
-                          : 'bg-vegas-green/20 text-vegas-green hover:bg-vegas-green/30'} 
-                          transition-colors rounded-md flex items-center justify-center`}
-                        disabled={reloadingData}
-                      >
-                        {reloadingData ? (
-                          <>
-                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                            Recarregando...
-                          </>
-                        ) : 'Tentar novamente'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : error ? (
-                <div className="flex flex-col items-center justify-center">
-                  <p className="mb-2">Erro ao carregar números</p>
-                  <button 
-                    onClick={() => {
-                      setError(null);
-                      setLoading(true);
-                      setReloadingData(true); // Ativar efeito visual
-                      
-                      // Forçar atualização dos dados
-                      globalRouletteDataService.forceUpdate();
-                      
-                      // Desativar efeito visual após 2 segundos
-                      setTimeout(() => {
-                        setReloadingData(false);
-                      }, 2000);
-                    }}
-                    className={`px-3 py-1 text-xs ${reloadingData 
-                      ? 'bg-vegas-green/40 text-white animate-pulse' 
-                      : 'bg-vegas-green/20 text-vegas-green hover:bg-vegas-green/30'} 
-                      transition-colors rounded-md flex items-center justify-center`}
-                    disabled={reloadingData}
-                  >
-                    {reloadingData ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                        Recarregando...
-                      </>
-                    ) : 'Tentar novamente'}
-                  </button>
-                </div>
-              ) : "Nenhum número disponível"}
-            </div>
-          )}
-        </div>
-      </CardContent>
 
-      {/* Toast de notificação */}
-      {toastVisible && (
-        <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
-          {toastMessage}
-        </div>
-      )}
+        {/* Mensagem de erro */}
+        {error && !loading && (
+          <div className="text-center text-red-400 text-sm py-4">
+            {error}
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="ml-2 text-xs h-6 px-2 border-primary text-primary hover:bg-primary/10"
+              onClick={async (e) => { 
+                e.stopPropagation();
+                setLoading(true); 
+                setError(null); 
+                setReloadingData(true);
+                await unifiedClient.forceUpdate(); 
+                setTimeout(() => setReloadingData(false), 500);
+              }}
+              disabled={reloadingData}
+            >
+              {reloadingData ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Tentar Novamente
+            </Button>
+          </div>
+        )}
+
+        {/* Números Recentes */}
+        {!error && (
+          <div className="mb-4 flex flex-wrap gap-1.5 items-center justify-center min-h-[30px]">
+            {recentNumbers.length > 0 ? (
+              recentNumbers.map((num, index) => (
+                <NumberDisplay 
+                  key={`${safeData.id}-hist-${index}-${num}`}
+                  number={num} 
+                  size="small"
+                  highlight={index === 0 && isNewNumber}
+                />
+              ))
+            ) : !loading && (
+              <span className="text-xs text-gray-500">Aguardando números...</span>
+            )}
+          </div>
+        )}
+
+        {/* Último Número e Tempo */}
+        {!loading && !error && recentNumbers.length > 0 && (
+          <div className="flex justify-between items-center text-xs text-gray-400">
+            <div className="flex items-center">
+              <span className="mr-1">Último:</span>
+              <NumberDisplay number={lastNumber} size="small" />
+            </div>
+            <span>{getTimeAgo()}</span>
+          </div>
+        )}
+        
+        {/* Feedback visual de recarregamento */}
+        {reloadingData && (
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
+        )}
+
+      </CardContent>
     </Card>
   );
 };
 
-export default RouletteCard;
+export default React.memo(RouletteCard);
