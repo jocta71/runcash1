@@ -20,6 +20,7 @@ console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
 console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 console.log(`JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'}`);
 
+
 const app = express();
 
 // Middlewares básicos
