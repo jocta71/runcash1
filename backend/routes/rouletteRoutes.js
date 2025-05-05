@@ -178,4 +178,8 @@ router.get('/roulettes/:id/preview',
   rouletteController.getFreePreview
 );
 
+// Rota GET para buscar dados iniciais das roletas
+// Exemplo: GET /api/roulettes/initial-data
+router.get('/initial-data', rouletteController.getInitialData);
+
 module.exports = router; 

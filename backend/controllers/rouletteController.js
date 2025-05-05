@@ -856,6 +856,79 @@ const checkAlternatingColors = (numbers) => {
   };
 };
 
+/**
+ * Obtém os ~200 números mais recentes para TODAS as roletas disponíveis
+ * (para carregamento inicial no frontend)
+ */
+const getInitialData = async (req, res, next) => {
+  const minCount = 200;
+
+  try {
+    const db = await getDb();
+    const results = {};
+
+    // 1. Buscar todas as roletas ativas/disponíveis da coleção 'roulettes'
+    // Ajuste o filtro `{}` se precisar selecionar apenas roletas específicas (ex: { status: 'active' })
+    const allRoulettes = await db.collection('roulettes').find({}).project({ _id: 1, id: 1, name: 1 }).toArray(); // Pega _id, id e name
+
+    if (!allRoulettes || allRoulettes.length === 0) {
+        console.log('Nenhuma roleta encontrada no banco de dados.');
+        return res.status(200).json({
+            success: true,
+            data: {},
+            message: 'Nenhuma roleta encontrada para carregar dados iniciais.'
+        });
+    }
+
+    // Extrai os IDs (usaremos _id.toString() para buscar em 'roulette_numbers')
+    const requestedRouletteIds = allRoulettes.map(r => r._id.toString());
+    // Mapeamento de _id.toString() para nome/id original para logging/referência se necessário
+    const rouletteIdMap = allRoulettes.reduce((map, r) => {
+        map[r._id.toString()] = r.id || r.name; // Usa 'id' se existir, senão 'name'
+        return map;
+    }, {});
+
+
+    console.log(`Iniciando busca de dados iniciais para ${requestedRouletteIds.length} roletas.`);
+
+    // 2. Usar Promise.all para buscar dados em paralelo para todas as roletas encontradas
+    await Promise.all(requestedRouletteIds.map(async (rouletteIdString) => {
+      const rouletteIdentifier = rouletteIdMap[rouletteIdString] || rouletteIdString; // Para logs
+      try {
+        // Busca os números mais recentes para a roleta atual usando _id.toString()
+        const numbersData = await db.collection('roulette_numbers')
+          .find({ rouletteId: rouletteIdString }) // Busca usando o _id como string
+          .sort({ timestamp: -1 }) // Ordena pelos mais recentes
+          .limit(minCount)
+          .project({ number: 1, timestamp: 1, _id: 0 }) // Pega número e timestamp
+          .toArray();
+
+        // Armazena os números (ou objetos completos) no resultado, usando o ID original ou nome como chave
+        results[rouletteIdentifier] = numbersData.map(doc => doc.number); // Apenas números
+        // results[rouletteIdentifier] = numbersData; // Objetos { number, timestamp }
+        console.log(`Fetched ${results[rouletteIdentifier].length} initial numbers for roulette ${rouletteIdentifier}`);
+      } catch (err) {
+        console.error(`Erro ao buscar dados iniciais para roleta ${rouletteIdentifier} (ID: ${rouletteIdString}):`, err);
+        results[rouletteIdentifier] = []; // Retorna vazio para esta roleta em caso de erro
+      }
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: results,
+      message: `Dados iniciais carregados para ${Object.keys(results).length} roletas.`
+    });
+
+  } catch (error) {
+    console.error('Erro geral ao buscar dados iniciais das roletas:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro interno ao buscar dados iniciais das roletas.',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   listRoulettes,
   getBasicRouletteData,
@@ -864,5 +937,6 @@ module.exports = {
   getRouletteStatistics,
   getHistoricalData,
   getNumbersBatch,
-  getFreePreview
+  getFreePreview,
+  getInitialData
 }; 
