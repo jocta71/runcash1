@@ -24,6 +24,12 @@ const debugLog = (...args: any[]) => {
   }
 };
 
+interface RouletteNumber {
+  numero: number;
+  timestamp: string;
+  cor?: string; // Adicionar cor opcional se vier da API
+}
+
 interface RouletteCardProps {
   data: RouletteData;
   isDetailView?: boolean;
@@ -320,8 +326,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Obter cor do número a partir dos dados da API
     let color = 'cinza';
     
-    if (rouletteData && rouletteData.numero && rouletteData.numero.length > 0) {
-      const matchingNumber = rouletteData.numero.find((n: any) => n.numero === newNumber);
+    if (rouletteData && rouletteData.numeros && rouletteData.numeros.length > 0) {
+      const matchingNumber = rouletteData.numeros.find((n: RouletteNumber) => n.numero === newNumber);
       if (matchingNumber && matchingNumber.cor) {
         color = matchingNumber.cor.toLowerCase();
       }
@@ -357,60 +363,48 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
 
   // Função para verificar e atualizar sequência de números
   const updateNumberSequence = (apiNumbers: number[]): boolean => {
-    // Caso 1: Não temos números ainda - inicializar com os da API (já tratado no processApiData)
-    if (!rouletteData) {
-      return true;
+    if (!rouletteData) { // Checar se temos dados base para atualizar
+        // Se não temos, a lógica inicial no useEffect ou processRouletteData deve tratar
+        return false; 
     }
-    
-    // Caso 2: Verificar se o último número da API é igual ao nosso
+
     if (apiNumbers[0] === rouletteData.ultimoNumero) {
-      // Nenhum número novo
       return false;
     }
-    
-    // Caso 3: Temos números novos na API
-    // Procurar por números novos que ainda não estão na nossa lista
-    const newNumbers = [];
-    
-    // Percorrer a lista da API até encontrar um número que já temos
-    for (let i = 0; i < apiNumbers.length; i++) {
-      const apiNum = apiNumbers[i];
+
+    const newNumbers: RouletteNumber[] = [];
+    for (const apiNum of apiNumbers) {
+      // Precisamos recriar o objeto RouletteNumber aqui, idealmente com timestamp real da API
+      // Por enquanto, usando timestamp atual como placeholder
+      const now = new Date();
+      const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                       now.getMinutes().toString().padStart(2, '0');
+      const newNumObj: RouletteNumber = { numero: apiNum, timestamp: timeString }; 
       
-      // Se encontramos um número que já está na nossa lista, paramos
-      if (rouletteData.numeros.includes(apiNum)) {
-        break;
+      // Checar se o número já existe no array atual
+      if (rouletteData.numeros.some(n => n.numero === apiNum && n.timestamp === newNumObj.timestamp)) {
+          break; // Para se encontrarmos um que já existe
       }
-      
-      // Adicionar o número novo à nossa lista temporária
-      newNumbers.push(apiNum);
+      newNumbers.push(newNumObj);
     }
-    
-    // Se encontramos números novos, atualizamos o estado
+
     if (newNumbers.length > 0) {
-      debugLog(`${newNumbers.length} novos números para ${safeData.name}: ${newNumbers.join(', ')}`);
-      
-      // Adicionar os novos números no início da nossa lista
       const updatedNumbers = [...newNumbers, ...rouletteData.numeros];
       
-      // Atualizar estados
+      // Atualizar o estado principal
       setRouletteData({
-        ...rouletteData,
-        numeros: updatedNumbers.slice(0, 10),
-        ultimoNumero: newNumbers[0],
-        isNewNumber: true,
+        ...rouletteData, // Manter dados existentes
+        numeros: updatedNumbers.slice(0, 10), // Atualizar array de números (limitado para exibição)
+        ultimoNumero: newNumbers[0].numero, // Atualizar o último número
+        lastUpdateTime: Date.now() // Atualizar timestamp da atualização
+        // NÃO adicionar isNewNumber aqui
       });
       
-      // Mostrar notificação para o primeiro novo número
-      showNumberNotification(newNumbers[0]);
-      
-      // Resetar a animação após 2 segundos
-      setTimeout(() => {
-        setIsNewNumber(false);
-      }, 2000);
-      
+      // <<< Usar o state setter para isNewNumber >>>
+      setIsNewNumber(true); 
+      showNumberNotification(newNumbers[0].numero);
       return true;
     }
-    
     return false;
   };
 
@@ -479,7 +473,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
       className={cn(
         "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ", 
         "hover:border-vegas-green/50",
-        rouletteData.isNewNumber ? "border-vegas-green animate-pulse" : "",
+        isNewNumber ? "border-vegas-green animate-pulse" : "",
         isDetailView ? "w-full" : "w-full",
         !isOnline ? "opacity-60 grayscale" : ""
       )}
@@ -525,7 +519,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
               key={`${componentId}-num-${index}-${num}`} 
               number={num} 
               size="medium" 
-              highlight={index === 0 && rouletteData.isNewNumber}
+              highlight={index === 0 && isNewNumber}
             />
           ))}
           {lastNumbersToDisplay.length === 0 && <span className="text-xs text-muted-foreground">Nenhum número recente</span>}
