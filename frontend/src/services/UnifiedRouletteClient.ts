@@ -14,7 +14,6 @@ import { extractAndSetAccessKeyFromEvent } from '../utils/crypto-utils';
 import { cryptoService } from '../utils/crypto-service';
 import EventBus from './EventBus';
 import axios from 'axios';
-import { makeLogger } from '../utils/logger';
 
 // Tipos para callbacks de eventos
 type EventCallback = (data: any) => void;
