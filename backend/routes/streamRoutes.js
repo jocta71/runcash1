@@ -6,7 +6,7 @@ const express = require('express');
 const router = express.Router();
 const rouletteStreamService = require('../services/rouletteStreamService');
 const rouletteDataService = require('../services/rouletteDataService');
-const { protect, admin } = require('../middleware/authMiddleware');
+const { proteger: protect, restringirA: admin } = require('../middlewares/authMiddleware');
 
 /**
  * @route   GET /api/stream/roulettes
@@ -41,7 +41,7 @@ router.get('/roulettes', async (req, res) => {
  * @desc    Retorna estatísticas do serviço de streaming
  * @access  Private
  */
-router.get('/stats', protect, admin, (req, res) => {
+router.get('/stats', protect, (req, res) => {
   try {
     const streamStats = {
       connections: rouletteStreamService.getClientCount(),
@@ -108,7 +108,7 @@ router.get('/diagnostic', (req, res) => {
  * @desc    Simula um evento para testar o streaming
  * @access  Private (somente admin)
  */
-router.post('/simulate-event', protect, admin, (req, res) => {
+router.post('/simulate-event', protect, (req, res) => {
   try {
     const { type = 'test', data = {} } = req.body;
     
@@ -119,7 +119,7 @@ router.post('/simulate-event', protect, admin, (req, res) => {
       data: {
         ...data,
         message: data.message || 'Evento de teste',
-        simulatedBy: req.user.email
+        simulatedBy: req.user?.email || 'sistema'
       }
     };
     
