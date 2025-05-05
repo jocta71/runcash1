@@ -144,21 +144,6 @@ const keyFound = false; // tryCommonKeys removido
 if (!keyFound) {
   console.warn('[App] Nenhuma chave de descriptografia funcionou, ativando modo de desenvolvimento');
   cryptoService.enableDevMode(true);
-  
-  // Verificar se deve usar dados reais do scraper
-  const useRealData = import.meta.env.VITE_USE_REAL_SCRAPER === 'true';
-  if (useRealData) {
-    console.log('[App] Configurado para usar dados reais do scraper');
-    
-    // URL do scraper (configurável via variável de ambiente)
-    const scraperUrl = import.meta.env.VITE_SCRAPER_URL || '/api/scraper/roulettes';
-    cryptoService.setScraperUrl(scraperUrl);
-    cryptoService.enableRealScraperData(true);
-    
-    console.log(`[App] Scraper configurado para buscar em: ${scraperUrl}`);
-  } else {
-    console.log('[App] Usando dados simulados (VITE_USE_REAL_SCRAPER não está habilitado)');
-  }
 }
 
 const rootElement = document.getElementById("root");

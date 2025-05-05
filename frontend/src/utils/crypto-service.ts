@@ -50,6 +50,15 @@ class CryptoService {
     ]
   };
   
+  // IDs das roletas para simulação (correspondem aos usados pelo scraper)
+  private roletasIDs = [
+    {id: "vctlz3AoNaGCzxJi", nome: "Auto-Roulette", provider: "Evolution"},
+    {id: "LightningTable01", nome: "Lightning Roulette", provider: "Evolution"},
+    {id: "7x0b1tgh7agmf6hv", nome: "Roulette Live", provider: "Pragmatic"},
+    {id: "ez_auto01", nome: "Auto Roulette", provider: "Ezugi"},
+    {id: "ez_speed01", nome: "Speed Roulette", provider: "Ezugi"}
+  ];
+  
   // Índices para rotação das sequências
   private indexRotacao = {
     evolution: [0, 0, 0],
@@ -59,15 +68,6 @@ class CryptoService {
   
   // Timer para atualização automática
   private atualizacaoTimer: number | null = null;
-  
-  // Flag para usar dados reais do scraper
-  private _useRealScraperData = false;
-  // URL do scraper para buscar dados reais
-  private scraperUrl = '/api/scraper/roulettes';
-  // Último timestamp de dados recebidos do scraper
-  private lastScraperFetch = 0;
-  // Cache de dados do scraper
-  private scraperDataCache: any = null;
   
   constructor() {
     // Tentar carregar a chave do armazenamento
@@ -80,43 +80,9 @@ class CryptoService {
       console.error('[CryptoService] Erro ao carregar chave inicial');
     }
     
-    // Verificar configurações do localStorage para o uso do scraper
-    try {
-      this._useRealScraperData = this.safeLocalStorage.getItem('useRealScraper') === 'true';
-      const savedScraperUrl = this.safeLocalStorage.getItem('scraperUrl');
-      if (savedScraperUrl) {
-        this.scraperUrl = savedScraperUrl;
-      } else {
-        // Verificar variáveis de ambiente (no Vite, usamos importação.meta.env)
-        if (typeof import.meta !== 'undefined' && import.meta.env) {
-          if (import.meta.env.VITE_USE_REAL_SCRAPER === 'true') {
-            this._useRealScraperData = true;
-          }
-          
-          if (import.meta.env.VITE_SCRAPER_URL) {
-            this.scraperUrl = import.meta.env.VITE_SCRAPER_URL;
-          }
-        }
-      }
-      
-      if (this._useRealScraperData) {
-        console.log(`[CryptoService] Usando dados reais do scraper: ${this.scraperUrl}`);
-      }
-    } catch (e) {
-      console.error('[CryptoService] Erro ao carregar configurações do scraper:', e);
-    }
-    
     // Iniciar timer de atualização automática (se necessário)
     if (typeof window !== 'undefined') {
       this.iniciarAtualizacaoAutomatica();
-      
-      // Adicionar listener para forçar atualização
-      window.addEventListener('forceDataUpdate', () => {
-        console.log('[CryptoService] Forçando atualização de dados');
-        this.scraperDataCache = null;
-        this.lastScraperFetch = 0;
-        this.rotacionarSequencias();
-      });
     }
   }
   
@@ -131,21 +97,9 @@ class CryptoService {
     
     // Criar novo timer para executar a cada 30 segundos
     this.atualizacaoTimer = window.setInterval(() => {
-      if (this._devModeEnabled || this._useRealScraperData) {
-        console.log('[CryptoService] Atualizando dados');
-        
-        if (this._devModeEnabled) {
-          this.rotacionarSequencias();
-        }
-        
-        if (this._useRealScraperData) {
-          // Forçar atualização do cache após 2 minutos
-          const now = Date.now();
-          if (now - this.lastScraperFetch > 120000) {
-            this.scraperDataCache = null;
-            this.lastScraperFetch = 0;
-          }
-        }
+      if (this._devModeEnabled) {
+        console.log('[CryptoService] Atualizando sequências simuladas');
+        this.rotacionarSequencias();
       }
     }, 30000) as unknown as number;
   }
@@ -279,6 +233,13 @@ class CryptoService {
   }
   
   /**
+   * Obtém a chave de acesso atual
+   */
+  public getAccessKey(): string | null {
+    return this._accessKey;
+  }
+  
+  /**
    * Verifica se existe uma chave de acesso configurada
    */
   public hasAccessKey(): boolean {
@@ -329,6 +290,14 @@ class CryptoService {
     const timestamp = Date.now();
     const formattedDate = new Date(timestamp).toISOString();
     
+    // Função para determinar a cor com base no número
+    const determinarCor = (numero: number): string => {
+      if (numero === 0) return 'verde';
+      
+      const vermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+      return vermelhos.includes(numero) ? 'vermelho' : 'preto';
+    };
+    
     // Preparar dados para cada roleta com rotação de sequências
     const obterSequenciaRotacionada = (provedor: 'evolution' | 'pragmatic' | 'ezugi', indice: number) => {
       const sequencia = [...this.sequenciasReais[provedor][indice]]; // Copiar array
@@ -341,190 +310,39 @@ class CryptoService {
       ];
     };
     
-    // Criar roletas simuladas
-    const simulatedRoulettes = [
-      {
-        id: "simulated_1",
-        nome: "Lightning Roulette",
-        provider: "Evolution",
+    // Criar roletas simuladas no formato esperado pelo backend do scraper
+    const simulatedRoulettes = this.roletasIDs.map((roleta, index) => {
+      // Determinar qual sequência usar com base no provider
+      const provedor = roleta.provider.toLowerCase() as 'evolution' | 'pragmatic' | 'ezugi';
+      // Usar o index % length para não ultrapassar os limites do array
+      const indiceSequencia = index % this.sequenciasReais[provedor].length;
+      
+      // Obter sequência rotacionada
+      const numeros = obterSequenciaRotacionada(provedor, indiceSequencia);
+      
+      return {
+        id: roleta.id,
+        nome: roleta.nome,
+        provider: roleta.provider,
         status: "online",
-        numeros: obterSequenciaRotacionada('evolution', 0),
-        ultimoNumero: obterSequenciaRotacionada('evolution', 0)[0],
+        numeros: numeros,
+        cores: numeros.map(determinarCor),
+        ultimoNumero: numeros[0],
+        ultimaCor: determinarCor(numeros[0]),
         horarioUltimaAtualizacao: formattedDate
-      },
-      {
-        id: "simulated_2",
-        nome: "Mega Roulette",
-        provider: "Pragmatic",
-        status: "online",
-        numeros: obterSequenciaRotacionada('pragmatic', 0),
-        ultimoNumero: obterSequenciaRotacionada('pragmatic', 0)[0],
-        horarioUltimaAtualizacao: formattedDate
-      },
-      {
-        id: "simulated_3",
-        nome: "Auto Roulette",
-        provider: "Ezugi",
-        status: "online",
-        numeros: obterSequenciaRotacionada('ezugi', 0),
-        ultimoNumero: obterSequenciaRotacionada('ezugi', 0)[0],
-        horarioUltimaAtualizacao: formattedDate
-      },
-      {
-        id: "simulated_4",
-        nome: "Immersive Roulette",
-        provider: "Evolution",
-        status: "online",
-        numeros: obterSequenciaRotacionada('evolution', 1),
-        ultimoNumero: obterSequenciaRotacionada('evolution', 1)[0],
-        horarioUltimaAtualizacao: formattedDate
-      },
-      {
-        id: "simulated_5",
-        nome: "Speed Roulette",
-        provider: "Pragmatic",
-        status: "online",
-        numeros: obterSequenciaRotacionada('pragmatic', 1),
-        ultimoNumero: obterSequenciaRotacionada('pragmatic', 1)[0],
-        horarioUltimaAtualizacao: formattedDate
-      }
-    ];
+      };
+    });
     
-    // Estrutura final dos dados simulados
+    // Estrutura final dos dados simulados no formato esperado pelo WebSocket
     const simulatedData = {
+      type: "list",
       data: simulatedRoulettes
     };
     
-    console.log('[DEBUG] Dados simulados gerados com sequências reais');
+    console.log('[DEBUG] Dados simulados gerados com sequências reais:', JSON.stringify(simulatedData).substring(0, 200) + '...');
     return simulatedData;
   }
   
-  /**
-   * Ativa o uso de dados reais do scraper
-   */
-  public enableRealScraperData(enable: boolean = true): boolean {
-    this._useRealScraperData = enable;
-    console.log(`[CryptoService] Uso de dados reais do scraper ${enable ? 'ativado' : 'desativado'}`);
-    return this._useRealScraperData;
-  }
-
-  /**
-   * Verifica se está usando dados reais do scraper
-   */
-  public isUsingRealScraperData(): boolean {
-    return this._useRealScraperData;
-  }
-
-  /**
-   * Define a URL do scraper
-   */
-  public setScraperUrl(url: string): void {
-    this.scraperUrl = url;
-    console.log(`[CryptoService] URL do scraper configurada: ${url}`);
-    // Limpar cache ao mudar a URL
-    this.scraperDataCache = null;
-    this.lastScraperFetch = 0;
-  }
-
-  /**
-   * Formata os dados do scraper para o formato esperado pelo UnifiedRouletteClient
-   */
-  private formatScraperData(data: any): any {
-    console.log('[CryptoService] Formatando dados do scraper');
-    
-    try {
-      // Verificar se já está no formato esperado
-      if (data && data.data && Array.isArray(data.data)) {
-        console.log('[CryptoService] Dados já estão no formato esperado');
-        return data;
-      }
-      
-      // Verificar se é um array direto de roletas
-      if (Array.isArray(data)) {
-        console.log('[CryptoService] Convertendo array direto para formato padrão');
-        return { data };
-      }
-      
-      // Verificar estrutura específica do scraper (ajustar conforme necessário)
-      if (data && data.roulettes && Array.isArray(data.roulettes)) {
-        console.log('[CryptoService] Convertendo formato do scraper para formato padrão');
-        
-        // Mapear dados do scraper para o formato esperado
-        const formattedData = data.roulettes.map((roulette: any) => {
-          return {
-            id: roulette.id || `scraper_${Math.random().toString(36).substring(7)}`,
-            nome: roulette.name || roulette.nome || 'Roleta sem nome',
-            provider: roulette.provider || 'Scraper',
-            status: roulette.status || 'online',
-            numeros: roulette.last_numbers || roulette.numeros || [],
-            ultimoNumero: roulette.last_number || roulette.ultimoNumero || 
-                          (roulette.last_numbers && roulette.last_numbers[0]) || 
-                          (roulette.numeros && roulette.numeros[0]) || 0,
-            horarioUltimaAtualizacao: roulette.updated_at || roulette.horarioUltimaAtualizacao || new Date().toISOString()
-          };
-        });
-        
-        return { data: formattedData };
-      }
-      
-      // Se chegou aqui, o formato é desconhecido
-      console.warn('[CryptoService] Formato de dados do scraper desconhecido:', data);
-      // Retornar no formato esperado, mas vazio
-      return { data: [] };
-      
-    } catch (error) {
-      console.error('[CryptoService] Erro ao formatar dados do scraper:', error);
-      return { data: [] };
-    }
-  }
-
-  /**
-   * Busca dados reais do scraper
-   */
-  private async fetchScraperData(): Promise<any> {
-    const now = Date.now();
-    
-    // Usar cache se tiver menos de 10 segundos
-    if (this.scraperDataCache && now - this.lastScraperFetch < 10000) {
-      console.log('[CryptoService] Usando cache de dados do scraper');
-      return Promise.resolve(this.scraperDataCache);
-    }
-    
-    console.log(`[CryptoService] Buscando dados reais do scraper: ${this.scraperUrl}`);
-    
-    try {
-      // Fazer requisição para o scraper
-      const response = await fetch(this.scraperUrl);
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar dados do scraper: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      // Formatar dados para o formato esperado
-      const formattedData = this.formatScraperData(data);
-      
-      this.lastScraperFetch = now;
-      this.scraperDataCache = formattedData;
-      
-      console.log('[CryptoService] Dados do scraper recebidos e formatados com sucesso');
-      return formattedData;
-    } catch (error) {
-      console.error('[CryptoService] Erro ao buscar dados do scraper:', error);
-      
-      // Se tiver cache, usar mesmo desatualizado
-      if (this.scraperDataCache) {
-        console.warn('[CryptoService] Usando cache desatualizado do scraper');
-        return this.scraperDataCache;
-      }
-      
-      // Sem cache, usar dados simulados
-      console.warn('[CryptoService] Usando dados simulados como fallback');
-      return this.getSimulatedData();
-    }
-  }
-
   /**
    * Descriptografa dados fornecidos
    */
@@ -534,22 +352,6 @@ class CryptoService {
     }
   
     try {
-      // Se estamos usando dados reais do scraper, tentar buscar
-      if (this._useRealScraperData) {
-        console.log("[crypto-service] Modo scraper real ativo, buscando dados");
-        try {
-          return await this.fetchScraperData();
-        } catch (scraperError) {
-          console.error("[crypto-service] Erro ao buscar dados do scraper:", scraperError);
-          
-          // Se modo de desenvolvimento também estiver ativo, usar simulação como fallback
-          if (this._devModeEnabled) {
-            console.warn("[crypto-service] Usando dados simulados como fallback após erro do scraper");
-            return this.getSimulatedData();
-          }
-        }
-      }
-      
       // Se estamos no modo de desenvolvimento, retornar dados simulados
       if (this._devModeEnabled) {
         console.log("[crypto-service] Modo de desenvolvimento ativo, retornando dados simulados");
@@ -692,5 +494,4 @@ class CryptoService {
 
 // Criar e exportar instância única do serviço
 const cryptoService = new CryptoService();
-export { cryptoService };
 export default cryptoService; 

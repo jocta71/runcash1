@@ -84,6 +84,14 @@ class UnifiedRouletteClient {
   // Callbacks
   private eventCallbacks: Map<string, Set<EventCallback>> = new Map();
   
+  // URL do serviço WebSocket
+  private webSocketUrl = 'wss://backendscraper-production-ccda.up.railway.app';
+  private socket: WebSocket | null = null;
+  private webSocketConnected = false;
+  private webSocketReconnectTimer: number | null = null;
+  private webSocketReconnectAttempts = 0;
+  private readonly maxWebSocketReconnectAttempts = 5;
+  
   /**
    * Construtor privado para garantir singleton
    */
@@ -118,6 +126,9 @@ class UnifiedRouletteClient {
     // Buscar dados iniciais imediatamente, mas sem iniciar polling
     this.fetchRouletteData();
     
+    // Tentar conectar ao WebSocket para dados reais
+    this.connectToWebSocket();
+    
     this.isInitialized = true;
   }
   
@@ -136,6 +147,12 @@ class UnifiedRouletteClient {
    * Garante que apenas uma conexão SSE seja estabelecida por vez
    */
   public connectStream(): void {
+    // Se WebSocket estiver conectado, não usar SSE
+    if (this.webSocketConnected) {
+      this.log('WebSocket já está conectado, não iniciando SSE');
+      return;
+    }
+    
     if (!this.streamingEnabled) {
       this.log('Streaming está desabilitado');
       return;
@@ -170,7 +187,7 @@ class UnifiedRouletteClient {
       // Construir URL com query params para autenticação, se necessário
       let streamUrl = ENDPOINTS.STREAM.ROULETTES;
       if (cryptoService.hasAccessKey()) {
-        const accessKey = localStorage.getItem('roulette_access_key');
+        const accessKey = cryptoService.getAccessKey();
         if (accessKey) {
           streamUrl += `?key=${encodeURIComponent(accessKey)}`;
         }
@@ -714,8 +731,7 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Busca dados das roletas (usa apenas cache e inicia SSE)
-   * Não faz mais chamadas HTTP REST para /api/ROULETTES
+   * Obtém dados simulados ou reais das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
     // Evitar requisições simultâneas
@@ -724,6 +740,13 @@ class UnifiedRouletteClient {
       if (this.fetchPromise) {
         return this.fetchPromise;
       }
+      return Array.from(this.rouletteData.values());
+    }
+    
+    // Verificar se o WebSocket ou SSE está conectado
+    if (this.webSocketConnected) {
+      this.log('WebSocket está conectado, solicitando dados...');
+      this.requestLatestRouletteData();
       return Array.from(this.rouletteData.values());
     }
     
@@ -739,6 +762,12 @@ class UnifiedRouletteClient {
       return Array.from(this.rouletteData.values());
     }
     
+    // Tentar conectar ao WebSocket se não estiver conectado
+    if (!this.webSocketConnected && !this.socket) {
+      this.log('Tentando conectar ao WebSocket...');
+      this.connectToWebSocket();
+    }
+    
     // Não há dados válidos no cache e streaming não está conectado
     // Iniciar/reconectar ao stream em vez de fazer chamada REST
     this.log('Sem dados válidos em cache. Iniciando conexão SSE...');
@@ -746,7 +775,14 @@ class UnifiedRouletteClient {
     
     // Se já tivermos alguns dados, retorná-los mesmo que não sejam recentes
     if (this.rouletteData.size > 0) {
-      this.log('Retornando dados existentes em cache enquanto aguarda SSE');
+      this.log('Retornando dados existentes em cache enquanto aguarda WebSocket/SSE');
+      return Array.from(this.rouletteData.values());
+    }
+    
+    // Em modo de desenvolvimento e sem conexão, usar dados simulados
+    if (cryptoService.isDevModeEnabled() && !this.webSocketConnected && !this.isStreamConnected) {
+      this.log('Sem conexões ativas e em modo de desenvolvimento, usando dados simulados');
+      this.useSimulatedData();
       return Array.from(this.rouletteData.values());
     }
     
@@ -952,6 +988,17 @@ class UnifiedRouletteClient {
       this.streamReconnectTimer = null;
     }
     
+    if (this.webSocketReconnectTimer) {
+      window.clearTimeout(this.webSocketReconnectTimer);
+      this.webSocketReconnectTimer = null;
+    }
+    
+    // Fechar WebSocket
+    if (this.socket) {
+      this.socket.close();
+      this.socket = null;
+    }
+    
     // Fechar stream
     if (this.eventSource) {
       this.eventSource.close();
@@ -1095,6 +1142,254 @@ class UnifiedRouletteClient {
       message,
       timestamp: new Date().toISOString()
     });
+  }
+  
+  /**
+   * Conecta ao servidor WebSocket para receber dados reais do scraper
+   */
+  private connectToWebSocket(): void {
+    if (this.socket) {
+      // Já existe uma conexão, fechá-la antes de criar nova
+      this.socket.close();
+      this.socket = null;
+    }
+    
+    try {
+      this.log('Tentando conectar ao WebSocket para dados do scraper...');
+      
+      // Usar URL correta para o backend do scraper
+      const wsUrl = 'wss://backendscraper-production-ccda.up.railway.app';
+      
+      // Criar nova conexão WebSocket
+      this.socket = new WebSocket(wsUrl);
+      
+      // Configurar handlers de eventos
+      this.socket.onopen = this.handleWebSocketOpen.bind(this);
+      this.socket.onmessage = this.handleWebSocketMessage.bind(this);
+      this.socket.onerror = this.handleWebSocketError.bind(this);
+      this.socket.onclose = this.handleWebSocketClose.bind(this);
+      
+      this.webSocketReconnectAttempts++;
+      
+    } catch (error) {
+      this.error('Erro ao conectar ao WebSocket:', error);
+      this.scheduleWebSocketReconnect();
+    }
+  }
+  
+  /**
+   * Handler para evento de abertura da conexão WebSocket
+   */
+  private handleWebSocketOpen(event: Event): void {
+    this.log('Conexão WebSocket estabelecida com sucesso');
+    this.webSocketConnected = true;
+    this.webSocketReconnectAttempts = 0;
+    
+    // Enviar autenticação se necessário
+    if (cryptoService.hasAccessKey()) {
+      const accessKey = cryptoService.getAccessKey();
+      const authMessage = JSON.stringify({
+        type: 'auth',
+        token: accessKey,
+        client: 'runcash-frontend'
+      });
+      this.socket?.send(authMessage);
+      this.log('Enviada mensagem de autenticação para o WebSocket');
+    }
+    
+    // Solicitar dados imediatamente após a conexão
+    this.requestLatestRouletteData();
+    
+    // Notificar sobre a conexão
+    this.emit('websocket-connected', { timestamp: new Date().toISOString() });
+    EventBus.emit('roulette:websocket-connected', {
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  /**
+   * Handler para mensagens recebidas do WebSocket
+   */
+  private handleWebSocketMessage(event: MessageEvent): void {
+    try {
+      // Processar a mensagem recebida
+      const message = JSON.parse(event.data);
+      this.log('Mensagem WebSocket recebida:', message.type || 'sem tipo');
+      
+      // Verificar tipo de mensagem
+      if (message.type === 'numero' || message.type === 'update' || message.type === 'event' || message.type === 'new_number') {
+        // Atualização de número de roleta - formato compatível com o scraper
+        const rouletteData = {
+          id: message.roleta_id || message.id,
+          nome: message.roleta_nome || message.nome || message.roleta,
+          provider: message.provider || 'Desconhecido',
+          status: message.status || 'online',
+          numeros: message.numeros || message.sequencia || [],
+          ultimoNumero: message.numero || message.ultimoNumero || (message.numeros && message.numeros[0]),
+          horarioUltimaAtualizacao: message.timestamp 
+            ? (typeof message.timestamp === 'number' ? new Date(message.timestamp).toISOString() : message.timestamp)
+            : new Date().toISOString()
+        };
+        
+        // Log detalhado para depuração
+        this.log(`Recebido número ${rouletteData.ultimoNumero} para roleta ${rouletteData.nome} (${rouletteData.id})`);
+        
+        // Se recebemos apenas um número, adicioná-lo à sequência
+        if (!rouletteData.numeros.length && rouletteData.ultimoNumero !== undefined) {
+          // Buscar roleta existente para obter a sequência atual
+          const existingRoulette = this.rouletteData.get(rouletteData.id);
+          if (existingRoulette && existingRoulette.numeros && existingRoulette.numeros.length) {
+            // Criar nova sequência com o número mais recente no início
+            rouletteData.numeros = [rouletteData.ultimoNumero, ...existingRoulette.numeros.slice(0, 14)];
+          } else {
+            // Se não temos sequência existente, inicializar com o número atual
+            rouletteData.numeros = [rouletteData.ultimoNumero];
+          }
+        }
+        
+        // Atualizar o cache
+        this.updateCache(rouletteData);
+        
+        // Emitir evento de atualização
+        this.emit('update', rouletteData);
+        EventBus.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          data: rouletteData,
+          source: 'websocket'
+        });
+      } else if (message.type === 'roulettes' || message.type === 'roletas' || message.type === 'list') {
+        // Lista completa de roletas
+        if (Array.isArray(message.data)) {
+          this.log(`Recebida lista com ${message.data.length} roletas do WebSocket`);
+          this.updateCache(message.data);
+          this.emit('update', message.data);
+          EventBus.emit('roulette:all-data-updated', {
+            timestamp: new Date().toISOString(),
+            data: message.data,
+            source: 'websocket'
+          });
+        }
+      } else if (message.type === 'auth-result') {
+        // Resultado de autenticação
+        if (message.success) {
+          this.log('Autenticação no WebSocket bem-sucedida');
+          // Solicitar dados após autenticação
+          this.requestLatestRouletteData();
+        } else {
+          this.error('Falha na autenticação no WebSocket:', message.message || 'Motivo desconhecido');
+        }
+      } else if (message.type === 'log' || message.type === 'info') {
+        // Mensagem de log do servidor
+        this.log(`Mensagem de log do servidor: ${message.message || JSON.stringify(message)}`);
+      } else {
+        // Tipo desconhecido - tentar processar mesmo assim se tiver dados relevantes
+        this.log(`Tipo de mensagem desconhecido: ${message.type || 'undefined'}`);
+        
+        // Verificar se podemos extrair dados de roleta mesmo assim
+        if (message.roleta_id || message.roleta || message.id || message.data) {
+          if (message.data && Array.isArray(message.data)) {
+            // Provavelmente é uma lista de roletas
+            this.log(`Processando lista de ${message.data.length} roletas de mensagem não tipada`);
+            this.updateCache(message.data);
+          } else if (message.numero !== undefined || message.ultimoNumero !== undefined) {
+            // Provavelmente é uma atualização de número
+            this.log(`Processando atualização de número de mensagem não tipada: ${message.numero || message.ultimoNumero}`);
+            const rouletteData = {
+              id: message.roleta_id || message.id || 'unknown',
+              nome: message.roleta_nome || message.nome || message.roleta || 'Roleta Desconhecida',
+              provider: message.provider || 'Desconhecido',
+              status: message.status || 'online',
+              numeros: message.numeros || message.sequencia || [],
+              ultimoNumero: message.numero || message.ultimoNumero,
+              horarioUltimaAtualizacao: message.timestamp || new Date().toISOString()
+            };
+            this.updateCache(rouletteData);
+          }
+        }
+      }
+    } catch (error) {
+      this.error('Erro ao processar mensagem WebSocket:', error);
+    }
+  }
+  
+  /**
+   * Handler para erros na conexão WebSocket
+   */
+  private handleWebSocketError(event: Event): void {
+    this.error('Erro na conexão WebSocket:', event);
+    this.webSocketConnected = false;
+    this.scheduleWebSocketReconnect();
+  }
+  
+  /**
+   * Handler para fechamento da conexão WebSocket
+   */
+  private handleWebSocketClose(event: CloseEvent): void {
+    this.log(`Conexão WebSocket fechada: Código ${event.code}, Razão: ${event.reason}`);
+    this.webSocketConnected = false;
+    
+    // Verificar se devemos tentar reconectar
+    if (event.code !== 1000) { // 1000 é fechamento normal
+      this.scheduleWebSocketReconnect();
+    }
+  }
+  
+  /**
+   * Agenda uma tentativa de reconexão ao WebSocket
+   */
+  private scheduleWebSocketReconnect(): void {
+    // Limpar timer existente
+    if (this.webSocketReconnectTimer !== null) {
+      window.clearTimeout(this.webSocketReconnectTimer);
+      this.webSocketReconnectTimer = null;
+    }
+    
+    // Verificar se excedemos o número máximo de tentativas
+    if (this.webSocketReconnectAttempts >= this.maxWebSocketReconnectAttempts) {
+      this.error(`Número máximo de tentativas de reconexão WebSocket (${this.maxWebSocketReconnectAttempts}) atingido, desistindo...`);
+      
+      // Fallback para simulação se estiver em modo de desenvolvimento
+      if (cryptoService.isDevModeEnabled()) {
+        this.log('Usando dados simulados como fallback após falha no WebSocket');
+        this.useSimulatedData();
+      }
+      
+      return;
+    }
+    
+    // Calcular tempo de espera (backoff exponencial)
+    const reconnectDelay = Math.min(1000 * Math.pow(2, this.webSocketReconnectAttempts), 30000);
+    this.log(`Agendando reconexão WebSocket em ${reconnectDelay}ms (tentativa ${this.webSocketReconnectAttempts})`);
+    
+    // Agendar reconexão
+    this.webSocketReconnectTimer = window.setTimeout(() => {
+      this.log('Tentando reconectar ao WebSocket...');
+      this.connectToWebSocket();
+    }, reconnectDelay) as unknown as number;
+  }
+  
+  /**
+   * Envia solicitação ao WebSocket para obter dados mais recentes
+   */
+  private requestLatestRouletteData(): void {
+    if (!this.webSocketConnected || !this.socket) {
+      return;
+    }
+    
+    try {
+      // Formato compatível com o servidor do scraper
+      const requestMessage = JSON.stringify({
+        type: 'request',
+        action: 'get_data',
+        target: 'roulettes',
+        timestamp: Date.now()
+      });
+      
+      this.socket.send(requestMessage);
+      this.log('Solicitação de dados recentes enviada via WebSocket');
+    } catch (error) {
+      this.error('Erro ao solicitar dados via WebSocket:', error);
+    }
   }
 }
 

@@ -14,7 +14,6 @@ import { NotificationsProvider } from "./context/NotificationsContext";
 import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import SoundManager from "./components/SoundManager";
-import DevControls from "./components/DevControls";
 import { LoginModalProvider, useLoginModal } from "./context/LoginModalContext";
 
 // Importação de componentes principais com lazy loading
@@ -364,7 +363,6 @@ const App = () => {
                           } />
                         </Routes>
                       </LoginModalProvider>
-                      <DevControls />
                       <Toaster />
                     </BrowserRouter>
                   </SoundManager>
