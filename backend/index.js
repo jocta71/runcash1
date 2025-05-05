@@ -86,7 +86,7 @@ app.use(async (req, res, next) => {
 // Middlewares básicos
 app.use(cors({
   origin: [
-    'https://runcashh11.vercel.app',
+    'https://runcashh111.vercel.app',
     'https://runcash5.vercel.app', 
     'http://localhost:3000', 
     'http://localhost:5173', 

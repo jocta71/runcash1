@@ -36,7 +36,7 @@ const LoginModal = ({ isOpen, onClose, redirectAfterLogin, message }: LoginModal
   const { toast } = useToast();
   
   // API URL
-  const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh11.vercel.app/api';
+  const API_URL = import.meta.env.VITE_API_URL || 'https://runcashh111.vercel.app/api';
 
   // Verificar se auth Google está disponível
   useEffect(() => {

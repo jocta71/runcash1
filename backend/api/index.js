@@ -53,13 +53,13 @@ const apiApp = express();
 // Configuração CORS básica
 apiApp.use(cors({
   origin: [
-    'https://runcashh11.vercel.app',
+    'https://runcashh111.vercel.app',
     'https://runcash5.vercel.app', 
     'http://localhost:3000', 
     'http://localhost:5173', 
     'https://runcashh1.vercel.app', 
   
-    'https://runcashh11.vercel.app',
+    'https://runcashh111.vercel.app',
     'https://backendapi-production-36b5.up.railway.app'
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

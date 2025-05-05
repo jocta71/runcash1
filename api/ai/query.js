@@ -749,7 +749,7 @@ module.exports.getRouletteData = getRouletteData;
 module.exports.handler = async (req, res) => {
   // Configuração de CORS
   const allowedOrigins = [
-    'https://runcashh11.vercel.app', 
+    'https://runcashh111.vercel.app', 
     'http://localhost:3000',
     'http://localhost:5173'
   ];
