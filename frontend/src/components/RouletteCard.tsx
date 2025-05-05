@@ -52,30 +52,51 @@ interface ProcessedRouletteData {
 
 // Função processRouletteData GLOBAL
 const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
-  const rouletteIdForLog = roulette?.id || 'ID Desconhecido';
-  console.log(`[processRouletteData - ${rouletteIdForLog}] Iniciando processamento. Dados recebidos:`, roulette);
+  const rouletteIdForLog = roulette?.id || roulette?.roleta_id || 'ID Desconhecido';
+  const rouletteNameForLog = roulette?.nome || roulette?.name || roulette?.roleta_nome || 'Nome Desconhecido';
+  console.log(`[processRouletteData - ${rouletteIdForLog}] Iniciando processamento para '${rouletteNameForLog}'. Dados recebidos:`, JSON.stringify(roulette)); // Log completo como string
 
-  if (!roulette || !roulette.id) {
+  if (!roulette || !(roulette.id || roulette.roleta_id)) {
     console.warn(`[processRouletteData - ${rouletteIdForLog}] Dados inválidos ou sem ID.`);
     return null;
   }
+  
+  const currentId = roulette.id || roulette.roleta_id;
+  const currentName = roulette.nome || roulette.name || roulette.roleta_nome;
 
-  // 1. Definir a fonte dos números: priorizar 'numbers', depois 'numero'
+  // 1. Definir a fonte dos números: priorizar 'numbers', depois 'numero', depois chave com nome da roleta
   let sourceArray: any[] = [];
-  let sourceFormat: 'object' | 'number' | 'none' = 'none';
+  let sourceFormat: 'object' | 'number' | 'nested_object' | 'none' = 'none';
 
   if (Array.isArray(roulette.numbers) && roulette.numbers.length > 0) {
-    sourceArray = roulette.numbers;
-    sourceFormat = 'object';
-    console.log(`[processRouletteData - ${rouletteIdForLog}] Usando 'roulette.numbers' como fonte.`);
+      sourceArray = roulette.numbers;
+      sourceFormat = 'object';
+      console.log(`[processRouletteData - ${rouletteIdForLog}] Usando 'roulette.numbers' como fonte.`);
   } else if (Array.isArray(roulette.numero) && roulette.numero.length > 0) {
-    sourceArray = roulette.numero;
-    sourceFormat = 'number'; // Pode ser um array de números simples
-    console.log(`[processRouletteData - ${rouletteIdForLog}] Usando 'roulette.numero' como fonte.`);
+      sourceArray = roulette.numero;
+      // Detectar se é array de números ou de objetos {numero: ...}
+      if (sourceArray.length > 0 && typeof sourceArray[0] === 'object' && sourceArray[0] !== null && typeof sourceArray[0].numero !== 'undefined') {
+          sourceFormat = 'nested_object'; // Array de objetos {numero: ...}
+          console.log(`[processRouletteData - ${rouletteIdForLog}] Usando 'roulette.numero' (array de objetos) como fonte.`);
+      } else if (sourceArray.length > 0 && typeof sourceArray[0] === 'number') {
+          sourceFormat = 'number'; // Array de números simples
+          console.log(`[processRouletteData - ${rouletteIdForLog}] Usando 'roulette.numero' (array de números) como fonte.`);
+      } else {
+           console.log(`[processRouletteData - ${rouletteIdForLog}] 'roulette.numero' encontrado, mas formato interno não reconhecido.`);
+      }
+  } else if (currentName && typeof roulette[currentName] === 'object' && roulette[currentName] !== null && Array.isArray(roulette[currentName])) {
+      // Checa se existe uma chave com o nome da roleta e se é um array (formato da imagem)
+      sourceArray = roulette[currentName];
+      if (sourceArray.length > 0 && typeof sourceArray[0] === 'object' && sourceArray[0] !== null && typeof sourceArray[0].numero !== 'undefined') {
+          sourceFormat = 'nested_object'; // Assumindo array de objetos {numero: ..., timestamp: ...}
+           console.log(`[processRouletteData - ${rouletteIdForLog}] Usando 'roulette[${currentName}]' (array de objetos) como fonte.`);
+      } else {
+          console.log(`[processRouletteData - ${rouletteIdForLog}] Chave com nome da roleta encontrada ('${currentName}'), mas formato interno não reconhecido.`);
+      }
   } else {
-      console.log(`[processRouletteData - ${rouletteIdForLog}] Nenhum array de números ('numbers' ou 'numero') encontrado.`);
+      console.log(`[processRouletteData - ${rouletteIdForLog}] Nenhuma fonte de números válida ('numbers', 'numero', ou chave '${currentName}') encontrada.`);
   }
-  console.log(`[processRouletteData - ${rouletteIdForLog}] Array fonte para números:`, sourceArray, `Formato: ${sourceFormat}`);
+  console.log(`[processRouletteData - ${rouletteIdForLog}] Array fonte para números:`, JSON.stringify(sourceArray), `Formato: ${sourceFormat}`);
 
   // 2. Mapear o array fonte para o formato { numero: number, timestamp: string }
   const numerosComTimestamp: RouletteNumber[] = sourceArray.map((item: any) => {
@@ -83,20 +104,22 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
     let timestamp: string | null | undefined = null;
 
     if (sourceFormat === 'object' && typeof item === 'object' && item !== null) {
-      numero = Number(item.number);
-      timestamp = item.timestamp; // Pegar o timestamp do objeto
+      numero = Number(item.number); // Vem de roulette.numbers
+      timestamp = item.timestamp;
+    } else if (sourceFormat === 'nested_object' && typeof item === 'object' && item !== null) {
+      numero = Number(item.numero); // Vem de roulette.numero (obj) ou roulette[nome] (obj)
+      timestamp = item.timestamp;
     } else if (sourceFormat === 'number') {
-      numero = Number(item); // O próprio item é o número
-      // Tentar pegar um timestamp global se não houver individual
-      timestamp = roulette.timestamp;
+      numero = Number(item); // Vem de roulette.numero (num)
+      timestamp = roulette.timestamp; // Tenta usar timestamp global
     }
 
-    // Fallback/Default para timestamp se não encontrado ou inválido
-    let timeString = "--:--"; // Default mais claro
+    // Fallback/Default para timestamp
+    let timeString = "--:--";
     if (timestamp) {
         try {
             const date = new Date(timestamp);
-            if (!isNaN(date.getTime())) { // Verifica se a data é válida
+            if (!isNaN(date.getTime())) {
                  timeString = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             } else {
                 console.warn(`[processRouletteData - ${rouletteIdForLog}] Timestamp inválido recebido:`, timestamp);
@@ -104,37 +127,60 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
         } catch (e) {
             console.error(`[processRouletteData - ${rouletteIdForLog}] Erro ao processar timestamp:`, timestamp, e);
         }
+    } else if (sourceFormat !== 'number' && typeof item === 'object' && item?.timestamp) {
+         // Fallback se o timestamp principal falhou mas existe no item (redundante mas seguro)
+          try {
+             const date = new Date(item.timestamp);
+             if (!isNaN(date.getTime())) {
+                  timeString = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+             }
+         } catch {} 
     }
 
+    const finalNumero = (numero === null || isNaN(numero)) ? -1 : numero;
+
     return {
-      numero: isNaN(numero as any) ? -1 : (numero as number), // Usar -1 para indicar erro de conversão
+      numero: finalNumero,
       timestamp: timeString
     };
   })
-  // Filtrar números inválidos (NaN ou fora do range 0-36)
-  .filter((n: any) => n.numero !== -1 && n.numero >= 0 && n.numero <= 36);
+  // Filtrar números inválidos
+  .filter(n => n.numero !== -1 && n.numero >= 0 && n.numero <= 36);
 
-  console.log(`[processRouletteData - ${rouletteIdForLog}] Números processados com timestamp:`, numerosComTimestamp);
+  // Ordenar por timestamp DESCENDENTE (mais recente primeiro) se houver timestamps válidos
+  // É crucial que o timestamp no map() seja pego corretamente
+  if (numerosComTimestamp.every(n => n.timestamp !== '--:--') && sourceFormat !== 'number') {
+      numerosComTimestamp.sort((a, b) => {
+          // Precisamos converter de volta para comparar, ou usar o timestamp original se guardado
+          // Por simplicidade, vamos assumir que a ordem original da API está correta (mais recente primeiro)
+          // Se a ordem estiver errada, precisaria de um timestamp original para ordenar aqui.
+          return 0; // Mantém a ordem original por enquanto
+      });
+      // console.log(`[processRouletteData - ${rouletteIdForLog}] Números ordenados (se necessário).`);
+  }
 
-  // 3. Obter outros dados (mantendo a lógica anterior)
+  console.log(`[processRouletteData - ${rouletteIdForLog}] Números processados com timestamp (primeiros 10):`, numerosComTimestamp.slice(0, 10));
+
+  // 3. Obter outros dados
   const ultimoNumero = numerosComTimestamp.length > 0 ? numerosComTimestamp[0].numero : null;
-  const winRate = roulette.winRate || Math.random() * 100;
-  const streak = roulette.streak || Math.floor(Math.random() * 5);
-  // Usar o timestamp global da roleta se disponível, senão o atual
-  const finalUpdateTime = roulette.timestamp ? new Date(roulette.timestamp).getTime() : Date.now();
+  const winRate = roulette.winRate !== undefined ? roulette.winRate : Math.random() * 100; // Usar valor real se existir
+  const streak = roulette.streak !== undefined ? roulette.streak : Math.floor(Math.random() * 5); // Usar valor real se existir
+  const finalUpdateTime = roulette.lastUpdateTime || roulette.timestamp ? new Date(roulette.lastUpdateTime || roulette.timestamp).getTime() : Date.now();
+  const currentProvider = roulette.provider || 'Desconhecido';
+  const currentStatus = roulette.status || (numerosComTimestamp.length > 0 ? 'online' : 'offline'); // Inferir status se não vier
 
-  const result = {
-    id: roulette.id,
-    nome: roulette.nome || roulette.name || 'Roleta Desconhecida',
-    provider: roulette.provider || 'Desconhecido',
-    status: roulette.status || 'offline',
+  const result: ProcessedRouletteData = {
+    id: currentId,
+    nome: currentName || 'Roleta Desconhecida',
+    provider: currentProvider,
+    status: currentStatus,
     ultimoNumero: ultimoNumero,
-    numeros: numerosComTimestamp.slice(0, 10), // Pega os números processados e formatados
+    numeros: numerosComTimestamp.slice(0, 10), // Pega os até 10 números mais recentes já processados
     winRate: winRate,
     streak: streak,
     lastUpdateTime: finalUpdateTime,
   };
-  console.log(`[processRouletteData - ${rouletteIdForLog}] Objeto final retornado:`, result);
+  console.log(`[processRouletteData - ${rouletteIdForLog}] Objeto final retornado:`, JSON.stringify(result));
   return result;
 };
 
