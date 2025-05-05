@@ -160,7 +160,8 @@ function getSimulatedData(): any {
   const now = new Date();
   const randomNumbers = Array.from({length: 15}, () => Math.floor(Math.random() * 37));
   
-  return {
+  // Aumentar número de roletas simuladas para mais testes
+  const simulatedData = {
     data: {
       message: "Dados simulados - modo de desenvolvimento",
       timestamp: Date.now(),
@@ -169,7 +170,7 @@ function getSimulatedData(): any {
         {
           id: "simulated_1",
           nome: "Roleta Simulada 1",
-          provider: "Simulação",
+          provider: "Evolution",
           status: "online",
           numeros: randomNumbers,
           ultimoNumero: randomNumbers[0],
@@ -178,15 +179,27 @@ function getSimulatedData(): any {
         {
           id: "simulated_2",
           nome: "Roleta Simulada 2",
-          provider: "Simulação",
+          provider: "Pragmatic",
           status: "online",
           numeros: Array.from({length: 15}, () => Math.floor(Math.random() * 37)),
           ultimoNumero: randomNumbers[1],
+          horarioUltimaAtualizacao: now.toISOString()
+        },
+        {
+          id: "simulated_3",
+          nome: "Roleta Simulada 3",
+          provider: "Ezugi",
+          status: "online",
+          numeros: Array.from({length: 15}, () => Math.floor(Math.random() * 37)),
+          ultimoNumero: randomNumbers[2] || 0,
           horarioUltimaAtualizacao: now.toISOString()
         }
       ]
     }
   };
+  
+  console.log('[DEBUG] Dados simulados gerados:', JSON.stringify(simulatedData));
+  return simulatedData;
 }
 
 // Função para descriptografar dados no formato Iron

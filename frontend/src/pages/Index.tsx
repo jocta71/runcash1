@@ -483,21 +483,26 @@ const Index = () => {
   // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
     if (!Array.isArray(filteredRoulettes) || filteredRoulettes.length === 0) {
+      console.log('[DEBUG] Não há roletas para renderizar. Array vazio ou inválido:', filteredRoulettes);
       return null;
     }
     
-    console.log(`[Index] Renderizando ${filteredRoulettes.length} roletas disponíveis`);
-    
-    // Mais logs para depuração - mostrar o total de roletas
-    console.log(`[Index] Exibindo todas as ${filteredRoulettes.length} roletas disponíveis`);
+    console.log(`[DEBUG] Renderizando ${filteredRoulettes.length} roletas disponíveis:`, JSON.stringify(filteredRoulettes.map(r => ({id: r.id, nome: r.nome || r.name})), null, 2));
     
     // MODIFICAÇÃO CRÍTICA: Mostrar todas as roletas sem paginação
     const allRoulettes = filteredRoulettes;
     
-    console.log(`[Index] Exibindo todas as ${allRoulettes.length} roletas disponíveis`);
+    console.log(`[DEBUG] Dados brutos de todas as roletas:`, JSON.stringify(allRoulettes).substring(0, 500) + '...');
 
     return allRoulettes.map(roulette => {
       // Garantir que temos números válidos
+      console.log(`[DEBUG] Processando roleta:`, JSON.stringify({
+        id: roulette.id,
+        nome: roulette.nome || roulette.name,
+        numeros: roulette.numeros || roulette.numero || roulette.lastNumbers,
+        provider: roulette.provider
+      }));
+    
       let safeNumbers: number[] = [];
       
       // Tentar extrair números do campo numero
@@ -523,6 +528,8 @@ const Index = () => {
       else if (Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
         safeNumbers = roulette.numeros;
       }
+      
+      console.log(`[DEBUG] Números extraídos para roleta ${roulette.id}:`, safeNumbers);
       
       return (
         <div 
