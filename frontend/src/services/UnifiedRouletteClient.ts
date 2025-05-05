@@ -10,12 +10,9 @@
  */
 
 import { ENDPOINTS } from './api/endpoints';
-import cryptoUtils, { extractAndSetAccessKeyFromEvent, setApiKey } from '../utils/crypto-utils';
+import { cryptoService, extractAndSetAccessKeyFromEvent, setApiKey } from '../utils/crypto-utils';
 import EventBus from './EventBus';
 import axios from 'axios';
-
-// Obter referência ao cryptoService da importação
-const { cryptoService } = cryptoUtils;
 
 // Tipos para callbacks de eventos
 type EventCallback = (data: any) => void;

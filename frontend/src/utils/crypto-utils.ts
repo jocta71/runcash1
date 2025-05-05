@@ -699,19 +699,6 @@ export class CryptoService {
 // Exportar instância singleton
 export const cryptoService = CryptoService.getInstance();
 
-// Adicionar exportação padrão para compatibilidade durante o build
-export default {
-  cryptoService,
-  setAccessKey,
-  hasAccessKey,
-  setupAccessKey,
-  extractAndSetAccessKeyFromEvent,
-  setApiKey,
-  tryCommonKeys,
-  enableDevMode,
-  isDevModeEnabled
-};
-
 /**
  * Função auxiliar para definir a chave de acesso para descriptografia
  * @param key Chave de acesso
@@ -883,4 +870,20 @@ export function enableDevMode(enabled = true) {
 // Verificar se o modo de desenvolvimento está ativado
 export function isDevModeEnabled() {
   return safeLocalStorage.getItem('crypto_dev_mode') === 'true';
-} 
+}
+
+// Criar objeto com todas as funções exportadas
+const cryptoUtils = {
+  cryptoService,
+  setAccessKey,
+  hasAccessKey,
+  setupAccessKey,
+  extractAndSetAccessKeyFromEvent,
+  setApiKey,
+  tryCommonKeys,
+  enableDevMode,
+  isDevModeEnabled
+};
+
+// Exportação padrão
+export default cryptoUtils; 

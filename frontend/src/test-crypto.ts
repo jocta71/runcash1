@@ -5,17 +5,14 @@
  * Este script pode ser executado fora do navegador, usando o Node.js.
  */
 
-import cryptoUtils from './utils/crypto-utils';
-
-// Obter referências aos métodos necessários
-const { 
+import { 
   cryptoService, 
   setAccessKey, 
   enableDevMode, 
   isDevModeEnabled, 
   tryCommonKeys,
   extractAndSetAccessKeyFromEvent 
-} = cryptoUtils;
+} from './utils/crypto-utils';
 
 // Configurar o teste para ambiente Node.js
 console.log("🔧 Ambiente: Node.js");
