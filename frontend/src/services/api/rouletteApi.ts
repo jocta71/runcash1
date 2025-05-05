@@ -1,10 +1,6 @@
 import axios from 'axios';
 import { ENDPOINTS } from './endpoints';
-import { fetchWithCorsSupport } from '@/utils/api-helpers';
-// Remover a importação de getNumericId que não existe
-// import { getNumericId } from '@/utils/rouletteUtils';
-import { UnifiedRouletteClient } from '../UnifiedRouletteClient';
-
+import { getNumericId } from '../data/rouletteTransformer';
 // Importar dados mockados
 import mockRouletteData from '../../assets/data/mockRoulettes.json';
 
@@ -39,7 +35,8 @@ export const RouletteApi = {
       console.log('[API] Buscando dados de roletas através do UnifiedRouletteClient');
       
       try {
-        // Usar UnifiedRouletteClient importado estaticamente
+        // Obter UnifiedRouletteClient
+        const { default: UnifiedRouletteClient } = await import('../UnifiedRouletteClient');
         const client = UnifiedRouletteClient.getInstance();
         
         // Garantir que o cliente está conectado ao stream
@@ -50,11 +47,12 @@ export const RouletteApi = {
         // Obter roletas do cache do cliente
         const roulettes = client.getAllRoulettes();
         
-        // Processar roletas (não precisa mais de getNumericId)
+        // Processar roletas
         const processedRoulettes = roulettes.map((roulette: any) => {
-          // Usar o ID existente ou _id
-          if (!roulette.roleta_id) {
-            roulette.roleta_id = roulette.id || roulette._id; 
+          // Garantir que temos o campo roleta_id em cada objeto
+          if (!roulette.roleta_id && roulette._id) {
+            const numericId = getNumericId(roulette._id);
+            roulette.roleta_id = numericId;
           }
           return roulette;
         });
@@ -63,64 +61,50 @@ export const RouletteApi = {
           error: false,
           data: processedRoulettes
         };
-      } catch (primaryError: any) { // Tipar o erro
+      } catch (primaryError) {
         console.error('[API] Erro ao obter dados do UnifiedRouletteClient:', primaryError);
         
         // Retornar erro em vez de tentar endpoint alternativo
         return {
           error: true,
           code: 'NO_DATA_AVAILABLE',
-          message: primaryError.message || 'Sem dados disponíveis. Tente novamente mais tarde.', // Usar mensagem do erro se disponível
+          message: 'Sem dados disponíveis. Tente novamente mais tarde.',
           statusCode: 503
         };
       }
-    } catch (error: any) { // Tipar o erro
-      console.error('[API] Erro inesperado em fetchAllRoulettes:', error);
-      return {
-        error: true,
-        code: 'UNEXPECTED_ERROR',
-        message: error.message || 'Erro inesperado ao buscar roletas',
-        statusCode: 500
-      };
-    }
-  },
-
-  /**
-   * Busca os números mais recentes de uma roleta específica
-   * @param rouletteId ID da roleta
-   * @param limit Número máximo de resultados (padrão: 20)
-   * @returns Resposta da API com os números ou erro
-   */
-  async fetchRecentNumbers(rouletteId: string, limit: number = 20): Promise<ApiResponse<any[]>> {
-    try {
-      // Usar rouletteId diretamente, sem getNumericId
-      const client = UnifiedRouletteClient.getInstance();
-      const roulette = client.getRouletteById(rouletteId); // Usar o ID original
+    } catch (error: any) {
+      console.error('[API] Erro ao buscar roletas:', error);
       
-      if (roulette && roulette.numeros) {
-        // Limitar os números se necessário
-        const numbers = roulette.numeros.slice(0, limit);
-        return {
-          error: false,
-          data: numbers
-        };
-      } else {
-        console.warn(`[API] Roleta ${rouletteId} não encontrada ou sem números no UnifiedRouletteClient`);
-        // Retornar erro
+      // Verificar se é erro de autenticação
+      if (error.response?.status === 401) {
         return {
           error: true,
-          code: 'ROULETTE_NOT_FOUND_IN_CLIENT',
-          message: `Roleta ${rouletteId} não encontrada ou sem dados no cliente SSE`,
-          statusCode: 404
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação necessária para acessar este recurso',
+          statusCode: 401
         };
       }
-    } catch (error: any) {
-      console.error(`[API] Erro ao buscar números para roleta ${rouletteId}:`, error);
+      
+      // Verificar se é erro de assinatura
+      if (error.response?.status === 403) {
+        // Extrair código e mensagem específicos do erro
+        const errorCode = error.response.data?.code || 'SUBSCRIPTION_REQUIRED';
+        const errorMessage = error.response.data?.message || 'Você precisa de uma assinatura ativa para acessar este recurso';
+        
+        return {
+          error: true,
+          code: errorCode,
+          message: errorMessage,
+          statusCode: 403
+        };
+      }
+      
+      // Outros erros
       return {
         error: true,
         code: 'FETCH_ERROR',
-        message: error.message || `Erro ao buscar números para roleta ${rouletteId}`,
-        statusCode: 500
+        message: error.response?.data?.message || error.message || 'Erro ao buscar roletas',
+        statusCode: error.response?.status || 500
       };
     }
   },
@@ -133,23 +117,37 @@ export const RouletteApi = {
   async fetchRouletteById(id: string): Promise<ApiResponse<any>> {
     try {
       console.log(`[API] Buscando roleta com ID: ${id}`);
-      // Usar id diretamente, sem getNumericId
-      const client = UnifiedRouletteClient.getInstance();
-      const roulette = client.getRouletteById(id); // Usar o ID original
-            
+      // Converter para ID numérico para normalização
+      const numericId = getNumericId(id);
+      
+      // Buscar todas as roletas e filtrar localmente
+      const allRoulettes = await this.fetchAllRoulettes();
+      
+      // Verificar se houve erro na busca de todas as roletas
+      if (allRoulettes.error) {
+        return allRoulettes;
+      }
+      
+      // Buscar com prioridade pelo campo roleta_id
+      const roulette = allRoulettes.data.find((r: any) => 
+        r.roleta_id === numericId || 
+        r.id === numericId || 
+        r._id === id
+      );
+      
       if (roulette) {
-        console.log(`[API] ✅ Roleta encontrada no UnifiedClient: ${roulette.nome || roulette.name}`);
+        console.log(`[API] ✅ Roleta encontrada: ${roulette.nome || roulette.name}`);
         return {
           error: false,
           data: roulette
         };
       }
       
-      console.warn(`[API] ❌ Roleta com ID ${id} não encontrada no UnifiedClient`);
+      console.warn(`[API] ❌ Roleta com ID ${numericId} não encontrada`);
       return {
         error: true,
-        code: 'ROULETTE_NOT_FOUND_IN_CLIENT',
-        message: `Roleta com ID ${id} não encontrada no cliente SSE`,
+        code: 'ROULETTE_NOT_FOUND',
+        message: `Roleta com ID ${numericId} não encontrada`,
         statusCode: 404
       };
     } catch (error: any) {
@@ -172,8 +170,11 @@ export const RouletteApi = {
     try {
       console.log(`[API] Buscando estratégia para roleta ID: ${id}`);
       
-      // Usar id diretamente, sem getNumericId
-      const rouletteResponse = await this.fetchRouletteById(id); // Usar o ID original
+      // Converter para ID numérico para normalização
+      const numericId = getNumericId(id);
+      
+      // Buscar dados da roleta que já incluem a estratégia
+      const rouletteResponse = await this.fetchRouletteById(numericId);
       
       if (rouletteResponse.error) {
         return rouletteResponse;
@@ -191,7 +192,7 @@ export const RouletteApi = {
         sugestao_display: roulette.sugestao_display || ''
       };
       
-      console.log(`[API] ✅ Estratégia obtida para roleta ${id}`);
+      console.log(`[API] ✅ Estratégia obtida para roleta ${numericId}`);
       return {
         error: false,
         data: strategy
