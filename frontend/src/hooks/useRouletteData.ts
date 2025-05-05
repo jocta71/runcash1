@@ -16,7 +16,7 @@ import axios from 'axios';
 import config from '@/config/env';
 import { RequestThrottler } from '@/services/utils/requestThrottler';
 import { getLogger } from '@/services/utils/logger';
-import RouletteFeedService from '@/services/RouletteFeedService';
+import UnifiedRouletteClient from '@/services/UnifiedRouletteClient';
 
 // Logger específico para este componente
 const logger = getLogger('RouletteData');
@@ -308,654 +308,299 @@ export function useRouletteData(
   roletaNome: string, 
   limit: number = 100
 ): UseRouletteDataResult {
-  // Estados locais
+  // Estado para os números da roleta
   const [numbers, setNumbers] = useState<RouletteNumber[]>([]);
-  const [initialNumbers, setInitialNumbers] = useState<RouletteNumber[]>([]);
-  const [newNumbers, setNewNumbers] = useState<RouletteNumber[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [refreshLoading, setRefreshLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [strategy, setStrategy] = useState<RouletteStrategy | null>(null);
-  const [strategyLoading, setStrategyLoading] = useState<boolean>(true);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [hasData, setHasData] = useState<boolean>(false);
   
-  // Referência para manter o ID canônico consistente
-  const canonicalIdRef = useRef<string>(mapToCanonicalRouletteId(roletaId));
-  const initialLoadRef = useRef<boolean>(false);
-  const socketSubscribedRef = useRef<boolean>(false);
+  // Estado para estratégia da roleta
+  const [strategy, setStrategy] = useState<RouletteStrategy | null>(null);
+  const [strategyLoading, setStrategyLoading] = useState<boolean>(false);
   
-  // Referência para limpeza do intervalo
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Refs para controle  
+  const canonicalId = useMemo(() => mapToCanonicalRouletteId(roletaId), [roletaId]);
+  const pollingRef = useRef<number | null>(null);
+  const isInitialized = useRef<boolean>(false);
+  const isMounted = useRef<boolean>(true);
+  const effectRunCount = useRef<number>(0);
   
-  // ID para controle de polling
-  const pollingIdKey = `${canonicalIdRef.current}_${limit}`;
+  // Referência para controle de eventos
+  const eventUnsubscribe = useRef<() => void | null>(null);
   
-  // Socket Service para comunicação em tempo real
-  const socketService = useMemo(() => SocketService.getInstance(), []);
+  // Obtém o cliente unificado para roletas
+  const unifiedClient = useMemo(() => UnifiedRouletteClient.getInstance(), []);
   
-  // EventService para eventos
-  const eventService = useMemo(() => EventService.getInstance(), []);
-  
-  // Adicionar referência ao RouletteFeedService para controle centralizado de requests
-  // Com tratamento de erro para inicialização
-  const feedService = useMemo(() => {
-    try {
-      return RouletteFeedService.getInstance();
-    } catch (error) {
-      console.error('Erro ao inicializar serviço de feed de roleta:', error);
-      // Retorna uma implementação mock para evitar quebrar a UI
-      return {
-        getAllRoulettes: () => ({}),
-        getRouletteById: () => null,
-        refreshCache: async () => ({}),
-        initialize: async () => ({}),
-        subscribe: () => ({ unsubscribe: () => {} })
-      } as any; // Usamos "any" para evitar erros de tipo
-    }
-  }, []);
-  
-  // Verifica se a roleta tem dados (números)
-  const checkIfRouleteHasData = useCallback((roulette: any): boolean => {
-    if (!roulette) return false;
-    
-    // Verificar se existe dados apenas em 'numero'
-    // Se vier como 'numeros', converter para 'numero'
-    if (roulette.numeros && Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
-      roulette.numero = roulette.numeros;
-      roulette.numeros = undefined;
-    }
-    
-    // Verificar se temos dados no campo 'numero'
-    return roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0;
-  }, []);
-  
-  // Normaliza os dados da roleta para garantir que estejam no formato esperado
-  const normalizeRouletteData = useCallback((data: any): RouletteNumber[] => {
-    if (!data) return [];
-    
-    // Converter numeros para numero se necessário
-    const rawNumbers = Array.isArray(data.numeros) ? data.numeros : 
-                      (Array.isArray(data.numero) ? data.numero : []);
-    
-    // Se ainda estamos recebendo dados como "numeros", converter
-    if (Array.isArray(data.numeros) && !data.numero) {
-      data.numero = data.numeros;
-      data.numeros = undefined;
-    }
-    
-    return rawNumbers.map((item: any) => {
-      // Se já for um objeto com 'numero', normalizar
-      if (typeof item === 'object' && item !== null) {
-        return {
-          numero: typeof item.numero === 'number' ? item.numero : 
-                (typeof item.numero === 'string' ? parseInt(item.numero, 10) : 0),
-          roleta_id: item.roleta_id || roletaId,
-          roleta_nome: item.roleta_nome || roletaNome,
-          cor: item.cor || determinarCorNumero(item.numero || 0),
-          timestamp: item.timestamp || new Date().toISOString()
-        };
-      }
-      
-      // Se for um número direto
-      const numeroValue = typeof item === 'number' ? item : 
-                         (typeof item === 'string' ? parseInt(item, 10) : 0);
-      
-      return {
-        numero: numeroValue,
-        roleta_id: roletaId,
-        roleta_nome: roletaNome,
-        cor: determinarCorNumero(numeroValue),
-        timestamp: new Date().toISOString()
-      };
-    });
-  }, [roletaId, roletaNome]);
-
-  // Função auxiliar para buscar o ID canônico a partir do nome
+  // Função para converter ID da roleta para o formato canônico
   const getCanonicalIdByName = (name: string) => {
-    const roleta = ROLETAS_CANONICAS.find(r => r.nome === name);
-    return roleta ? roleta.id : null;
+    // Buscar na lista de roletas canônicas
+    for (const [key, value] of Object.entries(ROLETAS_CANONICAS)) {
+      if (value.toLowerCase() === name.toLowerCase()) {
+        return key;
+      }
+    }
+    return null; // Não encontrou correspondência
   };
-
-  // Função para atualizar o estado numbers que combina initialNumbers e newNumbers
-  const updateCombinedNumbers = useCallback(() => {
-    // Combinar os novos números com os dados iniciais
-    console.log(`[useRouletteData] Combinando ${newNumbers.length} novos números com ${initialNumbers.length} números iniciais para ${roletaNome}`);
+  
+  // Função para buscar estratégia da roleta
+  const fetchStrategyData = useCallback(async (): Promise<boolean> => {
+    if (!canonicalId) return false;
     
-    // Se não temos novos números, usar apenas os iniciais
-    if (newNumbers.length === 0) {
-      setNumbers([...initialNumbers]);
-      return;
-    }
-    
-    // Se não temos números iniciais, usar apenas os novos
-    if (initialNumbers.length === 0) {
-      setNumbers([...newNumbers]);
-      return;
-    }
-    
-    // Combinar sem duplicar números
-    const numberMap = new Map();
-    
-    // Adicionar números iniciais ao mapa, usando o timestamp como chave única
-    initialNumbers.forEach(item => {
-      // Se for um objeto com timestamp
-      if (typeof item === 'object' && item !== null && item.timestamp) {
-        numberMap.set(item.timestamp, item);
-      } else {
-        // Se for um número simples, usar o valor como chave
-        const numeroValue = typeof item === 'object' ? item.numero : item;
-        if (!numberMap.has(`value_${numeroValue}`)) {
-          numberMap.set(`value_${numeroValue}`, item);
-        }
-      }
-    });
-    
-    // Adicionar novos números, substituindo os existentes se houver duplicatas pelo timestamp
-    newNumbers.forEach(item => {
-      if (typeof item === 'object' && item !== null && item.timestamp) {
-        numberMap.set(item.timestamp, item);
-      } else {
-        const numeroValue = typeof item === 'object' ? item.numero : item;
-        if (!numberMap.has(`value_${numeroValue}`)) {
-          numberMap.set(`value_${numeroValue}`, item);
-        }
-      }
-    });
-    
-    // Converter o mapa de volta para um array e ordenar por timestamp (mais recente primeiro)
-    const combinedArray = Array.from(numberMap.values()).sort((a, b) => {
-      // Se for objeto, comparar timestamps
-      if (typeof a === 'object' && typeof b === 'object') {
-        const timeA = new Date(a.timestamp || '');
-        const timeB = new Date(b.timestamp || '');
-        return timeB.getTime() - timeA.getTime();
-      }
-      // Se forem números simples, manter a ordem
-      return 0;
-    });
-    
-    console.log(`[useRouletteData] Números combinados: ${combinedArray.length} números únicos para ${roletaNome}`);
-    setNumbers(combinedArray);
-  }, [initialNumbers, newNumbers, roletaNome]);
-
-  // Atualizar o estado combinado sempre que initialNumbers ou newNumbers mudar
-  useEffect(() => {
-    updateCombinedNumbers();
-  }, [initialNumbers, newNumbers, updateCombinedNumbers]);
-
-  // Função para extrair e processar números da API - MODIFICADA PARA USAR THROTTLER
-  const loadNumbers = useCallback(async (isRefresh = false): Promise<boolean> => {
     try {
-      // Se já temos dados iniciais e não é uma atualização manual, pular
-      if (initialLoadRef.current && !isRefresh) {
-        logger.debug(`Ignorando carregamento de números para ${roletaNome} - dados já carregados`);
-        setLoading(false);
+      // Verificar se já temos no cache
+      if (rouletteStrategyCache.has(canonicalId)) {
+        setStrategy(rouletteStrategyCache.get(canonicalId) || null);
         return true;
       }
       
-      if (!isRefresh) setLoading(true);
-      setError(null);
+      setStrategyLoading(true);
+      const strategyData = await fetchRouletteStrategy(canonicalId);
       
-      if (!roletaId) {
-        logger.warn(`ID de roleta inválido ou vazio: "${roletaId}"`);
-        setLoading(false);
-        setHasData(false);
-        return false;
+      if (strategyData) {
+        setStrategy(strategyData);
+        rouletteStrategyCache.set(canonicalId, strategyData);
+        return true;
       }
       
-      // Registrar explicitamente o início do carregamento
-      logger.debug(`${isRefresh ? '🔄 RECARREGANDO' : '📥 CARREGANDO'} dados para ${roletaNome} (ID: ${roletaId})`);
-      
-      // Usar o throttler para obter os números com controle de taxa
-      const throttleKey = `roulette_numbers_${canonicalIdRef.current}`;
-      
-      // Subscrever para atualizações futuras
-      const unsubscribe = RequestThrottler.subscribeToUpdates(throttleKey, (processedNumbers) => {
-        if (processedNumbers && Array.isArray(processedNumbers) && processedNumbers.length > 0) {
-          logger.debug(`Recebida atualização via throttler para ${roletaNome}: ${processedNumbers.length} números`);
-          
-          // Verificar se os dados recebidos têm a estrutura esperada
-          if (validateRouletteNumbers(processedNumbers)) {
-            setInitialNumbers(processedNumbers);
-            setHasData(true);
-            initialLoadRef.current = true;
-          } else {
-            logger.warn(`⚠️ Dados recebidos para ${roletaNome} têm formato inválido:`, processedNumbers.slice(0, 2));
-            // Tentar normalizar os dados antes de definir
-            const normalizedNumbers = normalizeRouletteData({ numero: processedNumbers });
-            if (normalizedNumbers.length > 0) {
-              setInitialNumbers(normalizedNumbers);
-              setHasData(true);
-              initialLoadRef.current = true;
-            }
-          }
-          setLoading(false);
-        }
-      });
-      
-      // Agendar a requisição
-      const numerosArray = await RequestThrottler.scheduleRequest(
-        throttleKey,
-        async () => fetchRouletteNumbers(roletaId, roletaNome, limit),
-        isRefresh // Forçar execução imediata apenas em caso de refresh manual
-      );
-      
-      // Processar os dados recebidos
-      if (numerosArray && Array.isArray(numerosArray) && numerosArray.length > 0) {
-        // Verificar se recebemos um array de objetos ou de números
-        if (typeof numerosArray[0] === 'object') {
-          logger.debug(`Recebidos dados já formatados para ${roletaNome}`);
-          // Já é um array de objetos, usar diretamente
-          setInitialNumbers(numerosArray);
-          setHasData(true);
-          initialLoadRef.current = true;
-          setLoading(false);
-          return true;
-        } else {
-          // É um array de números, converter para objetos
-          logger.debug(`Convertendo array de números para objetos para ${roletaNome}`);
-          const formattedNumbers = numerosArray.map(num => ({
-            numero: typeof num === 'number' ? num : parseInt(String(num), 10),
-            cor: determinarCorNumero(typeof num === 'number' ? num : parseInt(String(num), 10)),
-            timestamp: new Date().toISOString(),
-            roleta_id: roletaId,
-            roleta_nome: roletaNome
-          }));
-          setInitialNumbers(formattedNumbers);
-          setHasData(true);
-          initialLoadRef.current = true;
-          setLoading(false);
-          return true;
-        }
-      }
-      
-      // Se não conseguimos dados do throttler, tente o cache
-      if (!numerosArray || !Array.isArray(numerosArray) || numerosArray.length === 0) {
-        if (rouletteDataCache.has(canonicalIdRef.current)) {
-          const cachedData = rouletteDataCache.get(canonicalIdRef.current);
-          if (cachedData && cachedData.length > 0) {
-            logger.debug(`Usando ${cachedData.length} números do cache para ${roletaNome}`);
-            setInitialNumbers(cachedData);
-            setHasData(true);
-            initialLoadRef.current = true;
-            setLoading(false);
-            return true;
-          }
-        }
-        
-        // Sem dados disponíveis
-        logger.warn(`⚠️ NENHUM DADO disponível para ${roletaNome} (ID: ${roletaId})`);
-        setLoading(false);  
-        setHasData(false);
-        initialLoadRef.current = true;
-        return false;
-      }
-      
-      return true;
-    } catch (err: any) {
-      logger.error(`❌ Erro ao carregar números para ${roletaNome}: ${err.message}`);
-      setError(`Erro ao carregar números: ${err.message}`);
-      
-      setLoading(false);
-      setHasData(false);
-      initialLoadRef.current = true;
+      return false;
+    } catch (e) {
+      console.error(`Erro ao carregar estratégia para ${canonicalId}:`, e);
       return false;
     } finally {
-      // Garantir que loading e refreshLoading sejam sempre definidos como false ao final
-      setLoading(false);
-      if (isRefresh) setRefreshLoading(false);
+      setStrategyLoading(false);
     }
-  }, [roletaId, roletaNome, limit, normalizeRouletteData]);
+  }, [canonicalId]);
   
-  // Função para extrair e processar estratégia da API - MODIFICADA PARA USAR THROTTLER
-  const loadStrategy = useCallback(async (): Promise<boolean> => {
-    if (!roletaId) return false;
-    
-    setStrategyLoading(true);
-    
+  // Função para atualização imediata dos números da roleta
+  const refreshNumbers = useCallback(async (): Promise<boolean> => {
     try {
-      // Usar o throttler para obter a estratégia com controle de taxa
-      const throttleKey = `roulette_strategy_${canonicalIdRef.current}`;
+      setLoading(true);
+      setError(null);
       
-      // Subscrever para atualizações futuras de estratégia
-      const unsubscribe = RequestThrottler.subscribeToUpdates(throttleKey, (strategyData) => {
-        if (strategyData) {
-          logger.debug(`Recebida atualização de estratégia via throttler para ${roletaNome}`);
-          setStrategy(strategyData);
-          setStrategyLoading(false);
+      // Usar o UnifiedRouletteClient para obter dados mais recentes
+      unifiedClient.forceUpdate();
+      
+      // Buscar dados específicos da roleta atual
+      const data = await fetchRouletteNumbers(canonicalId, roletaNome, limit);
+      
+      // Processar os números
+      if (data && data.length > 0) {
+        const processedNumbers = processRouletteNumbers(data);
+        setNumbers(processedNumbers);
+        setHasData(true);
+        return true;
+      }
+      
+      return false;
+    } catch (err: any) {
+      logger.error(`❌ Erro ao atualizar roleta ${roletaNome}:`, err.message);
+      setError(`Erro ao atualizar dados: ${err.message}`);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [canonicalId, roletaNome, limit, unifiedClient]);
+  
+  // Função para atualizar dados de estratégia
+  const refreshStrategy = useCallback(async (): Promise<boolean> => {
+    return await fetchStrategyData();
+  }, [fetchStrategyData]);
+  
+  // Efeito para inicializar o hook e configurar event listeners
+  useEffect(() => {
+    isMounted.current = true;
+    effectRunCount.current += 1;
+    const runCount = effectRunCount.current;
+    
+    logger.debug(`[${runCount}] Inicializando hook para roleta ${canonicalId} (${roletaNome})`);
+    
+    // Função para processar novos números da roleta
+    const handleNewNumber = (event: RouletteNumberEvent) => {
+      // Validar se o evento é para esta roleta
+      if (!event || !isMounted.current) return;
+      
+      const eventRouletteId = event.roletaId?.toLowerCase();
+      const eventRouteName = event.nome?.toLowerCase();
+      const currentRouletteId = canonicalId.toLowerCase();
+      const currentRouletteName = roletaNome.toLowerCase();
+      
+      // Verificar se o evento é para esta roleta
+      const isForThisRoulette = 
+        eventRouletteId === currentRouletteId || 
+        eventRouteName === currentRouletteName;
+      
+      if (!isForThisRoulette) return;
+      
+      logger.debug(`Recebido novo número ${event.numero} para roleta ${event.nome || event.roletaId}`);
+      
+      // Processar o número
+      const newNumber = processRouletteNumber(event.numero, event.timestamp);
+      
+      // Atualizar estado com o novo número (adicionando ao início do array)
+      setNumbers(prev => {
+        // Criar um novo array, incluindo o novo número no início
+        const updatedNumbers = [newNumber, ...prev];
+        
+        // Limitar ao tamanho máximo
+        if (updatedNumbers.length > limit) {
+          return updatedNumbers.slice(0, limit);
         }
+        
+        return updatedNumbers;
       });
       
-      // Agendar a requisição
-      const strategyData = await RequestThrottler.scheduleRequest(
-        throttleKey,
-        async () => {
-          logger.debug(`Extraindo estratégia para ${roletaNome} (ID: ${roletaId})...`);
-          return fetchRouletteStrategy(roletaId);
-        }
-      );
-      
-      // Se não tem dados de estratégia, tenta extrair da roleta por nome ou usar o cache
-      if (!strategyData) {
-        // Verificar se temos no cache
-        if (rouletteStrategyCache.has(canonicalIdRef.current)) {
-          const cachedStrategy = rouletteStrategyCache.get(canonicalIdRef.current);
-          if (cachedStrategy) {
-            logger.debug(`Usando estratégia do cache para ${roletaNome}`);
-            setStrategy(cachedStrategy);
-            setStrategyLoading(false);
-            return true;
-          }
-        }
-        
-        // Tentar obter da roleta
-        const throttleKeyRoulette = `roulette_data_${canonicalIdRef.current}`;
-        const roletaData = await RequestThrottler.scheduleRequest(
-          throttleKeyRoulette,
-          async () => fetchRouletteById(roletaId)
-        );
-        
-        if (roletaData) {
-          const derivedStrategy = {
-            estado: roletaData.estado_estrategia || 'NEUTRAL',
-            numero_gatilho: roletaData.numero_gatilho || null,
-            terminais_gatilho: roletaData.terminais_gatilho || [],
-            vitorias: roletaData.vitorias || 0,
-            derrotas: roletaData.derrotas || 0,
-            sugestao_display: roletaData.sugestao_display || ''
-          };
-          
-          // Armazenar no cache
-          rouletteStrategyCache.set(canonicalIdRef.current, derivedStrategy);
-          
-          setStrategy(derivedStrategy);
-          setStrategyLoading(false);
-          return true;
-        }
-      } else {
-        // Armazenar no cache
-        rouletteStrategyCache.set(canonicalIdRef.current, strategyData);
-      }
-      
-      // Não conseguimos obter a estratégia
-      if (!strategyData) {
-        logger.warn(`⚠️ Nenhuma estratégia encontrada para ${roletaNome}`);
-        setStrategy(null);
-        setStrategyLoading(false);
-        return false;
-      }
-      
-      return true;
-    } catch (error) {
-      logger.error(`❌ Erro ao extrair estratégia: ${error}`);
-      setStrategyLoading(false);
-      return false;
-    }
-  }, [roletaId, roletaNome, canonicalIdRef.current]);
-  
-  // useEffect para inicialização - MODIFICADO PARA USAR THROTTLER
-  useEffect(() => {
-    // Verificar se esta instância específica já foi inicializada para evitar carregamento duplo
-    if (socketSubscribedRef.current) {
-      logger.debug(`Hook já inicializado para ${roletaNome}, ignorando inicialização duplicada`);
-      return;
-    }
-    
-    // Marcar esta instância como inicializada
-    socketSubscribedRef.current = true;
-    
-    let isActive = true;
-    logger.debug(`⭐ INICIANDO CARREGAMENTO ÚNICO para ${roletaNome} (ID: ${roletaId})`);
-    
-    // Carregar dados iniciais
-    loadNumbers();
-    loadStrategy();
-    
-    // Cleanup
-    return () => {
-      isActive = false;
-      logger.debug(`Componente desmontado, limpeza realizada para ${roletaNome}`);
+      setHasData(true);
     };
-  }, [loadNumbers, loadStrategy, roletaId, roletaNome]);
-  
-  // ===== EVENTOS E WEBSOCKETS =====
-  
-  // Função para adicionar números em tempo real
-  const addRealTimeNumber = useCallback((newNumberData: RouletteNumberEvent) => {
-    // Verificar se o evento é para esta roleta
-    if (newNumberData.roleta_id !== canonicalIdRef.current && 
-        newNumberData.roleta_nome !== roletaNome) {
-      return;
-    }
-
-    const newNumber: RouletteNumber = {
-      numero: newNumberData.numero,
-      roleta_id: newNumberData.roleta_id,
-      roleta_nome: newNumberData.roleta_nome,
-      timestamp: newNumberData.timestamp,
-      cor: determinarCorNumero(newNumberData.numero)
-    };
-
-    logger.debug(`Adicionando número em tempo real: ${newNumber.numero} para ${newNumber.roleta_nome}`);
-
-    // Adicionar aos novos números
-    setNewNumbers(prev => {
-      // Verificar se o número já existe nos novos
-      const isDuplicate = prev.some(num => 
-        num.numero === newNumber.numero && 
-        num.timestamp === newNumber.timestamp
-      );
-      
-      if (isDuplicate) return prev;
-      
-      // Adicionar o novo número ao array de novos números
-      return [newNumber, ...prev];
-    });
-
-    // Também adicionar ao histórico inicial para garantir consistência
-    setInitialNumbers(prev => {
-      // Verificar se o número já existe no histórico
-      const isDuplicate = prev.some(num => 
-        num.numero === newNumber.numero && 
-        num.timestamp === newNumber.timestamp
-      );
-      
-      if (isDuplicate) return prev;
-      
-      // Adicionar o novo número também ao histórico
-      return [newNumber, ...prev];
-    });
-
-    setHasData(true);
-    setIsConnected(true);
-  }, [roletaNome]);
-
-  // Efeito para inscrever no EventService para receber atualizações em tempo real
-  useEffect(() => {
-    if (socketSubscribedRef.current) return;
-
-    // Função para lidar com novos números em tempo real
-    const handleNewNumber = (event: RouletteNumberEvent) => {
-      if (event.roleta_id === canonicalIdRef.current || 
-          event.roleta_nome === roletaNome) {
-        logger.debug(`Novo número recebido via socket: ${event.numero} para ${event.roleta_nome || event.roleta_id}`);
-        addRealTimeNumber(event);
-      }
-    };
-
-    // Inscrever para eventos de novos números
-    EventService.on('roulette:new-number', handleNewNumber);
-    socketSubscribedRef.current = true;
-
-    // Iniciar polling de baixa frequência para verificar atualizações
-    if (!pollingIntervalRef.current && !pollingInitialized.has(pollingIdKey)) {
-      pollingInitialized.add(pollingIdKey);
-      pollingIntervalRef.current = setInterval(() => {
-        // Verificar silenciosamente por novos dados sem alterar estado de loading
-        const socketService = SocketService.getInstance();
-        socketService.requestRouletteNumbers(canonicalIdRef.current);
-      }, 5000); // 5 segundos
-    }
-
-    return () => {
-      EventService.off('roulette:new-number', handleNewNumber);
-      socketSubscribedRef.current = false;
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-      pollingInitialized.delete(pollingIdKey);
-    };
-  }, [canonicalIdRef.current, roletaNome, pollingIdKey, addRealTimeNumber]);
-  
-  // Assinar explicitamente para atualizações da API
-  useEffect(() => {
-    const socketService = SocketService.getInstance();
-    socketService.subscribeToRouletteEndpoint(canonicalIdRef.current, roletaNome);
-    
-    // Usar RouletteFeedService em vez de polling
-    const rouletteFeedService = RouletteFeedService.getInstance();
-    rouletteFeedService.start();
-    
-    return () => {
-      // Não é necessário parar o serviço aqui, pois ele é gerenciado globalmente
-    };
-  }, [canonicalIdRef.current, roletaNome]);
-  
-  // Eventos de atualização da estratégia
-  useEffect(() => {
-    const eventService = EventService.getInstance();
     
     // Função para processar eventos de estratégia
     const handleStrategyEvent = (event: any) => {
-      // Verificar se é um evento relevante para esta roleta
-      if (event.type !== 'strategy_update' || 
-          (event.roleta_id !== roletaId && event.roleta_nome !== roletaNome)) {
-        return;
-      }
+      if (!event || !event.data || !isMounted.current) return;
       
-      // Verificar se temos dados de vitórias e derrotas
-      if (event.vitorias !== undefined || event.derrotas !== undefined) {
-        console.log(`[useRouletteData] Recebido evento de estratégia para ${roletaNome}:`, {
-          vitorias: event.vitorias,
-          derrotas: event.derrotas,
-          estado: event.estado
-        });
+      const strategyData = event.data;
+      
+      // Verificar se a estratégia é para esta roleta
+      if (strategyData.roletaId === canonicalId ||
+          strategyData.roleta_id === canonicalId) {
         
-        // Criar uma versão atualizada da estratégia atual
-        const updatedStrategy: RouletteStrategy = {
-          ...strategy, // Manter valores existentes que podem não estar no evento
-          estado: event.estado || (strategy?.estado || 'NEUTRAL'),
-          numero_gatilho: event.numero_gatilho || strategy?.numero_gatilho || null,
-          terminais_gatilho: event.terminais_gatilho || strategy?.terminais_gatilho || [],
-          vitorias: event.vitorias !== undefined ? event.vitorias : (strategy?.vitorias || 0),
-          derrotas: event.derrotas !== undefined ? event.derrotas : (strategy?.derrotas || 0),
-          sugestao_display: event.sugestao_display || strategy?.sugestao_display || '',
-        };
-        
-        console.log(`[useRouletteData] Atualizando estratégia para ${roletaNome}:`, updatedStrategy);
-        setStrategy(updatedStrategy);
-      } else {
-        console.log(`[useRouletteData] Evento de estratégia sem dados de vitórias/derrotas para ${roletaNome}`);
+        logger.debug(`Nova estratégia recebida para ${canonicalId}`);
+        setStrategy(strategyData);
+        rouletteStrategyCache.set(canonicalId, strategyData);
       }
     };
     
-    // Registrar o handler para eventos de estratégia
-    eventService.subscribeToEvent('strategy_update', handleStrategyEvent);
+    // Conectar aos eventos
+    eventUnsubscribe.current = EventService.subscribe('new-roulette-number', handleNewNumber);
+    EventService.subscribe('strategy-update', handleStrategyEvent);
     
-    return () => {
-      // Remover registro ao desmontar
-      eventService.unsubscribeFromEvent('strategy_update', handleStrategyEvent);
-    };
-  }, [roletaId, roletaNome, strategy]);
-  
-  // ===== FUNÇÕES PÚBLICAS =====
-  
-  // Função para atualizar manualmente os números
-  const refreshNumbers = useCallback(async (): Promise<boolean> => {
-    setRefreshLoading(true);
-    return await loadNumbers(true);
-  }, [loadNumbers]);
-  
-  // Função para atualizar manualmente a estratégia
-  const refreshStrategy = useCallback(async (): Promise<boolean> => {
-    console.log(`[useRouletteData] Atualizando manualmente estratégia para ${roletaNome}`);
-    return await loadStrategy();
-  }, [roletaNome, loadStrategy]);
-  
-  // Combinar todos os números (iniciais + novos) para retorno
-  useEffect(() => {
-    // Combinar números iniciais com novos números
-    const combinedNumbers = [...newNumbers, ...initialNumbers];
-    
-    // Remover duplicados (pode acontecer durante ancoragem)
-    const uniqueNumbers: RouletteNumber[] = [];
-    const seen = new Set<string>();
-    
-    for (const num of combinedNumbers) {
-      const key = `${num.numero}-${num.timestamp || ''}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueNumbers.push(num);
-      }
-    }
-    
-    // Ordenar por timestamp (mais recente primeiro)
-    uniqueNumbers.sort((a, b) => {
-      const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-      return bTime - aTime;
+    // Registrar no sistema de eventos global
+    EventService.emit('roulette-hook:initialized', {
+      roletaId: canonicalId,
+      nome: roletaNome,
+      timestamp: new Date().toISOString()
     });
     
-    // Limitar ao tamanho solicitado
-    const limitedNumbers = uniqueNumbers.slice(0, limit);
-    
-    // Atualizar o estado dos números
-    setNumbers(limitedNumbers);
-  }, [initialNumbers, newNumbers, limit]);
-  
-  // Registrar para obter atualizações em tempo real
-  useEffect(() => {
-    // Iniciar o serviço de polling único para todas as requisições
-    feedService.startPolling();
-    
-    // Cleanup quando o componente for desmontado
-    return () => {
-      // Não desativamos o polling aqui, pois outros componentes podem precisar dele
-      // O gerenciamento do ciclo de vida é responsabilidade do RouletteFeedService
+    // Observar status de conexão
+    const handleConnectionChange = (status: any) => {
+      if (!isMounted.current) return;
+      setIsConnected(!!status.connected);
     };
-  }, [feedService]);
-  
-  // Buscar roletas e estratégias apenas uma vez na montagem
-  useEffect(() => {
+    
+    // Subscrever para mudanças de status
+    EventService.subscribe('socket:status-changed', handleConnectionChange);
+    
+    // Registrar no UnifiedRouletteClient para receber dados em tempo real
+    const unsubscribeFromUnified = unifiedClient.on('update', (data) => {
+      if (!isMounted.current) return;
+      
+      // Se os dados forem um array, buscar a roleta específica
+      if (Array.isArray(data)) {
+        const relevantRoulette = data.find(r => 
+          r.id === canonicalId || 
+          r.id === roletaId || 
+          (r.name && r.name.toLowerCase() === roletaNome.toLowerCase())
+        );
+        
+        if (relevantRoulette && relevantRoulette.numbers) {
+          // Atualizar com os números desta roleta
+          const processedNumbers = processRouletteNumbers(relevantRoulette.numbers);
+          setNumbers(processedNumbers);
+          setHasData(true);
+        }
+      }
+    });
+    
+    // Configurar recebimento de status de conexão
+    const handleStreamStatus = (status: any) => {
+      if (!isMounted.current) return;
+      setIsConnected(status.isStreamConnected || false);
+    };
+    
+    const unsubscribeFromStatus = unifiedClient.on('connect', handleStreamStatus);
+    
+    // Conectar ao stream se não estiver conectado
+    if (!unifiedClient.getStatus().isStreamConnected) {
+      unifiedClient.connectStream();
+    }
+    
+    // Função para buscar todos os dados iniciais
     const fetchAllData = async () => {
       try {
         setLoading(true);
         
-        // Usar o serviço centralizado para buscar dados iniciais
-        const roletas = await feedService.fetchInitialData();
+        // 1. Buscar os números atuais
+        const numbersData = await fetchRouletteNumbers(canonicalId, roletaNome, limit);
         
-        if (roletas && roletas.length > 0) {
-          // Processar as roletas retornadas pelo serviço
-          processInitialRoulettes(roletas);
-          setLoading(false);
+        // Processar e atualizar
+        if (numbersData && numbersData.length > 0) {
+          const processedNumbers = processRouletteNumbers(numbersData);
+          setNumbers(processedNumbers);
+          setHasData(true);
         } else {
-          console.error('Falha ao carregar roletas iniciais');
-          setError('Não foi possível carregar as roletas');
-          setLoading(false);
+          // Se não encontrou, verificar se o cliente unificado tem os dados
+          const allRoulettes = unifiedClient.getAllRoulettes();
+          const relevantRoulette = allRoulettes.find(r => 
+            r.id === canonicalId || 
+            r.id === roletaId || 
+            (r.name && r.name.toLowerCase() === roletaNome.toLowerCase())
+          );
+          
+          if (relevantRoulette && relevantRoulette.numbers) {
+            // Atualizar com os números desta roleta
+            const processedNumbers = processRouletteNumbers(relevantRoulette.numbers);
+            setNumbers(processedNumbers);
+            setHasData(true);
+          }
         }
-      } catch (error) {
-        console.error('Erro ao carregar dados iniciais:', error);
-        setError('Erro ao carregar dados');
+        
+        // 2. Buscar estratégia
+        await fetchStrategyData();
+        
+        setError(null);
+        isInitialized.current = true;
+      } catch (err: any) {
+        console.error(`Erro ao carregar dados da roleta ${roletaNome}:`, err);
+        setError(`Falha ao carregar dados: ${err.message}`);
+      } finally {
         setLoading(false);
       }
     };
-
+    
+    // Executar busca inicial
     fetchAllData();
-  }, [feedService]);
+    
+    // Cleanup
+    return () => {
+      logger.debug(`Desmontando hook para roleta ${canonicalId}`);
+      isMounted.current = false;
+      
+      // Limpar event listeners
+      if (eventUnsubscribe.current) {
+        eventUnsubscribe.current();
+      }
+      
+      EventService.unsubscribe('strategy-update', handleStrategyEvent);
+      EventService.unsubscribe('socket:status-changed', handleConnectionChange);
+      
+      // Cancelar polling se houver
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      
+      // Cancelar inscrições no UnifiedRouletteClient
+      unsubscribeFromUnified();
+      unsubscribeFromStatus();
+      
+      // Notificar sistema sobre desmontagem
+      EventService.emit('roulette-hook:unmounted', {
+        roletaId: canonicalId,
+        nome: roletaNome,
+        timestamp: new Date().toISOString()
+      });
+    };
+  }, [canonicalId, roletaNome, limit, unifiedClient]);
   
-  // Garantir valores padrão no retorno
   return {
     numbers,
     loading,
