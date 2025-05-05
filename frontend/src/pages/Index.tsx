@@ -234,6 +234,42 @@ const Index = () => {
   
   const navigate = useNavigate();
   
+  // Escutar o evento forceDataUpdate do DevControls
+  useEffect(() => {
+    const handleForceUpdate = () => {
+      console.log('[Index] Evento forceDataUpdate recebido, recarregando dados...');
+      setIsLoading(true);
+      setError(null);
+      
+      // Limpar timeout existente se houver
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+      
+      // Atualizar os dados
+      RouletteRepository.getAllRoulettes()
+        .then(data => {
+          console.log('[Index] Dados atualizados após forceUpdate:', data?.length || 0, 'roletas');
+          setRoulettes(data || []);
+          setIsLoading(false);
+        })
+        .catch(err => {
+          console.error('[Index] Erro ao forçar atualização:', err);
+          setError('Falha ao atualizar dados. Tente novamente.');
+          setIsLoading(false);
+        });
+    };
+    
+    // Adicionar listener
+    window.addEventListener('forceDataUpdate', handleForceUpdate);
+    
+    // Remover listener ao desmontar
+    return () => {
+      window.removeEventListener('forceDataUpdate', handleForceUpdate);
+    };
+  }, []);
+  
   // Escutar eventos de roletas existentes para persistência
   useEffect(() => {
     const handleRouletteExists = (event: RouletteNumberEvent | StrategyUpdateEvent) => {

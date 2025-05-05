@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { cryptoService } from '../utils/crypto-service';
+import cryptoService from '../utils/crypto-service';
 
 /**
  * Componente de controles de desenvolvimento para depuração
