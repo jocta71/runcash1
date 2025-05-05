@@ -11,6 +11,8 @@ const strategiesRouter = require('./routes/strategies');
 const authRouter = require('./routes/auth');
 const webhookRouter = require('./routes/webhookRoutes');
 const asaasWebhookHandler = require('./webhookHandler');
+// Importar o módulo de roletas
+const rouletteModule = require('./roulettes');
 
 // Configuração MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -80,6 +82,10 @@ apiApp.use('/roulettes/history', rouletteHistoryRouter);
 apiApp.use('/strategies', strategiesRouter);
 apiApp.use('/auth', authRouter);
 apiApp.use('/api', webhookRouter);
+
+// Inicializar o módulo de roletas
+rouletteModule.initialize(apiApp);
+console.log('[API] Módulo de roletas inicializado');
 
 // Rota direta para webhook do Asaas (registrada em 3 variantes para garantir compatibilidade)
 apiApp.post('/api/asaas-webhook', asaasWebhookHandler);

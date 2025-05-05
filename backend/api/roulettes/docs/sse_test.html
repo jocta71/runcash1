@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de SSE para Roletas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .panel {
+            flex: 1;
+            min-width: 300px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        pre {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            overflow: auto;
+            max-height: 400px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.disconnect {
+            background-color: #f44336;
+        }
+        button.disconnect:hover {
+            background-color: #e53935;
+        }
+        input[type="text"] {
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            width: 100%;
+            font-size: 16px;
+        }
+        .event-item {
+            border-bottom: 1px solid #eee;
+            padding: 10px 0;
+        }
+        .event-item:last-child {
+            border-bottom: none;
+        }
+        .event-number {
+            font-size: 24px;
+            font-weight: bold;
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            text-align: center;
+            line-height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .color-red {
+            background-color: #f44336;
+            color: white;
+        }
+        .color-black {
+            background-color: #222;
+            color: white;
+        }
+        .color-green {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .timestamp {
+            font-size: 12px;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <h1>Teste de SSE para Roletas</h1>
+    
+    <div class="panel">
+        <h2>Configuração</h2>
+        <div>
+            <label for="serverUrl">URL do Servidor:</label>
+            <input type="text" id="serverUrl" value="https://backendapi-production-36b5.up.railway.app">
+        </div>
+        <div>
+            <label for="tableId">ID da Mesa:</label>
+            <input type="text" id="tableId" value="mesa-teste-001">
+        </div>
+        <div>
+            <button id="testServer">Testar Servidor</button>
+            <button id="connectStream">Conectar ao Stream</button>
+            <button id="connectRoulette">Conectar à Roleta</button>
+            <button id="disconnect" class="disconnect">Desconectar</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <h2>Status da Conexão</h2>
+            <pre id="connectionStatus">Desconectado</pre>
+            
+            <h2>Eventos Recebidos</h2>
+            <div id="events"></div>
+        </div>
+        
+        <div class="panel">
+            <h2>Dados Brutos</h2>
+            <pre id="rawData">Nenhum dado recebido</pre>
+        </div>
+    </div>
+
+    <script>
+        // Elementos DOM
+        const serverUrlInput = document.getElementById('serverUrl');
+        const tableIdInput = document.getElementById('tableId');
+        const connectStreamBtn = document.getElementById('connectStream');
+        const connectRouletteBtn = document.getElementById('connectRoulette');
+        const testServerBtn = document.getElementById('testServer');
+        const disconnectBtn = document.getElementById('disconnect');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const events = document.getElementById('events');
+        const rawData = document.getElementById('rawData');
+        
+        // Variáveis globais
+        let eventSource = null;
+        let eventCount = 0;
+        
+        // Função para conectar ao endpoint de teste
+        function connectToTestStream() {
+            // Primeiro, desconectar se já houver uma conexão
+            disconnectStream();
+            
+            const serverUrl = serverUrlInput.value.trim();
+            if (!serverUrl) {
+                alert('Por favor, insira a URL do servidor');
+                return;
+            }
+            
+            try {
+                const url = `${serverUrl}/stream/test`;
+                connectionStatus.textContent = `Conectando a ${url}...`;
+                
+                eventSource = new EventSource(url);
+                
+                eventSource.onopen = function() {
+                    connectionStatus.textContent = `Conectado ao endpoint de teste: ${url}`;
+                };
+                
+                eventSource.onmessage = function(event) {
+                    eventCount++;
+                    const data = JSON.parse(event.data);
+                    
+                    // Adicionar ao log de eventos
+                    const color = data.color === 'vermelho' ? 'red' : (data.color === 'preto' ? 'black' : 'green');
+                    
+                    const eventElement = document.createElement('div');
+                    eventElement.className = 'event-item';
+                    eventElement.innerHTML = `
+                        <div>
+                            <span class="event-number color-${color}">${data.number}</span>
+                            <span>Evento #${eventCount}</span>
+                        </div>
+                        <div class="timestamp">${new Date().toLocaleTimeString()} - ${data.timestamp}</div>
+                    `;
+                    
+                    events.insertBefore(eventElement, events.firstChild);
+                    
+                    // Mostrar dados brutos
+                    rawData.textContent = `Evento #${eventCount}\n${event.data}`;
+                };
+                
+                eventSource.onerror = function(error) {
+                    connectionStatus.textContent = `Erro na conexão: ${error}`;
+                    disconnectStream();
+                };
+            } catch (error) {
+                connectionStatus.textContent = `Erro ao conectar: ${error.message}`;
+            }
+        }
+        
+        // Função para conectar ao endpoint de roleta
+        function connectToRouletteStream() {
+            // Primeiro, desconectar se já houver uma conexão
+            disconnectStream();
+            
+            const serverUrl = serverUrlInput.value.trim();
+            const tableId = tableIdInput.value.trim();
+            
+            if (!serverUrl || !tableId) {
+                alert('Por favor, insira a URL do servidor e o ID da mesa');
+                return;
+            }
+            
+            try {
+                const url = `${serverUrl}/api/roulettes/stream/rounds/ROULETTE/${tableId}/v2/live`;
+                connectionStatus.textContent = `Conectando a ${url}...`;
+                
+                eventSource = new EventSource(url);
+                
+                eventSource.onopen = function() {
+                    connectionStatus.textContent = `Conectado ao endpoint de roleta: ${url}`;
+                };
+                
+                eventSource.addEventListener('update', function(event) {
+                    eventCount++;
+                    const data = JSON.parse(event.data);
+                    
+                    // Adicionar ao log de eventos
+                    const color = data.color === 'vermelho' ? 'red' : (data.color === 'preto' ? 'black' : 'green');
+                    
+                    const eventElement = document.createElement('div');
+                    eventElement.className = 'event-item';
+                    eventElement.innerHTML = `
+                        <div>
+                            <span class="event-number color-${color}">${data.number}</span>
+                            <span>Evento #${eventCount}</span>
+                        </div>
+                        <div>Mesa: ${data.tableName || data.tableId}</div>
+                        <div class="timestamp">${new Date().toLocaleTimeString()} - ${data.timestamp}</div>
+                    `;
+                    
+                    events.insertBefore(eventElement, events.firstChild);
+                    
+                    // Mostrar dados brutos
+                    rawData.textContent = `Evento #${eventCount}\nTipo: ${event.type}\nID: ${event.lastEventId}\nDados: ${event.data}`;
+                }, false);
+                
+                eventSource.onerror = function(error) {
+                    connectionStatus.textContent = `Erro na conexão: ${error}`;
+                    disconnectStream();
+                };
+            } catch (error) {
+                connectionStatus.textContent = `Erro ao conectar: ${error.message}`;
+            }
+        }
+        
+        // Função para desconectar
+        function disconnectStream() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+                connectionStatus.textContent = 'Desconectado';
+            }
+        }
+        
+        // Função para testar o servidor
+        function testServer() {
+            const serverUrl = serverUrlInput.value.trim();
+            
+            if (!serverUrl) {
+                alert('Por favor, insira a URL do servidor');
+                return;
+            }
+            
+            connectionStatus.textContent = `Testando conexão com ${serverUrl}...`;
+            
+            fetch(`${serverUrl}/api/roulettes`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    connectionStatus.textContent = `Servidor está online. ${data.length} roletas encontradas.`;
+                    rawData.textContent = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    connectionStatus.textContent = `Erro ao conectar ao servidor: ${error.message}`;
+                });
+        }
+        
+        // Event listeners
+        connectStreamBtn.addEventListener('click', connectToTestStream);
+        connectRouletteBtn.addEventListener('click', connectToRouletteStream);
+        disconnectBtn.addEventListener('click', disconnectStream);
+        testServerBtn.addEventListener('click', testServer);
+        
+        // Limpar a conexão quando a página for fechada
+        window.addEventListener('beforeunload', disconnectStream);
+    </script>
+</body>
+</html> 
