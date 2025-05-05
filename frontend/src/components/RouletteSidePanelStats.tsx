@@ -1,4 +1,4 @@
-import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle } from "lucide-react";
+import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle, Trash2 } from "lucide-react";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   ResponsiveContainer,
@@ -310,6 +310,14 @@ const rouletteStyles = {
   }
 };
 
+// <<< NOVA INTERFACE para condição da estratégia >>>
+interface StrategyCondition {
+  id: string; // Para key no map e remoção
+  type: string; // Ex: 'color', 'number_streak', 'dozen_miss'
+  operator: string; // Ex: 'equals', 'not_equals', 'streak_count', 'miss_count'
+  value: any; // Ex: 'red', 5, '1st_dozen'
+}
+
 const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({ 
   roletaId,
   roletaNome, 
@@ -350,6 +358,9 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   // <<< NOVO ESTADO para o modal de estratégia >>>
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
   const [strategyName, setStrategyName] = useState(""); // Estado para o nome da estratégia
+
+  // <<< NOVO ESTADO para as condições da estratégia >>>
+  const [strategyConditions, setStrategyConditions] = useState<StrategyCondition[]>([]);
 
   // Esta função será chamada pelo listener do 'update' do UnifiedClient
   const processRouletteUpdate = useCallback((updatedRouletteData: any) => {
@@ -727,12 +738,58 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     }
   }, [aiQuery, roletaId, componentInstanceId]); // Adicionar dependências
 
-  // <<< NOVA FUNÇÃO placeholder para salvar estratégia >>>
+  // <<< NOVA FUNÇÃO para adicionar uma condição vazia >>>
+  const addCondition = () => {
+    setStrategyConditions(prev => [
+      ...prev,
+      {
+        id: uniqueId('condition-'), // Gera ID único
+        type: '', // Tipo inicial vazio
+        operator: '', // Operador inicial vazio
+        value: '' // Valor inicial vazio
+      }
+    ]);
+  };
+  
+  // <<< NOVA FUNÇÃO para remover uma condição >>>
+  const removeCondition = (idToRemove: string) => {
+    setStrategyConditions(prev => prev.filter(condition => condition.id !== idToRemove));
+  };
+  
+  // <<< NOVA FUNÇÃO para atualizar uma condição específica >>>
+  const updateCondition = (idToUpdate: string, field: keyof StrategyCondition, newValue: any) => {
+    setStrategyConditions(prev => 
+      prev.map(condition => 
+        condition.id === idToUpdate ? { ...condition, [field]: newValue } : condition
+      )
+    );
+    // TODO: Adicionar lógica para resetar operator/value se o type mudar?
+  };
+  
+  // <<< FUNÇÃO para salvar estratégia (atualizada para incluir conditions) >>>
   const handleSaveStrategy = () => {
-    console.log("Salvando estratégia:", strategyName);
-    // Lógica para salvar (localStorage ou API) virá aqui
-    setIsStrategyModalOpen(false); // Fecha o modal após salvar (ou tentar)
-    setStrategyName(""); // Limpa o nome
+    const newStrategy = {
+      id: uniqueId('strategy-'),
+      name: strategyName,
+      conditions: strategyConditions
+    };
+    console.log("Salvando estratégia:", newStrategy);
+    
+    // Salvar no localStorage (exemplo)
+    try {
+      const savedStrategies = JSON.parse(localStorage.getItem('rouletteStrategies') || '[]');
+      savedStrategies.push(newStrategy);
+      localStorage.setItem('rouletteStrategies', JSON.stringify(savedStrategies));
+      logger.info(`Estratégia '${strategyName}' salva localmente.`);
+    } catch (error) {
+        logger.error("Erro ao salvar estratégia no localStorage:", error);
+        // TODO: Mostrar erro para o usuário?
+    }
+
+    // Resetar e fechar modal
+    setIsStrategyModalOpen(false); 
+    setStrategyName(""); 
+    setStrategyConditions([]); // Limpa condições
   };
 
   return (
@@ -755,7 +812,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
               Criar Estratégia
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[480px] bg-card border-border">
+          <DialogContent className="sm:max-w-[600px] bg-card border-border">
             <DialogHeader>
               <DialogTitle>Criar Nova Estratégia</DialogTitle>
               <DialogDescription>
@@ -763,7 +820,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              {/* Formulário - Começando com o nome */}
+              {/* Input Nome */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="strategy-name" className="text-right">
                   Nome
@@ -776,10 +833,71 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   className="col-span-3 bg-input border-border"
                 />
               </div>
-              {/* Área para adicionar condições virá aqui */}
-              <div className="mt-4 p-4 border-t border-border">
-                <p className="text-sm text-center text-muted-foreground">[Interface para adicionar condições será implementada aqui]</p>
+              
+              {/* --- Área das Condições --- */}
+              <Separator className="my-4" />
+              <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2"> {/* Scroll para condições */}
+                <Label>Condições (Gatilhos)</Label>
+                {strategyConditions.length === 0 && (
+                  <p className="text-sm text-center text-muted-foreground py-4">Clique em "Adicionar Condição" para começar.</p>
+                )}
+                
+                {/* Mapear e renderizar cada condição */}
+                {strategyConditions.map((condition, index) => (
+                  <div key={condition.id} className="flex items-center space-x-2 p-3 border border-border rounded-md">
+                    {/* Inputs/Selects para a condição (PLACEHOLDERS POR ENQUANTO) */}
+                    <div className="flex-1 grid grid-cols-3 gap-2">
+                      <Select 
+                         value={condition.type}
+                         onValueChange={(value) => updateCondition(condition.id, 'type', value)}
+                      > 
+                        <SelectTrigger className="bg-input border-border"><SelectValue placeholder="Tipo..." /></SelectTrigger>
+                        <SelectContent className="bg-card border-border text-white">
+                          <SelectItem value="color_streak">Sequência de Cor</SelectItem>
+                          <SelectItem value="number_frequency">Frequência de Número</SelectItem>
+                          <SelectItem value="dozen_miss">Dúzia não saiu</SelectItem>
+                          {/* Adicionar mais tipos */}
+                        </SelectContent>
+                      </Select>
+                      <Select 
+                        value={condition.operator}
+                        onValueChange={(value) => updateCondition(condition.id, 'operator', value)}
+                        disabled={!condition.type} // Desabilita se o tipo não foi escolhido
+                      >
+                        <SelectTrigger className="bg-input border-border"><SelectValue placeholder="Operador..." /></SelectTrigger>
+                         <SelectContent className="bg-card border-border text-white">
+                          {/* TODO: Opções do operador baseadas no condition.type */}
+                          <SelectItem value="equals">Igual a</SelectItem>
+                          <SelectItem value="greater_than">Maior que</SelectItem>
+                          <SelectItem value="streak_count">Sequência de X</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input 
+                        placeholder="Valor..." 
+                        value={condition.value}
+                        onChange={(e) => updateCondition(condition.id, 'value', e.target.value)}
+                        className="bg-input border-border"
+                        disabled={!condition.operator} // Desabilita se operador não escolhido
+                      />
+                    </div>
+                    {/* Botão para remover condição */}
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => removeCondition(condition.id)}
+                      className="text-muted-foreground hover:text-destructive h-8 w-8"
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                ))}
               </div>
+              
+              {/* Botão para adicionar nova condição */}
+              <Button variant="outline" size="sm" onClick={addCondition} className="mt-2">
+                <PlusCircle size={14} className="mr-2" /> Adicionar Condição
+              </Button>
+              
             </div>
             <DialogFooter>
               <DialogClose asChild>
