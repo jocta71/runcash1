@@ -5,6 +5,7 @@ const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const jwt = require('jsonwebtoken'); // Adicionado para corrigir o problema de autenticação WebSocket
+const crypto = require('crypto');
 
 // Carregar variáveis de ambiente
 dotenv.config();
