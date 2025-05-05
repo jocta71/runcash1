@@ -21,133 +21,22 @@ const dbName = process.env.MONGODB_DB_NAME || 'runcash';
 
 /**
  * @route   GET /api/roulettes
- * @desc    Lista todas as roletas disponíveis (requer assinatura ativa)
- * @access  Privado - Requer assinatura
+ * @desc    Lista todas as roletas disponíveis (acesso público)
+ * @access  Público
  */
 router.get('/roulettes', 
-  async (req, res, next) => {
-    // Antes de verificar a assinatura, vamos verificar se o usuário tem acesso direto
-    // com base no token
-    try {
-      if (!req.user || !req.user.id) {
-        console.log('[API] Tentativa de acesso sem autenticação à rota /api/roulettes');
-        return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
-      }
-      
-      // Verificar diretamente na base de dados se o usuário tem acesso
-      const client = new MongoClient(url, { useUnifiedTopology: true });
-      await client.connect();
-      const db = client.db(dbName);
-      
-      // Buscar usuário e verificar se existe com esse ID
-      const userId = req.user.id;
-      const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
-      
-      if (!user) {
-        await client.close();
-        console.log(`[API] Usuário ${userId} não encontrado na base de dados`);
-        return res.status(401).json({ success: false, message: 'Usuário não encontrado' });
-      }
-      
-      console.log(`[API] Usuário ${userId} encontrado com email: ${user.email}`);
-      
-      // Verificar se o usuário tem customerId ou asaasCustomerId
-      const customerId = user.customerId || user.asaasCustomerId;
-      if (customerId) {
-        console.log(`[API] Usuário tem customerId: ${customerId}`);
-        
-        // Verificar se existe assinatura ativa com esse customerId
-        const subscription = await db.collection('userSubscriptions').findOne({
-          customerId: customerId,
-          status: 'active',
-          pendingFirstPayment: false
-        });
-        
-        if (subscription) {
-          console.log(`[API] Assinatura ativa encontrada com ID: ${subscription._id}`);
-          // Garantir que a assinatura está vinculada ao usuário
-          if (!subscription.userId) {
-            await db.collection('userSubscriptions').updateOne(
-              { _id: subscription._id },
-              { $set: { userId: userId } }
-            );
-            console.log(`[API] Assinatura atualizada com userId: ${userId}`);
-          }
-          
-          // Usuário tem assinatura válida, continuar
-          await client.close();
-          next();
-          return;
-        } else {
-          console.log(`[API] Não foi encontrada assinatura ativa com customerId: ${customerId}`);
-          
-          // Verificar todas as assinaturas ativas no sistema
-          const activeSubscriptions = await db.collection('userSubscriptions').find({
-            status: 'active',
-            pendingFirstPayment: false
-          }).toArray();
-          
-          console.log(`[API] Total de assinaturas ativas no sistema: ${activeSubscriptions.length}`);
-          
-          // Verificar se alguma dessas assinaturas pode ser associada a este usuário
-          const matchedSubscription = activeSubscriptions.find(sub => 
-            sub.customerId === customerId || 
-            sub.userId === userId.toString() || 
-            sub.userId === userId
-          );
-          
-          if (matchedSubscription) {
-            console.log(`[API] Encontrada assinatura ativa relacionada: ${matchedSubscription._id}`);
-            
-            // Atualizar a assinatura com o userId correto
-            await db.collection('userSubscriptions').updateOne(
-              { _id: matchedSubscription._id },
-              { $set: { userId: userId } }
-            );
-            
-            // Atualizar o usuário com o customerId correto
-            await db.collection('users').updateOne(
-              { _id: new ObjectId(userId) },
-              { $set: { 
-                  customerId: matchedSubscription.customerId,
-                  asaasCustomerId: matchedSubscription.customerId
-                } 
-              }
-            );
-            
-            console.log(`[API] Usuário e assinatura atualizados com sucesso`);
-            await client.close();
-            next();
-            return;
-          }
-        }
-      } else {
-        console.log(`[API] Usuário ${userId} não tem customerId ou asaasCustomerId`);
-      }
-      
-      await client.close();
-      
-      // Passar para o próximo middleware (checkSubscription)
-      next();
-    } catch (error) {
-      console.error(`[API] Erro ao verificar acesso direto: ${error.message}`);
-      next();
-    }
-  },
-  checkSubscription,
   async (req, res) => {
     try {
       // Gerar ID de requisição único para rastreamento
       const requestId = crypto.randomUUID();
       
       // Log detalhado do acesso
-      console.log(`[API] Acesso autorizado à rota /api/roulettes`);
+      console.log(`[API] Acesso à rota /api/roulettes`);
       console.log(`[API] Request ID: ${requestId}`);
-      console.log(`[API] Usuário ID: ${req.user.id}`);
       console.log(`[API] Timestamp: ${new Date().toISOString()}`);
       
       // Adicionar informações de plano para manter compatibilidade
-      req.userPlan = { type: 'PRO' }; // Definimos como PRO pois passou pela verificação
+      req.userPlan = { type: 'PRO' }; // Definimos como PRO para dar acesso total
       
       // Redirecionar para o controller que lista as roletas
       return rouletteController.listRoulettes(req, res);
