@@ -189,22 +189,21 @@ class RouletteDataService {
       // Array para coletar dados atualizados
       const updatedRouletteDataBatch = [];
 
-      // Processar cada roleta e coletar atualizações
-      // Usar Promise.all para processar em paralelo (opcional, mas pode ser mais rápido)
       await Promise.all(distinctRoulettes.map(async (roleta) => {
+        // AGORA processRoulette retorna apenas o objeto de dados da roleta ou null
         const updatedData = await this.processRoulette(roleta, db);
         if (updatedData) {
-            updatedRouletteDataBatch.push(updatedData);
+            updatedRouletteDataBatch.push(updatedData); // Adiciona o objeto de dados diretamente
         }
       }));
       
-      // Enviar o lote se houver atualizações
       if (updatedRouletteDataBatch.length > 0) {
           console.log(`[RouletteData] Enviando lote com ${updatedRouletteDataBatch.length} roletas atualizadas.`);
-          // Definir um tipo diferente para o evento de lote
+          // Enviar o array de objetos de dados diretamente
+          // O Stream Service vai encapsular no formato SSE
           const batchEvent = {
-              type: 'batch_update',
-              data: updatedRouletteDataBatch // Array de objetos formatados
+              type: 'batch_update', // Manter o tipo para o stream service identificar
+              data: updatedRouletteDataBatch // Array de objetos de roleta {id, nome, numeros...}
           }
           rouletteStreamService.broadcastUpdate(batchEvent);
       } else {
@@ -220,10 +219,10 @@ class RouletteDataService {
   }
 
   /**
-   * Processa uma roleta específica, busca seus últimos números e RETORNA os dados formatados se houver novidade
+   * Processa uma roleta específica, busca seus últimos números e RETORNA o objeto de dados formatado se houver novidade
    * @param {Object} roleta - Objeto da roleta (com id=string_numerica e nome)
    * @param {Db} db - Instância do banco de dados MongoDB
-   * @returns {Object | null} - Retorna os dados formatados para SSE ou null se não houver atualização
+   * @returns {Object | null} - Retorna o objeto de dados {id, nome, numeros...} ou null
    */
   async processRoulette(roleta, db) {
     if (!roleta || !roleta.id) {
@@ -281,9 +280,9 @@ class RouletteDataService {
         this.latestNumbers[roletaId] = numeroMaisRecente;
         this.lastDataTime = Date.now();
         
-        // Formatar e RETORNAR os dados para serem coletados
-        const formattedData = this.formatRouletteEvent(roleta, numeros);
-        return formattedData;
+        // Formatar e RETORNAR apenas os dados da roleta
+        const formattedData = this.formatRouletteData(roleta, numeros);
+        return formattedData; // Retorna {id, nome, numeros...}
       } else {
         return null; // Nenhum dado novo para retornar
       }
@@ -294,31 +293,28 @@ class RouletteDataService {
   }
 
   /**
-   * Formata os dados da roleta e seus números para o evento SSE
+   * Formata os dados da roleta e seus números para serem enviados
    * @param {Object} roleta - Objeto da roleta (AGORA ESPERA TER O CAMPO 'id' COMO STRING)
    * @param {Array} numeros - Array dos últimos números (ordenados do mais recente para o mais antigo)
-   * @returns {Object} - Objeto formatado para o evento SSE
+   * @returns {Object} - Objeto de dados da roleta {id, nome, numeros...}
    */
-  formatRouletteEvent(roleta, numeros) {
+  formatRouletteData(roleta, numeros) { // Renomeado de formatRouletteEvent
     const ultimoNumeroObj = numeros.length > 0 ? numeros[0] : null;
     
+    // Retorna diretamente o objeto de dados
     return {
-      type: 'update', // Manter consistente com o frontend
-      data: {
-        id: roleta.id, // Usar ID que foi passado (provavelmente string de _id)
-        roleta_id: roleta.id, // Incluir ambos para compatibilidade
+        id: roleta.id, 
+        roleta_id: roleta.id, 
         nome: roleta.nome || 'Nome Desconhecido', 
         roleta_nome: roleta.nome || 'Nome Desconhecido',
-        provider: roleta.provider || 'Desconhecido', // Adicionar se disponível
-        status: roleta.status || 'online', // Adicionar se disponível
-        numeros: numeros.map(n => n.numero), // Apenas os números
+        provider: roleta.provider || 'Desconhecido', 
+        status: roleta.status || 'online', 
+        numeros: numeros.map(n => n.numero), 
         ultimoNumero: ultimoNumeroObj ? ultimoNumeroObj.numero : null,
         horarioUltimaAtualizacao: ultimoNumeroObj ? ultimoNumeroObj.timestamp.toISOString() : new Date().toISOString(),
-        timestamp: ultimoNumeroObj ? ultimoNumeroObj.timestamp.getTime() : Date.now(), // Timestamp em ms para compatibilidade
-        // Adicionar cores se disponíveis
+        timestamp: ultimoNumeroObj ? ultimoNumeroObj.timestamp.getTime() : Date.now(), 
         cores: numeros.map(n => this.determinarCor(n.numero)),
         ultimaCor: ultimoNumeroObj ? this.determinarCor(ultimoNumeroObj.numero) : null,
-      }
     };
   }
 
