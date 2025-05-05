@@ -181,22 +181,19 @@ class RouletteDataService {
         return;
       }
       
-      // 2. Para cada roleta, buscar seus últimos N números e formatar
+      // 2. Para cada roleta, buscar seus últimos 5 números e formatar
       const allRouletteData = [];
-      const HISTORICAL_LIMIT = 250; // Definir o limite desejado aqui
       for (const roletaInfo of distinctRoulettes) {
           const numeros = await db.collection('roleta_numeros') 
             .find({ roleta_id: roletaInfo.id })
             .sort({ timestamp: -1 })
-            .limit(HISTORICAL_LIMIT) // <--- ALTERADO DE 5 PARA HISTORICAL_LIMIT
+            .limit(5)
             .toArray();
           
           if (numeros && numeros.length > 0) {
               // Usar a função formatRouletteEvent, mas pegar apenas o objeto 'data' interno
               const formattedEvent = this.formatRouletteEvent(roletaInfo, numeros);
               if (formattedEvent && formattedEvent.data) {
-                 // Adicionar a quantidade de números buscados para referência
-                 formattedEvent.data.historicoCount = numeros.length; 
                  allRouletteData.push(formattedEvent.data);
               }
           } else {
@@ -208,7 +205,7 @@ class RouletteDataService {
 
       // 3. Enviar o array completo em um único evento SSE
       if (allRouletteData.length > 0) {
-          console.log(`[RouletteData] Enviando dados de ${allRouletteData.length} roletas (com até ${HISTORICAL_LIMIT} números cada) em um único evento.`); // Log atualizado
+          console.log(`[RouletteData] Enviando dados de ${allRouletteData.length} roletas em um único evento.`);
           rouletteStreamService.broadcastUpdate({
               type: 'all_roulettes_update', // Novo tipo de evento
               data: allRouletteData // Array com dados de todas as roletas
@@ -229,7 +226,7 @@ class RouletteDataService {
    * Formata os dados da roleta e seus números para o evento SSE
    * (Mantido para formatar dados de UMA roleta, chamado pelo loop em fetchAndBroadcastAllRouletteData)
    * @param {Object} roleta - Objeto da roleta (com id=string_numerica, nome, provider?, status?)
-   * @param {Array} numeros - Array dos últimos N números (agora até 250)
+   * @param {Array} numeros - Array dos últimos 5 números
    * @returns {Object} - Objeto formatado para o evento SSE (incluindo type)
    */
   formatRouletteEvent(roleta, numeros) {
@@ -246,12 +243,9 @@ class RouletteDataService {
         roleta_nome: roleta.nome || 'Nome Desconhecido',
         provider: roleta.provider || 'Desconhecido', 
         status: roleta.status || 'online',
-        numeros: numeros.map(n => n.numero), // <-- Array completo com até 250 números
-        // Adicionar o array completo de objetos {numero, timestamp} também se necessário no frontend
-        // numerosComTimestamp: numeros.map(n => ({ numero: n.numero, timestamp: n.timestamp })), 
+        numeros: numeros.map(n => n.numero), 
         ultimoNumero: ultimoNumeroObj ? ultimoNumeroObj.numero : null,
         timestamp: ultimoNumeroObj ? ultimoNumeroObj.timestamp.getTime() : Date.now(),
-        // historicoCount: numeros.length // Adicionado no loop acima
       }
     };
   }
