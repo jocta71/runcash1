@@ -4,11 +4,11 @@ const { ObjectId } = require('mongodb');
 // Função auxiliar para buscar histórico de uma roleta
 const fetchHistoryForRoulette = async (db, rouletteId, limit = 200) => {
     try {
-        return await db.collection('roulette_numbers')
-            .find({ rouletteId: rouletteId.toString() })
+        return await db.collection('roleta_numeros')
+            .find({ roleta_id: rouletteId.toString() })
             .sort({ timestamp: -1 })
             .limit(limit)
-            .project({ _id: 0, numero: '$number', timestamp: 1 }) // Renomeia 'number' para 'numero' e seleciona campos
+            .project({ _id: 0, numero: 1, timestamp: 1 })
             .toArray();
     } catch (error) {
         console.error(`Erro ao buscar histórico para roleta ${rouletteId}:`, error);
