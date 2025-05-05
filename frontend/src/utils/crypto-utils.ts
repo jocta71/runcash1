@@ -239,6 +239,70 @@ export class CryptoService {
   }
   
   /**
+   * Processa dados criptografados do stream SSE
+   * @param encryptedData Dados criptografados no formato 'Fe26.2*...'
+   * @returns Dados descriptografados
+   */
+  public async processEncryptedData(encryptedData: string): Promise<any> {
+    if (!this.accessKey) {
+      throw new Error('Chave de acesso não disponível');
+    }
+    
+    try {
+      console.log('[CryptoService] Tentando descriptografar dados do stream');
+      
+      // Verificar se os dados estão no formato esperado
+      if (!encryptedData.startsWith('Fe26.2*')) {
+        throw new Error('Formato de dados criptografados inválido');
+      }
+      
+      // Separar os componentes: Fe26.2*[iv]*[dados crypto]*
+      const parts = encryptedData.split('*');
+      if (parts.length < 3) {
+        throw new Error('Formato inválido: dados criptografados incompletos');
+      }
+      
+      // Extrair IV e dados criptografados
+      const iv = Buffer.from(parts[1], 'hex');
+      const encryptedPayload = Buffer.from(parts[2], 'base64');
+      
+      // Derivar chave a partir da chave de acesso
+      const key = CryptoJS.PBKDF2(this.accessKey, 'runcash-salt', {
+        keySize: 256 / 32,
+        iterations: 1000
+      });
+      
+      // Descriptografar usando CryptoJS
+      const decrypted = CryptoJS.AES.decrypt(
+        encryptedPayload.toString('base64'),
+        key,
+        {
+          iv: CryptoJS.enc.Hex.parse(iv.toString('hex')),
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7
+        }
+      );
+      
+      // Converter para string e objeto JSON
+      const decryptedStr = decrypted.toString(CryptoJS.enc.Utf8);
+      const decryptedData = JSON.parse(decryptedStr);
+      
+      console.log('[CryptoService] Dados de stream descriptografados com sucesso');
+      
+      // Verificar se os dados ainda são válidos (não expiraram)
+      if (decryptedData.expiresAt && decryptedData.expiresAt < Date.now()) {
+        throw new Error('Dados criptografados expiraram');
+      }
+      
+      // Retornar os dados reais
+      return decryptedData.data;
+    } catch (error) {
+      console.error('[CryptoService] Erro ao descriptografar dados do stream:', error);
+      throw error;
+    }
+  }
+  
+  /**
    * Adicionar a chave de acesso ao cabeçalho de uma requisição
    * @param headers Cabeçalhos HTTP
    */

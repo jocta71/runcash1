@@ -104,6 +104,15 @@ app.use(express.json());
 app.use(verifyAccessKey);
 app.use(encryptRouletteData);
 
+// Carregar rotas de streaming
+try {
+  const streamRoutes = require('./routes/streamRoutes');
+  app.use('/api/stream', streamRoutes);
+  console.log('Rotas de streaming carregadas com sucesso');
+} catch (err) {
+  console.log('Rotas de streaming não disponíveis:', err.message);
+}
+
 // Verificar se a pasta api existe e carregar o index.js da API
 const apiIndexPath = path.join(__dirname, 'api', 'index.js');
 if (fs.existsSync(apiIndexPath)) {
@@ -284,6 +293,17 @@ server.listen(PORT, () => {
   console.log('[Server] Endpoints disponíveis:');
   console.log('- / (status do servidor)');
   console.log('- /api (rotas da API principal)');
+  console.log('- /api/stream/roulettes (streaming SSE de dados de roletas)');
   console.log('- /emit-event (compatibilidade com WebSocket, se ativado)');
   console.log('[Server] Criptografia de API: ATIVADA');
+  
+  // Iniciar serviço de streaming de dados de roletas
+  try {
+    const rouletteDataService = require('./services/rouletteDataService');
+    rouletteDataService.start()
+      .then(() => console.log('[Server] Serviço de streaming de roletas iniciado'))
+      .catch(err => console.error('[Server] Erro ao iniciar serviço de streaming:', err));
+  } catch (err) {
+    console.error('[Server] Erro ao carregar serviço de streaming:', err);
+  }
 });

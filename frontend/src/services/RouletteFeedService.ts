@@ -500,14 +500,14 @@ export default class RouletteFeedService {
     this.requestStats.lastMinuteRequests.push(startTime);
     
     // Gerar ID único para esta requisição
-    const requestId = this.generateRequestId();
-    
+        const requestId = this.generateRequestId();
+        
     // URL para buscar os dados das roletas
     const rouletteUrl = '/api/roulettes';
     
     // Registrar a requisição como pendente
     this.pendingRequests[requestId] = {
-      timestamp: Date.now(),
+            timestamp: Date.now(),
       url: rouletteUrl,
       service: 'roulette-feed'
     };
@@ -586,8 +586,8 @@ export default class RouletteFeedService {
                 // Atualizar estatísticas de requisições
                 this.successfulFetchesCount++;
                 this.requestStats.successfulRequests++;
-                this.lastSuccessTimestamp = Date.now();
-                
+              this.lastSuccessTimestamp = Date.now();
+              
                 // Registrar o sucesso da requisição
                 this.notifyRequestComplete(requestId, 'success');
                 
@@ -608,7 +608,7 @@ export default class RouletteFeedService {
                 reject(error);
               }
             }
-          } else {
+            } else {
             // Dados não estão criptografados, processar normalmente
             logger.info('📦 Dados não-criptografados recebidos');
             
@@ -626,9 +626,9 @@ export default class RouletteFeedService {
             
             // Resolver a promessa com os dados
             resolve(responseData);
-          }
-        })
-        .catch(error => {
+            }
+          })
+          .catch(error => {
           logger.error('❌ Erro ao buscar dados das roletas:', error);
           
           // Atualizar estatísticas de falha
@@ -658,8 +658,8 @@ export default class RouletteFeedService {
           
           // Limpar requisições antigas
           this.cleanupOldRequests();
-        });
-    });
+          });
+      });
     
     return this.fetchPromise;
   }

@@ -58,6 +58,10 @@ export type RouletteEventCallback = (event: RouletteNumberEvent | StrategyUpdate
 // Tipo para callbacks de eventos genéricos
 export type EventCallback = (data: any) => void;
 
+interface Subscription {
+  unsubscribe: () => void;
+}
+
 export class EventService {
   private static instance: EventService | null = null;
   private static isInitializing = false;
@@ -599,7 +603,7 @@ export class EventService {
   /**
    * Registra um callback para um evento personalizado
    */
-  public static on(eventName: string, callback: EventCallback): void {
+  public static on(eventName: string, callback: EventCallback): Subscription {
     const instance = EventService.getInstance();
     
     if (!instance.customEventListeners.has(eventName)) {
@@ -607,6 +611,13 @@ export class EventService {
     }
     
     instance.customEventListeners.get(eventName)?.add(callback);
+
+    // Retornar objeto com método para cancelar a inscrição
+    return {
+      unsubscribe: () => {
+        EventService.off(eventName, callback);
+      }
+    };
   }
   
   /**
