@@ -213,26 +213,38 @@ class RouletteDataService {
    * @param {Db} db - Instância do banco de dados MongoDB
    */
   async processRoulette(roleta, db) {
-    if (!roleta || !roleta.id) {
-        console.warn('[RouletteData] Tentativa de processar roleta inválida:', roleta);
+    if (!roleta || !roleta._id) {
+        console.warn('[RouletteData] Tentativa de processar roleta inválida (sem _id):', roleta);
         return;
     }
     
-    const roletaId = roleta.id;
+    const roletaId = roleta._id.toString();
     const roletaNome = roleta.nome || roletaId;
     // console.log(`[DEBUG] Processando ${roletaNome} (ID: ${roletaId})`); // Log menos verboso
 
     try {
       // Buscar os números mais recentes desta roleta (ex: os últimos 20)
-      // CORREÇÃO: Usar 'roleta_numeros' aqui
+      const roletaIdOriginalString = roleta.id; // Obter o campo id original se ele existir e for relevante para roleta_numeros
+      
+      let findQuery;
+      if (roletaIdOriginalString) {
+         // Se o objeto roleta original tinha um campo 'id' que é a chave estrangeira em 'roleta_numeros'
+         findQuery = { roleta_id: roletaIdOriginalString }; 
+         console.log(`[DEBUG ${roletaNome}] Usando query com roleta.id original: ${roletaIdOriginalString}`);
+      } else {
+         // Se não, tentar usar o _id (convertido para string) como roleta_id
+         findQuery = { roleta_id: roletaId }; 
+         console.log(`[DEBUG ${roletaNome}] Usando query com roleta._id convertido: ${roletaId}`);
+      }
+
       const numeros = await db.collection('roleta_numeros') 
-        .find({ roleta_id: roletaId })
+        .find(findQuery)
         .sort({ timestamp: -1 })
         .limit(20)
         .toArray();
       
       if (!numeros || numeros.length === 0) {
-        // console.log(`[RouletteData] Nenhum número encontrado para roleta ${roletaNome}`);
+        console.log(`[DEBUG ${roletaNome}] Nenhum número encontrado na coleção roleta_numeros para query:`, findQuery);
         return;
       }
       
@@ -277,7 +289,7 @@ class RouletteDataService {
         this.lastDataTime = Date.now(); // Atualizar tempo do último dado útil
         
         // Formatar o evento para enviar ao stream
-        const formattedData = this.formatRouletteEvent(roleta, numeros);
+        const formattedData = this.formatRouletteEvent({ ...roleta, id: roletaId }, numeros);
         
         // Enviar atualização via serviço de stream
         console.log(`[DEBUG ${roletaNome}] Enviando atualização via broadcast...`);
@@ -293,7 +305,7 @@ class RouletteDataService {
 
   /**
    * Formata os dados da roleta e seus números para o evento SSE
-   * @param {Object} roleta - Objeto da roleta
+   * @param {Object} roleta - Objeto da roleta (AGORA ESPERA TER O CAMPO 'id' COMO STRING)
    * @param {Array} numeros - Array dos últimos números (ordenados do mais recente para o mais antigo)
    * @returns {Object} - Objeto formatado para o evento SSE
    */
@@ -303,7 +315,7 @@ class RouletteDataService {
     return {
       type: 'update', // Manter consistente com o frontend
       data: {
-        id: roleta.id, // Usar ID do objeto roleta
+        id: roleta.id, // Usar ID que foi passado (provavelmente string de _id)
         roleta_id: roleta.id, // Incluir ambos para compatibilidade
         nome: roleta.nome || 'Nome Desconhecido', 
         roleta_nome: roleta.nome || 'Nome Desconhecido',
