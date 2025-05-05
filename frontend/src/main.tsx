@@ -2,7 +2,6 @@ import { createRoot } from 'react-dom/client'
 import React from 'react'
 import App from './App'
 import './index.css'
-import SocketService from './services/SocketService'
 import { initializeLogging } from './services/utils/initLogger'
 import { getLogger } from './services/utils/logger'
 import { setupGlobalErrorHandlers } from './utils/error-handlers'
@@ -36,40 +35,23 @@ window.ROULETTE_SYSTEM_INITIALIZED = false;
 function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
-  const socketService = SocketService.getInstance();
   const eventService = EventService.getInstance();
-  // const rouletteFeedService = RouletteFeedService.getInstance();
   
-  // rouletteFeedService.registerSocketService(socketService);
-  
-  // Marcar como inicializado
   window.ROULETTE_SYSTEM_INITIALIZED = true;
   
-  // Adicionar função para limpar recursos quando a página for fechada
   window.addEventListener('beforeunload', () => {
-    // rouletteFeedService.stop();
     window.ROULETTE_SYSTEM_INITIALIZED = false;
     logger.info('Sistema de roletas finalizado');
   });
   
   return {
-    socketService,
-    // rouletteFeedService,
     eventService
-    // globalRouletteDataService
   };
 }
 
-// Inicializar o SocketService logo no início para estabelecer conexão antecipada
-logger.info('Inicializando SocketService antes do render...');
-const socketService = SocketService.getInstance(); // Inicia a conexão
-
-// Informa ao usuário que a conexão está sendo estabelecida
-logger.info('Conexão com o servidor sendo estabelecida em background...');
-
-// Inicializar o sistema de roletas como parte do carregamento da aplicação
-logger.info('Inicializando sistema de roletas de forma centralizada...');
-const rouletteSystem = initializeRoulettesSystem();
+// Inicializar o sistema (sem SocketService)
+logger.info('Inicializando sistema de eventos e configuração...');
+const appSystem = initializeRoulettesSystem();
 
 // Configuração global para requisições fetch
 const originalFetch = window.fetch;
@@ -89,15 +71,9 @@ window.fetch = function(input, init) {
   return originalFetch(input, newInit);
 };
 
-// Iniciar pré-carregamento de dados históricos
-logger.info('Iniciando pré-carregamento de dados históricos...');
-socketService.loadHistoricalRouletteNumbers().catch(err => {
-  logger.error('Erro ao pré-carregar dados históricos:', err);
-});
-
 // Expor globalmente a função para verificar se o sistema foi inicializado
 window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
-window.getRouletteSystem = () => rouletteSystem;
+window.getRouletteSystem = () => appSystem;
 
 // Inicializar serviço de descriptografia
 console.log('[Main] Configurando chave de acesso para descriptografia...');
