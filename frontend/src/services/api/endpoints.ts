@@ -10,7 +10,10 @@ export const ENDPOINTS = {
     
     // Endpoint para diagnóstico do serviço de streaming
     DIAGNOSTIC: '/api/stream/diagnostic'
-  }
+  },
+  
+  // Mantendo endpoint legado para compatibilidade com código existente
+  ROULETTES_OLD: '/api/ROULETTES'
 };
 
 // Obtém a URL base da API a partir de variáveis de ambiente

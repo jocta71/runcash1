@@ -499,8 +499,8 @@ class UnifiedRouletteClient {
     
     this.fetchPromise = new Promise(async (resolve) => {
       try {
-        // Usar o endpoint diretamente
-        const response = await axios.get('/api/ROULETTES', {
+        // Usar o endpoint legado em maiúsculas
+        const response = await axios.get(ENDPOINTS.ROULETTES_OLD, {
           headers: {
             'Accept': 'application/json',
             'Cache-Control': 'no-cache'
