@@ -296,7 +296,7 @@ const rouletteStyles = {
 
 const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({ 
   roletaNome, 
-  lastNumbers,
+  lastNumbers, 
   wins, 
   losses,
   providers = [] 
@@ -309,7 +309,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
   // Obter instância do UnifiedClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
-
+  
   // Estados para os filtros avançados
   const [hasActiveFilters, setHasActiveFilters] = useState(false);
   const [selectedColor, setSelectedColor] = useState('todas');
@@ -333,23 +333,23 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     const apiNumbersWithTimestamp: RouletteNumber[] = updatedRouletteData.numero.map((item: any) => {
         let timeString = "00:00";
         if (item.timestamp) {
-            try {
+          try {
                 const date = new Date(item.timestamp);
-                timeString = date.getHours().toString().padStart(2, '0') + ':' +
-                             date.getMinutes().toString().padStart(2, '0');
-            } catch (e) {
-                logger.error("Erro ao converter timestamp:", e);
-            }
+            timeString = date.getHours().toString().padStart(2, '0') + ':' + 
+                       date.getMinutes().toString().padStart(2, '0');
+          } catch (e) {
+            logger.error("Erro ao converter timestamp:", e);
+          }
         }
         return {
             numero: Number(item.numero),
-            timestamp: timeString
+          timestamp: timeString
         };
     }).filter((n: any) => !isNaN(n.numero) && n.numero >= 0 && n.numero <= 36);
-
+      
     if (apiNumbersWithTimestamp.length === 0) {
         logger.info('Nenhum número válido na atualização recebida.');
-        return;
+      return;
     }
     
     setHistoricalNumbers(currentNumbers => {
@@ -366,7 +366,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                  newNumbersToAdd.push(apiNum);
                  // Adiciona ao set para evitar duplicatas dentro do mesmo lote de atualização
                  currentNumerosSet.add(uniqueKey); 
-            } else {
+    } else {
                  // Se encontrarmos um número que já existe ou é o mesmo que o último, paramos de adicionar deste lote
                  break; 
             }
@@ -531,7 +531,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     if (selectedProviders.length > 0) {
       // Implementar lógica de filtro por provedor se necessário
     }
-
+    
     return filtered;
   }, [historicalNumbers, selectedColor, selectedNumber, selectedParity, selectedTime, selectedProviders]);
 
