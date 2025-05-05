@@ -232,65 +232,85 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   
   // Efeito para iniciar a busca de dados
   useEffect(() => {
+    const componentId = `roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`; 
     console.log(`[${componentId}] useEffect executado. ID: ${safeData.id}`);
 
     const handleUpdate = (updateData: any) => {
+        // <<< Log 1: Verificar se o handleUpdate é chamado e o que recebe >>>
+        console.log(`[${componentId}] handleUpdate chamado. Dados recebidos no evento 'update':`, JSON.stringify(updateData).substring(0, 500) + "..."); // Log inicial truncado
+
+        // Lógica para encontrar myData
         let myData: any = null;
         if (Array.isArray(updateData)) {
-            myData = updateData.find(r => r.id === safeData.id);
-        } else if (updateData && updateData.id === safeData.id) {
+            myData = updateData.find(r => (r.id || r.roleta_id) === safeData.id);
+        } else if (updateData && typeof updateData === 'object' && (updateData.id || updateData.roleta_id) === safeData.id) {
             myData = updateData;
         }
+        
+        // <<< Log 2: Verificar se myData foi encontrado para este ID >>>
+        if(myData) {
+            console.log(`[${componentId}] Dados encontrados para este ID (${safeData.id}) na atualização. Processando...`);
+        } else {
+             // Não loga nada se não achou, para não poluir
+             // console.log(`[${componentId}] Nenhum dado para este ID (${safeData.id}) encontrado na atualização.`);
+             return; // Se não achou dados para este card, não faz nada
+        }
 
-        if (myData) {
-            // console.log(`[${componentId}] Recebendo atualização para ${safeData.name}`, myData);
+        if (myData) { // Redundante, mas seguro
             const processed = processRouletteData(myData); 
             
-            // MODIFICAÇÃO AQUI: Só atualiza o estado se o processamento foi bem-sucedido
+            // <<< Log 3: Verificar resultado do processamento >>>
+            console.log(`[${componentId}] Resultado de processRouletteData para atualização:`, processed === null ? 'NULL' : `Status: ${processed.status}, UltimoNum: ${processed.ultimoNumero}, CountNums: ${processed.numeros.length}`);
+
             if (processed !== null) { 
-                 console.log(`[${componentId}] Atualizando estado com dados processados:`, processed);
+                 // console.log(`[${componentId}] Atualizando estado com dados processados:`, processed); // Log pode ser descomentado se necessário
                  setRouletteData(currentData => {
-                     if (currentData && processed.ultimoNumero !== currentData.ultimoNumero && processed.ultimoNumero !== null) {
-                         console.log(`[${componentId}] Novo número detectado: ${processed.ultimoNumero}`);
+                     const isNew = currentData?.ultimoNumero !== undefined && 
+                                   currentData?.ultimoNumero !== null && 
+                                   processed.ultimoNumero !== currentData?.ultimoNumero && 
+                                   processed.ultimoNumero !== null;
+                     if(isNew) {
+                         console.log(`%c[${componentId}] NOVO NÚMERO: ${processed.ultimoNumero}`, 'color: lightgreen; font-weight: bold;');
                          setIsNewNumber(true);
-                         setTimeout(() => setIsNewNumber(false), 2000); 
+                         setTimeout(() => setIsNewNumber(false), 2000); // Resetar após 2s
                      }
                      return processed; 
                  });
                  setIsLoading(false);
                  setError(null);
             } else {
-                // Log que o processamento falhou, mas NÃO atualiza o estado
-                console.warn(`[${componentId}] processRouletteData retornou null. Estado NÃO será atualizado para preservar dados existentes.`);
-                // Poderia opcionalmente definir isLoading como false aqui se já tiver dados antigos válidos
+                console.warn(`[${componentId}] processRouletteData retornou null para atualização. Estado NÃO será atualizado.`);
                 if (rouletteData) setIsLoading(false);
             }
         }
     };
 
+    // Busca inicial e assinatura
     console.log(`[${componentId}] Verificando dados existentes no UnifiedClient...`);
     const currentDataFromClient = unifiedClient.getRouletteById(safeData.id);
     if (currentDataFromClient) {
-        // console.log(`[${componentId}] Dados encontrados no cliente`, currentDataFromClient);
-        handleUpdate(currentDataFromClient); 
+         console.log(`[${componentId}] Dados INICIAIS encontrados no UnifiedClient. Processando...`);
+         // Chama handleUpdate diretamente para processar os dados iniciais
+         // Isso garante que os logs dentro de handleUpdate rodem também para os dados iniciais
+         handleUpdate(currentDataFromClient); 
+         // Define isLoading como false aqui, pois já temos dados
+         setIsLoading(false); 
     } else {
-        if (!rouletteData) {
-            console.log(`[${componentId}] Sem dados iniciais ou no cliente, definindo isLoading.`);
-            setIsLoading(true); 
-        } else {
-             console.log(`[${componentId}] Usando dados iniciais passados via props.`);
-             setIsLoading(false); 
-        }
+        console.log(`[${componentId}] Nenhum dado inicial no UnifiedClient. Aguardando evento 'update'...`);
+         // Mantém isLoading true apenas se não houver dados iniciais
+        setIsLoading(true); 
     }
 
     console.log(`[${componentId}] Assinando evento 'update' do UnifiedClient.`);
     const unsubscribe = unifiedClient.on('update', handleUpdate);
 
     return () => {
-      console.log(`[${componentId}] Desmontando e cancelando inscrição 'update'.`);
-      unsubscribe();
+        console.log(`[${componentId}] Desmontando e cancelando assinatura do evento 'update'.`);
+        unsubscribe();
     };
-  }, [safeData.id, unifiedClient, rouletteData]);
+  // Dependências revisadas: safeData.id e unifiedClient são suficientes para setup/cleanup.
+  // Removido rouletteData para evitar re-assinaturas desnecessárias quando o estado muda internamente.
+  }, [safeData.id, unifiedClient]);
   
   // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
   // Console.log para verificar se há apenas uma fonte de requisições:
