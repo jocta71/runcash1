@@ -57,6 +57,9 @@ class UnifiedRouletteClient {
   private isFetching = false;
   private fetchPromise: Promise<any[]> | null = null;
   
+  // Flag global para controlar múltiplas instâncias tentando conectar
+  private static GLOBAL_CONNECTION_ATTEMPT = false;
+  
   // Configuração
   private streamingEnabled = true;
   private pollingEnabled = true;
@@ -97,12 +100,11 @@ class UnifiedRouletteClient {
     this.maxStreamReconnectAttempts = options.maxReconnectAttempts || 10;
     
     // Inicializar streaming se habilitado e autoConnect
+    // Polling será iniciado apenas como fallback caso o streaming falhe
     if (this.streamingEnabled && options.autoConnect !== false) {
       this.connectStream();
-    }
-    
-    // Inicializar polling como fallback se habilitado
-    if (this.pollingEnabled) {
+    } else if (this.pollingEnabled) {
+      // Iniciar polling apenas se streaming estiver desabilitado
       this.startPolling();
     }
     
@@ -112,6 +114,9 @@ class UnifiedRouletteClient {
       window.addEventListener('focus', this.handleFocus);
       window.addEventListener('blur', this.handleBlur);
     }
+    
+    // Buscar dados iniciais imediatamente, mas sem iniciar polling
+    this.fetchRouletteData();
     
     this.isInitialized = true;
   }
@@ -128,6 +133,7 @@ class UnifiedRouletteClient {
   
   /**
    * Conecta ao stream de eventos SSE
+   * Garante que apenas uma conexão SSE seja estabelecida por vez
    */
   public connectStream(): void {
     if (!this.streamingEnabled) {
@@ -140,10 +146,27 @@ class UnifiedRouletteClient {
       return;
     }
     
+    // Verificar se já existe uma tentativa de conexão global
+    if (UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT) {
+      this.log('Outra instância já está tentando conectar ao stream, aguardando...');
+      
+      // Aguardar 1 segundo e tentar novamente
+      setTimeout(() => {
+        UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+        this.connectStream();
+      }, 1000);
+      return;
+    }
+    
+    // Marcar que estamos tentando conectar (flag global)
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = true;
     this.isStreamConnecting = true;
     this.log(`Conectando ao stream SSE: ${ENDPOINTS.STREAM.ROULETTES}`);
     
     try {
+      // Parar polling se estiver ativo, já que vamos usar o streaming
+      this.stopPolling();
+      
       // Construir URL com query params para autenticação, se necessário
       let streamUrl = ENDPOINTS.STREAM.ROULETTES;
       if (cryptoService.hasAccessKey()) {
@@ -166,6 +189,7 @@ class UnifiedRouletteClient {
     } catch (error) {
       this.error('Erro ao conectar ao stream:', error);
       this.isStreamConnecting = false;
+      UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
       this.reconnectStream();
     }
   }
@@ -193,10 +217,17 @@ class UnifiedRouletteClient {
     this.isStreamConnected = false;
     this.isStreamConnecting = false;
     this.streamReconnectAttempts = 0;
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
     
     // Notificar sobre a desconexão
     this.emit('disconnect', { timestamp: Date.now() });
     EventBus.emit('roulette:stream-disconnected', { timestamp: new Date().toISOString() });
+    
+    // Iniciar polling como fallback se estiver habilitado
+    if (this.pollingEnabled && !this.pollingTimer) {
+      this.log('Iniciando polling após desconexão do stream');
+      this.startPolling();
+    }
   }
   
   /**
@@ -242,6 +273,7 @@ class UnifiedRouletteClient {
       
       this.isStreamConnected = false;
       this.isStreamConnecting = false;
+      UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
       this.connectStream();
     }, delay);
   }
@@ -254,12 +286,13 @@ class UnifiedRouletteClient {
     this.isStreamConnected = true;
     this.isStreamConnecting = false;
     this.streamReconnectAttempts = 0;
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
     
     // Notificar sobre conexão
     this.emit('connect', { timestamp: Date.now() });
     EventBus.emit('roulette:stream-connected', { timestamp: new Date().toISOString() });
     
-    // Se polling estiver ativo como fallback, podemos desativar
+    // Se polling estiver ativo como fallback, parar
     if (this.pollingTimer) {
       this.log('Stream conectado, desativando polling fallback');
       this.stopPolling();
@@ -274,6 +307,7 @@ class UnifiedRouletteClient {
     
     this.isStreamConnected = false;
     this.isStreamConnecting = false;
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
     
     // Notificar erro
     this.emit('error', { event, timestamp: Date.now() });
@@ -385,9 +419,16 @@ class UnifiedRouletteClient {
   
   /**
    * Inicia o polling como fallback
+   * Só deve ser usado quando o streaming não está disponível
    */
   private startPolling(): void {
     if (!this.pollingEnabled) {
+      return;
+    }
+    
+    // Não iniciar polling se o streaming estiver conectado ou conectando
+    if (this.isStreamConnected || this.isStreamConnecting) {
+      this.log('Streaming conectado ou conectando, não iniciando polling');
       return;
     }
     
@@ -402,6 +443,13 @@ class UnifiedRouletteClient {
     
     // Configurar intervalo
     this.pollingTimer = window.setInterval(() => {
+      // Verificar novamente se o streaming não foi conectado
+      if (this.isStreamConnected || this.isStreamConnecting) {
+        this.log('Streaming conectado, parando polling');
+        this.stopPolling();
+        return;
+      }
+      
       this.fetchRouletteData();
     }, this.pollingInterval) as unknown as number;
   }
@@ -418,7 +466,8 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Busca dados das roletas via API REST quando o streaming não está disponível
+   * Busca dados das roletas via API REST
+   * Usado para carga inicial ou como fallback quando o streaming não está disponível
    */
   public async fetchRouletteData(): Promise<any[]> {
     // Evitar requisições simultâneas
@@ -436,6 +485,12 @@ class UnifiedRouletteClient {
       return Array.from(this.rouletteData.values());
     }
     
+    // Se o streaming está conectado, não precisamos fazer polling
+    if (this.isStreamConnected) {
+      this.log('Stream conectado, usando dados em cache');
+      return Array.from(this.rouletteData.values());
+    }
+    
     // Iniciar nova requisição
     this.isFetching = true;
     this.lastUpdateTime = Date.now();
@@ -444,8 +499,8 @@ class UnifiedRouletteClient {
     
     this.fetchPromise = new Promise(async (resolve) => {
       try {
-        // Usar o endpoint de streaming com parâmetro ?nostream=true
-        const response = await axios.get(`${ENDPOINTS.STREAM.ROULETTES}?nostream=true`, {
+        // Usar o endpoint REST tradicional em vez do endpoint de streaming
+        const response = await axios.get(ENDPOINTS.ROULETTES, {
           headers: {
             'Accept': 'application/json',
             'Cache-Control': 'no-cache'
@@ -519,7 +574,7 @@ class UnifiedRouletteClient {
       this.log('Tentando endpoint alternativo...');
       
       // Tentar endpoint antigo como fallback
-      const response = await axios.get(ENDPOINTS.ROULETTES, {
+      const response = await axios.get(ENDPOINTS.ROULETTES_OLD || '/api/ROULETTES', {
         headers: {
           'Accept': 'application/json',
           'Cache-Control': 'no-cache'
@@ -638,13 +693,12 @@ class UnifiedRouletteClient {
     } else {
       this.log('Página visível, retomando serviços');
       
-      // Reconectar stream se necessário
+      // Priorizar streaming
       if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
         this.connectStream();
       }
-      
-      // Retomar polling se necessário e stream não estiver conectado
-      if (this.pollingEnabled && !this.pollingTimer && !this.isStreamConnected) {
+      // Usar polling apenas se streaming falhar
+      else if (this.pollingEnabled && !this.pollingTimer && !this.isStreamConnected) {
         this.startPolling();
       }
     }
@@ -656,8 +710,8 @@ class UnifiedRouletteClient {
   private handleFocus = (): void => {
     this.log('Janela ganhou foco');
     
-    // Atualizar dados imediatamente
-    if (!this.isStreamConnected) {
+    // Atualizar dados imediatamente apenas se não estiver usando streaming
+    if (!this.isStreamConnected && !this.isStreamConnecting) {
       this.fetchRouletteData();
     }
   }
@@ -715,8 +769,17 @@ class UnifiedRouletteClient {
   
   /**
    * Força uma atualização imediata dos dados
+   * Tenta reconectar o streaming se não estiver conectado
    */
   public forceUpdate(): Promise<any[]> {
+    // Se streaming não estiver conectado, tenta reconectar
+    if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
+      this.log('Forçando reconexão do stream');
+      this.connectStream();
+      return Promise.resolve(Array.from(this.rouletteData.values()));
+    }
+    
+    // Caso contrário, busca dados via REST
     return this.fetchRouletteData();
   }
   
@@ -740,6 +803,9 @@ class UnifiedRouletteClient {
       this.eventSource.close();
       this.eventSource = null;
     }
+    
+    // Reset da flag de conexão global
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
     
     // Remover event listeners
     if (typeof document !== 'undefined') {

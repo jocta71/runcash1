@@ -12,6 +12,9 @@ export const ENDPOINTS = {
   // Endpoint para estratégias
   STRATEGIES: '/api/strategies',
 
+  // Endpoints legados (mantidos para compatibilidade)
+  ROULETTES_OLD: '/api/ROULETTES',
+
   // Novos endpoints de streaming SSE
   STREAM: {
     // Endpoint principal para streaming de roletas
