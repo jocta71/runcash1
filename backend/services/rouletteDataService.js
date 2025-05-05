@@ -218,17 +218,21 @@ class RouletteDataService {
         return;
     }
     
+    const roletaId = roleta.id;
+    const roletaNome = roleta.nome || roletaId;
+    // console.log(`[DEBUG] Processando ${roletaNome} (ID: ${roletaId})`); // Log menos verboso
+
     try {
       // Buscar os números mais recentes desta roleta (ex: os últimos 20)
-      // ATENÇÃO: Certifique-se que a coleção 'roleta_numeros' e os campos existem
+      // CORREÇÃO: Usar 'roleta_numeros' aqui
       const numeros = await db.collection('roleta_numeros') 
-        .find({ roleta_id: roleta.id })
+        .find({ roleta_id: roletaId })
         .sort({ timestamp: -1 })
         .limit(20)
         .toArray();
       
       if (!numeros || numeros.length === 0) {
-        // console.log(`[RouletteData] Nenhum número encontrado para roleta ${roleta.nome || roleta.id}`);
+        // console.log(`[RouletteData] Nenhum número encontrado para roleta ${roletaNome}`);
         return;
       }
       
@@ -236,28 +240,54 @@ class RouletteDataService {
       const numeroMaisRecente = numeros[0];
       
       // Verificar se é um número novo comparado ao último enviado para esta roleta
-      const ultimoEnviado = this.latestNumbers[roleta.id];
+      const ultimoEnviado = this.latestNumbers[roletaId];
       
+      // --- LOGS DE DEPURAÇÃO --- 
+      console.log(`\n[DEBUG ${roletaNome}] ----- Verificando Atualização -----`);
+      console.log(`[DEBUG ${roletaNome}] Mais Recente DB: Numero=${numeroMaisRecente.numero}, Timestamp=${numeroMaisRecente.timestamp?.toISOString()}`);
+      if (ultimoEnviado) {
+        console.log(`[DEBUG ${roletaNome}] Último Enviado:  Numero=${ultimoEnviado.numero}, Timestamp=${ultimoEnviado.timestamp?.toISOString()}`);
+      } else {
+        console.log(`[DEBUG ${roletaNome}] Último Enviado:  Nenhum (primeira vez para esta roleta)`);
+      }
+      // --- FIM LOGS --- 
+
       // Comparar pelo timestamp ou pelo próprio número se o timestamp for igual
-      if (!ultimoEnviado || numeroMaisRecente.timestamp > ultimoEnviado.timestamp || 
-         (numeroMaisRecente.timestamp.getTime() === ultimoEnviado.timestamp.getTime() && numeroMaisRecente.numero !== ultimoEnviado.numero)) {
+      let isNew = false;
+      if (!ultimoEnviado) {
+        isNew = true; // Sempre novo se for a primeira vez
+        console.log(`[DEBUG ${roletaNome}] Resultado: NOVO (primeira vez)`);
+      } else if (numeroMaisRecente.timestamp > ultimoEnviado.timestamp) {
+        isNew = true; // Novo se timestamp for maior
+        console.log(`[DEBUG ${roletaNome}] Resultado: NOVO (timestamp maior)`);
+      } else if (numeroMaisRecente.timestamp.getTime() === ultimoEnviado.timestamp.getTime() && 
+                 numeroMaisRecente.numero !== ultimoEnviado.numero) {
+        isNew = true; // Novo se timestamp igual mas número diferente
+        console.log(`[DEBUG ${roletaNome}] Resultado: NOVO (timestamp igual, número diferente)`);
+      } else {
+         console.log(`[DEBUG ${roletaNome}] Resultado: NÃO NOVO`);
+      }
+
+      if (isNew) {
            
-        console.log(`[RouletteData] Novo número encontrado para ${roleta.nome || roleta.id}: ${numeroMaisRecente.numero} (Timestamp: ${numeroMaisRecente.timestamp})`);
+        console.log(`[RouletteData] Novo número detectado para ${roletaNome}: ${numeroMaisRecente.numero}`);
         
         // Atualizar o último número enviado para esta roleta
-        this.latestNumbers[roleta.id] = numeroMaisRecente;
+        this.latestNumbers[roletaId] = numeroMaisRecente;
         this.lastDataTime = Date.now(); // Atualizar tempo do último dado útil
         
         // Formatar o evento para enviar ao stream
         const formattedData = this.formatRouletteEvent(roleta, numeros);
         
         // Enviar atualização via serviço de stream
+        console.log(`[DEBUG ${roletaNome}] Enviando atualização via broadcast...`);
         rouletteStreamService.broadcastUpdate(formattedData);
       } else {
-        // console.log(`[RouletteData] Sem novos números para ${roleta.nome || roleta.id}`);
+        // console.log(`[RouletteData] Sem novos números para ${roletaNome}`);
       }
+      console.log(`[DEBUG ${roletaNome}] ----- Fim Verificação -----`);
     } catch (error) {
-      console.error(`[RouletteData] Erro ao processar roleta ${roleta.nome || roleta.id}:`, error);
+      console.error(`[RouletteData] Erro ao processar roleta ${roletaNome}:`, error);
     }
   }
 
