@@ -441,11 +441,13 @@ class FetchService {
   }
 
   /**
-   * Obtém dados de um endpoint com suporte a retry automático
+   * Obtém dados de uma URL com suporte a retry
    */
   public async fetchData<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    let retries = 0;
     const maxRetries = 3;
+    const RETRY_INTERVAL = 1000; // Definindo a constante que estava faltando
+    
+    let retries = 0;
 
     while (retries < maxRetries) {
       try {
@@ -490,67 +492,30 @@ class FetchService {
   }
 
   /**
-   * Processa novos números recebidos da API
+   * Processa um objeto de roleta para garantir formato consistente
    */
-  public processNewNumbers(roleta: any, numerosAtuais: any[], ultimosNumeros: any[]): boolean {
-    try {
-      // Verificar se temos dados válidos
-      if (!roleta || !roleta.nome) {
-        logger.warn("Tentativa de processar roleta sem nome ou ID");
-        return false;
-      }
-      
-      // Se não temos números anteriores ou atuais, não podemos processar
-      if (!Array.isArray(numerosAtuais) || numerosAtuais.length === 0) {
-        logger.warn(`Roleta ${roleta.nome}: Números atuais vazios ou inválidos`);
-        return false;
-      }
-      
-      if (!Array.isArray(ultimosNumeros)) {
-        logger.warn(`Roleta ${roleta.nome}: Últimos números não são um array`);
-        ultimosNumeros = [];
-      }
-      
-      // Comparar primeiro número atual com o primeiro dos últimos conhecidos
-      const firstNewNumber = numerosAtuais[0];
-      const firstKnownNumber = ultimosNumeros.length > 0 ? ultimosNumeros[0] : null;
-      
-      // Se não temos número conhecido anterior, todos são novos
-      if (!firstKnownNumber) {
-        logger.info(`Roleta ${roleta.nome}: Primeiro carregamento de números`);
-        
-        // Emitir evento indicando que dados reais foram carregados
-        EventService.emitGlobalEvent('roulettes_loaded', {
-          roleta_id: roleta.id || roleta._id,
-          roleta_nome: roleta.nome,
-          success: true,
-          timestamp: new Date().toISOString()
-        });
-        
-        return true;
-      }
-      
-      // Verificar se o primeiro número atual é diferente do primeiro conhecido
-      if (firstNewNumber !== firstKnownNumber) {
-        logger.debug(`Roleta ${roleta.nome}: Novos números detectados. Atual: ${firstNewNumber}, Anterior: ${firstKnownNumber}`);
-        
-        // Emitir evento sinalizando que novos números foram encontrados
-        EventService.emitGlobalEvent('new_numbers_found', {
-          roleta_id: roleta.id || roleta._id,
-          roleta_nome: roleta.nome,
-          numeros: numerosAtuais,
-          timestamp: new Date().toISOString()
-        });
-        
-        return true;
-      }
-      
-      logger.debug(`Roleta ${roleta.nome}: Sem novos números detectados`);
-      return false;
-    } catch (error) {
-      logger.error(`Erro ao processar novos números: ${error.message}`, error);
-      return false;
+  private processRouletteData(roulette: any): any {
+    // Se não for um objeto válido, retornar como está
+    if (!roulette || typeof roulette !== 'object') {
+      return roulette;
     }
+    
+    // Criar uma cópia do objeto para não modificar o original
+    const processed = { ...roulette };
+    
+    // Garantir que temos propriedades padronizadas
+    processed.id = processed.id || processed._id || processed.roleta_id;
+    processed.nome = processed.nome || processed.name || 'Roleta sem nome';
+    
+    // Normalizar array de números se existir
+    if (processed.numeros && Array.isArray(processed.numeros)) {
+      // Converter para números quando são strings
+      processed.numeros = processed.numeros.map((n: any) => 
+        typeof n === 'string' ? parseInt(n, 10) : n
+      );
+    }
+    
+    return processed;
   }
 
   /**
@@ -567,27 +532,36 @@ class FetchService {
     // Função para buscar dados da roleta
     const fetchRouletteData = async () => {
       try {
-        const endpoint = `${config.API_URL}/api/roulettes`;
-        logger.debug(`Buscando dados da roleta ${roletaId} em ${endpoint}`);
+        logger.debug(`Buscando dados da roleta ${roletaId} via UnifiedRouletteClient`);
         
-        const data = await this.fetchData<any[]>(endpoint);
+        // Importar UnifiedRouletteClient dinamicamente para evitar dependência circular
+        const UnifiedRouletteClientModule = await import('./UnifiedRouletteClient');
+        const UnifiedRouletteClient = UnifiedRouletteClientModule.default;
+        const unifiedClient = UnifiedRouletteClient.getInstance();
         
-        if (!Array.isArray(data)) {
-          logger.warn(`Resposta inválida para roleta ${roletaId}: não é um array`);
+        // Garantir que o cliente está atualizado
+        await unifiedClient.forceUpdate();
+        
+        // Obter todas as roletas do cliente unificado
+        const allRoulettes = unifiedClient.getAllRoulettes();
+        
+        if (!Array.isArray(allRoulettes) || allRoulettes.length === 0) {
+          logger.warn(`Resposta inválida para roleta ${roletaId}: não é um array ou está vazio`);
           return;
         }
         
         // Encontrar a roleta específica
-        const roleta = data.find(r => r.id === roletaId || r._id === roletaId);
+        const roleta = allRoulettes.find(r => r.id === roletaId || r._id === roletaId);
         
         if (roleta) {
-          logger.debug(`Dados obtidos para roleta ${roleta.nome || roletaId}`);
+          logger.debug(`Dados obtidos para roleta ${roleta.nome || roletaId} via UnifiedRouletteClient`);
           
           // Emitir evento sinalizando que os dados foram carregados com sucesso
           EventService.emitGlobalEvent('roulettes_loaded', {
             success: true,
-            count: data.length,
-            timestamp: new Date().toISOString()
+            count: allRoulettes.length,
+            timestamp: new Date().toISOString(),
+            source: 'unified_client'
           });
           
           callback(roleta);
@@ -621,33 +595,36 @@ class FetchService {
 
   async getAllRoulettes() {
     try {
-      logger.debug('Buscando todas as roletas disponíveis');
+      logger.debug('Buscando todas as roletas disponíveis via UnifiedRouletteClient');
       
-      // Construir URL com base nas configurações
-      const url = `${this.apiBaseUrl}/roulettes`;
+      // Importar UnifiedRouletteClient dinamicamente para evitar dependência circular
+      const UnifiedRouletteClientModule = await import('./UnifiedRouletteClient');
+      const UnifiedRouletteClient = UnifiedRouletteClientModule.default;
+      const unifiedClient = UnifiedRouletteClient.getInstance();
       
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar roletas: ${response.status} ${response.statusText}`);
+      // Garantir que o cliente está conectado
+      if (!unifiedClient.getStatus().isStreamConnected) {
+        unifiedClient.connectStream();
       }
       
-      const data = await response.json();
+      // Obter todas as roletas do cliente unificado
+      const allRoulettes = await unifiedClient.forceUpdate();
       
-      if (!Array.isArray(data)) {
-        throw new Error('Resposta inválida da API: não é um array');
+      if (!Array.isArray(allRoulettes)) {
+        throw new Error('Resposta inválida: não é um array');
       }
       
       // Processar dados com o transformador de objetos
-      const processedData = data.map(this.processRouletteData);
+      const processedData = allRoulettes.map(this.processRouletteData);
       
-      logger.info(`✅ Encontradas ${processedData.length} roletas`);
+      logger.info(`✅ Encontradas ${processedData.length} roletas via UnifiedRouletteClient`);
       
       // Emitir evento que os dados de roletas foram carregados completamente
       EventService.emitGlobalEvent('roulettes_loaded', {
         success: true,
         count: processedData.length,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        source: 'unified_client'
       });
       
       return processedData;
