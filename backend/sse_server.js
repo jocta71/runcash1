@@ -104,37 +104,66 @@ async function connectToMongoDB() {
 }
 
 function startPolling() {
+  let lastTimestamp = new Date(0); // Iniciar com data mínima
+
   if (pollingIntervalId) {
     clearInterval(pollingIntervalId);
   }
   console.log(`[Polling] Iniciando busca de dados a cada ${POLL_INTERVAL}ms`);
-  pollingIntervalId = setInterval(async () => {
-    if (!collection) return;
+
+  const runPoll = async () => {
+    if (!collection) {
+      console.warn('[Polling] Coleção MongoDB não disponível');
+      return;
+    }
 
     try {
-      // TODO: Implementar lógica para buscar apenas dados *novos* desde a última busca
-      // Exemplo: Buscar documentos com timestamp maior que o último enviado
+      const query = { timestamp: { $gt: lastTimestamp } };
+      console.log(`[Polling] Buscando dados com timestamp > ${lastTimestamp.toISOString()}`)
+      const newDocuments = await collection.find(query)
+                                    .sort({ timestamp: 1 }) // Processar em ordem cronológica
+                                    .toArray();
 
-      // Exemplo simples: Buscar os últimos dados (precisa melhorar para eficiência)
-      const latestData = await collection.find()
-                           .sort({ timestamp: -1 })
-                           .limit(10) // Limitar para exemplo
-                           .toArray();
+      if (newDocuments.length > 0) {
+        console.log(`[Polling] Encontrados ${newDocuments.length} novos documentos`);
+        let latestDocTimestamp = lastTimestamp;
 
-      if (latestData.length > 0) {
-         // TODO: Processar e formatar os dados antes de enviar
-         // Exemplo: Enviar o número mais recente
-         const latestNumberEvent = {
-             type: 'update', // Ou 'numero', 'new_number' - alinhar com frontend
-             data: latestData[0] // Exemplo: envia apenas o mais recente
-         };
-         sendEventToClients(latestNumberEvent);
+        newDocuments.forEach(doc => {
+          // Formatar o evento no padrão esperado pelo frontend
+          const eventData = {
+            type: 'update', // Ou 'new_number', 'numero' - verificar o que o frontend realmente usa
+            data: {
+              roleta_id: doc.roleta_id,
+              roleta_nome: doc.roleta_nome,
+              numero: doc.numero,
+              cor: doc.cor,
+              timestamp: doc.timestamp.toISOString() // Enviar como ISO string
+              // Adicionar outros campos se necessário (ex: provider, status, sequencia)
+            }
+          };
+          sendEventToClients(eventData);
+
+          // Atualizar o timestamp do último documento processado
+          if (doc.timestamp > latestDocTimestamp) {
+            latestDocTimestamp = doc.timestamp;
+          }
+        });
+
+        // Atualizar o timestamp global para a próxima busca
+        lastTimestamp = latestDocTimestamp;
+        console.log(`[Polling] Último timestamp processado: ${lastTimestamp.toISOString()}`);
+      } else {
+        console.log('[Polling] Nenhum novo documento encontrado');
       }
 
     } catch (error) {
       console.error('[Polling] Erro ao buscar dados:', error);
     }
-  }, POLL_INTERVAL);
+  };
+
+  // Executar o polling imediatamente uma vez e depois no intervalo
+  runPoll();
+  pollingIntervalId = setInterval(runPoll, POLL_INTERVAL);
 }
 
 // Iniciar servidor
@@ -144,11 +173,19 @@ app.listen(PORT, () => {
 });
 
 // Lidar com finalização graciosa
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => { // Adicionado async
   console.log('\n[Servidor] Desligando servidor SSE...');
   if (pollingIntervalId) {
     clearInterval(pollingIntervalId);
   }
-  // TODO: Fechar conexão MongoDB se necessário
+  // Fechar conexão MongoDB
+  if (db && db.client) {
+    try {
+      await db.client.close();
+      console.log('[MongoDB] Conexão fechada com sucesso.');
+    } catch (err) {
+      console.error('[MongoDB] Erro ao fechar conexão:', err);
+    }
+  }
   process.exit(0);
 }); 

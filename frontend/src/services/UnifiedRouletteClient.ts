@@ -500,23 +500,26 @@ class UnifiedRouletteClient {
             }
           } else {
             console.warn('[UnifiedRouletteClient] Dados descriptografados vazios ou inválidos');
-            // Tentar conectar ao WebSocket para dados reais
-            this.connectToWebSocket();
+            // Tentar reconectar via SSE como alternativa
+            this.log('Tentando reconectar via SSE após erro de processamento...');
+            this.connectStream();
           }
         })
         .catch(error => {
           console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
           this.notify('error', 'Erro ao processar dados criptografados');
           
-          // Tentar conectar ao WebSocket como alternativa
-          this.connectToWebSocket();
+          // Tentar reconectar via SSE como alternativa
+          this.log('Tentando reconectar via SSE após erro de processamento...');
+          this.connectStream();
         });
     } catch (error) {
       console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
       this.notify('error', 'Erro ao processar dados criptografados');
       
-      // Tentar conectar ao WebSocket como alternativa
-      this.connectToWebSocket();
+      // Tentar reconectar via SSE como alternativa
+      this.log('Tentando reconectar via SSE após erro de processamento...');
+      this.connectStream();
     }
   }
   
@@ -1093,14 +1096,15 @@ class UnifiedRouletteClient {
           });
         }
         
-        // Tentar conectar ao WebSocket diretamente 
-        this.log('Tentando conectar ao WebSocket para obter dados reais...');
-        this.connectToWebSocket();
+        // Tentar reconectar via SSE 
+        this.log('Tentando reconectar via SSE para obter dados reais...');
+        this.connectStream();
       }
     } catch (error) {
       this.error('Erro ao processar dados descriptografados:', error);
-      // Tentar conectar ao WebSocket diretamente 
-      this.connectToWebSocket();
+      // Tentar reconectar via SSE
+      this.log('Tentando reconectar via SSE após erro de processamento...');
+      this.connectStream();
     }
   }
   
