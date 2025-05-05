@@ -20,20 +20,20 @@ const { generateAccessKey } = require('../utils/cryptoUtils');
  * @desc    Verifica o status da assinatura do usuário
  * @access  Privado - Requer autenticação
  */
-router.get('/status', subscriptionController.getSubscriptionStatus);
+router.get('/status', authenticate, subscriptionController.getSubscriptionStatus);
 
 /**
  * @route   GET /api/subscription/access-key
  * @desc    Obtém uma chave de acesso para descriptografia de dados da API
  * @access  Privado - Requer assinatura ativa
  */
-router.get('/access-key', subscriptionController.generateAccessKey);
+router.get('/access-key', authenticate, subscriptionController.generateAccessKey);
 
 /**
  * @route   DELETE /api/subscription/access-key
  * @desc    Revoga uma chave de acesso
  * @access  Privado - Requer autenticação
  */
-router.delete('/access-key', subscriptionController.revokeAccessKey);
+router.delete('/access-key', authenticate, subscriptionController.revokeAccessKey);
 
 module.exports = router; 

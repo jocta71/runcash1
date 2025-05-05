@@ -67,12 +67,12 @@ app.use(async (req, res, next) => {
     console.log(`[FIREWALL DESATIVADO ${requestId}] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress}`);
     console.log(`[FIREWALL DESATIVADO ${requestId}] Timestamp: ${new Date().toISOString()}`);
     
-    // Definir um usuário fictício com permissão total
+    // Definir um usuário com role público, não admin, para permitir criptografia
     req.user = { 
       id: 'public-access',
-      role: 'admin',
+      role: 'public',
       email: 'public@example.com',
-      subscription: { status: 'active' }
+      subscription: { status: 'free' }
     };
     
     // Permitir acesso direto sem verificar token ou assinatura
