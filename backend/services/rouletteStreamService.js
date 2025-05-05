@@ -157,22 +157,10 @@ class RouletteStreamService {
    * @param {number} eventId - ID do evento
    */
   async sendUpdateToClient(client, data, eventId) {
-    // Verificar se o cliente precisa receber dados criptografados
-    const needsEncryption = this.shouldEncryptForClient(client);
+    // Os dados agora são sempre enviados descriptografados via SSE
     let finalData = data;
     
     try {
-      if (needsEncryption) {
-        // Criptografar dados para clientes sem assinatura
-        const encryptedStr = await this.encryptData(data);
-        finalData = {
-          encrypted: true,
-          format: 'iron',
-          encryptedData: encryptedStr,
-          message: 'Dados criptografados. Use sua chave de acesso para descriptografar.'
-        };
-      }
-      
       // Adicionar timestamp para todos os eventos
       if (typeof finalData === 'object' && finalData !== null) {
         finalData._timestamp = Date.now();
