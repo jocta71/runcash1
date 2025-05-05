@@ -33,25 +33,36 @@ const getAllRoulettesInitialHistory = async (req, res) => {
              throw new Error('Falha ao obter conexão com o banco de dados a partir de getDb()');
         }
 
-        // 1. Buscar todas as roletas ativas
-        console.log(`[Histórico] Buscando roletas na coleção 'roulettes'...`);
-        const allRoulettes = await db.collection('roulettes')
-            .find({}, { projection: { _id: 1, name: 1 } }) // Buscar apenas _id e name
-            .toArray();
+        // 1. Buscar todas as roletas ativas usando agregação em 'roleta_numeros'
+        //    (Alinhado com a lógica do rouletteDataService)
+        console.log(`[Histórico] Buscando roletas distintas na coleção 'roleta_numeros'...`);
+        const allRoulettes = await db.collection('roleta_numeros').aggregate([
+            { $sort: { timestamp: -1 } }, 
+            { $group: { 
+                _id: '$roleta_id', 
+                name: { $first: '$roleta_nome' } // Usar 'name' para consistência com a busca de histórico
+                // Adicionar outros campos como provider/status se necessário no futuro
+            }},
+            { $project: { 
+                _id: 1, // <<< MANTER o _id original aqui, pois fetchHistoryForRoulette usa ele
+                name: 1 
+            }}
+          ]).toArray();
         
-        console.log('[Histórico] Resultado da busca por roletas:', JSON.stringify(allRoulettes)); // Log 3: Resultado direto da busca
+        console.log('[Histórico] Resultado da busca por roletas distintas:', JSON.stringify(allRoulettes)); // Log 3
 
         if (!allRoulettes || allRoulettes.length === 0) {
-            console.warn('[Histórico] Nenhuma roleta encontrada na coleção \'roulettes\'. Retornando erro 404.'); // Log 4: Condição atingida
+            console.warn('[Histórico] Nenhuma roleta distinta encontrada na coleção \'roleta_numeros\'. Retornando erro 404.'); // Log 4
             return res.status(404).json({
                 success: false,
                 message: 'Nenhuma roleta encontrada.'
             });
         }
 
-        console.log(`[Histórico] Encontradas ${allRoulettes.length} roletas. Buscando histórico para cada uma...`);
+        console.log(`[Histórico] Encontradas ${allRoulettes.length} roletas distintas. Buscando histórico...`);
         // 2. Para cada roleta, buscar seu histórico em paralelo
         const historyPromises = allRoulettes.map(roulette =>
+            // A função fetchHistoryForRoulette espera o ID original no campo _id
             fetchHistoryForRoulette(db, roulette._id, HISTORY_LIMIT)
                 .then(history => ({
                     name: roulette.name, // Usar o nome da roleta como chave
