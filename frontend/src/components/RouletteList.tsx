@@ -46,23 +46,30 @@ const RouletteList: React.FC = () => {
   
   // Inicializar streaming ao montar o componente
   useEffect(() => {
+    console.log('[RouletteList] Inicializando cliente de streaming...');
+    
     // Obter instância do cliente de streaming
     const streamClient = RouletteStreamClient.getInstance({
-      autoConnect: true
+      autoConnect: true // Conectar automaticamente ao stream
     });
     
-    // Registrar listener para eventos de atualização
-    const handleUpdate = (data: any) => {
+    // Handler para atualizações de dados
+    const handleDataUpdate = (data: any) => {
+      console.log('[RouletteList] Recebida atualização de dados');
+      
       if (data.encrypted) {
+        console.log('[RouletteList] Dados criptografados recebidos');
         setIsEncrypted(true);
         return;
       }
       
-      // Verificar se temos uma atualização para uma única roleta ou várias
-      if (data.id) {
+      // Verificar formato de dados recebidos
+      if (Array.isArray(data)) {
+        console.log(`[RouletteList] Atualizando ${data.length} roletas`);
+        setRoulettes(data);
+      } else if (data.id) {
         // Atualização de uma única roleta
         setRoulettes(prevRoulettes => {
-          // Verificar se essa roleta já existe na lista
           const existingIndex = prevRoulettes.findIndex(r => r.id === data.id);
           
           if (existingIndex >= 0) {
@@ -75,57 +82,62 @@ const RouletteList: React.FC = () => {
             return [...prevRoulettes, data];
           }
         });
-      } else if (Array.isArray(data)) {
-        // Atualização de múltiplas roletas
-        setRoulettes(data);
       }
     };
     
-    // Registrar listener para status do stream
+    // Registrar listeners para eventos do stream
     const handleConnect = () => {
+      console.log('[RouletteList] Stream conectado');
       setError(null);
       setStreamStatus(streamClient.getStatus());
     };
     
-    // Registrar listener para erros
+    const handleDisconnect = () => {
+      console.log('[RouletteList] Stream desconectado');
+      setStreamStatus(streamClient.getStatus());
+    };
+    
     const handleError = (event: any) => {
+      console.error('[RouletteList] Erro no stream:', event);
       setError(`Erro na conexão: ${event.message || 'Desconhecido'}`);
       setStreamStatus(streamClient.getStatus());
     };
     
-    // Registrar listener para dados criptografados
-    const handleEncryptedData = () => {
+    // Registrar handlers no cliente de streaming
+    streamClient.on('update', handleDataUpdate);
+    streamClient.on('connect', handleConnect);
+    streamClient.on('disconnect', handleDisconnect);
+    streamClient.on('error', handleError);
+    
+    // Registrar handlers de eventos globais
+    const encryptedSubscription = EventBus.on('roulette:encrypted-data', () => {
+      console.log('[RouletteList] Evento de dados criptografados recebido');
       setIsEncrypted(true);
       
       // Verificar se temos chave de acesso
       if (!cryptoService.hasAccessKey()) {
         setError('Dados criptografados. Você precisa de uma assinatura para ver os dados completos.');
       }
-    };
+    });
     
-    // Registrar handlers de eventos
-    streamClient.on('update', handleUpdate);
-    streamClient.on('connect', handleConnect);
-    streamClient.on('error', handleError);
-    
-    // Registrar handler global para dados criptografados
-    const encryptedSubscription = EventBus.on('roulette:encrypted-data', handleEncryptedData);
-    
-    // Verificar se o usuário tem assinatura e chave de acesso
+    // Verificar se o usuário tem assinatura/chave de acesso
     setHasSubscription(cryptoService.hasAccessKey());
     
     // Atualizar status inicial
     setStreamStatus(streamClient.getStatus());
     
-    // Conectar ao stream se não estiver conectado
+    // Conectar ao stream se ainda não estiver conectado
     if (!streamClient.getStatus().isConnected && !streamClient.getStatus().isConnecting) {
+      console.log('[RouletteList] Iniciando conexão com o stream...');
       streamClient.connect();
     }
     
-    // Limpar ao desmontar
+    // Limpar listeners ao desmontar o componente
     return () => {
-      streamClient.off('update', handleUpdate);
+      console.log('[RouletteList] Limpando listeners...');
+      streamClient.off('update', handleDataUpdate);
       streamClient.off('connect', handleConnect);
+      streamClient.off('disconnect', handleDisconnect);
       streamClient.off('error', handleError);
       encryptedSubscription.unsubscribe();
     };
@@ -136,10 +148,13 @@ const RouletteList: React.FC = () => {
     return (
       <div className="loading-container">
         <div className="spinner"></div>
-        <p>Carregando dados de roletas...</p>
+        <p>Carregando dados de roletas em tempo real...</p>
         {streamStatus && (
           <div className="stream-status">
-            <p>Status: {streamStatus.isConnected ? 'Conectado' : 'Desconectado'}</p>
+            <p>Status do stream: {streamStatus.isConnected ? 'Conectado' : 'Conectando...'}</p>
+            {streamStatus.reconnectAttempts > 0 && (
+              <p>Tentativas de reconexão: {streamStatus.reconnectAttempts}</p>
+            )}
           </div>
         )}
       </div>
@@ -157,15 +172,24 @@ const RouletteList: React.FC = () => {
             message="Os dados de roletas estão criptografados. Assine para obter acesso completo."
           />
         )}
+        <button 
+          className="retry-button"
+          onClick={() => {
+            setError(null);
+            RouletteStreamClient.getInstance().connect();
+          }}
+        >
+          Tentar novamente
+        </button>
       </div>
     );
   }
   
-  // Renderizar dados criptografados
+  // Renderizar mensagem para dados criptografados sem assinatura
   if (isEncrypted && !hasSubscription) {
     return (
       <SubscriptionRequired 
-        message="Os dados de roletas estão criptografados. Assine para obter acesso completo."
+        message="Os dados de roletas estão criptografados. Assine para obter acesso completo em tempo real."
       />
     );
   }
@@ -173,7 +197,7 @@ const RouletteList: React.FC = () => {
   // Renderizar lista de roletas
   return (
     <div className="roulette-list-container">
-      <h2>Roletas Disponíveis</h2>
+      <h2>Roletas em Tempo Real</h2>
       
       {streamStatus && (
         <div className="stream-status">

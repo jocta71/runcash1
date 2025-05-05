@@ -240,65 +240,47 @@ export class CryptoService {
   
   /**
    * Processa dados criptografados do stream SSE
-   * @param encryptedData Dados criptografados no formato 'Fe26.2*...'
+   * @param encryptedData Dados criptografados recebidos do stream
    * @returns Dados descriptografados
    */
-  public async processEncryptedData(encryptedData: string): Promise<any> {
+  public async processEncryptedData(encryptedData: any): Promise<any> {
     if (!this.accessKey) {
-      throw new Error('Chave de acesso não disponível');
+      console.error('[CryptoService] Tentativa de descriptografar sem chave de acesso');
+      throw new Error('Chave de acesso não disponível. Você precisa de uma assinatura ativa.');
     }
     
     try {
-      console.log('[CryptoService] Tentando descriptografar dados do stream');
+      console.log('[CryptoService] Processando dados criptografados do SSE');
       
-      // Verificar se os dados estão no formato esperado
-      if (!encryptedData.startsWith('Fe26.2*')) {
+      // Verificar se a resposta contém dados criptografados
+      if (!encryptedData || !encryptedData.encryptedData) {
+        if (encryptedData && encryptedData.data) {
+          // Se há dados não criptografados, retorná-los
+          return encryptedData.data;
+        }
         throw new Error('Formato de dados criptografados inválido');
       }
       
-      // Separar os componentes: Fe26.2*[iv]*[dados crypto]*
-      const parts = encryptedData.split('*');
-      if (parts.length < 3) {
-        throw new Error('Formato inválido: dados criptografados incompletos');
+      // Extrair o conteúdo criptografado
+      const ironString = encryptedData.encryptedData;
+      
+      // Verificar o formato Iron
+      if (!ironString || typeof ironString !== 'string' || !ironString.startsWith('Fe26.2')) {
+        throw new Error('Formato de criptografia não reconhecido');
       }
       
-      // Extrair IV e dados criptografados
-      const iv = Buffer.from(parts[1], 'hex');
-      const encryptedPayload = Buffer.from(parts[2], 'base64');
+      // Descriptografar usando a chave de acesso
+      const decryptedData = await this.decryptData(ironString);
       
-      // Derivar chave a partir da chave de acesso
-      const key = CryptoJS.PBKDF2(this.accessKey, 'runcash-salt', {
-        keySize: 256 / 32,
-        iterations: 1000
-      });
-      
-      // Descriptografar usando CryptoJS
-      const decrypted = CryptoJS.AES.decrypt(
-        encryptedPayload.toString('base64'),
-        key,
-        {
-          iv: CryptoJS.enc.Hex.parse(iv.toString('hex')),
-          mode: CryptoJS.mode.CBC,
-          padding: CryptoJS.pad.Pkcs7
-        }
-      );
-      
-      // Converter para string e objeto JSON
-      const decryptedStr = decrypted.toString(CryptoJS.enc.Utf8);
-      const decryptedData = JSON.parse(decryptedStr);
-      
-      console.log('[CryptoService] Dados de stream descriptografados com sucesso');
-      
-      // Verificar se os dados ainda são válidos (não expiraram)
-      if (decryptedData.expiresAt && decryptedData.expiresAt < Date.now()) {
-        throw new Error('Dados criptografados expiraram');
-      }
-      
-      // Retornar os dados reais
-      return decryptedData.data;
+      // Registrar sucesso e retornar os dados
+      console.log('[CryptoService] Dados descriptografados com sucesso');
+      return decryptedData.data || decryptedData;
     } catch (error) {
-      console.error('[CryptoService] Erro ao descriptografar dados do stream:', error);
-      throw error;
+      console.error('[CryptoService] Erro ao processar dados criptografados:', error);
+      
+      // Fornecer mensagem de erro específica
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      throw new Error(`Falha ao descriptografar dados: ${errorMessage}. Verifique sua chave de acesso.`);
     }
   }
   

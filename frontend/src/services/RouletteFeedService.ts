@@ -2,6 +2,7 @@ import EventService from './EventService';
 import { getLogger } from './utils/logger';
 import globalRouletteDataService from './GlobalRouletteDataService';
 import { cryptoService } from '../utils/crypto-utils';
+import EventBus from '../services/EventBus';
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');
@@ -484,184 +485,174 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Busca os dados mais recentes das roletas
-   * Lida com dados criptografados se necessário
+   * Método principal para buscar dados mais recentes das roletas
+   * Modificado para usar o endpoint de streaming em vez de polling
+   * @returns Promise resolvida com os dados mais recentes ou rejeitada com erro
    */
   public fetchLatestData(): Promise<any> {
-    // Se já existir uma requisição em andamento, retornar a promise existente
-    if (this.fetchPromise) {
-      return this.fetchPromise;
-    }
-    
-    // Registrar o início da requisição
-    const startTime = Date.now();
-    this.lastFetchTime = startTime;
-    this.isFetching = true;
-    this.requestStats.lastMinuteRequests.push(startTime);
-    
-    // Gerar ID único para esta requisição
+    // Método mantido por compatibilidade, mas agora recomendamos usar o RouletteStreamClient
+    // Emitir aviso sobre mudança de método
+    console.warn('[RouletteFeedService] Este método está depreciado. Use RouletteStreamClient para dados em tempo real.');
+    EventBus.emit('roulette:method-deprecated', {
+      message: 'RouletteFeedService.fetchLatestData está depreciado. Migre para RouletteStreamClient.'
+    });
+
+    // Retornar uma Promise que resolve com os dados em cache ou busca novos dados uma última vez
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Verificar se estamos já em processo de busca
+        if (this.isFetching) {
+          console.log('[RouletteFeedService] Requisição já em andamento, aguardando...');
+          if (this.fetchPromise) {
+            return this.fetchPromise;
+          }
+          return resolve(this.roulettes);
+        }
+
+        // Gerar ID único para esta requisição
         const requestId = this.generateRequestId();
         
-    // URL para buscar os dados das roletas
-    const rouletteUrl = '/api/roulettes';
-    
-    // Registrar a requisição como pendente
-    this.pendingRequests[requestId] = {
-            timestamp: Date.now(),
-      url: rouletteUrl,
-      service: 'roulette-feed'
-    };
-    
-    // Preparar cabeçalhos com a chave de acesso, se disponível
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache'
-    };
-    
-    // Adicionar a chave de acesso ao cabeçalho se estiver disponível
-    const headersWithAuth = cryptoService.addAccessKeyToHeaders(headers);
-    
-    // Criar e armazenar a promise
-    this.fetchPromise = new Promise((resolve, reject) => {
-      fetch(rouletteUrl, {
-        method: 'GET',
-        headers: headersWithAuth,
-        credentials: 'same-origin'
-      })
-        .then(response => {
+        this.isFetching = true;
+        this.lastFetchTime = Date.now();
+        
+        // Registrar o início da requisição para fins de monitoramento
+        this.pendingRequests[requestId] = {
+          timestamp: Date.now(),
+          url: '/api/stream/roulettes',
+          service: 'RouletteFeedService'
+        };
+        
+        try {
+          console.log('[RouletteFeedService] Iniciando busca de dados (método depreciado)');
+          
+          // Preparar headers para a requisição
+          const headers = {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache'
+          };
+          
+          // Adicionar chave de acesso se disponível
+          if (cryptoService.hasAccessKey()) {
+            const accessKey = localStorage.getItem('roulette_access_key');
+            if (accessKey) {
+              headers['Authorization'] = `Bearer ${accessKey}`;
+            }
+          }
+          
+          // Realizar uma última requisição à nova URL
+          const response = await fetch('/api/stream/roulettes', {
+            method: 'GET',
+            headers,
+            credentials: 'include'
+          });
+          
           // Verificar se a resposta foi bem-sucedida
           if (!response.ok) {
-            throw new Error(`Erro ao buscar dados das roletas: ${response.status}`);
+            throw new Error(`Erro ao buscar dados: ${response.status} ${response.statusText}`);
           }
-          return response.json();
-        })
-        .then(async data => {
-          // Verificar se os dados estão criptografados
-          if (data.encrypted && data.encryptedData) {
-            try {
-              logger.info('📦 Dados criptografados recebidos, tentando descriptografar');
+          
+          // Processar a resposta
+          const contentType = response.headers.get('Content-Type') || '';
+          
+          // Verificar se a resposta é JSON ou stream
+          if (contentType.includes('application/json')) {
+            // Resposta é JSON
+            const data = await response.json();
+            
+            console.log('[RouletteFeedService] Dados recebidos:', 
+              Array.isArray(data) ? `${data.length} roletas` : 'Objeto de dados');
+            
+            // Verificar se os dados estão criptografados
+            if (data.encrypted) {
+              console.log('[RouletteFeedService] Dados criptografados recebidos');
               
-              // Tentar descriptografar os dados usando o CryptoService
-              const decryptedData = await cryptoService.processApiResponse(data);
-              
-              // Atualizar o cache de roletas com os dados descriptografados
-              this.updateRouletteCache(decryptedData);
-              
-              // Notificar que houve uma atualização
-              this.notifyDataUpdate();
-              
-              // Atualizar estatísticas de requisições
-              this.successfulFetchesCount++;
-              this.requestStats.successfulRequests++;
-              this.lastSuccessTimestamp = Date.now();
-              
-              // Registrar o sucesso da requisição
-              this.notifyRequestComplete(requestId, 'success');
-              
-              // Emitir evento global informando sobre o sucesso da descriptografia
-              EventService.emitGlobalEvent('data_decryption_success', {
-                timestamp: Date.now(),
-                dataType: 'roulettes'
-              });
-              
-              // Resolver a promessa com os dados descriptografados
-              resolve(decryptedData);
-            } catch (decryptError) {
-              // Se não conseguir descriptografar, usar a versão não-criptografada
-              logger.warn('🔒 Não foi possível descriptografar os dados:', decryptError);
-              
-              // Emitir evento global informando sobre a falha na descriptografia
-              EventService.emitGlobalEvent('data_decryption_failed', {
-                timestamp: Date.now(),
-                error: decryptError.message,
-                dataType: 'roulettes'
-              });
-              
-              // Verificar se há dados não-criptografados disponíveis
-              if (data.data) {
-                // Atualizar o cache com os dados não-criptografados
-                this.updateRouletteCache(data.data);
-                this.notifyDataUpdate();
+              // Tentar processar dados criptografados
+              try {
+                if (cryptoService.hasAccessKey()) {
+                  const decryptedData = await cryptoService.processEncryptedData(data);
+                  console.log('[RouletteFeedService] Dados descriptografados com sucesso');
+                  
+                  // Emitir evento sobre dados descriptografados com sucesso
+                  EventBus.emit('roulette:decryption-success', {
+                    message: 'Dados descriptografados com sucesso'
+                  });
+                  
+                  // Atualizar cache e retornar dados
+                  this.updateRouletteCache(decryptedData);
+                  resolve(decryptedData);
+                } else {
+                  console.warn('[RouletteFeedService] Dados criptografados, mas sem chave de acesso');
+                  
+                  // Emitir evento sobre dados criptografados
+                  EventBus.emit('roulette:encrypted-data', {
+                    message: 'Dados criptografados recebidos. É necessária uma chave de acesso válida.'
+                  });
+                  
+                  throw new Error('Dados criptografados. É necessária uma assinatura ativa para acessar.');
+                }
+              } catch (decryptError) {
+                console.error('[RouletteFeedService] Erro ao descriptografar:', decryptError);
                 
-                // Atualizar estatísticas de requisições
-                this.successfulFetchesCount++;
-                this.requestStats.successfulRequests++;
-              this.lastSuccessTimestamp = Date.now();
-              
-                // Registrar o sucesso da requisição
-                this.notifyRequestComplete(requestId, 'success');
+                // Emitir evento sobre falha na descriptografia
+                EventBus.emit('roulette:decryption-error', {
+                  error: decryptError,
+                  message: 'Erro ao descriptografar dados. Verifique sua chave de acesso.'
+                });
                 
-                // Resolver a promessa com os dados não-criptografados
-                resolve(data.data);
-              } else {
-                // Se não houver dados não-criptografados, informar sobre a necessidade de assinatura
-                const error = new Error('Os dados estão criptografados e você não tem a chave de acesso válida. Obtenha uma assinatura e gere uma chave de acesso para visualizar todos os dados.');
-                
-                // Atualizar estatísticas de falha
-                this.failedFetchesCount++;
-                this.requestStats.failedRequests++;
-                
-                // Registrar a falha
-                this.notifyRequestComplete(requestId, 'failed');
-                
-                // Rejeitar a promessa
-                reject(error);
+                throw new Error('Falha ao descriptografar dados. Verifique sua chave de acesso.');
               }
-            }
             } else {
-            // Dados não estão criptografados, processar normalmente
-            logger.info('📦 Dados não-criptografados recebidos');
-            
-            const responseData = data.data || data || [];
-            this.updateRouletteCache(responseData);
-            this.notifyDataUpdate();
-            
-            // Atualizar estatísticas de requisições
-            this.successfulFetchesCount++;
-            this.requestStats.successfulRequests++;
-            this.lastSuccessTimestamp = Date.now();
-            
-            // Registrar o sucesso da requisição
-            this.notifyRequestComplete(requestId, 'success');
-            
-            // Resolver a promessa com os dados
-            resolve(responseData);
+              // Atualizar cache e retornar dados normais
+              this.updateRouletteCache(Array.isArray(data) ? data : [data]);
+              resolve(data);
             }
-          })
-          .catch(error => {
-          logger.error('❌ Erro ao buscar dados das roletas:', error);
+          } else {
+            // Resposta é stream - informar que isto requer RouletteStreamClient
+            console.warn('[RouletteFeedService] Resposta é um stream. Use RouletteStreamClient para processá-la.');
+            
+            // Emitir evento informativo sobre a necessidade de usar o cliente de streaming
+            EventBus.emit('roulette:stream-required', {
+              message: 'Este endpoint retorna um stream. Use RouletteStreamClient para dados em tempo real.'
+            });
+            
+            // Resolver com dados em cache ou array vazio
+            resolve(Object.values(this.roulettes).length > 0 ? Object.values(this.roulettes) : []);
+          }
           
-          // Atualizar estatísticas de falha
-          this.failedFetchesCount++;
-          this.requestStats.failedRequests++;
+          // Registrar sucesso
+          this.successfulFetchesCount++;
+          this.lastSuccessTimestamp = Date.now();
+          this.consecutiveErrors = 0;
+          this.consecutiveSuccesses++;
           
-          // Registrar a falha
-          this.notifyRequestComplete(requestId, 'failed');
-          
-          // Rejeitar a promessa
-          reject(error);
-        })
-        .finally(() => {
-          // Limpar a referência à promessa
-          this.fetchPromise = null;
-          this.isFetching = false;
-          
-          // Calcular o tempo de resposta
-          const responseTime = Date.now() - startTime;
-          this.requestStats.lastResponseTime = responseTime;
-          
-          // Atualizar a média de tempo de resposta
-          this.requestStats.avgResponseTime = (this.requestStats.avgResponseTime + responseTime) / 2;
-          
-          // Remover a requisição pendente
+          // Limpar este request pendente
           delete this.pendingRequests[requestId];
           
-          // Limpar requisições antigas
-          this.cleanupOldRequests();
+        } catch (error) {
+          console.error('[RouletteFeedService] Erro ao buscar dados:', error);
+          this.failedFetchesCount++;
+          this.consecutiveErrors++;
+          this.consecutiveSuccesses = 0;
+          
+          // Emitir evento de erro
+          EventBus.emit('roulette:fetch-error', {
+            error,
+            message: `Erro ao buscar dados: ${error.message}`
           });
-      });
-    
-    return this.fetchPromise;
+          
+          // Limpar este request pendente
+          delete this.pendingRequests[requestId];
+          
+          reject(error);
+        } finally {
+          this.isFetching = false;
+          this.fetchPromise = null;
+        }
+      } catch (error) {
+        console.error('[RouletteFeedService] Erro geral:', error);
+        reject(error);
+      }
+    });
   }
 
   /**
