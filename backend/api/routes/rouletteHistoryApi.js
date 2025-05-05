@@ -25,12 +25,10 @@ const checkMongoDB = (req, res, next) => {
 /**
  * @route   GET /api/roulettes/history/:rouletteName
  * @desc    Obtém até 1000 números históricos de uma roleta pelo nome
- * @access  Requer assinatura
+ * @access  Público
  */
 router.get('/:rouletteName', 
   checkMongoDB, 
-  requireSubscription({ required: true, allowedPlans: ['BASIC', 'PRO', 'PREMIUM'] }),
-  requireResourceAccess('api_access'),
   async (req, res) => {
     try {
       const { rouletteName } = req.params;

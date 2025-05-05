@@ -43,6 +43,16 @@ function verifyTokenAndSubscription(options = { required: true, allowedPlans: ['
       /\/api\/roletas.*/.test(path)
     );
     
+    // Se for endpoint de roleta, permitir acesso sem autenticação
+    if (isRouletteEndpoint) {
+      console.log(`[AUTH ${requestId}] Endpoint de roleta detectado: ${path} - Permitindo acesso sem autenticação`);
+      // Definir informações básicas para o usuário não autenticado
+      req.usuario = { id: 'anonymous', role: 'guest' };
+      req.subscription = { status: 'ACTIVE', nextDueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365) };
+      req.userPlan = { type: 'PREMIUM' };
+      return next();
+    }
+    
     // Verificar se a requisição tem um token de autorização
     const authHeader = req.headers.authorization;
     if (!authHeader) {

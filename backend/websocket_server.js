@@ -268,7 +268,7 @@ app.use((req, res, next) => {
   
   // Verificar se é especificamente a rota /api/roulettes (desativada)
   if (fullPath === '/api/roulettes') {
-    console.log(`[FIREWALL ${requestId}] Bloqueando acesso à rota desativada /api/roulettes`);
+    console.log(`[FIREWALL ${requestId}] Acesso permitido à rota /api/roulettes`);
     console.log(`[FIREWALL ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
     console.log(`[FIREWALL ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
     
@@ -277,18 +277,8 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     
-    // Retornar resposta indicando que a rota foi desativada
-    return res.status(403).json({
-      success: false,
-      message: 'Esta rota foi desativada por motivos de segurança',
-      code: 'ENDPOINT_DISABLED',
-      requestId: requestId,
-      alternativeEndpoints: [
-        '/api/roletas',
-        '/api/ROULETTES'
-      ],
-      timestamp: new Date().toISOString()
-    });
+    // Continuar para o próximo middleware em vez de bloquear
+    return next();
   }
   
   // Verificar TODAS as possíveis variações de endpoints de roleta, incluindo parâmetros de consulta
@@ -310,21 +300,9 @@ app.use((req, res, next) => {
     return next();
   }
   
-  // Verificar se há token de autorização
-  const hasAuth = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
-  if (!hasAuth) {
-    console.log(`[FIREWALL ${requestId}] BLOQUEIO FINAL: Requisição sem token para endpoint de roleta`);
-    return res.status(401).json({
-      success: false,
-      message: 'Acesso negado - Autenticação obrigatória',
-      code: 'FIREWALL_BLOCK',
-      path: fullPath,
-      requestId: requestId
-    });
-  }
-  
-  // Se chegou até aqui, continuar para o próximo middleware
-  next();
+  // Permitir acesso sem autenticação para todos os endpoints de roleta
+  console.log(`[FIREWALL ${requestId}] Acesso permitido sem autenticação para endpoint de roleta: ${fullPath}`);
+  return next();
 });
 
 app.use(express.json());
@@ -639,124 +617,13 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Definição específica da rota /api/roulettes para garantir que retorne 403
-app.get('/api/roulettes', (req, res) => {
-  // Gerar ID único para rastreamento do log
-    const requestId = Math.random().toString(36).substring(2, 15);
-  
-  // Registrar tentativa de acesso à rota bloqueada
-  console.log(`[API ${requestId}] Bloqueando acesso à rota desativada /api/roulettes`);
-    console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
-  console.log(`[API ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
-  
-  // Aplicar cabeçalhos CORS explicitamente
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
-  // Retornar resposta 403 Forbidden com mensagem clara
-        return res.status(403).json({
-          success: false,
-    message: 'Esta rota foi desativada por motivos de segurança',
-    code: 'ENDPOINT_DISABLED',
-          requestId: requestId,
-    alternativeEndpoints: [
-      '/api/roletas',
-      '/api/ROULETTES'
-    ],
-    timestamp: new Date().toISOString()
-  });
-});
-
 // Rota para listar todas as roletas (endpoint em maiúsculas para compatibilidade)
 app.get('/api/ROULETTES',
-  (req, res, next) => {
-    // VALIDAÇÃO EXTREMA: Verificar token JWT antes de qualquer coisa
-    const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[ULTRA-SECURE ${requestId}] Validação bruta no próprio endpoint /api/ROULETTES`);
-    
-    // Verificar se há token de autorização
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Sem token de autorização válido`);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso negado - Token de autenticação obrigatório',
-        code: 'ENDPOINT_LEVEL_BLOCK',
-        requestId
-      });
-    }
-    
-    // Extrair e verificar o token JWT diretamente
-    try {
-      const token = authHeader.slice(7); // Remove 'Bearer '
-      // Usar a constante global JWT_SECRET em vez de definir localmente
-      
-      // Verificar token - isto lança erro se inválido
-      const decoded = jwt.verify(token, JWT_SECRET);
-      
-      if (!decoded || !decoded.id) {
-        console.log(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Token JWT inválido ou malformado`);
-        return res.status(401).json({
-          success: false,
-          message: 'Acesso negado - Token de autenticação inválido',
-          code: 'ENDPOINT_LEVEL_BLOCK',
-          requestId
-        });
-      }
-      
-      console.log(`[ULTRA-SECURE ${requestId}] ✓ Token JWT validado para usuário ${decoded.id}`);
-      next();
-    } catch (error) {
-      console.error(`[ULTRA-SECURE ${requestId}] ⛔ BLOQUEIO ABSOLUTO: Erro na validação JWT:`, error.message);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso negado - Token de autenticação inválido ou expirado',
-        code: 'ENDPOINT_LEVEL_JWT_ERROR',
-        requestId
-      });
-    }
-  },
-  verifyTokenAndSubscription({ 
-    required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
-  }),
   async (req, res) => {
     const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[API ${requestId}] Requisição processada diretamente em /api/ROULETTES`);
-    console.log(`[API ${requestId}] Usuário: ${req.usuario?.id}`);
-    console.log(`[API ${requestId}] Plano: ${req.userPlan?.type}`);
+    console.log(`[API ${requestId}] Requisição processada diretamente em /api/ROULETTES sem autenticação`);
     console.log(`[API ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
     console.log(`[API ${requestId}] Query params: ${JSON.stringify(req.query)}`);
-    
-    // VERIFICAÇÃO DUPLA: Se o middleware falhar, verificar novamente aqui
-    if (!req.usuario || !req.subscription) {
-      console.log(`[API ${requestId}] BLOQUEIO SECUNDÁRIO: Acesso não autenticado ou sem assinatura detectado`);
-      return res.status(401).json({
-        success: false,
-        message: 'Acesso negado - Autenticação e assinatura são obrigatórias',
-        code: 'DOUBLE_VERIFICATION_FAILED',
-        requestId: requestId
-      });
-    }
-    
-    // VERIFICAÇÃO TRIPLA: Verificar se a assinatura é válida
-    try {
-      // Verificar data de validade da assinatura
-      const validUntil = req.subscription.validade || req.subscription.expiresAt || req.subscription.nextDueDate;
-      if (validUntil && new Date(validUntil) < new Date()) {
-        console.log(`[API ${requestId}] BLOQUEIO TERCIÁRIO: Assinatura expirada`);
-        return res.status(403).json({
-          success: false,
-          message: 'Sua assinatura expirou. Por favor, renove para continuar acessando este recurso.',
-          code: 'SUBSCRIPTION_EXPIRED',
-          requestId: requestId,
-          expiryDate: validUntil
-        });
-      }
-    } catch (error) {
-      console.error(`[API ${requestId}] Erro ao verificar data de validade da assinatura:`, error);
-    }
     
     // Aplicar cabeçalhos CORS explicitamente para esta rota
     res.header('Access-Control-Allow-Origin', '*');
@@ -771,7 +638,7 @@ app.get('/api/ROULETTES',
       }
       
       // Log de acesso bem-sucedido
-      console.log(`[API ${requestId}] ACESSO PERMITIDO: Usuário autenticado com assinatura válida`);
+      console.log(`[API ${requestId}] ACESSO PERMITIDO: Acesso sem autenticação permitido`);
       
       // Obter roletas únicas da coleção - código idêntico ao endpoint /api/roulettes
       const roulettes = await collection.aggregate([
@@ -779,7 +646,7 @@ app.get('/api/ROULETTES',
         { $project: { _id: 0, id: 1, nome: "$_id" } }
       ]).toArray();
       
-      console.log(`[API ${requestId}] Processadas ${roulettes.length} roletas para usuário ${req.usuario?.id} com plano ${req.userPlan?.type}`);
+      console.log(`[API ${requestId}] Processadas ${roulettes.length} roletas`);
       
       // Retornar diretamente os dados, sem redirecionamento
       return res.json(roulettes);
@@ -795,12 +662,8 @@ app.get('/api/ROULETTES',
 
 // Rota para listar todas as roletas (endpoint em português - compatibilidade)
 app.get('/api/roletas', 
-  verifyTokenAndSubscription({ 
-    required: true, 
-    allowedPlans: ['BASIC', 'PRO', 'PREMIUM', 'basic', 'pro', 'premium'] 
-  }), 
   async (req, res) => {
-    console.log('[API] Endpoint de compatibilidade /api/roletas acessado');
+    console.log('[API] Endpoint de compatibilidade /api/roletas acessado sem autenticação');
     try {
       if (!isConnected) {
         return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
@@ -816,6 +679,31 @@ app.get('/api/roletas',
     } catch (error) {
       console.error('Erro ao listar roletas:', error);
       res.status(500).json({ error: 'Erro interno ao buscar roletas' });
+    }
+});
+
+// Rota para listar todas as roletas (endpoint original)
+app.get('/api/roulettes', 
+  async (req, res) => {
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[API ${requestId}] Endpoint original /api/roulettes acessado sem autenticação`);
+    try {
+      if (!isConnected || !collection) {
+        console.log(`[API ${requestId}] MongoDB não conectado, retornando array vazio`);
+        return res.json([]);
+      }
+      
+      // Obter roletas únicas da coleção
+      const roulettes = await collection.aggregate([
+        { $group: { _id: "$roleta_nome", id: { $first: "$roleta_id" } } },
+        { $project: { _id: 0, id: 1, nome: "$_id" } }
+      ]).toArray();
+      
+      console.log(`[API ${requestId}] Processadas ${roulettes.length} roletas`);
+      return res.json(roulettes);
+    } catch (error) {
+      console.error(`[API ${requestId}] Erro ao listar roletas:`, error);
+      return res.status(500).json({ error: 'Erro interno ao buscar roletas', message: error.message });
     }
 });
 
@@ -968,6 +856,41 @@ app.get('/api/numbers/byid/:roletaId',
     } catch (error) {
       console.error('Erro ao buscar números da roleta:', error);
       console.error(`[API-JWT ${requestId}] Erro ao listar roletas:`, error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Erro interno ao buscar roletas',
+        message: error.message,
+        requestId: requestId 
+      });
+    }
+  }
+);
+
+// Rota para buscar números por nome da roleta
+app.get('/api/numbers/:roletaId', 
+  async (req, res) => {
+    const requestId = Math.random().toString(36).substring(2, 15);
+    console.log(`[API ${requestId}] Endpoint /api/numbers/:roletaId acessado sem autenticação`);
+    console.log(`[API ${requestId}] Parâmetros: ${JSON.stringify(req.params)}`);
+    
+    try {
+      if (!isConnected) {
+        return res.status(503).json({ error: 'Serviço indisponível: sem conexão com MongoDB' });
+      }
+      
+      const roletaId = req.params.roletaId;
+      const limit = parseInt(req.query.limit) || 20;
+      
+      // Buscar números da roleta especificada
+      const numbers = await collection
+        .find({ roleta_id: roletaId })
+        .sort({ timestamp: -1 })
+        .limit(limit)
+        .toArray();
+      
+      res.json(numbers);
+    } catch (error) {
+      console.error(`[API ${requestId}] Erro ao buscar números da roleta:`, error);
       res.status(500).json({ 
         success: false,
         error: 'Erro interno ao buscar roletas',
