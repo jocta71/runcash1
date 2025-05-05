@@ -318,6 +318,182 @@ interface StrategyCondition {
   value: any; // Ex: 'red', 5, '1st_dozen'
 }
 
+// <<< NOVAS DEFINIÇÕES para tipos, operadores e valores >>>
+const conditionTypes = [
+  { value: 'color', label: 'Cor (Último Giro)' },
+  { value: 'number', label: 'Número Específico (Último Giro)' },
+  { value: 'parity', label: 'Paridade (Último Giro)' },
+  { value: 'dozen', label: 'Dúzia (Último Giro)' },
+  { value: 'column', label: 'Coluna (Último Giro)' },
+  { value: 'high_low', label: 'Metade (Último Giro)' },
+  { value: 'streak_color', label: 'Sequência de Cor Atual' },
+  { value: 'miss_color', label: 'Cor Não Saiu Por (Giros)' },
+  // { value: 'streak_number', label: 'Sequência de Número' }, // Exemplo futuro
+  // { value: 'miss_dozen', label: 'Dúzia Não Saiu Por' }, // Exemplo futuro
+];
+
+const operatorsByType: Record<string, { value: string, label: string }[]> = {
+  'color': [
+    { value: 'equals', label: '=' },
+    { value: 'not_equals', label: '≠' },
+  ],
+  'number': [
+    { value: 'equals', label: '=' },
+    { value: 'not_equals', label: '≠' },
+  ],
+  'parity': [
+    { value: 'equals', label: 'É' },
+  ],
+  'dozen': [
+     { value: 'equals', label: 'É' },
+     { value: 'not_equals', label: 'Não é' },
+  ],
+  'column': [
+      { value: 'equals', label: 'É' },
+      { value: 'not_equals', label: 'Não é' },
+  ],
+  'high_low': [
+       { value: 'equals', label: 'É' },
+  ],
+  'streak_color': [
+    { value: 'equals', label: '=' },
+    { value: 'greater_equal', label: '>=' },
+  ],
+  'miss_color': [
+    { value: 'equals', label: '=' },
+    { value: 'greater_equal', label: '>=' },
+  ],
+};
+
+const colorOptions = [
+  { value: 'red', label: 'Vermelho' },
+  { value: 'black', label: 'Preto' },
+  { value: 'green', label: 'Verde (0)' },
+];
+const parityOptions = [
+   { value: 'even', label: 'Par' },
+   { value: 'odd', label: 'Ímpar' },
+];
+const dozenOptions = [
+   { value: '1st', label: '1ª (1-12)' },
+   { value: '2nd', label: '2ª (13-24)' },
+   { value: '3rd', label: '3ª (25-36)' },
+];
+const columnOptions = [
+    { value: '1st', label: '1ª Coluna' },
+    { value: '2nd', label: '2ª Coluna' },
+    { value: '3rd', label: '3ª Coluna' },
+];
+const highLowOptions = [
+    { value: 'low', label: 'Baixo (1-18)' },
+    { value: 'high', label: 'Alto (19-36)' },
+];
+
+// <<< NOVO COMPONENTE para input dinâmico de valor >>>
+interface ConditionValueInputProps {
+  conditionType: string;
+  operator: string; 
+  value: any;
+  onChange: (newValue: any) => void;
+  disabled: boolean;
+}
+
+const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
+  conditionType,
+  operator,
+  value,
+  onChange,
+  disabled
+}) => {
+  const commonProps = { // Props comuns para inputs/selects
+    value: value,
+    onValueChange: onChange, // Para Select
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value), // Para Input
+    disabled: disabled,
+    className: "bg-input border-border h-9 text-sm" // Classe comum
+  };
+
+  switch (conditionType) {
+    case 'color':
+      return (
+        <Select {...commonProps} >
+          <SelectTrigger><SelectValue placeholder="Cor..." /></SelectTrigger>
+          <SelectContent className="bg-card border-border text-white">
+            {colorOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      );
+    case 'number':
+      return (
+        <Input
+          {...commonProps}
+          type="number"
+          placeholder="0-36"
+          min={0}
+          max={36}
+          onChange={(e) => onChange(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+        />
+      );
+     case 'parity':
+        return (
+         <Select {...commonProps} >
+             <SelectTrigger><SelectValue placeholder="Paridade..." /></SelectTrigger>
+             <SelectContent className="bg-card border-border text-white">
+                 {parityOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+             </SelectContent>
+         </Select>
+        );
+    case 'dozen':
+        return (
+         <Select {...commonProps} >
+             <SelectTrigger><SelectValue placeholder="Dúzia..." /></SelectTrigger>
+             <SelectContent className="bg-card border-border text-white">
+                 {dozenOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+             </SelectContent>
+         </Select>
+        );
+    case 'column':
+         return (
+          <Select {...commonProps} >
+              <SelectTrigger><SelectValue placeholder="Coluna..." /></SelectTrigger>
+              <SelectContent className="bg-card border-border text-white">
+                  {columnOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+              </SelectContent>
+          </Select>
+         );
+    case 'high_low':
+         return (
+          <Select {...commonProps} >
+              <SelectTrigger><SelectValue placeholder="Metade..." /></SelectTrigger>
+              <SelectContent className="bg-card border-border text-white">
+                  {highLowOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+              </SelectContent>
+          </Select>
+         );
+    case 'streak_color':
+    case 'miss_color':
+        // Estes tipos precisam de DOIS valores: a cor e a contagem.
+        // Vamos retornar um input numérico para a CONTAGEM por enquanto.
+        // A cor precisaria ser definida em outro lugar ou adaptar este componente.
+         return (
+             <Input
+               {...commonProps}
+               type="number"
+               placeholder="Contagem (giros)"
+               min={1}
+               onChange={(e) => onChange(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+             />
+         );
+    default:
+      return (
+        <Input
+          {...commonProps}
+          placeholder="Valor..."
+        />
+      );
+  }
+};
+
 const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({ 
   roletaId,
   roletaNome, 
@@ -756,14 +932,25 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     setStrategyConditions(prev => prev.filter(condition => condition.id !== idToRemove));
   };
   
-  // <<< NOVA FUNÇÃO para atualizar uma condição específica >>>
-  const updateCondition = (idToUpdate: string, field: keyof StrategyCondition, newValue: any) => {
-    setStrategyConditions(prev => 
-      prev.map(condition => 
-        condition.id === idToUpdate ? { ...condition, [field]: newValue } : condition
-      )
+  // <<< Função updateCondition ATUALIZADA para resetar >>>
+  const updateCondition = (idToUpdate: string, field: keyof Omit<StrategyCondition, 'id'>, newValue: any) => {
+    setStrategyConditions(prev =>
+      prev.map(condition => {
+        if (condition.id === idToUpdate) {
+          const updatedCondition = { ...condition, [field]: newValue };
+          // Se o TIPO mudou, resetar operador e valor
+          if (field === 'type') {
+            console.log(`Tipo mudado para ${newValue}, resetando operador e valor.`);
+            updatedCondition.operator = '';
+            updatedCondition.value = '';
+          }
+          // Se o OPERADOR mudar para um que não precise de valor (raro), resetar valor?
+          // Por enquanto, não fazemos isso.
+          return updatedCondition;
+        }
+        return condition;
+      })
     );
-    // TODO: Adicionar lógica para resetar operator/value se o type mudar?
   };
   
   // <<< FUNÇÃO para salvar estratégia (atualizada para incluir conditions) >>>
@@ -797,9 +984,9 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       <div className="p-5 border-b border-gray-800 bg-opacity-40 flex justify-between items-center">
         <div>
           <h2 className="text-white flex items-center text-xl font-bold mb-1">
-            <BarChart className="mr-3 text-vegas-green h-6 w-6" /> Estatísticas da {roletaNome}
-          </h2>
-          <p className="text-sm text-gray-400">
+          <BarChart className="mr-3 text-vegas-green h-6 w-6" /> Estatísticas da {roletaNome}
+        </h2>
+        <p className="text-sm text-gray-400">
             {isLoading ? "Carregando histórico..." : (historicalNumbers.length === 0 ? "Nenhum histórico disponível." : "")}
           </p>
         </div>
@@ -842,62 +1029,69 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   <p className="text-sm text-center text-muted-foreground py-4">Clique em "Adicionar Condição" para começar.</p>
                 )}
                 
-                {/* Mapear e renderizar cada condição */}
-                {strategyConditions.map((condition, index) => (
-                  <div key={condition.id} className="flex items-center space-x-2 p-3 border border-border rounded-md">
-                    {/* Inputs/Selects para a condição (PLACEHOLDERS POR ENQUANTO) */}
-                    <div className="flex-1 grid grid-cols-3 gap-2">
-                      <Select 
+                {/* Mapear e renderizar cada condição (ATUALIZADO) */}
+                {strategyConditions.map((condition) => (
+                  <div key={condition.id} className="flex items-start space-x-2 p-3 border border-border rounded-md">
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                       {/* SELECT TIPO */}
+                      <Select
                          value={condition.type}
                          onValueChange={(value) => updateCondition(condition.id, 'type', value)}
-                      > 
-                        <SelectTrigger className="bg-input border-border"><SelectValue placeholder="Tipo..." /></SelectTrigger>
-                        <SelectContent className="bg-card border-border text-white">
-                          <SelectItem value="color_streak">Sequência de Cor</SelectItem>
-                          <SelectItem value="number_frequency">Frequência de Número</SelectItem>
-                          <SelectItem value="dozen_miss">Dúzia não saiu</SelectItem>
-                          {/* Adicionar mais tipos */}
-                        </SelectContent>
-                      </Select>
-                      <Select 
-                        value={condition.operator}
-                        onValueChange={(value) => updateCondition(condition.id, 'operator', value)}
-                        disabled={!condition.type} // Desabilita se o tipo não foi escolhido
                       >
-                        <SelectTrigger className="bg-input border-border"><SelectValue placeholder="Operador..." /></SelectTrigger>
+                         <SelectTrigger className="bg-input border-border h-9 text-sm">
+                           <SelectValue placeholder="Tipo..." />
+                         </SelectTrigger>
                          <SelectContent className="bg-card border-border text-white">
-                          {/* TODO: Opções do operador baseadas no condition.type */}
-                          <SelectItem value="equals">Igual a</SelectItem>
-                          <SelectItem value="greater_than">Maior que</SelectItem>
-                          <SelectItem value="streak_count">Sequência de X</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Input 
-                        placeholder="Valor..." 
-                        value={condition.value}
-                        onChange={(e) => updateCondition(condition.id, 'value', e.target.value)}
-                        className="bg-input border-border"
-                        disabled={!condition.operator} // Desabilita se operador não escolhido
-                      />
+                            {conditionTypes.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                         </SelectContent>
+                       </Select>
+
+                       {/* SELECT OPERADOR (DINÂMICO) */}
+                      <Select
+                         value={condition.operator}
+                         onValueChange={(value) => updateCondition(condition.id, 'operator', value)}
+                         disabled={!condition.type} // Desabilita se o tipo não foi escolhido
+                      >
+                         <SelectTrigger className="bg-input border-border h-9 text-sm">
+                           <SelectValue placeholder="Operador..." />
+                         </SelectTrigger>
+                         <SelectContent className="bg-card border-border text-white">
+                           {(operatorsByType[condition.type] || []).map(op => (
+                               <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                           ))}
+                           {/* Mensagem se tipo selecionado não tiver operadores definidos */}
+                           {condition.type && (!operatorsByType[condition.type] || operatorsByType[condition.type].length === 0) && 
+                               <SelectItem value="" disabled>N/A para este tipo</SelectItem>}
+                           {/* Mensagem se nenhum tipo selecionado */}
+                            {!condition.type && <SelectItem value="" disabled>Selecione um tipo</SelectItem>}
+                         </SelectContent>
+                       </Select>
+
+                       {/* INPUT VALOR (DINÂMICO) */}
+                       {/* Wrapper div para manter altura consistente */}
+                       <div className="h-9">
+                           <ConditionValueInput
+                             conditionType={condition.type}
+                             operator={condition.operator} // Passa operador, pode ser útil
+                             value={condition.value}
+                             onChange={(newValue) => updateCondition(condition.id, 'value', newValue)}
+                             disabled={!condition.operator || !condition.type} // Desabilita se tipo ou operador não escolhido
+                           />
+                       </div>
                     </div>
-                    {/* Botão para remover condição */}
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => removeCondition(condition.id)}
-                      className="text-muted-foreground hover:text-destructive h-8 w-8"
-                    >
+                    {/* Botão Remover */}
+                     <Button
+                       variant="ghost"
+                       size="icon"
+                       onClick={() => removeCondition(condition.id)}
+                       className="text-muted-foreground hover:text-destructive h-8 w-8 mt-0.5" // Ajuste margem
+                     >
                       <Trash2 size={16} />
                     </Button>
                   </div>
-                ))}
-              </div>
-              
-              {/* Botão para adicionar nova condição */}
-              <Button variant="outline" size="sm" onClick={addCondition} className="mt-2">
-                <PlusCircle size={14} className="mr-2" /> Adicionar Condição
-              </Button>
-              
+                 ))}
+               </div>
+               {/* ... (Botão Adicionar Condição) ... */}
             </div>
             <DialogFooter>
               <DialogClose asChild>
@@ -1080,7 +1274,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </div>
         </CardContent>
       </Card>
-
+      
       {isLoading ? (
         <div className="flex items-center justify-center p-16">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-muted border-t-[hsl(142.1,70.6%,45.3%)]"></div>
