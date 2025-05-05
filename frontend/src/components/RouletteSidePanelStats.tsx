@@ -1125,6 +1125,8 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                            <SelectValue placeholder="Tipo..." />
                          </SelectTrigger>
                          <SelectContent className="bg-card border-border text-white">
+                            {/* <<< ADICIONAR PLACEHOLDER ITEM >>> */} 
+                            <SelectItem value="" disabled>Selecione...</SelectItem>
                             {conditionTypes.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                          </SelectContent>
                        </Select>
