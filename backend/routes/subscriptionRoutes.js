@@ -49,17 +49,17 @@ router.get('/status', protect, async (req, res) => {
 /**
  * @route   GET /api/subscription/access-key
  * @desc    Obtém uma chave de acesso para descriptografia de dados da API
- * @access  Privado - Requer assinatura ativa
+ * @access  Privado - Requer apenas autenticação (sem restrição de assinatura)
  */
 router.get('/access-key', protect, async (req, res) => {
   try {
-    // Verificar se o usuário tem assinatura ativa
+    // Removendo verificação de assinatura ativa
     const user = await User.findById(req.user._id);
     
-    if (!user || !user.subscription || !user.subscription.isActive) {
-      return res.status(403).json({ 
+    if (!user) {
+      return res.status(404).json({ 
         success: false, 
-        message: 'Assinatura ativa necessária para acessar chaves da API' 
+        message: 'Usuário não encontrado' 
       });
     }
     
@@ -104,13 +104,13 @@ router.delete('/access-key', authenticate, subscriptionController.revokeAccessKe
 // @access  Private
 router.post('/regenerate-key', protect, async (req, res) => {
   try {
-    // Verificar se o usuário tem assinatura ativa
+    // Removendo verificação de assinatura ativa
     const user = await User.findById(req.user._id);
     
-    if (!user || !user.subscription || !user.subscription.isActive) {
-      return res.status(403).json({ 
+    if (!user) {
+      return res.status(404).json({ 
         success: false, 
-        message: 'Assinatura ativa necessária para gerenciar chaves da API' 
+        message: 'Usuário não encontrado' 
       });
     }
     
@@ -172,13 +172,13 @@ router.post('/validate-key', async (req, res) => {
       });
     }
     
-    // Verificar se o usuário associado tem assinatura ativa
+    // Removendo verificação de assinatura ativa para validação da chave
     const user = await User.findById(subscriptionKey.userId);
     
-    if (!user || !user.subscription || !user.subscription.isActive) {
-      return res.status(403).json({ 
+    if (!user) {
+      return res.status(404).json({ 
         success: false, 
-        message: 'Assinatura associada à chave não está ativa' 
+        message: 'Usuário associado à chave não encontrado' 
       });
     }
     

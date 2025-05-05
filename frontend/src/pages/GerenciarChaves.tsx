@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Copy, RefreshCw, Info, Lock } from 'lucide-react';
-import { RootState } from '@/store/store';
+import { useAuth } from '@/context/AuthContext';
 
 import {
   Card,
@@ -36,14 +35,15 @@ const GerenciarChaves: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [showKey, setShowKey] = useState(false);
   
-  const user = useSelector((state: RootState) => state.auth.user);
-  const isSubscribed = user?.subscription?.isActive || false;
-  
+  const { user } = useAuth();
+  // Forçando acesso para todos os usuários autenticados
+  const isSubscribed = true;
+
   useEffect(() => {
-    if (isSubscribed) {
+    if (user) {
       fetchAccessKey();
     }
-  }, [isSubscribed]);
+  }, [user]);
 
   const fetchAccessKey = async () => {
     setLoading(true);
@@ -63,24 +63,26 @@ const GerenciarChaves: React.FC = () => {
   };
 
   const regenerateKey = async () => {
-    setRegenerating(true);
-    try {
-      const response = await axios.post('/api/subscription/regenerate-key');
-      setAccessKey(response.data);
-      setShowKey(true);
-      toast({
-        title: 'Chave regenerada',
-        description: 'Sua nova chave de acesso foi gerada com sucesso.',
-      });
-    } catch (error) {
-      console.error('Erro ao regenerar chave:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível regenerar sua chave de acesso.',
-        variant: 'destructive',
-      });
-    } finally {
-      setRegenerating(false);
+    if (window.confirm('Tem certeza que deseja regenerar sua chave de acesso? A chave atual será invalidada e todas as integrações existentes precisarão ser atualizadas.')) {
+      setRegenerating(true);
+      try {
+        const response = await axios.post('/api/subscription/regenerate-key');
+        setAccessKey(response.data);
+        setShowKey(true);
+        toast({
+          title: 'Chave regenerada',
+          description: 'Sua nova chave de acesso foi gerada com sucesso.',
+        });
+      } catch (error) {
+        console.error('Erro ao regenerar chave:', error);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível regenerar sua chave de acesso.',
+          variant: 'destructive',
+        });
+      } finally {
+        setRegenerating(false);
+      }
     }
   };
 
@@ -109,10 +111,6 @@ const GerenciarChaves: React.FC = () => {
     return `${formatDistanceToNow(new Date(date), { locale: ptBR, addSuffix: true })}`;
   };
 
-  if (!isSubscribed) {
-    return <SubscriptionRequired />;
-  }
-
   return (
     <div className="gerenciar-chaves-container max-w-4xl mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">
@@ -123,7 +121,7 @@ const GerenciarChaves: React.FC = () => {
         Sua chave de API permite acesso aos dados criptografados das roletas. 
         Mantenha sua chave em segurança e não a compartilhe com terceiros.
       </p>
-      
+
       <Card className="mb-6">
         <CardHeader>
           <div className="flex justify-between items-center">
@@ -151,7 +149,7 @@ const GerenciarChaves: React.FC = () => {
                 />
                 <Button 
                   variant="outline" 
-                  size="sm" 
+                  size="sm"
                   className="absolute right-0 top-0 h-full"
                   onClick={toggleShowKey}
                 >
@@ -211,7 +209,7 @@ const GerenciarChaves: React.FC = () => {
           </div>
         </CardFooter>
       </Card>
-      
+        
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Informações Importantes</CardTitle>
@@ -225,7 +223,7 @@ const GerenciarChaves: React.FC = () => {
               <Lock className="h-5 w-5 mt-1 text-orange-500" />
               <div>
                 <p className="font-bold">Segurança da Chave</p>
-                <p className="text-muted-foreground">Nunca compartilhe sua chave de API. Ela é pessoal e está vinculada à sua assinatura.</p>
+                <p className="text-muted-foreground">Nunca compartilhe sua chave de API. Ela é pessoal e está vinculada à sua conta.</p>
               </div>
             </div>
             
