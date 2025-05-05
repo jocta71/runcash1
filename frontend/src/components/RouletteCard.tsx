@@ -209,40 +209,69 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }
     
     // Extrair números da resposta
-    const apiNumbers = extractNumbers(apiRoulette);
+    const apiNumbers = extractNumbers(apiRoulette); // Retorna number[]
     debugLog(`Números extraídos para ${safeData.name}:`, apiNumbers);
     
-    // Se não há números, não faz nada
     if (!apiNumbers || apiNumbers.length === 0) {
       debugLog(`Nenhum número extraído para ${safeData.name} - API response:`, apiRoulette);
+      // <<< Se não há números E não tínhamos dados, definir estado como "sem números" >>>
+      if (!rouletteData) {
+          setRouletteData({
+            id: apiRoulette.id || safeData.id,
+            nome: apiRoulette.nome || apiRoulette.name || safeData.name,
+            provider: apiRoulette.provider || 'Desconhecido',
+            status: apiRoulette.status || 'offline',
+            ultimoNumero: null,
+            numeros: [], // Array vazio de RouletteNumber
+            winRate: apiRoulette.winRate || 0,
+            streak: apiRoulette.streak || 0,
+            lastUpdateTime: apiRoulette.timestamp ? new Date(apiRoulette.timestamp).getTime() : Date.now(),
+          });
+           setIsLoading(false); // Garantir que parou de carregar
+      }
       return;
     }
     
-    // Verificar se temos números novos
+    // Verificar se temos números novos (esta função pode ser simplificada depois)
     const hasNewNumbers = updateNumberSequence(apiNumbers);
     debugLog(`Novos números encontrados para ${safeData.name}: ${hasNewNumbers ? 'SIM' : 'NÃO'}`);
     
-    // Se não há números novos e já temos dados, não precisamos atualizar a UI
-    if (!hasNewNumbers && rouletteData) {
+    // Se não tínhamos dados reais antes, inicializar o estado corretamente
+    if (!rouletteData) {
+        // <<< CORRIGIR A INICIALIZAÇÃO DO ESTADO >>>
+        // Mapear apiNumbers para RouletteNumber[]
+        const initialNumeros: RouletteNumber[] = apiNumbers.slice(0, 10).map(num => ({
+            numero: num,
+            timestamp: new Date().toLocaleTimeString() // Usar timestamp placeholder
+        }));
+
+        setRouletteData({
+            id: apiRoulette.id || safeData.id, // Usar dados da apiRoulette
+            nome: apiRoulette.nome || apiRoulette.name || safeData.name,
+            provider: apiRoulette.provider || 'Desconhecido',
+            status: apiRoulette.status || 'offline',
+            ultimoNumero: initialNumeros.length > 0 ? initialNumeros[0].numero : null,
+            numeros: initialNumeros, // <<< Usar array formatado
+            winRate: apiRoulette.winRate || 0, // Usar dados da apiRoulette ou padrão
+            streak: apiRoulette.streak || 0,
+            lastUpdateTime: apiRoulette.timestamp ? new Date(apiRoulette.timestamp).getTime() : Date.now(), // Usar dados da apiRoulette
+        });
+        debugLog(`Dados iniciais carregados para ${safeData.name} - ${apiNumbers.length} números`);
+        setIsLoading(false); // Garantir que parou de carregar
+        return; // Retornar após inicializar
+    }
+
+    // Se já tínhamos dados e não há números novos, não fazer nada
+    if (!hasNewNumbers) {
       debugLog(`Sem alterações nos números para ${safeData.name} - ignorando atualização`);
+      // Atualizar apenas o timestamp se desejado
+      // setRouletteData(prev => prev ? {...prev, lastUpdateTime: Date.now()} : null);
       return;
     }
-    
-    // Se não tínhamos dados reais antes, atualizamos a UI mesmo sem novos números
-    if (!rouletteData) {
-      setRouletteData({
-        id: safeData.id,
-        nome: safeData.name,
-        provider: rouletteData.provider,
-        status: rouletteData.status,
-        ultimoNumero: rouletteData.ultimoNumero,
-        numeros: apiNumbers.slice(0, 10),
-        winRate: rouletteData.winRate,
-        streak: rouletteData.streak,
-        lastUpdateTime: Date.now(),
-      });
-      debugLog(`Dados iniciais carregados para ${safeData.name} - ${apiNumbers.length} números`);
-    }
+
+    // Se chegamos aqui, é porque hasNewNumbers é true e a função updateNumberSequence
+    // já atualizou o estado rouletteData corretamente.
+    debugLog(`Estado atualizado com novos números para ${safeData.name}`);
   };
 
   // Função para extrair números da resposta da API
