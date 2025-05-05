@@ -157,7 +157,6 @@ export class CryptoService {
     
     try {
       console.log('[CryptoService] Tentando descriptografar dados no formato Iron');
-      console.log('[CryptoService] Formato recebido:', ironEncrypted.substring(0, 50) + '...');
       
       // Verificar formato Iron
       if (!ironEncrypted || typeof ironEncrypted !== 'string') {
@@ -165,20 +164,62 @@ export class CryptoService {
         throw new Error('Formato de dados inválido');
       }
       
+      // Log detalhado do formato recebido
+      console.log('[CryptoService] Formato recebido:', ironEncrypted.substring(0, 100));
+      console.log('[CryptoService] Total de caracteres:', ironEncrypted.length);
+      console.log('[CryptoService] Primeiros caracteres:', ironEncrypted.substring(0, 20));
+      
       // Formatos possíveis:
       // 1. String direta no formato Iron: Fe26.2*...
       // 2. Objeto JSON com campo encryptedData
+      // 3. String em base64 que precisa ser decodificada primeiro
       let targetData = ironEncrypted;
       
+      // Verificar se é Base64 e tentar decodificar
+      if (!ironEncrypted.startsWith('Fe26.2') && !ironEncrypted.includes('"encrypted"')) {
+        try {
+          // Verificar se parece ser Base64 (comprimento múltiplo de 4, caracteres válidos)
+          const isBase64 = /^[A-Za-z0-9+/=]+$/.test(ironEncrypted.replace(/\s/g, '')) && 
+                          ironEncrypted.length % 4 === 0;
+          
+          if (isBase64) {
+            console.log('[CryptoService] Tentando decodificar como Base64');
+            try {
+              // Usar atob para decodificar Base64
+              const decoded = atob(ironEncrypted);
+              console.log('[CryptoService] Decodificação Base64 bem-sucedida:', decoded.substring(0, 50));
+              
+              // Verificar se o resultado parece ser JSON ou formato Iron
+              if (decoded.startsWith('Fe26.2') || decoded.startsWith('{')) {
+                console.log('[CryptoService] Conteúdo Base64 decodificado parece válido');
+                targetData = decoded;
+              }
+            } catch (e) {
+              console.log('[CryptoService] Erro ao decodificar Base64, tratando como dados normais');
+            }
+          }
+        } catch (e) {
+          console.log('[CryptoService] Erro ao processar possível Base64, continuando com dados originais');
+        }
+      }
+      
       // Se não começar com Fe26.2, verificar se é um JSON
-      if (!ironEncrypted.startsWith('Fe26.2')) {
+      if (!targetData.startsWith('Fe26.2')) {
         try {
           // Poderia ser um JSON com campo encryptedData
-          if (ironEncrypted.includes('"encryptedData"')) {
-            const jsonData = JSON.parse(ironEncrypted);
+          if (targetData.includes('"encryptedData"') || targetData.includes('"encrypted"')) {
+            const jsonData = JSON.parse(targetData);
+            
+            // Verificar diferentes formatos possíveis
             if (jsonData.encryptedData) {
               console.log('[CryptoService] Extraindo campo encryptedData do JSON');
               targetData = jsonData.encryptedData;
+            } else if (jsonData.encrypted && jsonData.data) {
+              console.log('[CryptoService] Extraindo campo data do JSON com encrypted=true');
+              targetData = jsonData.data;
+            } else if (jsonData.content && typeof jsonData.content === 'string') {
+              console.log('[CryptoService] Extraindo campo content do JSON');
+              targetData = jsonData.content;
             }
           }
         } catch (error) {
@@ -186,28 +227,74 @@ export class CryptoService {
         }
       }
       
+      // Tentar prefixar Fe26.2 se não estiver presente mas parecer um formato Iron sem o prefixo
+      if (!targetData.startsWith('Fe26.2') && targetData.includes('*') && targetData.split('*').length >= 4) {
+        console.log('[CryptoService] Detectado possível formato Iron sem prefixo, adicionando prefixo');
+        targetData = 'Fe26.2*' + targetData;
+      }
+      
       // Agora devemos ter um formato Fe26.2*...
       if (!targetData.startsWith('Fe26.2')) {
-        console.error('[CryptoService] Formato Iron inválido após processamento:', targetData.substring(0, 50));
-        throw new Error('Formato Iron inválido');
+        console.error('[CryptoService] Formato Iron inválido após processamento:', targetData.substring(0, 100));
+        console.error('[CryptoService] Formato original era:', ironEncrypted.substring(0, 100));
+        throw new Error('Formato Iron inválido ou não reconhecido');
       }
       
       // 1. Extrair partes da string Iron
       const parts = targetData.split('*');
       console.log('[CryptoService] Partes do formato Iron:', parts.length);
       
+      // Log das partes para diagnóstico (limitando para não sobrecarregar o console)
+      parts.forEach((part, index) => {
+        if (index < 6) { // Limitando a 6 partes para não poluir o console
+          console.log(`[CryptoService] Parte ${index}:`, 
+            part.length > 20 ? part.substring(0, 20) + '...' : part);
+        }
+      });
+      
       if (parts.length < 4) {
         console.error('[CryptoService] Número insuficiente de partes:', parts.length);
         throw new Error('Formato Iron inválido: número insuficiente de partes');
       }
       
-      // 2. Recuperar os componentes necessários (baseado no formato Fe26.2*hash*encrypted*iv*...)
-      const encryptedBase64 = parts[3]; // Normalmente a posição 3 contém os dados
+      // 2. Recuperar os componentes necessários
+      // O formato exato pode variar, então tentamos diferentes índices
+      let encryptedBase64 = '';
+      let iv = '';
+      
+      // Normalmente o formato é Fe26.2*hash*encrypted*iv*..., mas pode haver variações
+      if (parts.length >= 4) {
+        // Tentativa 1: formato padrão
+        encryptedBase64 = parts[3];
+        iv = parts[2].length > 16 ? parts[2].substring(0, 16) : this.accessKey.substring(0, 16);
+      }
+      
+      // Se a parte 3 não parece ser Base64, tentar outros índices
+      if (!encryptedBase64 || encryptedBase64.length < 10) {
+        console.log('[CryptoService] Tentando encontrar dados em outros índices');
+        
+        // Procurar a parte mais longa que possa ser os dados
+        let maxLength = 0;
+        let maxIndex = -1;
+        
+        for (let i = 2; i < parts.length; i++) {
+          if (parts[i].length > maxLength) {
+            maxLength = parts[i].length;
+            maxIndex = i;
+          }
+        }
+        
+        if (maxIndex !== -1 && maxLength > 20) {
+          console.log(`[CryptoService] Usando parte ${maxIndex} como dados (comprimento ${maxLength})`);
+          encryptedBase64 = parts[maxIndex];
+        }
+      }
+      
       console.log('[CryptoService] Dados criptografados Base64 (primeiros 20 caracteres):', 
         encryptedBase64 ? encryptedBase64.substring(0, 20) + '...' : 'indefinido');
       
       if (!encryptedBase64) {
-        throw new Error('Dados criptografados ausentes na posição 3');
+        throw new Error('Dados criptografados não encontrados no formato Iron');
       }
       
       // 3. Decodificar base64
@@ -219,35 +306,77 @@ export class CryptoService {
         throw new Error('Falha ao decodificar Base64');
       }
       
-      // 4. Derivar chave de criptografia da chave de acesso
+      // 4. Derivar chave de criptografia a partir da chave de acesso
       console.log('[CryptoService] Derivando chave a partir da chave de acesso');
       const key = CryptoJS.PBKDF2(this.accessKey, 'runcash-salt', {
         keySize: 256 / 32,
         iterations: 1000
       });
       
-      // 5. Descriptografar usando o algoritmo AES com modo CBC
+      // Gerar IV a partir do salt ou usar a primeira parte da chave
+      const ivValue = CryptoJS.enc.Utf8.parse(this.accessKey.substring(0, 16));
+      
+      // 5. Tentar descriptografar usando diferentes configurações
       console.log('[CryptoService] Tentando descriptografar com AES-CBC');
-      const decryptedData = CryptoJS.AES.decrypt(
-        encryptedBytes.toString(CryptoJS.enc.Base64),
-        key,
-        {
-          mode: CryptoJS.mode.CBC,
-          padding: CryptoJS.pad.Pkcs7,
-          iv: CryptoJS.enc.Utf8.parse(this.accessKey.substring(0, 16))
+      let decryptedData;
+      
+      try {
+        // Primeira tentativa: AES-CBC com PKCS7
+        decryptedData = CryptoJS.AES.decrypt(
+          encryptedBytes.toString(CryptoJS.enc.Base64),
+          key,
+          {
+            mode: CryptoJS.mode.CBC,
+            padding: CryptoJS.pad.Pkcs7,
+            iv: ivValue
+          }
+        );
+      } catch (e) {
+        console.log('[CryptoService] Erro na primeira tentativa de descriptografia:', e);
+        
+        // Segunda tentativa: AES-CBC sem IV específico
+        try {
+          decryptedData = CryptoJS.AES.decrypt(
+            encryptedBytes.toString(CryptoJS.enc.Base64),
+            key,
+            {
+              mode: CryptoJS.mode.CBC,
+              padding: CryptoJS.pad.Pkcs7
+            }
+          );
+        } catch (e2) {
+          console.log('[CryptoService] Erro na segunda tentativa de descriptografia:', e2);
+          
+          // Terceira tentativa: AES-ECB
+          try {
+            decryptedData = CryptoJS.AES.decrypt(
+              encryptedBytes.toString(CryptoJS.enc.Base64),
+              key,
+              {
+                mode: CryptoJS.mode.ECB,
+                padding: CryptoJS.pad.Pkcs7
+              }
+            );
+          } catch (e3) {
+            console.error('[CryptoService] Todas as tentativas de descriptografia falharam');
+            throw new Error('Falha em todas as tentativas de descriptografia');
+          }
         }
-      );
+      }
       
       // 6. Converter para string e objeto JSON
       let decryptedString;
       try {
         decryptedString = decryptedData.toString(CryptoJS.enc.Utf8);
-        console.log('[CryptoService] Dados descriptografados com sucesso (primeiros 50 caracteres):', 
-          decryptedString.substring(0, 50) + '...');
         
-        if (!decryptedString) {
+        // Verificar se temos uma string não vazia
+        if (!decryptedString || decryptedString.length === 0) {
+          console.error('[CryptoService] String descriptografada vazia');
           throw new Error('String descriptografada vazia');
         }
+        
+        console.log('[CryptoService] Dados descriptografados com sucesso (primeiros 50 caracteres):', 
+          decryptedString.substring(0, 50) + '...');
       } catch (error) {
         console.error('[CryptoService] Erro ao converter para string UTF-8:', error);
         throw new Error('Falha ao converter dados descriptografados para string');
@@ -255,11 +384,20 @@ export class CryptoService {
       
       // 7. Retornar objeto JSON
       try {
-        const jsonData = JSON.parse(decryptedString);
-        return jsonData;
+        // Verificar se é um JSON válido
+        if (decryptedString.startsWith('{') || decryptedString.startsWith('[')) {
+          const jsonData = JSON.parse(decryptedString);
+          return jsonData;
+        } else {
+          // Se não for JSON, retornar como string
+          console.log('[CryptoService] Dados descriptografados não são JSON, retornando como string');
+          return { data: decryptedString };
+        }
       } catch (error) {
         console.error('[CryptoService] Erro ao fazer parse JSON:', error);
-        throw new Error('Falha ao converter dados descriptografados para JSON');
+        
+        // Retornar como string se não for um JSON válido
+        return { data: decryptedString };
       }
     } catch (error) {
       console.error('[CryptoService] Erro ao descriptografar dados:', error);
