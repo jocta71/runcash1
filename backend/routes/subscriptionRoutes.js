@@ -53,7 +53,7 @@ router.get('/status', protect, async (req, res) => {
  */
 router.get('/access-key', protect, async (req, res) => {
   try {
-    // Removendo verificação de assinatura ativa
+    // Verificar apenas se o usuário existe (sem verificação de assinatura)
     const user = await User.findById(req.user._id);
     
     if (!user) {
@@ -99,12 +99,14 @@ router.get('/access-key', protect, async (req, res) => {
  */
 router.delete('/access-key', authenticate, subscriptionController.revokeAccessKey);
 
-// @desc    Regenerate API access key
-// @route   POST /api/subscription/regenerate-key
-// @access  Private
+/**
+ * @route   POST /api/subscription/regenerate-key
+ * @desc    Regenera a chave de acesso da API
+ * @access  Privado - Requer apenas autenticação (sem restrição de assinatura)
+ */
 router.post('/regenerate-key', protect, async (req, res) => {
   try {
-    // Removendo verificação de assinatura ativa
+    // Verificar apenas se o usuário existe (sem verificação de assinatura)
     const user = await User.findById(req.user._id);
     
     if (!user) {
@@ -148,9 +150,11 @@ router.post('/regenerate-key', protect, async (req, res) => {
   }
 });
 
-// @desc    Validate API access key
-// @route   POST /api/subscription/validate-key
-// @access  Public
+/**
+ * @route   POST /api/subscription/validate-key
+ * @desc    Valida uma chave de acesso da API
+ * @access  Público
+ */
 router.post('/validate-key', async (req, res) => {
   try {
     const { key } = req.body;
@@ -172,7 +176,7 @@ router.post('/validate-key', async (req, res) => {
       });
     }
     
-    // Removendo verificação de assinatura ativa para validação da chave
+    // Verificar apenas se o usuário existe (sem verificação de assinatura)
     const user = await User.findById(subscriptionKey.userId);
     
     if (!user) {

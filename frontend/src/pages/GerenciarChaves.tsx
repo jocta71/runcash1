@@ -8,7 +8,6 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -16,10 +15,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip } from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
-import SubscriptionRequired from '@/components/SubscriptionRequired';
 
 interface AccessKey {
   id: string;
@@ -36,8 +33,6 @@ const GerenciarChaves: React.FC = () => {
   const [showKey, setShowKey] = useState(false);
   
   const { user } = useAuth();
-  // Forçando acesso para todos os usuários autenticados
-  const isSubscribed = true;
 
   useEffect(() => {
     if (user) {
@@ -111,6 +106,7 @@ const GerenciarChaves: React.FC = () => {
     return `${formatDistanceToNow(new Date(date), { locale: ptBR, addSuffix: true })}`;
   };
 
+  // Página acessível a qualquer usuário autenticado, sem verificação de assinatura
   return (
     <div className="gerenciar-chaves-container max-w-4xl mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">
@@ -126,7 +122,7 @@ const GerenciarChaves: React.FC = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>Sua Chave de Acesso</CardTitle>
-            <Tooltip delayDuration={300}>
+            <Tooltip>
               <Info className="h-5 w-5 text-blue-500" />
               <span>Esta chave permite o acesso aos dados criptografados do RunCash</span>
             </Tooltip>
