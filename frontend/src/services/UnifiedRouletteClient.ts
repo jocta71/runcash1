@@ -499,12 +499,13 @@ class UnifiedRouletteClient {
     
     this.fetchPromise = new Promise(async (resolve) => {
       try {
-        // Usar o endpoint REST normal (não o legado e não o de streaming)
+        // Usar o endpoint REST normal
         const response = await axios.get(ENDPOINTS.ROULETTES, {
           headers: {
             'Accept': 'application/json',
             'Cache-Control': 'no-cache'
-          }
+          },
+          timeout: 8000
         });
         
         // Processar resposta
@@ -548,15 +549,13 @@ class UnifiedRouletteClient {
           }
         } else {
           this.error(`Erro ao buscar dados: ${response.status}`);
-          
-          // Tentar usar endpoint alternativo
-          await this.fetchFromFallbackEndpoint(resolve);
+          // Retornar dados do cache se houver
+          resolve(Array.from(this.rouletteData.values()));
         }
       } catch (error) {
         this.error('Erro ao buscar dados:', error);
-        
-        // Tentar endpoint alternativo
-        await this.fetchFromFallbackEndpoint(resolve);
+        // Retornar dados do cache se houver
+        resolve(Array.from(this.rouletteData.values()));
       } finally {
         this.isFetching = false;
         this.fetchPromise = null;
@@ -564,44 +563,6 @@ class UnifiedRouletteClient {
     });
     
     return this.fetchPromise;
-  }
-  
-  /**
-   * Tenta buscar dados do endpoint alternativo quando o principal falha
-   */
-  private async fetchFromFallbackEndpoint(resolve: (data: any[]) => void): Promise<void> {
-    try {
-      this.log('Tentando endpoint alternativo...');
-      
-      // Tentar endpoint normal novamente com configuração diferente
-      const response = await axios.get(ENDPOINTS.ROULETTES, {
-        headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache',
-          'X-Retry': 'true'
-        },
-        timeout: 10000 // Timeout mais longo
-      });
-      
-      if (response.status === 200) {
-        const data = response.data;
-        
-        // Processar dados
-        const roulettes = Array.isArray(data) ? data : 
-                         (data.data && Array.isArray(data.data) ? data.data : []);
-        
-        this.updateCache(roulettes);
-        resolve(Array.from(this.rouletteData.values()));
-      } else {
-        this.error(`Endpoint alternativo falhou: ${response.status}`);
-        resolve(Array.from(this.rouletteData.values()));
-      }
-    } catch (error) {
-      this.error('Erro no endpoint alternativo:', error);
-      
-      // Se tudo falhar, retornar dados em cache
-      resolve(Array.from(this.rouletteData.values()));
-    }
   }
   
   /**
