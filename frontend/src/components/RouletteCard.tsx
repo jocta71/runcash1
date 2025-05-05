@@ -11,12 +11,12 @@ import globalRouletteDataService from '@/services/GlobalRouletteDataService';
 import EventBus from '@/services/EventBus';
 
 // Debug flag - set to false to disable logs in production
-const DEBUG_ENABLED = false;
+const DEBUG_ENABLED = true;
 
 // Helper function for controlled logging
 const debugLog = (...args: any[]) => {
   if (DEBUG_ENABLED) {
-    console.log(...args);
+    console.log('[DEBUG-RouletteCard]', ...args);
   }
 };
 
@@ -226,73 +226,43 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   // Console.log para verificar se há apenas uma fonte de requisições:
   console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas GlobalRouletteDataManager para obter dados da API.');
   
-  // Função para verificar e processar números novos da API
+  // Função para processar dados da API
   const processApiData = (apiRoulette: any) => {
-    if (!apiRoulette) return false;
+    debugLog(`Processando dados para roleta ${safeData.name}:`, apiRoulette);
     
-    // Extrair números da API
+    if (!apiRoulette) {
+      console.warn(`[${componentId}] Dados vazios ou inválidos para a roleta ${safeData.name}`);
+      return;
+    }
+    
+    // Extrair números da resposta
     const apiNumbers = extractNumbers(apiRoulette);
-    if (apiNumbers.length === 0) return false;
+    debugLog(`Números extraídos para ${safeData.name}:`, apiNumbers);
     
-    // Caso 1: Não temos números ainda - inicializar com os da API
-    if (allNumbers.length === 0) {
-      console.log(`[${Date.now()}] Inicializando números para ${safeData.name} (${apiNumbers.length} números)`);
+    // Se não há números, não faz nada
+    if (!apiNumbers || apiNumbers.length === 0) {
+      debugLog(`Nenhum número extraído para ${safeData.name} - API response:`, apiRoulette);
+      return;
+    }
+    
+    // Verificar se temos números novos
+    const hasNewNumbers = updateNumberSequence(apiNumbers);
+    debugLog(`Novos números encontrados para ${safeData.name}: ${hasNewNumbers ? 'SIM' : 'NÃO'}`);
+    
+    // Se não há números novos e já temos dados, não precisamos atualizar a UI
+    if (!hasNewNumbers && hasRealData) {
+      debugLog(`Sem alterações nos números para ${safeData.name} - ignorando atualização`);
+      return;
+    }
+    
+    // Se não tínhamos dados reais antes, atualizamos a UI mesmo sem novos números
+    if (!hasRealData) {
       setAllNumbers(apiNumbers);
-      setRecentNumbers(apiNumbers.slice(0, 20));
-      setLastNumber(apiNumbers[0]);
+      setRecentNumbers(apiNumbers.slice(0, 20)); // Mostrar até 20 números recentes
+      setLastNumber(apiNumbers[0]); // O número mais recente
       setHasRealData(true);
-      return true;
+      debugLog(`Dados iniciais carregados para ${safeData.name} - ${apiNumbers.length} números`);
     }
-    
-    // Caso 2: Verificar se o último número da API é diferente do nosso
-    if (apiNumbers[0] === allNumbers[0]) {
-      // Nenhum número novo
-      return false;
-    }
-    
-    // Caso 3: Temos números novos na API
-    // Procurar por números novos que ainda não estão na nossa lista
-    const newNumbers = [];
-    
-    // Percorrer a lista da API até encontrar um número que já temos
-    for (let i = 0; i < apiNumbers.length; i++) {
-      const apiNum = apiNumbers[i];
-      
-      // Se encontramos um número que já está na nossa lista, paramos
-      if (allNumbers.includes(apiNum)) {
-        break;
-      }
-      
-      // Adicionar o número novo à nossa lista temporária
-      newNumbers.push(apiNum);
-    }
-    
-    // Se encontramos números novos, atualizamos o estado
-    if (newNumbers.length > 0) {
-      console.log(`[${Date.now()}] ${newNumbers.length} novos números para ${safeData.name}: ${newNumbers.join(', ')}`);
-      
-      // Adicionar os novos números no início da nossa lista
-      const updatedAllNumbers = [...newNumbers, ...allNumbers];
-      
-      // Atualizar estados
-      setAllNumbers(updatedAllNumbers);
-      setRecentNumbers(updatedAllNumbers.slice(0, 20));
-      setLastNumber(newNumbers[0]);
-      setHasRealData(true);
-      setIsNewNumber(true);
-      
-      // Mostrar notificação para o primeiro novo número
-      showNumberNotification(newNumbers[0]);
-      
-      // Resetar a animação após 2 segundos
-      setTimeout(() => {
-        setIsNewNumber(false);
-      }, 2000);
-      
-      return true;
-    }
-    
-    return false;
   };
 
   // Função para extrair números da resposta da API
@@ -410,6 +380,63 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Números vermelhos na roleta europeia
     const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
     return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
+  };
+
+  // Função para verificar e atualizar sequência de números
+  const updateNumberSequence = (apiNumbers: number[]): boolean => {
+    // Caso 1: Não temos números ainda - inicializar com os da API (já tratado no processApiData)
+    if (allNumbers.length === 0) {
+      return true;
+    }
+    
+    // Caso 2: Verificar se o último número da API é igual ao nosso
+    if (apiNumbers[0] === allNumbers[0]) {
+      // Nenhum número novo
+      return false;
+    }
+    
+    // Caso 3: Temos números novos na API
+    // Procurar por números novos que ainda não estão na nossa lista
+    const newNumbers = [];
+    
+    // Percorrer a lista da API até encontrar um número que já temos
+    for (let i = 0; i < apiNumbers.length; i++) {
+      const apiNum = apiNumbers[i];
+      
+      // Se encontramos um número que já está na nossa lista, paramos
+      if (allNumbers.includes(apiNum)) {
+        break;
+      }
+      
+      // Adicionar o número novo à nossa lista temporária
+      newNumbers.push(apiNum);
+    }
+    
+    // Se encontramos números novos, atualizamos o estado
+    if (newNumbers.length > 0) {
+      debugLog(`${newNumbers.length} novos números para ${safeData.name}: ${newNumbers.join(', ')}`);
+      
+      // Adicionar os novos números no início da nossa lista
+      const updatedAllNumbers = [...newNumbers, ...allNumbers];
+      
+      // Atualizar estados
+      setAllNumbers(updatedAllNumbers);
+      setRecentNumbers(updatedAllNumbers.slice(0, 20));
+      setLastNumber(newNumbers[0]);
+      setIsNewNumber(true);
+      
+      // Mostrar notificação para o primeiro novo número
+      showNumberNotification(newNumbers[0]);
+      
+      // Resetar a animação após 2 segundos
+      setTimeout(() => {
+        setIsNewNumber(false);
+      }, 2000);
+      
+      return true;
+    }
+    
+    return false;
   };
 
   return (
