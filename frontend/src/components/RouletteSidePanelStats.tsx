@@ -29,11 +29,15 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import NumberDisplay from './NumberDisplay';
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import axios from 'axios';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
 
 interface RouletteSidePanelStatsProps {
+  roletaId: string;
   roletaNome: string;
   lastNumbers: number[];
   wins: number;
@@ -295,6 +299,7 @@ const rouletteStyles = {
 };
 
 const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({ 
+  roletaId,
   roletaNome, 
   lastNumbers, 
   wins, 
@@ -321,6 +326,14 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   
   // Novo estado para controlar apenas o destaque visual dos números
   const [highlightedNumber, setHighlightedNumber] = useState<SelectedNumberState>(null);
+
+  // <<< NOVOS ESTADOS para a IA >>>
+  const [aiQuery, setAiQuery] = useState("");
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  
+  const componentInstanceId = useRef(uniqueId('panel-stats-')).current;
 
   // Esta função será chamada pelo listener do 'update' do UnifiedClient
   const processRouletteUpdate = useCallback((updatedRouletteData: any) => {
@@ -665,6 +678,39 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     setHighlightedNumber(prevNumber => prevNumber === num ? null : num);
   };
 
+  // <<< NOVA FUNÇÃO para chamar a API da IA >>>
+  const handleAskAI = useCallback(async () => {
+    if (!aiQuery.trim() || !roletaId) {
+      setAiError("Por favor, digite sua pergunta e certifique-se que uma roleta está selecionada.");
+      return;
+    }
+    
+    logger.info(`[${componentInstanceId}] Enviando pergunta para IA sobre roleta ${roletaId}: ${aiQuery}`);
+    setIsAiLoading(true);
+    setAiResponse(null); // Limpa resposta anterior
+    setAiError(null); // Limpa erro anterior
+
+    try {
+      const response = await axios.post('/api/ai/query', { 
+        query: aiQuery, 
+        roletaId: roletaId // Envia o ID da roleta
+      });
+      
+      if (response.data && response.data.response) {
+        setAiResponse(response.data.response);
+      } else {
+        throw new Error("Resposta inesperada da API de IA");
+      }
+
+    } catch (error: any) {
+      logger.error("Erro ao chamar a API de IA:", error);
+      setAiError(error.response?.data?.message || error.message || "Ocorreu um erro ao consultar a IA.");
+      setAiResponse(null); // Garante que não haja resposta em caso de erro
+    } finally {
+      setIsAiLoading(false);
+    }
+  }, [aiQuery, roletaId, componentInstanceId]); // Adicionar dependências
+
   return (
     <div className="w-full rounded-lg overflow-y-auto max-h-screen border-l border-border">
       <div className="p-5 border-b border-gray-800 bg-opacity-40">
@@ -797,6 +843,57 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         </div>
       </div>
       
+      {/* <<< NOVA SEÇÃO: Interação com IA >>> */}
+      <Card className="m-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold flex items-center text-white">
+            {/* Ícone de IA (exemplo, pode ser outro) */}
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-vegas-gold" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" /></svg>
+            Perguntar à IA RunCash sobre {roletaNome}
+          </CardTitle>
+          <CardDescription className="text-xs">Faça perguntas sobre estatísticas, padrões ou probabilidades desta roleta.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            placeholder={`Ex: Quais os 3 números mais frequentes nos últimos 500 giros desta roleta (${roletaNome})?`}
+            value={aiQuery}
+            onChange={(e) => setAiQuery(e.target.value)}
+            rows={3}
+            disabled={isAiLoading}
+            className="bg-input border-border placeholder:text-muted-foreground/70 text-sm"
+          />
+          <Button 
+            onClick={handleAskAI} 
+            disabled={isAiLoading || !aiQuery.trim()}
+            size="sm"
+            className="w-full bg-vegas-gold hover:bg-vegas-gold/90 text-black"
+          >
+            {isAiLoading ? "Analisando..." : "Enviar Pergunta"}
+          </Button>
+          
+          {/* Área de Resposta / Loading / Erro */}
+          <div className="mt-4 p-3 border border-dashed border-border rounded-md min-h-[80px] bg-background/50">
+            {isAiLoading && (
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-3/4 bg-muted/40" />
+                <Skeleton className="h-4 w-1/2 bg-muted/40" />
+                <Skeleton className="h-4 w-5/6 bg-muted/40" />
+              </div>
+            )}
+            {aiError && (
+              <p className="text-sm text-red-500">Erro: {aiError}</p>
+            )}
+            {aiResponse && !isAiLoading && (
+              // Usar um componente para renderizar markdown seria ideal aqui
+              <p className="text-sm text-gray-300 whitespace-pre-wrap">{aiResponse}</p>
+            )}
+            {!aiResponse && !isAiLoading && !aiError && (
+              <p className="text-xs text-muted-foreground text-center italic">A resposta da IA aparecerá aqui.</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {isLoading ? (
         <div className="flex items-center justify-center p-16">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-muted border-t-[hsl(142.1,70.6%,45.3%)]"></div>
