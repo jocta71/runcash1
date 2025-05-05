@@ -12,6 +12,7 @@ const dotenv = require('dotenv');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { encryptRouletteData, verifyAccessKey } = require('./middlewares/encryptionMiddleware');
+const { connectDb } = require('./services/database');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -211,108 +212,126 @@ app.get('/auth/google/callback', (req, res, next) => {
   app._router.handle(req, res, next);
 });
 
-// Inicializar servidor HTTP
-const server = http.createServer(app);
+// Função async para iniciar o servidor
+const startServer = async () => {
+  try {
+    // <<< Conectar ao Banco de Dados ANTES de iniciar o servidor >>>
+    console.log('[Server] Tentando conectar ao MongoDB via Singleton...');
+    await connectDb();
+    console.log('[Server] Conexão com MongoDB estabelecida com sucesso.');
 
-// Inicializar Socket.IO básico
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
-});
+    // <<< Iniciar o servidor HTTP >>>
+    const server = http.createServer(app);
 
-// Configurar eventos do Socket.IO
-io.on('connection', (socket) => {
-  console.log(`[Socket.IO] Novo cliente conectado: ${socket.id}`);
-  
-  socket.on('disconnect', () => {
-    console.log(`[Socket.IO] Cliente desconectado: ${socket.id}`);
-  });
-});
+    // Inicializar Socket.IO básico
+    const io = new Server(server, {
+      cors: {
+        origin: '*',
+        methods: ['GET', 'POST'],
+        credentials: true
+      }
+    });
 
-// Verificar se o websocket_server.js existe e deve ser carregado
-const websocketPath = path.join(__dirname, 'websocket_server.js');
-if (fs.existsSync(websocketPath)) {
-  console.log('Arquivo websocket_server.js encontrado. Verificando se deve ser carregado...');
-  
-  // Verificar se alguma variável de ambiente determina se o websocket deve ser inicializado
-  const shouldLoadWebsocket = process.env.ENABLE_WEBSOCKET === 'true';
-  
-  if (shouldLoadWebsocket) {
-    console.log('Carregando websocket_server.js...');
-    try {
-      // Para evitar conflitos de porta, não carregamos diretamente
-      // Em vez disso, extraímos a lógica necessária do arquivo websocket_server.js
+    // Configurar eventos do Socket.IO
+    io.on('connection', (socket) => {
+      console.log(`[Socket.IO] Novo cliente conectado: ${socket.id}`);
       
-      // Configuramos endpoints para compatibilidade com o websocket_server.js
-      app.post('/emit-event', (req, res) => {
+      socket.on('disconnect', () => {
+        console.log(`[Socket.IO] Cliente desconectado: ${socket.id}`);
+      });
+    });
+
+    // Verificar se o websocket_server.js existe e deve ser carregado
+    const websocketPath = path.join(__dirname, 'websocket_server.js');
+    if (fs.existsSync(websocketPath)) {
+      console.log('Arquivo websocket_server.js encontrado. Verificando se deve ser carregado...');
+      
+      // Verificar se alguma variável de ambiente determina se o websocket deve ser inicializado
+      const shouldLoadWebsocket = process.env.ENABLE_WEBSOCKET === 'true';
+      
+      if (shouldLoadWebsocket) {
+        console.log('Carregando websocket_server.js...');
         try {
-          const { event, data } = req.body;
+          // Para evitar conflitos de porta, não carregamos diretamente
+          // Em vez disso, extraímos a lógica necessária do arquivo websocket_server.js
           
-          if (!event || !data) {
-            return res.status(400).json({ error: 'Evento ou dados ausentes no payload' });
-          }
+          // Configuramos endpoints para compatibilidade com o websocket_server.js
+          app.post('/emit-event', (req, res) => {
+            try {
+              const { event, data } = req.body;
+              
+              if (!event || !data) {
+                return res.status(400).json({ error: 'Evento ou dados ausentes no payload' });
+              }
+              
+              console.log(`[WebSocket] Recebido evento ${event}`);
+              
+              // Broadcast do evento para todos os clientes conectados
+              io.emit(event, data);
+              
+              res.status(200).json({ success: true, message: 'Evento emitido com sucesso' });
+            } catch (error) {
+              console.error('[WebSocket] Erro ao processar evento:', error);
+              res.status(500).json({ error: 'Erro interno ao processar evento' });
+            }
+          });
           
-          console.log(`[WebSocket] Recebido evento ${event}`);
-          
-          // Broadcast do evento para todos os clientes conectados
-          io.emit(event, data);
-          
-          res.status(200).json({ success: true, message: 'Evento emitido com sucesso' });
-        } catch (error) {
-          console.error('[WebSocket] Erro ao processar evento:', error);
-          res.status(500).json({ error: 'Erro interno ao processar evento' });
+          console.log('Endpoint /emit-event configurado para compatibilidade com WebSocket');
+        } catch (err) {
+          console.error('Erro ao configurar compatibilidade WebSocket:', err);
+        }
+      } else {
+        console.log('WebSocket desativado pelas variáveis de ambiente.');
+      }
+    } else {
+      console.log('Arquivo websocket_server.js não encontrado, funcionalidade WebSocket não estará disponível.');
+    }
+
+    // Carregar outros serviços fora da pasta /api
+    // Exemplo: scraper, jobs, etc.
+    try {
+      // Verificar e carregar serviços conforme necessário
+      const servicesPath = path.join(__dirname, 'services');
+      if (fs.existsSync(servicesPath)) {
+        console.log('Diretório de serviços encontrado, verificando serviços disponíveis...');
+        
+        // Listar arquivos no diretório services
+        const serviceFiles = fs.readdirSync(servicesPath);
+        console.log('Serviços disponíveis:', serviceFiles);
+        
+        // Aqui você pode adicionar lógica para carregar cada serviço necessário
+      }
+    } catch (err) {
+      console.error('Erro ao carregar serviços adicionais:', err);
+    }
+
+    // <<< Iniciar o servidor HTTP >>>
+    server.listen(PORT, () => {
+      console.log(`[Server] Servidor HTTP iniciado na porta ${PORT}`);
+      // Logar endpoints disponíveis (pode precisar ser ajustado para pegar dinamicamente)
+      console.log('[Server] Endpoints registrados:');
+      // Exemplo simples - idealmente listar rotas dinamicamente
+      console.log(`- GET /`);
+      app._router.stack.forEach((middleware) => {
+        if (middleware.route) { // routes registered directly on the app
+          console.log(`- ${Object.keys(middleware.route.methods).join(', ').toUpperCase()} ${middleware.route.path}`);
+        } else if (middleware.name === 'router') { // routers mounted on the app
+            middleware.handle.stack.forEach((handler) => {
+              if (handler.route) {
+                // Tentar obter o prefixo da rota montada
+                const routePrefix = middleware.regexp.toString().replace(/^\/\^\//, '').replace(/\/\(.*\)$/, '').replace(/\\\//g, '/');
+                console.log(`- ${Object.keys(handler.route.methods).join(', ').toUpperCase()} ${routePrefix}${handler.route.path}`);
+              }
+            });
         }
       });
-      
-      console.log('Endpoint /emit-event configurado para compatibilidade com WebSocket');
-    } catch (err) {
-      console.error('Erro ao configurar compatibilidade WebSocket:', err);
-    }
-  } else {
-    console.log('WebSocket desativado pelas variáveis de ambiente.');
-  }
-} else {
-  console.log('Arquivo websocket_server.js não encontrado, funcionalidade WebSocket não estará disponível.');
-}
+    });
 
-// Carregar outros serviços fora da pasta /api
-// Exemplo: scraper, jobs, etc.
-try {
-  // Verificar e carregar serviços conforme necessário
-  const servicesPath = path.join(__dirname, 'services');
-  if (fs.existsSync(servicesPath)) {
-    console.log('Diretório de serviços encontrado, verificando serviços disponíveis...');
-    
-    // Listar arquivos no diretório services
-    const serviceFiles = fs.readdirSync(servicesPath);
-    console.log('Serviços disponíveis:', serviceFiles);
-    
-    // Aqui você pode adicionar lógica para carregar cada serviço necessário
+  } catch (error) {
+    console.error('[Server] FALHA FATAL AO INICIAR O SERVIDOR:', error);
+    process.exit(1); // Encerrar processo se a conexão com o DB falhar
   }
-} catch (err) {
-  console.error('Erro ao carregar serviços adicionais:', err);
-}
+};
 
-// Iniciar servidor
-server.listen(PORT, () => {
-  console.log(`[Server] Servidor unificado iniciado na porta ${PORT}`);
-  console.log('[Server] Endpoints disponíveis:');
-  console.log('- / (status do servidor)');
-  console.log('- /api (rotas da API principal)');
-  console.log('- /api/stream/roulettes (streaming SSE de dados de roletas)');
-  console.log('- /emit-event (compatibilidade com WebSocket, se ativado)');
-  console.log('[Server] Criptografia de API: ATIVADA');
-  
-  // Iniciar serviço de streaming de dados de roletas
-  try {
-    const rouletteDataService = require('./services/rouletteDataService');
-    rouletteDataService.start()
-      .then(() => console.log('[Server] Serviço de streaming de roletas iniciado'))
-      .catch(err => console.error('[Server] Erro ao iniciar serviço de streaming:', err));
-  } catch (err) {
-    console.error('[Server] Erro ao carregar serviço de streaming:', err);
-  }
-});
+// Chamar a função para iniciar o servidor
+startServer();
