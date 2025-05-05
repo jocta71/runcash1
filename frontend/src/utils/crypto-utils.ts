@@ -25,6 +25,40 @@ interface EncryptedResponse {
   message?: string;
 }
 
+// Criar um polyfill para localStorage em ambiente Node.js
+const createLocalStoragePolyfill = () => {
+  // Armazenamento em memória para ambiente Node.js
+  const storage: Record<string, string> = {};
+  
+  return {
+    getItem: (key: string): string | null => {
+      return storage[key] ?? null;
+    },
+    setItem: (key: string, value: string): void => {
+      storage[key] = value;
+    },
+    removeItem: (key: string): void => {
+      delete storage[key];
+    },
+    clear: (): void => {
+      Object.keys(storage).forEach(key => delete storage[key]);
+    }
+  };
+};
+
+// Detectar ambiente e usar o localStorage apropriado
+const getLocalStorage = () => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage;
+  } else {
+    // Estamos em um ambiente Node.js ou sem window
+    return createLocalStoragePolyfill();
+  }
+};
+
+// Usar o mesmo objeto de armazenamento em toda a aplicação
+const safeLocalStorage = getLocalStorage();
+
 /**
  * Classe para lidar com as chaves de acesso e descriptografia
  */
@@ -56,11 +90,9 @@ export class CryptoService {
    */
   private loadAccessKey(): void {
     try {
-      if (typeof window !== 'undefined') {
-        const storedKey = localStorage.getItem(this.STORAGE_KEY);
-        if (storedKey) {
-          this.accessKey = storedKey;
-        }
+      const storedKey = safeLocalStorage.getItem(this.STORAGE_KEY);
+      if (storedKey) {
+        this.accessKey = storedKey;
       }
     } catch (error) {
       console.error('Erro ao carregar chave de acesso:', error);
@@ -72,8 +104,8 @@ export class CryptoService {
    */
   private saveAccessKey(): void {
     try {
-      if (typeof window !== 'undefined' && this.accessKey) {
-        localStorage.setItem(this.STORAGE_KEY, this.accessKey);
+      if (this.accessKey) {
+        safeLocalStorage.setItem(this.STORAGE_KEY, this.accessKey);
       }
     } catch (error) {
       console.error('Erro ao salvar chave de acesso:', error);
@@ -102,9 +134,7 @@ export class CryptoService {
    */
   public clearAccessKey(): void {
     this.accessKey = null;
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(this.STORAGE_KEY);
-    }
+    safeLocalStorage.removeItem(this.STORAGE_KEY);
     console.log('[CryptoService] Chave de acesso removida');
   }
   
@@ -834,10 +864,10 @@ export function tryCommonKeys() {
 // Função para habilitar o modo de desenvolvimento (usado quando a descriptografia falha)
 export function enableDevMode(enabled = true) {
   console.log(`[CryptoService] ${enabled ? 'Ativando' : 'Desativando'} modo de desenvolvimento`);
-  localStorage.setItem('crypto_dev_mode', enabled ? 'true' : 'false');
+  safeLocalStorage.setItem('crypto_dev_mode', enabled ? 'true' : 'false');
 }
 
 // Verificar se o modo de desenvolvimento está ativado
 export function isDevModeEnabled() {
-  return localStorage.getItem('crypto_dev_mode') === 'true';
+  return safeLocalStorage.getItem('crypto_dev_mode') === 'true';
 } 
