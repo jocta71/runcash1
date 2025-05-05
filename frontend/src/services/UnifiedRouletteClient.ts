@@ -10,10 +10,11 @@
  */
 
 import { ENDPOINTS } from './api/endpoints';
-import { extractAndSetAccessKeyFromEvent, setApiKey } from '../utils/crypto-utils';
+import { extractAndSetAccessKeyFromEvent } from '../utils/crypto-utils';
 import { cryptoService } from '../utils/crypto-service';
 import EventBus from './EventBus';
 import axios from 'axios';
+import { makeLogger } from '../utils/logger';
 
 // Tipos para callbacks de eventos
 type EventCallback = (data: any) => void;
@@ -540,7 +541,7 @@ class UnifiedRouletteClient {
           // Se encontramos um valor que parece ser uma chave
           if (typeof value === 'string' && value.length > 8) {
             console.log(`[UnifiedRouletteClient] Possível chave encontrada no campo ${field}`);
-            const keySet = setApiKey(value);
+            const keySet = cryptoService.setAccessKey(value);
             
             if (keySet) {
               console.log('[UnifiedRouletteClient] Chave de acesso configurada com sucesso');
@@ -556,7 +557,7 @@ class UnifiedRouletteClient {
             const hash = parts[1];
             if (hash && hash.length > 8) {
               console.log('[UnifiedRouletteClient] Tentando usar o hash como chave:', hash);
-              const keySet = setApiKey(hash);
+              const keySet = cryptoService.setAccessKey(hash);
               if (keySet) {
                 console.log('[UnifiedRouletteClient] Hash configurado como chave de acesso');
                 return true;
