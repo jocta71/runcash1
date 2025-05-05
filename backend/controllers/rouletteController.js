@@ -5,10 +5,12 @@
 
 const getDb = require('../services/database');
 const { ObjectId } = require('mongodb');
+const { encryptData, decryptData } = require('../utils/cryptoUtils');
 
 /**
  * Lista todas as roletas disponíveis para o usuário
  * Limita o número de roletas com base no plano do usuário
+ * Criptografa os dados para proteção premium
  */
 const listRoulettes = async (req, res) => {
   try {
@@ -37,14 +39,41 @@ const listRoulettes = async (req, res) => {
       }
     }
     
-    return res.json({
-      success: true,
-      data: limited ? roulettes.slice(0, limit) : roulettes,
-      limited,
-      totalCount: roulettes.length,
-      availableCount: limited ? limit : roulettes.length,
-      userPlan: req.userPlan.type
-    });
+    // Preparar os dados para resposta
+    const responseData = limited ? roulettes.slice(0, limit) : roulettes;
+    
+    // Verificar se é necessário criptografar os dados (todos dados são criptografados)
+    // Apenas assinantes poderão descriptografar
+
+    try {
+      // Criptografar os dados
+      const encryptedData = await encryptData(responseData);
+      
+      // Retornar os dados criptografados
+      return res.json({
+        success: true,
+        encryptedData: encryptedData,
+        limited,
+        totalCount: roulettes.length,
+        availableCount: limited ? limit : roulettes.length,
+        encrypted: true,
+        format: 'iron',
+        message: 'Dados criptografados. Utilize sua chave de acesso para descriptografar.'
+      });
+    } catch (encryptError) {
+      console.error('Erro ao criptografar dados:', encryptError);
+      
+      // Em caso de erro na criptografia, retornar dados não-criptografados para não quebrar a API
+      return res.json({
+        success: true,
+        data: responseData,
+        limited,
+        totalCount: roulettes.length,
+        availableCount: limited ? limit : roulettes.length,
+        encrypted: false,
+        message: 'Dados não puderam ser criptografados devido a um erro interno.'
+      });
+    }
   } catch (error) {
     console.error('Erro ao listar roletas:', error);
     return res.status(500).json({

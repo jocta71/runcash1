@@ -1,6 +1,7 @@
 import EventService from './EventService';
 import { getLogger } from './utils/logger';
 import globalRouletteDataService from './GlobalRouletteDataService';
+import { cryptoService } from '../utils/crypto-utils';
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');
@@ -483,145 +484,153 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Busca os dados mais recentes
-   * @returns Promise com os dados mais recentes
+   * Busca os dados mais recentes das roletas
+   * Lida com dados criptografados se necessário
    */
   public fetchLatestData(): Promise<any> {
-    // Verificar antes se o usuário tem assinatura ativa, utilizando o apiService
-    return import('../services/apiService').then(apiServiceModule => {
-      const apiService = apiServiceModule.default;
-      
-      return apiService.checkSubscriptionStatus().then(({ hasSubscription }) => {
-        // Ignoramos a verificação de assinatura e continuamos com a busca normal
-        logger.debug('✅ Permitindo acesso aos dados independentemente do status da assinatura');
-        
-        // Verificar se podemos fazer a requisição
-        if (!this.canMakeRequest()) {
-          logger.debug('⏳ Não é possível fazer uma requisição agora, reutilizando cache');
-          return this.roulettes;
-        }
-        
-        // Atualizar estado
-        this.IS_FETCHING_DATA = true;
-        window._requestInProgress = true;
-        
-        // Criar ID único para esta requisição
-        const requestId = this.generateRequestId();
-        
-        // Registrar requisição pendente para monitoramento
-        if (typeof window !== 'undefined') {
-          if (!window._pendingRequests) {
-            window._pendingRequests = {};
+    // Se já existir uma requisição em andamento, retornar a promise existente
+    if (this.fetchPromise) {
+      return this.fetchPromise;
+    }
+    
+    // Registrar o início da requisição
+    const startTime = Date.now();
+    this.lastFetchTime = startTime;
+    this.isFetching = true;
+    this.requestStats.lastMinuteRequests.push(startTime);
+    
+    // Gerar ID único para esta requisição
+    const requestId = this.generateRequestId();
+    
+    // URL para buscar os dados das roletas
+    const rouletteUrl = '/api/roulettes';
+    
+    // Registrar a requisição como pendente
+    this.pendingRequests[requestId] = {
+      timestamp: Date.now(),
+      url: rouletteUrl,
+      service: 'roulette-feed'
+    };
+    
+    // Criar e armazenar a promise
+    this.fetchPromise = new Promise((resolve, reject) => {
+      fetch(rouletteUrl)
+        .then(response => {
+          // Verificar se a resposta foi bem-sucedida
+          if (!response.ok) {
+            throw new Error(`Erro ao buscar dados das roletas: ${response.status}`);
           }
-          
-          window._pendingRequests[requestId] = {
-            timestamp: Date.now(),
-            url: '/api/ROULETTES-via-centralService',
-            service: 'RouletteFeed'
-          };
-        }
-        
-        logger.debug(`📡 Buscando dados mais recentes através do serviço centralizado (ID: ${requestId})`);
-        
-        // Usar o serviço global para obter os dados
-        return globalRouletteDataService.fetchRouletteData()
-          .then(data => {
-            // Atualizar estatísticas e estado
-            this.requestStats.total++;
-            this.requestStats.success++;
-            this.lastSuccessfulResponse = Date.now();
-            this.lastCacheUpdate = this.lastSuccessfulResponse;
-            this.IS_FETCHING_DATA = false;
-            
-            // Se era a primeira requisição, marcar como feita
-            if (!this.hasFetchedInitialData) {
-              this.hasFetchedInitialData = true;
-            }
-            
-            // Limpar a requisição pendente
-            if (typeof window !== 'undefined' && window._pendingRequests) {
-              delete window._pendingRequests[requestId];
-            }
-            
-            // Liberar a trava global
-            window._requestInProgress = false;
-            
-            // Processar os dados recebidos
-            if (data && Array.isArray(data)) {
-              // Transformar dados para o formato esperado
-              const liveTables: { [key: string]: any } = {};
-              data.forEach(roleta => {
-                if (roleta && roleta.id) {
-                  // Certifique-se de que estamos lidando corretamente com o campo numero
-                  // Na API, o 'numero' é um array de objetos com propriedade 'numero'
-                  const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-                  
-                  liveTables[roleta.id] = {
-                    GameID: roleta.id,
-                    Name: roleta.name || roleta.nome,
-                    ativa: roleta.ativa,
-                    // Manter a estrutura do campo numero exatamente como está na API
-                    numero: numeroArray,
-                    // Incluir outras propriedades da roleta
-                    ...roleta
-                  };
-                }
-              });
+          return response.json();
+        })
+        .then(async data => {
+          // Verificar se os dados estão criptografados
+          if (data.encrypted && data.encryptedData) {
+            try {
+              // Tentar descriptografar os dados usando o CryptoService
+              const decryptedData = await cryptoService.processApiResponse(data);
               
-              // Atualizar cache
-              this.lastUpdateTime = Date.now();
-              this.hasCachedData = true;
-              this.roulettes = liveTables;
+              // Atualizar o cache de roletas com os dados descriptografados
+              this.updateRouletteCache(decryptedData);
               
-              // Sinalizar melhora na saúde do sistema
-              GLOBAL_SYSTEM_HEALTH = true;
-              this.consecutiveSuccesses++;
-              this.consecutiveErrors = 0;
-              this.lastSuccessTimestamp = Date.now();
-              
-              // Notificar que temos novos dados
-              this.notifySubscribers(liveTables);
-              
-              // Notificar outros serviços
+              // Notificar que houve uma atualização
               this.notifyDataUpdate();
               
-              return liveTables;
-            } else {
-              logger.warn('⚠️ Resposta inválida do serviço global');
-              return this.roulettes;
+              // Atualizar estatísticas de requisições
+              this.successfulFetchesCount++;
+              this.requestStats.successfulRequests++;
+              this.lastSuccessTimestamp = Date.now();
+              
+              // Registrar o sucesso da requisição
+              this.notifyRequestComplete(requestId, 'success');
+              
+              // Resolver a promessa com os dados descriptografados
+              resolve(decryptedData);
+            } catch (decryptError) {
+              // Se não conseguir descriptografar, usar a versão não-criptografada
+              console.warn('Não foi possível descriptografar os dados:', decryptError);
+              
+              // Verificar se há dados não-criptografados disponíveis
+              if (data.data) {
+                // Atualizar o cache com os dados não-criptografados
+                this.updateRouletteCache(data.data);
+                this.notifyDataUpdate();
+                
+                // Atualizar estatísticas de requisições
+                this.successfulFetchesCount++;
+                this.requestStats.successfulRequests++;
+                this.lastSuccessTimestamp = Date.now();
+                
+                // Registrar o sucesso da requisição
+                this.notifyRequestComplete(requestId, 'success');
+                
+                // Resolver a promessa com os dados não-criptografados
+                resolve(data.data);
+              } else {
+                // Se não houver dados não-criptografados, informar sobre a necessidade de assinatura
+                const error = new Error('Os dados estão criptografados e você não tem a chave de acesso. Obtenha uma assinatura para acessar todos os dados.');
+                
+                // Atualizar estatísticas de falha
+                this.failedFetchesCount++;
+                this.requestStats.failedRequests++;
+                
+                // Registrar a falha
+                this.notifyRequestComplete(requestId, 'failed');
+                
+                // Rejeitar a promessa
+                reject(error);
+              }
             }
-          })
-          .catch(error => {
-            // Atualizar estatísticas e estado
-            this.requestStats.total++;
-            this.requestStats.failed++;
-            this.IS_FETCHING_DATA = false;
+          } else {
+            // Dados não estão criptografados, processar normalmente
+            this.updateRouletteCache(data.data || []);
+            this.notifyDataUpdate();
             
-            // Limpar a requisição pendente
-            if (typeof window !== 'undefined' && window._pendingRequests) {
-              delete window._pendingRequests[requestId];
-            }
+            // Atualizar estatísticas de requisições
+            this.successfulFetchesCount++;
+            this.requestStats.successfulRequests++;
+            this.lastSuccessTimestamp = Date.now();
             
-            // Liberar a trava global
-            window._requestInProgress = false;
+            // Registrar o sucesso da requisição
+            this.notifyRequestComplete(requestId, 'success');
             
-            // Registrar erro
-            logger.error(`❌ Erro ao buscar dados mais recentes: ${error.message || 'Desconhecido'}`);
-            
-            // Atualizar contadores de erro
-            this.consecutiveErrors++;
-            this.consecutiveSuccesses = 0;
-            
-            // Se houver um erro grave de conectividade, atualizar saúde do sistema
-            if (this.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-              GLOBAL_SYSTEM_HEALTH = false;
-            }
-            
-            // Retornar dados em cache se existirem
-            return this.roulettes;
-          });
-      });
+            // Resolver a promessa com os dados
+            resolve(data.data || []);
+          }
+        })
+        .catch(error => {
+          console.error('Erro ao buscar dados das roletas:', error);
+          
+          // Atualizar estatísticas de falha
+          this.failedFetchesCount++;
+          this.requestStats.failedRequests++;
+          
+          // Registrar a falha
+          this.notifyRequestComplete(requestId, 'failed');
+          
+          // Rejeitar a promessa
+          reject(error);
+        })
+        .finally(() => {
+          // Limpar a referência à promessa
+          this.fetchPromise = null;
+          this.isFetching = false;
+          
+          // Calcular o tempo de resposta
+          const responseTime = Date.now() - startTime;
+          this.requestStats.lastResponseTime = responseTime;
+          
+          // Atualizar a média de tempo de resposta
+          this.requestStats.avgResponseTime = (this.requestStats.avgResponseTime + responseTime) / 2;
+          
+          // Remover a requisição pendente
+          delete this.pendingRequests[requestId];
+          
+          // Limpar requisições antigas
+          this.cleanupOldRequests();
+        });
     });
+    
+    return this.fetchPromise;
   }
 
   /**
