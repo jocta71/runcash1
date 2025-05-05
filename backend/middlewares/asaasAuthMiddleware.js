@@ -33,7 +33,7 @@ function verifyTokenAndSubscription(options = { required: true, allowedPlans: ['
     console.log(`[AUTH ${requestId}] Autenticação obrigatória: ${options.required ? 'SIM' : 'NÃO'}`);
     console.log(`[AUTH ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
     
-    // BLOQUEIO ABSOLUTO: Verificar se é um endpoint de roleta
+    // AUTENTICAÇÃO DESATIVADA: Verificar se é um endpoint de roleta
     const isRouletteEndpoint = (
       path.includes('/api/roulettes') || 
       path.includes('/api/ROULETTES') || 
@@ -43,13 +43,24 @@ function verifyTokenAndSubscription(options = { required: true, allowedPlans: ['
       /\/api\/roletas.*/.test(path)
     );
     
-    // Se for endpoint de roleta, permitir acesso sem autenticação
+    // Se for um endpoint de roleta, permitir acesso sem autenticação
     if (isRouletteEndpoint) {
-      console.log(`[AUTH ${requestId}] Endpoint de roleta detectado: ${path} - Permitindo acesso sem autenticação`);
-      // Definir informações básicas para o usuário não autenticado
-      req.usuario = { id: 'anonymous', role: 'guest' };
-      req.subscription = { status: 'ACTIVE', nextDueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365) };
-      req.userPlan = { type: 'PREMIUM' };
+      console.log(`[AUTH ${requestId}] 🟢 AUTENTICAÇÃO DESATIVADA: Permitindo acesso livre ao endpoint de roleta: ${path}`);
+      
+      // Definir usuário e assinatura fictícios para compatibilidade
+      req.usuario = {
+        id: 'public-access',
+        email: 'public@example.com',
+        role: 'admin'
+      };
+      
+      req.user = req.usuario;
+      req.subscription = { 
+        id: 'free-access',
+        status: 'ACTIVE'
+      };
+      req.userPlan = { type: 'PRO' };
+      
       return next();
     }
     
@@ -57,18 +68,6 @@ function verifyTokenAndSubscription(options = { required: true, allowedPlans: ['
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       console.log(`[AUTH ${requestId}] Requisição sem token de autorização`);
-      
-      // BLOQUEIO ABSOLUTO: Se for endpoint de roleta, SEMPRE bloquear se não tiver autorização
-      if (isRouletteEndpoint) {
-        console.log(`[AUTH ${requestId}] BLOQUEIO ABSOLUTO: Endpoint de roleta sem autorização: ${path}`);
-        return res.status(401).json({
-          success: false,
-          message: 'Acesso negado - Autenticação obrigatória',
-          code: 'ABSOLUTE_BLOCK',
-          path: path,
-          requestId: requestId
-        });
-      }
       
       // Se autenticação é obrigatória, retornar erro
       if (options.required) {

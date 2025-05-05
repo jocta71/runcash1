@@ -36,8 +36,8 @@ try {
 // Inicializar Express para a API principal
 const app = express();
 
-// FIREWALL CONDICIONAL NA RAIZ DO SERVIDOR: Bloqueio da rota /api/roulettes apenas para não-assinantes
-// Este middleware é executado ANTES de qualquer outra configuração
+// *** AUTENTICAÇÃO DESATIVADA PARA /api/roulettes ***
+// Este middleware antes bloqueava acessos não autenticados, agora permite qualquer acesso
 app.use(async (req, res, next) => {
   // Verificar se o caminho é exatamente /api/roulettes (completo ou normalizado)
   const path = req.originalUrl || req.url;
@@ -54,100 +54,21 @@ app.use(async (req, res, next) => {
     // Gerar ID único para rastreamento do log
     const requestId = crypto.randomUUID();
     
-    // Verificar se o usuário está autenticado
-    const authHeader = req.headers.authorization;
-    const cookies = req.cookies || {};
+    console.log(`[FIREWALL DESATIVADO ${requestId}] 🟢 Permitindo acesso livre à rota ${path}`);
+    console.log(`[FIREWALL DESATIVADO ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[FIREWALL DESATIVADO ${requestId}] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress}`);
+    console.log(`[FIREWALL DESATIVADO ${requestId}] Timestamp: ${new Date().toISOString()}`);
     
-    // Tentar obter token do header de autorização ou do cookie
-    let token = null;
+    // Definir um usuário fictício com permissão total
+    req.user = { 
+      id: 'public-access',
+      role: 'admin',
+      email: 'public@example.com',
+      subscription: { status: 'active' }
+    };
     
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-      console.log(`Headers de auth: ${authHeader}`);
-    } else if (cookies.token) {
-      token = cookies.token;
-    }
-    
-    console.log(`Cookies disponíveis: ${JSON.stringify(cookies)}`);
-    
-    if (!token) {
-      // Usuário não autenticado - bloquear acesso
-      console.log(`[FIREWALL ROOT ${requestId}] 🛑 BLOQUEIO: Acesso não autenticado à rota ${path}`);
-      console.log(`[FIREWALL ROOT ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
-      console.log(`[FIREWALL ROOT ${requestId}] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress}`);
-      console.log(`[FIREWALL ROOT ${requestId}] User-Agent: ${req.headers['user-agent']}`);
-      console.log(`[FIREWALL ROOT ${requestId}] Timestamp: ${new Date().toISOString()}`);
-      
-      // Aplicar cabeçalhos CORS explicitamente
-      res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-      res.header('Access-Control-Allow-Credentials', 'true');
-      
-      // Retornar resposta 401 Unauthorized
-      return res.status(401).json({
-        success: false,
-        message: 'Autenticação necessária para acessar este recurso.',
-        code: 'AUTHENTICATION_REQUIRED',
-        requestId: requestId,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    try {
-      // Verificar token
-      console.log(`Token encontrado no header: ${token.substring(0, 15)}...`);
-      const decoded = jwt.verify(token, JWT_SECRET);
-      
-      // Definir informações do usuário na requisição
-      req.user = decoded;
-      console.log(`Token verificado com sucesso, usuário: ${req.user.id}`);
-      
-      // Importar e usar o middleware de verificação de assinatura
-      const { checkSubscription } = require('./middleware/subscriptionCheck');
-      
-      // Criar uma função para simular o middleware Express com promessa
-      const checkSubscriptionPromise = () => {
-        return new Promise((resolve, reject) => {
-          // Simular os objetos req/res/next do Express
-          const nextFunction = () => {
-            resolve(true); // Se o middleware chama next(), significa que o usuário pode acessar
-          };
-          
-          const resObject = {
-            status: (code) => ({
-              json: (data) => {
-                resolve({ code, data }); // Retorna o código e dados se o middleware bloquear
-              }
-            })
-          };
-          
-          // Chamar o middleware
-          checkSubscription(req, resObject, nextFunction).catch(reject);
-        });
-      };
-      
-      // Executar a verificação de assinatura
-      const result = await checkSubscriptionPromise();
-      
-      // Se o resultado for true, significa que o usuário passou na verificação
-      if (result === true) {
-        return next();
-      } else {
-        // Se não, retornar a resposta apropriada
-        return res.status(result.code).json(result.data);
-      }
-    } catch (error) {
-      console.error(`[FIREWALL ROOT ${requestId}] Erro ao verificar token:`, error);
-      
-      return res.status(401).json({
-        success: false,
-        message: 'Token de autenticação inválido ou expirado.',
-        code: 'INVALID_TOKEN',
-        requestId: requestId,
-        timestamp: new Date().toISOString()
-      });
-    }
+    // Permitir acesso direto sem verificar token ou assinatura
+    return next();
   }
   
   // Se não for a rota específica, continuar para o próximo middleware
