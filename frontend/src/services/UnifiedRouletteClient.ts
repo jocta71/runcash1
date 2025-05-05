@@ -385,72 +385,73 @@ class UnifiedRouletteClient {
       this.log(`Evento SSE recebido: ID=${event.lastEventId}, Tipo=${event.type}, Dados (início): ${rawData.substring(0, 100)}`);
       
       let parsedData;
+      
+      // Tentar fazer o parse do JSON
       try {
         parsedData = JSON.parse(rawData);
         this.log('Dados JSON parseados com sucesso');
       } catch (error) {
+        // Se falhar o parse, pode ser uma mensagem simples ou formato inesperado
         this.error('Falha ao parsear dados JSON do SSE:', error, rawData);
-        return;
+        return; // Ignorar evento se não for JSON válido
       }
       
+      // Verificar se temos um objeto JSON válido
       if (!parsedData || typeof parsedData !== 'object') {
         this.error('Dados parseados não são um objeto válido:', parsedData);
         return;
       }
       
-      // Verificar tipo do evento vindo do backend
-      if (parsedData.type === 'batch_update' && Array.isArray(parsedData.data)) {
-        // Recebemos um lote de atualizações
-        const batchData = parsedData.data;
-        this.log(`Recebido lote com ${batchData.length} atualizações.`);
-        let processedCount = 0;
-        
-        // Iterar sobre cada atualização no lote
-        batchData.forEach(rouletteEvent => {
-            // O backend formata cada item como { type: 'update', data: { ... } }
-            if (rouletteEvent && rouletteEvent.type === 'update' && rouletteEvent.data) {
-                const rouletteUpdate = rouletteEvent.data;
-                // Atualizar cache com os dados da roleta específica
-                this.updateCache(rouletteUpdate);
-                processedCount++;
-            } else {
-                this.log('Item inválido no lote de atualização:', rouletteEvent);
-            }
-        });
-        
-        // Notificar UMA VEZ após processar todo o lote
-        if (processedCount > 0) {
-            this.emit('update', Array.from(this.rouletteData.values())); // Emitir todos os dados atualizados
-            EventBus.emit('roulette:data-updated', {
-                timestamp: new Date().toISOString(),
-                data: Array.from(this.rouletteData.values()), // Enviar o estado completo atualizado
-                source: 'sse-batch' // Indicar que veio do SSE em lote
-            });
-            this.log(`Lote processado, ${processedCount} roletas atualizadas no cache.`);
-        }
-
-      } else if (parsedData.type === 'heartbeat') {
-        // Ignorar eventos de heartbeat para atualização de dados
-        this.log('Recebido heartbeat, ignorando para atualização de cache.');
-      } else if (parsedData.type === 'update' && parsedData.data) {
-          // Lidar com eventos individuais (caso o backend envie assim em alguma situação)
-          const rouletteUpdate = parsedData.data;
-          this.log(`Atualização individual recebida: Roleta ${rouletteUpdate.roleta_nome || rouletteUpdate.roleta_id}`);
-          this.updateCache(rouletteUpdate);
-          this.emit('update', Array.from(this.rouletteData.values())); 
-           EventBus.emit('roulette:data-updated', {
-                timestamp: new Date().toISOString(),
-                data: Array.from(this.rouletteData.values()),
-                source: 'sse-single'
-            });
-      } else if (parsedData.error || parsedData.status) {
+      // Verificar se é um evento de erro ou status do próprio SSE Server
+      if (parsedData.error || parsedData.status) {
         this.log('Recebido evento de erro/status do servidor SSE:', parsedData);
+        // Poderíamos tratar erros específicos aqui se necessário
+        return;
+      }
+      
+      // Tentar extrair chave de acesso se ainda não tivermos
+      if (!cryptoService.hasAccessKey()) {
+        const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(parsedData);
+        if (keyExtracted) {
+          this.log('✅ Chave de acesso extraída e configurada a partir do evento update');
+        }
+      }
+      
+      // ---- Processamento dos dados da roleta ----
+      // Assumimos que os dados agora são sempre JSON não criptografado
+      // vindo diretamente do nosso sse_server.js
+      
+      // O sse_server.js envia no formato: { type: 'update', data: { roleta_id: ..., numero: ... } }
+      if (parsedData.type === 'update' && parsedData.data) {
+        const rouletteUpdate = parsedData.data;
+        this.log(`Atualização recebida: Roleta ${rouletteUpdate.roleta_nome || rouletteUpdate.roleta_id}, Número ${rouletteUpdate.numero}`);
+        
+        // Atualizar cache com os dados da roleta
+        this.updateCache(rouletteUpdate); 
+        
+        // Notificar sobre atualização
+        this.emit('update', rouletteUpdate);
+        EventBus.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          data: rouletteUpdate,
+          source: 'sse' // Indicar que veio do SSE
+        });
+      } else if (parsedData.type === 'list' && Array.isArray(parsedData.data)) {
+        // Se o SSE enviar uma lista completa de roletas
+        this.log(`Lista completa recebida via SSE com ${parsedData.data.length} roletas`);
+        this.updateCache(parsedData.data);
+        this.emit('update', parsedData.data); // Pode precisar ajustar o tipo de evento/dado aqui
+        EventBus.emit('roulette:all-data-updated', {
+          timestamp: new Date().toISOString(),
+          data: parsedData.data,
+          source: 'sse'
+        });
       } else {
-        this.log('Formato de dados JSON não esperado no evento SSE:', parsedData);
+        this.log('Formato de dados JSON não esperado no evento update:', parsedData);
       }
       
     } catch (error) {
-      this.error('Erro GERAL ao processar evento SSE:', error);
+      this.error('Erro GERAL ao processar evento update do SSE:', error);
     }
   }
   
