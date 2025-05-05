@@ -322,7 +322,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
          handleUpdate(currentDataFromClient); 
          // Define isLoading como false aqui, pois já temos dados
          setIsLoading(false); 
-    } else {
+      } else {
         console.log(`[${componentId}] Nenhum dado inicial no UnifiedClient. Aguardando evento 'update'...`);
          // Mantém isLoading true apenas se não houver dados iniciais
         setIsLoading(true); 
