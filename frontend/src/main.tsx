@@ -8,6 +8,7 @@ import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import EventService from './services/EventService'
 // import globalRouletteDataService from './services/GlobalRouletteDataService'
 import cryptoService from './utils/crypto-service'
+import UnifiedRouletteClient from './services/UnifiedRouletteClient'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -35,7 +36,8 @@ window.ROULETTE_SYSTEM_INITIALIZED = false;
 function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
-  const eventService = EventService.getInstance();
+  const eventService = new EventService();
+  const unifiedClient = UnifiedRouletteClient.getInstance();
   
   window.ROULETTE_SYSTEM_INITIALIZED = true;
   
@@ -45,11 +47,12 @@ function initializeRoulettesSystem() {
   });
   
   return {
-    eventService
+    eventService,
+    unifiedClient
   };
 }
 
-// Inicializar o sistema (sem SocketService)
+// Inicializar o sistema
 logger.info('Inicializando sistema de eventos e configuração...');
 const appSystem = initializeRoulettesSystem();
 
