@@ -662,7 +662,3 @@ class UnifiedRouletteClient {
     console.warn('[UnifiedRouletteClient] handleDecryptedData chamado - Isso não deveria acontecer com SSE. Dados:', data);
   }
 }
-
-// Exportar singleton
-export default UnifiedRouletteClient; 
-export default UnifiedRouletteClient; 
