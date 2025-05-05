@@ -11,23 +11,23 @@ class CryptoService {
   private _accessKey: string | null = null;
   private _devModeEnabled = false;
   private readonly STORAGE_KEY = 'roulette_access_key';
-  
-  // Variável para localStorage seguro
+
+// Variável para localStorage seguro
   private safeLocalStorage = (() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return window.localStorage;
-    } else {
-      // Polyfill para Node.js ou SSR
-      const storage: Record<string, string> = {};
-      return {
-        getItem: (key: string): string | null => storage[key] ?? null,
-        setItem: (key: string, value: string): void => { storage[key] = value; },
-        removeItem: (key: string): void => { delete storage[key]; },
-        clear: (): void => { Object.keys(storage).forEach(key => delete storage[key]); }
-      };
-    }
-  })();
-  
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage;
+  } else {
+    // Polyfill para Node.js ou SSR
+    const storage: Record<string, string> = {};
+    return {
+      getItem: (key: string): string | null => storage[key] ?? null,
+      setItem: (key: string, value: string): void => { storage[key] = value; },
+      removeItem: (key: string): void => { delete storage[key]; },
+      clear: (): void => { Object.keys(storage).forEach(key => delete storage[key]); }
+    };
+  }
+})();
+
   // Dados do simulador
   private sequenciasReais = {
     // Evolution - Sequências reais típicas
@@ -70,16 +70,16 @@ class CryptoService {
   private atualizacaoTimer: number | null = null;
   
   constructor() {
-    // Tentar carregar a chave do armazenamento
-    try {
+// Tentar carregar a chave do armazenamento
+try {
       const storedKey = this.safeLocalStorage.getItem(this.STORAGE_KEY);
-      if (storedKey) {
+  if (storedKey) {
         this._accessKey = storedKey;
-      }
-    } catch (e) {
-      console.error('[CryptoService] Erro ao carregar chave inicial');
-    }
-    
+  }
+} catch (e) {
+  console.error('[CryptoService] Erro ao carregar chave inicial');
+}
+
     // Iniciar timer de atualização automática (se necessário)
     if (typeof window !== 'undefined') {
       this.iniciarAtualizacaoAutomatica();
@@ -173,7 +173,7 @@ class CryptoService {
         return this.processJsonData(eventData);
       }
       return false;
-    } catch (error) {
+      } catch (error) {
       console.error('[CryptoService] Erro ao extrair chave de acesso:', error);
       return false;
     }
@@ -449,40 +449,40 @@ class CryptoService {
    */
   public async processApiResponse(response: any): Promise<any> {
     if (!response.encrypted && !response.encryptedData) {
-      return response.data || [];
-    }
-    
-    try {
-      const decryptedData = await this.decryptData(response.encryptedData);
-      return decryptedData.data || decryptedData;
-    } catch (error) {
-      throw new Error('Falha ao descriptografar dados da API');
-    }
+    return response.data || [];
   }
   
+  try {
+      const decryptedData = await this.decryptData(response.encryptedData);
+    return decryptedData.data || decryptedData;
+  } catch (error) {
+    throw new Error('Falha ao descriptografar dados da API');
+  }
+}
+
   /**
    * Processa dados criptografados
    */
   public async processEncryptedData(encryptedData: any): Promise<any> {
     if (!this.hasAccessKey()) {
-      throw new Error('Chave de acesso não disponível');
-    }
-    
-    try {
-      if (!encryptedData || !encryptedData.encryptedData) {
-        if (encryptedData && encryptedData.data) {
-          return encryptedData.data;
-        }
-        throw new Error('Formato de dados inválido');
-      }
-      
-      const decryptedData = await this.decryptData(encryptedData.encryptedData);
-      return decryptedData.data || decryptedData;
-    } catch (error) {
-      throw new Error('Falha ao processar dados criptografados');
-    }
+    throw new Error('Chave de acesso não disponível');
   }
   
+  try {
+    if (!encryptedData || !encryptedData.encryptedData) {
+      if (encryptedData && encryptedData.data) {
+        return encryptedData.data;
+      }
+      throw new Error('Formato de dados inválido');
+    }
+    
+      const decryptedData = await this.decryptData(encryptedData.encryptedData);
+    return decryptedData.data || decryptedData;
+  } catch (error) {
+    throw new Error('Falha ao processar dados criptografados');
+  }
+}
+
   /**
    * Limpa recursos ao destruir o serviço
    */

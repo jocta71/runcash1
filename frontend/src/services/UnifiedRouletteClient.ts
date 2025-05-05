@@ -85,7 +85,7 @@ class UnifiedRouletteClient {
   private eventCallbacks: Map<string, Set<EventCallback>> = new Map();
   
   // URL do serviço WebSocket
-  private webSocketUrl = 'wss://backendscraper-production-ccda.up.railway.app';
+  private webSocketUrl = 'wss://backendapi-production-36b5.up.railway.app';
   private socket: WebSocket | null = null;
   private webSocketConnected = false;
   private webSocketReconnectTimer: number | null = null;
@@ -1160,7 +1160,7 @@ class UnifiedRouletteClient {
       this.log('Tentando conectar ao WebSocket para dados do scraper...');
       
       // Usar URL correta para o backend do scraper
-      const wsUrl = 'wss://backendscraper-production-ccda.up.railway.app';
+      const wsUrl = 'wss://backendapi-production-36b5.up.railway.app';
       
       // Criar nova conexão WebSocket
       this.socket = new WebSocket(wsUrl);
