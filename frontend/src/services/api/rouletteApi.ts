@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { ENDPOINTS } from './endpoints';
 import { fetchWithCorsSupport } from '@/utils/api-helpers';
-import { getNumericId } from '@/utils/rouletteUtils';
-// Importar estaticamente usando exportação nomeada
+// Remover a importação de getNumericId que não existe
+// import { getNumericId } from '@/utils/rouletteUtils';
 import { UnifiedRouletteClient } from '../UnifiedRouletteClient';
 
 // Importar dados mockados
@@ -50,12 +50,11 @@ export const RouletteApi = {
         // Obter roletas do cache do cliente
         const roulettes = client.getAllRoulettes();
         
-        // Processar roletas
+        // Processar roletas (não precisa mais de getNumericId)
         const processedRoulettes = roulettes.map((roulette: any) => {
-          // Garantir que temos o campo roleta_id em cada objeto
-          if (!roulette.roleta_id && roulette._id) {
-            const numericId = getNumericId(roulette._id);
-            roulette.roleta_id = numericId;
+          // Usar o ID existente ou _id
+          if (!roulette.roleta_id) {
+            roulette.roleta_id = roulette.id || roulette._id; 
           }
           return roulette;
         });
@@ -94,12 +93,9 @@ export const RouletteApi = {
    */
   async fetchRecentNumbers(rouletteId: string, limit: number = 20): Promise<ApiResponse<any[]>> {
     try {
-      // Converter para ID numérico
-      const numericId = getNumericId(rouletteId);
-      
-      // Usar UnifiedRouletteClient para obter dados da roleta
+      // Usar rouletteId diretamente, sem getNumericId
       const client = UnifiedRouletteClient.getInstance();
-      const roulette = client.getRouletteById(numericId);
+      const roulette = client.getRouletteById(rouletteId); // Usar o ID original
       
       if (roulette && roulette.numeros) {
         // Limitar os números se necessário
@@ -109,13 +105,12 @@ export const RouletteApi = {
           data: numbers
         };
       } else {
-        console.warn(`[API] Roleta ${numericId} não encontrada ou sem números no UnifiedRouletteClient`);
-        // Tentar buscar via API como fallback (ou retornar erro)
-        // Por enquanto, retornaremos erro para manter consistência com a fonte única
+        console.warn(`[API] Roleta ${rouletteId} não encontrada ou sem números no UnifiedRouletteClient`);
+        // Retornar erro
         return {
           error: true,
           code: 'ROULETTE_NOT_FOUND_IN_CLIENT',
-          message: `Roleta ${numericId} não encontrada ou sem dados no cliente SSE`,
+          message: `Roleta ${rouletteId} não encontrada ou sem dados no cliente SSE`,
           statusCode: 404
         };
       }
@@ -138,12 +133,9 @@ export const RouletteApi = {
   async fetchRouletteById(id: string): Promise<ApiResponse<any>> {
     try {
       console.log(`[API] Buscando roleta com ID: ${id}`);
-      // Converter para ID numérico para normalização
-      const numericId = getNumericId(id);
-      
-      // Usar UnifiedRouletteClient para obter dados da roleta
+      // Usar id diretamente, sem getNumericId
       const client = UnifiedRouletteClient.getInstance();
-      const roulette = client.getRouletteById(numericId);
+      const roulette = client.getRouletteById(id); // Usar o ID original
             
       if (roulette) {
         console.log(`[API] ✅ Roleta encontrada no UnifiedClient: ${roulette.nome || roulette.name}`);
@@ -153,11 +145,11 @@ export const RouletteApi = {
         };
       }
       
-      console.warn(`[API] ❌ Roleta com ID ${numericId} não encontrada no UnifiedClient`);
+      console.warn(`[API] ❌ Roleta com ID ${id} não encontrada no UnifiedClient`);
       return {
         error: true,
         code: 'ROULETTE_NOT_FOUND_IN_CLIENT',
-        message: `Roleta com ID ${numericId} não encontrada no cliente SSE`,
+        message: `Roleta com ID ${id} não encontrada no cliente SSE`,
         statusCode: 404
       };
     } catch (error: any) {
@@ -180,11 +172,8 @@ export const RouletteApi = {
     try {
       console.log(`[API] Buscando estratégia para roleta ID: ${id}`);
       
-      // Converter para ID numérico para normalização
-      const numericId = getNumericId(id);
-      
-      // Buscar dados da roleta que já incluem a estratégia
-      const rouletteResponse = await this.fetchRouletteById(numericId);
+      // Usar id diretamente, sem getNumericId
+      const rouletteResponse = await this.fetchRouletteById(id); // Usar o ID original
       
       if (rouletteResponse.error) {
         return rouletteResponse;
@@ -202,7 +191,7 @@ export const RouletteApi = {
         sugestao_display: roulette.sugestao_display || ''
       };
       
-      console.log(`[API] ✅ Estratégia obtida para roleta ${numericId}`);
+      console.log(`[API] ✅ Estratégia obtida para roleta ${id}`);
       return {
         error: false,
         data: strategy
