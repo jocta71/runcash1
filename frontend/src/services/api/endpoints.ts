@@ -1,21 +1,6 @@
 // URLs para os endpoints da API
 export const ENDPOINTS = {
-  // Endpoint principal para roletas (agora unificado)
-  ROULETTES: '/api/roulettes',
-  
-  // Endpoint para histórico de roletas
-  ROULETTE_HISTORY: '/api/roulettes/history',
-  
-  // Endpoint para eventos em tempo real
-  EVENTS: '/api/events',
-  
-  // Endpoint para estratégias
-  STRATEGIES: '/api/strategies',
-
-  // Endpoints legados (mantidos para compatibilidade)
-  ROULETTES_OLD: '/api/ROULETTES',
-
-  // Novos endpoints de streaming SSE
+  // Endpoints de streaming SSE - único endpoint mantido conforme solicitado
   STREAM: {
     // Endpoint principal para streaming de roletas
     ROULETTES: '/api/stream/roulettes',
