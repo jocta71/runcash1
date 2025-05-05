@@ -1,123 +1,254 @@
 import React, { useState, useEffect } from 'react';
-import SubscriptionAccessKey from '../components/SubscriptionAccessKey';
-import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import axios from 'axios';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Copy, RefreshCw, Info, Lock } from 'lucide-react';
+import { RootState } from '@/store/store';
 
-// Interface para o status da assinatura
-interface SubscriptionStatus {
-  success: boolean;
-  subscription?: {
-    status: string;
-    plan?: string;
-    expiresAt?: string;
-  } | null;
-  loading: boolean;
-  error: string | null;
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "@/components/ui/use-toast";
+import SubscriptionRequired from '@/components/SubscriptionRequired';
+
+interface AccessKey {
+  id: string;
+  key: string;
+  createdAt: string;
+  lastUsed: string | null;
 }
 
-const GerenciarChavesPage: React.FC = () => {
-  // Estado para armazenar o status da assinatura
-  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>({
-    success: false,
-    subscription: null,
-    loading: true,
-    error: null
-  });
-
-  // Buscar o status da assinatura ao carregar a página
-  useEffect(() => {
-    const fetchSubscriptionStatus = async () => {
-      try {
-        const response = await fetch('/api/subscription/status');
-        
-        if (!response.ok) {
-          throw new Error('Falha ao obter status da assinatura');
-        }
-        
-        const data = await response.json();
-        
-        setSubscriptionStatus({
-          success: data.success,
-          subscription: data.subscription,
-          loading: false,
-          error: null
-        });
-      } catch (error) {
-        setSubscriptionStatus({
-          success: false,
-          subscription: null,
-          loading: false,
-          error: error instanceof Error ? error.message : 'Erro desconhecido'
-        });
-      }
-    };
-    
-    fetchSubscriptionStatus();
-  }, []);
+const GerenciarChaves: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [accessKey, setAccessKey] = useState<AccessKey | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showKey, setShowKey] = useState(false);
   
+  const user = useSelector((state: RootState) => state.auth.user);
+  const isSubscribed = user?.subscription?.isActive || false;
+  
+  useEffect(() => {
+    if (isSubscribed) {
+      fetchAccessKey();
+    }
+  }, [isSubscribed]);
+
+  const fetchAccessKey = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get('/api/subscription/access-key');
+      setAccessKey(response.data);
+    } catch (error) {
+      console.error('Erro ao buscar chave de acesso:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível buscar sua chave de acesso.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const regenerateKey = async () => {
+    setRegenerating(true);
+    try {
+      const response = await axios.post('/api/subscription/regenerate-key');
+      setAccessKey(response.data);
+      setShowKey(true);
+      toast({
+        title: 'Chave regenerada',
+        description: 'Sua nova chave de acesso foi gerada com sucesso.',
+      });
+    } catch (error) {
+      console.error('Erro ao regenerar chave:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível regenerar sua chave de acesso.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleCopyKey = () => {
+    if (accessKey) {
+      navigator.clipboard.writeText(accessKey.key);
+      setCopied(true);
+      toast({
+        title: 'Copiado!',
+        description: 'Chave de acesso copiada para a área de transferência.',
+      });
+      
+      setTimeout(() => {
+        setCopied(false);
+      }, 3000);
+    }
+  };
+
+  const toggleShowKey = () => {
+    setShowKey(!showKey);
+  };
+
+  const formatLastUsed = (date: string | null) => {
+    if (!date) return 'Nunca utilizada';
+    
+    return `${formatDistanceToNow(new Date(date), { locale: ptBR, addSuffix: true })}`;
+  };
+
+  if (!isSubscribed) {
+    return <SubscriptionRequired />;
+  }
+
   return (
-    <div className="gerenciar-chaves-page">
-      <div className="page-header">
-        <h1>Gerenciar Chaves de Acesso</h1>
-        <Link to="/" className="back-btn">Voltar</Link>
-      </div>
+    <div className="gerenciar-chaves-container max-w-4xl mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-6">
+        Gerenciar Chaves de API
+      </h1>
       
-      <div className="page-content">
-        {subscriptionStatus.loading ? (
-          <div className="loading-state">
-            <p>Verificando status da assinatura...</p>
+      <p className="mb-6 text-muted-foreground">
+        Sua chave de API permite acesso aos dados criptografados das roletas. 
+        Mantenha sua chave em segurança e não a compartilhe com terceiros.
+      </p>
+      
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle>Sua Chave de Acesso</CardTitle>
+            <Tooltip delayDuration={300}>
+              <Info className="h-5 w-5 text-blue-500" />
+              <span>Esta chave permite o acesso aos dados criptografados do RunCash</span>
+            </Tooltip>
           </div>
-        ) : subscriptionStatus.error ? (
-          <div className="error-state">
-            <h2>Erro ao verificar assinatura</h2>
-            <p>{subscriptionStatus.error}</p>
-            <button onClick={() => window.location.reload()}>Tentar novamente</button>
-          </div>
-        ) : subscriptionStatus.subscription?.status === 'active' ? (
-          // Usuário com assinatura ativa
-          <div className="subscription-active">
-            <div className="plan-info">
-              <h2>Assinatura Ativa</h2>
-              <p>Plano: {subscriptionStatus.subscription.plan || 'Premium'}</p>
-              {subscriptionStatus.subscription.expiresAt && (
-                <p>Validade: {new Date(subscriptionStatus.subscription.expiresAt).toLocaleDateString('pt-BR')}</p>
+        </CardHeader>
+        
+        <Separator />
+        
+        <CardContent className="pt-6">
+          {loading ? (
+            <p>Carregando sua chave de acesso...</p>
+          ) : accessKey ? (
+            <div>
+              <div className="flex mb-4 relative">
+                <Input
+                  type={showKey ? "text" : "password"}
+                  value={accessKey.key}
+                  readOnly
+                  className="font-mono pr-24"
+                />
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="absolute right-0 top-0 h-full"
+                  onClick={toggleShowKey}
+                >
+                  {showKey ? "Ocultar" : "Mostrar"}
+                </Button>
+              </div>
+              
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">ID:</span>
+                  <span className="font-mono">{accessKey.id}</span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Criada em:</span>
+                  <span>{new Date(accessKey.createdAt).toLocaleDateString('pt-BR')}</span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Último uso:</span>
+                  <span>{formatLastUsed(accessKey.lastUsed)}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p>Nenhuma chave de acesso encontrada. Clique em "Gerar Nova Chave" abaixo.</p>
+          )}
+        </CardContent>
+        
+        <CardFooter>
+          <div className="flex gap-4 flex-wrap">
+            <Button
+              variant="outline"
+              className="flex items-center gap-2"
+              onClick={handleCopyKey}
+              disabled={!accessKey || loading}
+            >
+              <Copy className="h-4 w-4" />
+              {copied ? "Copiado!" : "Copiar Chave"}
+            </Button>
+            
+            <Button
+              variant="destructive"
+              className="flex items-center gap-2"
+              onClick={regenerateKey}
+              disabled={loading}
+            >
+              {regenerating ? (
+                <span>Gerando...</span>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Gerar Nova Chave
+                </>
               )}
-            </div>
-            
-            {/* Componente para gerenciar chaves de acesso */}
-            <SubscriptionAccessKey />
+            </Button>
           </div>
-        ) : (
-          // Usuário sem assinatura ativa
-          <div className="subscription-required">
-            <h2>Assinatura Necessária</h2>
-            <p>
-              Para acessar os dados criptografados da API, você precisa ter uma assinatura ativa.
-              Com uma assinatura, você poderá obter uma chave de acesso que permite descriptografar
-              os dados da API.
-            </p>
-            
-            <div className="subscription-actions">
-              <Link to="/planos" className="btn-subscribe">Ver Planos</Link>
-              <Link to="/perfil" className="btn-profile">Gerenciar Assinatura</Link>
-            </div>
-          </div>
-        )}
-      </div>
+        </CardFooter>
+      </Card>
       
-      <div className="api-info">
-        <h3>Sobre Chaves de Acesso</h3>
-        <p>
-          As chaves de acesso permitem descriptografar os dados da API que estão publicamente 
-          disponíveis, mas criptografados. Apenas usuários com assinatura ativa podem obter
-          uma chave de acesso.
-        </p>
-        <p>
-          Cada chave é válida por 7 dias e está vinculada à sua conta. Você pode renovar 
-          sua chave a qualquer momento.
-        </p>
-      </div>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Informações Importantes</CardTitle>
+        </CardHeader>
+        
+        <Separator />
+        
+        <CardContent className="pt-6">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <Lock className="h-5 w-5 mt-1 text-orange-500" />
+              <div>
+                <p className="font-bold">Segurança da Chave</p>
+                <p className="text-muted-foreground">Nunca compartilhe sua chave de API. Ela é pessoal e está vinculada à sua assinatura.</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 mt-1 text-blue-500" />
+              <div>
+                <p className="font-bold">Uso da Chave</p>
+                <p className="text-muted-foreground">Sua chave é usada automaticamente pelo RunCash para descriptografar os dados das roletas.</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <RefreshCw className="h-5 w-5 mt-1 text-red-500" />
+              <div>
+                <p className="font-bold">Regeneração</p>
+                <p className="text-muted-foreground">Se regenerar sua chave, a antiga será invalidada imediatamente e você precisará atualizar em todos os dispositivos.</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
 
-export default GerenciarChavesPage; 
+export default GerenciarChaves; 

@@ -282,4 +282,20 @@
   .subscription-actions {
     flex-direction: column;
   }
+}
+
+/* Estilos para a página de gerenciamento de chaves */
+.gerenciar-chaves-container {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 } 
