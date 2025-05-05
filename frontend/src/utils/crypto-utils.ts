@@ -252,6 +252,128 @@ export class CryptoService {
         }
       });
       
+      // MELHORIA: Suporte ao formato Iron de 3 partes
+      // Se temos exatamente 3 partes, podemos estar lidando com o formato simplificado
+      // onde Fe26.2*hash*encrypted
+      if (parts.length === 3) {
+        console.log('[CryptoService] Detectado formato Iron de 3 partes, adaptando processamento');
+        
+        // No formato de 3 partes, a parte 2 contém o conteúdo criptografado
+        let encryptedBase64 = parts[2];
+        let ivUsed = parts[1].length > 16 ? parts[1].substring(0, 16) : this.accessKey.substring(0, 16);
+        
+        console.log('[CryptoService] Usando parte 2 como dados criptografados (primeiros 20 caracteres):', 
+          encryptedBase64.substring(0, 20) + '...');
+        
+        // Tentar descriptografar os dados da parte 2
+        try {
+          // Usar CryptoJS para descriptografar
+          const key = CryptoJS.PBKDF2(this.accessKey, 'runcash-salt', {
+            keySize: 256 / 32,
+            iterations: 1000
+          });
+          
+          // Gerar IV a partir da hash ou da chave de acesso
+          const ivValue = CryptoJS.enc.Utf8.parse(ivUsed);
+          
+          // Decodificar Base64 e descriptografar
+          const encryptedBytes = CryptoJS.enc.Base64.parse(encryptedBase64);
+          
+          // Tentar diferentes configurações
+          let decryptedData;
+          let success = false;
+          
+          // Tentativa 1: AES-CBC com IV da parte 1
+          try {
+            decryptedData = CryptoJS.AES.decrypt(
+              encryptedBytes.toString(CryptoJS.enc.Base64),
+              key,
+              {
+                mode: CryptoJS.mode.CBC,
+                padding: CryptoJS.pad.Pkcs7,
+                iv: ivValue
+              }
+            );
+            
+            const testString = decryptedData.toString(CryptoJS.enc.Utf8);
+            if (testString && testString.length > 0) {
+              success = true;
+              console.log('[CryptoService] Formato de 3 partes descriptografado com sucesso (CBC+IV)');
+            }
+          } catch (e) {
+            console.log('[CryptoService] Falha na primeira tentativa para formato de 3 partes');
+          }
+          
+          // Tentativa 2: AES-CBC sem IV específico
+          if (!success) {
+            try {
+              decryptedData = CryptoJS.AES.decrypt(
+                encryptedBytes.toString(CryptoJS.enc.Base64),
+                key,
+                {
+                  mode: CryptoJS.mode.CBC,
+                  padding: CryptoJS.pad.Pkcs7
+                }
+              );
+              
+              const testString = decryptedData.toString(CryptoJS.enc.Utf8);
+              if (testString && testString.length > 0) {
+                success = true;
+                console.log('[CryptoService] Formato de 3 partes descriptografado com sucesso (CBC)');
+              }
+            } catch (e) {
+              console.log('[CryptoService] Falha na segunda tentativa para formato de 3 partes');
+            }
+          }
+          
+          // Tentativa 3: AES-ECB
+          if (!success) {
+            try {
+              decryptedData = CryptoJS.AES.decrypt(
+                encryptedBytes.toString(CryptoJS.enc.Base64),
+                key,
+                {
+                  mode: CryptoJS.mode.ECB,
+                  padding: CryptoJS.pad.Pkcs7
+                }
+              );
+              
+              const testString = decryptedData.toString(CryptoJS.enc.Utf8);
+              if (testString && testString.length > 0) {
+                success = true;
+                console.log('[CryptoService] Formato de 3 partes descriptografado com sucesso (ECB)');
+              }
+            } catch (e) {
+              console.log('[CryptoService] Falha na terceira tentativa para formato de 3 partes');
+            }
+          }
+          
+          if (success) {
+            // Converter para string e tentar parsear como JSON
+            const decryptedString = decryptedData.toString(CryptoJS.enc.Utf8);
+            console.log('[CryptoService] Formato de 3 partes descriptografado:', 
+              decryptedString.substring(0, 50) + '...');
+            
+            try {
+              if (decryptedString.startsWith('{') || decryptedString.startsWith('[')) {
+                const jsonResult = JSON.parse(decryptedString);
+                return jsonResult;
+              } else {
+                return { data: decryptedString };
+              }
+            } catch (e) {
+              console.log('[CryptoService] Dados descriptografados não são JSON válido');
+              return { data: decryptedString };
+            }
+          } else {
+            throw new Error('Não foi possível descriptografar formato de 3 partes');
+          }
+        } catch (e) {
+          console.error('[CryptoService] Erro ao descriptografar formato de 3 partes:', e);
+          throw e; // Propagar erro para tentar outros métodos
+        }
+      }
+      
       if (parts.length < 4) {
         console.error('[CryptoService] Número insuficiente de partes:', parts.length);
         throw new Error('Formato Iron inválido: número insuficiente de partes');
