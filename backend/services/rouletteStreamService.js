@@ -153,33 +153,46 @@ class RouletteStreamService {
   /**
    * Envia atualização para um cliente específico, aplicando criptografia se necessário
    * @param {Object} client - Objeto do cliente
-   * @param {Object} data - Dados a serem enviados
+   * @param {Object} eventPayload - Dados a serem enviados (pode ser um heartbeat ou um batch_update)
    * @param {number} eventId - ID do evento
    */
-  async sendUpdateToClient(client, data, eventId) {
-    // Os dados agora são sempre enviados descriptografados via SSE
-    let finalData = data;
-    
+  async sendUpdateToClient(client, eventPayload, eventId) {
+    let dataToSend = eventPayload; // Por padrão, enviar o payload recebido (ex: heartbeat)
+    let eventName = 'update'; // Nome padrão do evento SSE
+
+    // Verificar se é um evento de lote vindo do DataService
+    if (eventPayload && eventPayload.type === 'batch_update' && Array.isArray(eventPayload.data)) {
+        console.log(`[SSE] Processando batch_update com ${eventPayload.data.length} roletas para cliente ${client.id || 'desconhecido'}`);
+        // Se for um lote, queremos enviar o array de dados diretamente
+        dataToSend = eventPayload.data; 
+        eventName = 'update'; // Usar 'update' como nome do evento para o lote também (simplifica o frontend)
+        // Ou poderíamos usar: eventName = 'batch_update'; se quiséssemos tratar diferente no frontend
+    } else if (eventPayload && eventPayload.type === 'heartbeat') {
+        // Manter o tipo heartbeat como está
+        eventName = 'heartbeat';
+        dataToSend = eventPayload; // Já está correto
+    }
+    // Adicionar outros tipos de evento se necessário
+
     try {
-      // Adicionar timestamp para todos os eventos
-      if (typeof finalData === 'object' && finalData !== null) {
-        finalData._timestamp = Date.now();
+      // Adicionar timestamp APENAS se não for um array (evitar adicionar ao array)
+      if (typeof dataToSend === 'object' && dataToSend !== null && !Array.isArray(dataToSend)) {
+          dataToSend._timestamp = Date.now(); 
       }
       
       // Formatar a mensagem no padrão SSE
-      const dataString = JSON.stringify(finalData);
+      const dataString = JSON.stringify(dataToSend);
       client.res.write(`id: ${eventId}\n`);
-      client.res.write(`event: update\n`);
+      client.res.write(`event: ${eventName}\n`); // Usar o nome do evento determinado
       client.res.write(`data: ${dataString}\n\n`);
+      // console.log(`[SSE DEBUG] Enviado para cliente: ID=${eventId}, Event=${eventName}, Data=${dataString.substring(0,100)}...`); // Log verboso
     } catch (error) {
       console.error('[SSE] Erro ao processar/enviar dados:', error);
-      // Tentar enviar um evento de erro como fallback
       try {
         client.res.write(`id: ${eventId}\n`);
         client.res.write(`event: error\n`);
-        client.res.write(`data: ${JSON.stringify({ error: 'Erro ao processar dados' })}\n\n`);
+        client.res.write(`data: ${JSON.stringify({ error: 'Erro ao processar dados no servidor' })}\n\n`);
       } catch (e) {
-        // Se falhar ao enviar o erro, provavelmente a conexão está morta
         throw new Error('Falha completa na conexão');
       }
     }

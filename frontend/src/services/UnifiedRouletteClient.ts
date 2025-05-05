@@ -382,8 +382,18 @@ class UnifiedRouletteClient {
     
     try {
       const rawData = event.data;
-      this.log(`Evento SSE recebido: ID=${event.lastEventId}, Tipo=${event.type}, Dados (início): ${rawData.substring(0, 100)}`);
+      const eventType = event.type; // Usar event.type (geralmente 'message', mas pode ser customizado)
       
+      this.log(`Evento SSE recebido: ID=${event.lastEventId}, Tipo=${eventType}, Dados (início): ${rawData.substring(0, 100)}`);
+      
+      // Se for heartbeat, podemos ignorar ou tratar separadamente
+      if (eventType === 'heartbeat') {
+          this.log('Recebido heartbeat.');
+          // Aqui você pode atualizar um timestamp de última atividade, se necessário
+          return;
+      }
+      
+      // Para outros eventos (esperamos 'update'), parsear o JSON
       let parsedData;
       try {
         parsedData = JSON.parse(rawData);
@@ -393,60 +403,42 @@ class UnifiedRouletteClient {
         return;
       }
       
-      if (!parsedData || typeof parsedData !== 'object') {
-        this.error('Dados parseados não são um objeto válido:', parsedData);
-        return;
-      }
-      
-      // Verificar tipo do evento vindo do backend
-      if (parsedData.type === 'batch_update' && Array.isArray(parsedData.data)) {
-        // Recebemos um lote de atualizações
-        const batchData = parsedData.data;
-        this.log(`Recebido lote com ${batchData.length} atualizações.`);
+      // AGORA esperamos que parsedData seja o ARRAY de roletas diretamente
+      if (Array.isArray(parsedData)) {
+        const batchData = parsedData;
+        this.log(`Recebido lote (array) com ${batchData.length} roletas.`);
         let processedCount = 0;
         
-        // Iterar sobre cada atualização no lote
-        batchData.forEach(rouletteEvent => {
-            // O backend formata cada item como { type: 'update', data: { ... } }
-            if (rouletteEvent && rouletteEvent.type === 'update' && rouletteEvent.data) {
-                const rouletteUpdate = rouletteEvent.data;
-                // Atualizar cache com os dados da roleta específica
-                this.updateCache(rouletteUpdate);
+        // Iterar sobre cada objeto de roleta no array
+        batchData.forEach(rouletteData => {
+            if (rouletteData && rouletteData.id) { // Verificar se é um objeto de roleta válido
+                this.updateCache(rouletteData);
                 processedCount++;
             } else {
-                this.log('Item inválido no lote de atualização:', rouletteEvent);
+                this.log('Item inválido no array de atualização:', rouletteData);
             }
         });
         
         // Notificar UMA VEZ após processar todo o lote
         if (processedCount > 0) {
-            this.emit('update', Array.from(this.rouletteData.values())); // Emitir todos os dados atualizados
+            this.emit('update', Array.from(this.rouletteData.values())); 
             EventBus.emit('roulette:data-updated', {
                 timestamp: new Date().toISOString(),
-                data: Array.from(this.rouletteData.values()), // Enviar o estado completo atualizado
-                source: 'sse-batch' // Indicar que veio do SSE em lote
+                data: Array.from(this.rouletteData.values()),
+                source: 'sse-batch' 
             });
             this.log(`Lote processado, ${processedCount} roletas atualizadas no cache.`);
         }
 
-      } else if (parsedData.type === 'heartbeat') {
-        // Ignorar eventos de heartbeat para atualização de dados
-        this.log('Recebido heartbeat, ignorando para atualização de cache.');
-      } else if (parsedData.type === 'update' && parsedData.data) {
-          // Lidar com eventos individuais (caso o backend envie assim em alguma situação)
-          const rouletteUpdate = parsedData.data;
-          this.log(`Atualização individual recebida: Roleta ${rouletteUpdate.roleta_nome || rouletteUpdate.roleta_id}`);
-          this.updateCache(rouletteUpdate);
-          this.emit('update', Array.from(this.rouletteData.values())); 
-           EventBus.emit('roulette:data-updated', {
-                timestamp: new Date().toISOString(),
-                data: Array.from(this.rouletteData.values()),
-                source: 'sse-single'
-            });
-      } else if (parsedData.error || parsedData.status) {
-        this.log('Recebido evento de erro/status do servidor SSE:', parsedData);
+      } else if (typeof parsedData === 'object' && parsedData !== null) {
+          // Lidar com outros objetos JSON (ex: erro, status individual, etc.)
+          this.log('Recebido objeto JSON individual:', parsedData);
+          if(parsedData.error) {
+              this.handleErrorMessage(parsedData);
+          }
+          // Adicionar tratamento para outros tipos se necessário
       } else {
-        this.log('Formato de dados JSON não esperado no evento SSE:', parsedData);
+        this.log('Dados JSON parseados não são um array nem um objeto esperado:', parsedData);
       }
       
     } catch (error) {
