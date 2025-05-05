@@ -517,7 +517,7 @@ export default class RouletteFeedService {
         
         // Registrar o início da requisição para fins de monitoramento
         this.pendingRequests[requestId] = {
-          timestamp: Date.now(),
+            timestamp: Date.now(),
           url: '/api/stream/roulettes',
           service: 'RouletteFeedService'
         };
@@ -631,9 +631,9 @@ export default class RouletteFeedService {
         } catch (error) {
           console.error('[RouletteFeedService] Erro ao buscar dados:', error);
           this.failedFetchesCount++;
-          this.consecutiveErrors++;
-          this.consecutiveSuccesses = 0;
-          
+            this.consecutiveErrors++;
+            this.consecutiveSuccesses = 0;
+            
           // Emitir evento de erro
           EventBus.emit('roulette:fetch-error', {
             error,
