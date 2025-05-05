@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+@import './styles/gerenciar-chaves.css';
 
 @tailwind base;
 @tailwind components;
@@ -402,6 +403,3 @@
     transform: translateY(0px);
   }
 }
-
-/* Importações de estilos de componentes e páginas */
-@import './styles/gerenciar-chaves.css';

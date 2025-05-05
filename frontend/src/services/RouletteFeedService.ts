@@ -1,6 +1,8 @@
 import EventService from './EventService';
 import { getLogger } from './utils/logger';
 import globalRouletteDataService from './GlobalRouletteDataService';
+import { cryptoService } from '../utils/crypto-utils';
+import EventBus from '../services/EventBus';
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');

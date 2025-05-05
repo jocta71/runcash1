@@ -56,6 +56,8 @@ exports.setAccessKey = setAccessKey;
 exports.hasAccessKey = hasAccessKey;
 exports.setupAccessKey = setupAccessKey;
 exports.extractAndSetAccessKeyFromEvent = extractAndSetAccessKeyFromEvent;
+exports.enableDevMode = enableDevMode;
+exports.isDevModeEnabled = isDevModeEnabled;
 var crypto_js_1 = require("crypto-js");
 /**
  * Classe para lidar com as chaves de acesso e descriptografia
@@ -688,4 +690,17 @@ function processJsonData(data) {
     }
     console.log('[CryptoService] Nenhuma chave de acesso encontrada no evento');
     return false;
+}
+
+// Adicionar a declaração da função enableDevMode e isDevModeEnabled
+let devModeEnabled = false;
+
+function enableDevMode(enable = true) {
+  devModeEnabled = enable;
+  console.log(`[CryptoService] Modo de desenvolvimento ${enable ? 'ativado' : 'desativado'}`);
+  return devModeEnabled;
+}
+
+function isDevModeEnabled() {
+  return devModeEnabled;
 }
