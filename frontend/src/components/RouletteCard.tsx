@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useRouletteSettingsStore } from '@/stores/rouletteSettingsStore';
 import { cn } from '@/lib/utils';
 import globalRouletteDataService from '@/services/GlobalRouletteDataService';
+import EventBus from '@/services/EventBus';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -180,9 +181,32 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Assinar atualizações do gerenciador global
     const unsubscribe = dataManager.subscribe(componentId, handleDataUpdate);
     
+    // Assinar eventos do EventBus para atualizações SSE
+    EventBus.on('roulette:data-updated', (eventData) => {
+      console.log(`[${componentId}] Evento roulette:data-updated recebido:`, eventData);
+      
+      // Verificar se temos dados válidos no evento
+      if (eventData && eventData.data) {
+        // Se for um array, processamos todas as roletas
+        if (Array.isArray(eventData.data)) {
+          handleDataUpdate(eventData.data);
+        } 
+        // Se for uma roleta única, verificamos se é a nossa e atualizamos
+        else if (eventData.data.id === safeData.id || 
+                eventData.data._id === safeData.id || 
+                eventData.data.name === safeData.name || 
+                eventData.data.nome === safeData.name) {
+          handleDataUpdate([eventData.data]);
+        }
+      }
+    });
+    
     // Limpar inscrição ao desmontar o componente
     return () => {
       unsubscribe();
+      
+      // Remover listener do EventBus
+      EventBus.off('roulette:data-updated', null);
       
       // Limpar timeout
       if (timeoutRef.current) {
@@ -277,13 +301,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     let extractedNumbers: number[] = [];
     
     try {
-      // A estrutura principal tem um campo "numero" que é um array de objetos
+      // Verificar se os dados estão em formato processado pelo UnifiedRouletteClient
       if (apiData && Array.isArray(apiData.numero) && apiData.numero.length > 0) {
         console.log(`Extraindo números a partir do campo 'numero' para ${safeData.name}`);
         
         // Mapear cada objeto do array para extrair o número
         extractedNumbers = apiData.numero
           .map((item: any) => {
+            // Cada item pode ser um número ou um objeto
+            if (typeof item === 'number') {
+              return item;
+            }
             // Cada item deve ter uma propriedade 'numero'
             if (item && typeof item === 'object' && 'numero' in item) {
               return typeof item.numero === 'number' ? item.numero : parseInt(item.numero);
@@ -292,13 +320,23 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
           })
           .filter((n: any) => n !== null && !isNaN(n));
       } 
+      // Verificar formato de eventos SSE descriptografados
+      else if (apiData && apiData.data && Array.isArray(apiData.data.numeros)) {
+        console.log(`Extraindo números de dados descriptografados SSE para ${safeData.name}`);
+        extractedNumbers = apiData.data.numeros
+          .map((n: any) => typeof n === 'number' ? n : parseInt(n))
+          .filter((n: any) => n !== null && !isNaN(n));
+      }
+      // Verificar outro formato comum em eventos SSE
+      else if (apiData && Array.isArray(apiData.numeros)) {
+        console.log(`Extraindo números do campo 'numeros' para ${safeData.name}`);
+        extractedNumbers = apiData.numeros
+          .map((n: any) => typeof n === 'number' ? n : parseInt(n))
+          .filter((n: any) => n !== null && !isNaN(n));
+      }
       // Outros formatos de dados possíveis como fallback
       else if (Array.isArray(apiData.lastNumbers) && apiData.lastNumbers.length > 0) {
         extractedNumbers = apiData.lastNumbers
-          .map((n: any) => typeof n === 'number' ? n : (typeof n === 'object' && n?.numero ? n.numero : null))
-          .filter((n: any) => n !== null && !isNaN(n));
-      } else if (Array.isArray(apiData.numeros) && apiData.numeros.length > 0) {
-        extractedNumbers = apiData.numeros
           .map((n: any) => typeof n === 'number' ? n : (typeof n === 'object' && n?.numero ? n.numero : null))
           .filter((n: any) => n !== null && !isNaN(n));
       } else if (Array.isArray(apiData.numbers) && apiData.numbers.length > 0) {
@@ -310,6 +348,12 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
             return typeof n === 'number' ? n : null;
           })
           .filter((n: any) => n !== null && !isNaN(n));
+      }
+      
+      // Verificar se há dados criptografados sem processamento
+      if (extractedNumbers.length === 0 && apiData && apiData.encrypted) {
+        console.log(`Dados criptografados recebidos para ${safeData.name}, aguardando processamento`);
+        return []; // Retornar array vazio e aguardar processamento pelo UnifiedRouletteClient
       }
       
       // Se não encontramos números em nenhum dos formatos, log de aviso

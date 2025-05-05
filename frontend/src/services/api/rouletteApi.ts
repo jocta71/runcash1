@@ -27,26 +27,27 @@ type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
 export const RouletteApi = {
   /**
    * Busca todas as roletas disponíveis
-   * @deprecated Este método está depreciado. Use UnifiedRouletteClient para dados em tempo real.
-   * @returns Resposta da API com roletas ou erro
+   * @returns Resposta da API com as roletas ou erro
    */
   async fetchAllRoulettes(): Promise<ApiResponse<any[]>> {
     try {
       console.warn('[API] DEPRECIADO: fetchAllRoulettes - Considere usar UnifiedRouletteClient para dados em tempo real');
       console.log('[API] Buscando dados de roletas através do UnifiedRouletteClient');
       
-      // Importar dinamicamente o UnifiedRouletteClient para evitar dependência circular
-      const UnifiedRouletteClientModule = await import('../../services/UnifiedRouletteClient');
-      const UnifiedRouletteClient = UnifiedRouletteClientModule.default;
-      
       try {
-        // Usar o cliente unificado para obter dados de roletas
-        const unifiedClient = UnifiedRouletteClient.getInstance();
-        const roulettes = await unifiedClient.getAllRoulettes();
+        // Obter UnifiedRouletteClient
+        const { default: UnifiedRouletteClient } = await import('../UnifiedRouletteClient');
+        const client = UnifiedRouletteClient.getInstance();
         
-        console.log(`[API] ✅ Obtidas ${roulettes.length} roletas do UnifiedRouletteClient`);
+        // Garantir que o cliente está conectado ao stream
+        if (!client.getStatus().isStreamConnected) {
+          client.connectStream();
+        }
         
-        // Processar cada roleta para garantir consistência
+        // Obter roletas do cache do cliente
+        const roulettes = client.getAllRoulettes();
+        
+        // Processar roletas
         const processedRoulettes = roulettes.map((roulette: any) => {
           // Garantir que temos o campo roleta_id em cada objeto
           if (!roulette.roleta_id && roulette._id) {
@@ -61,42 +62,14 @@ export const RouletteApi = {
           data: processedRoulettes
         };
       } catch (primaryError) {
-        console.warn('[API] Erro ao obter dados do UnifiedRouletteClient, tentando endpoint tradicional:', primaryError);
+        console.error('[API] Erro ao obter dados do UnifiedRouletteClient:', primaryError);
         
-        // Fallback para o endpoint tradicional se o UnifiedRouletteClient falhar
-        const fallbackResponse = await axios.get(ENDPOINTS.ROULETTES_OLD);
-        
-        if (!fallbackResponse.data) {
-          console.error('[API] Resposta inválida do endpoint fallback:', fallbackResponse.data);
-          return {
-            error: true,
-            code: 'INVALID_RESPONSE',
-            message: 'Resposta inválida da API no endpoint alternativo',
-            statusCode: fallbackResponse.status
-          };
-        }
-        
-        // Extrair dados da resposta fallback
-        const fallbackRoulettes = Array.isArray(fallbackResponse.data) 
-          ? fallbackResponse.data 
-          : (fallbackResponse.data.data ? fallbackResponse.data.data : []);
-        
-        console.log(`[API] ✅ Obtidas ${fallbackRoulettes.length} roletas do endpoint fallback`);
-        
-        // Processar cada roleta para extrair campos relevantes
-        const processedRoulettes = fallbackRoulettes.map((roulette: any) => {
-          // Garantir que temos o campo roleta_id em cada objeto
-          if (!roulette.roleta_id && roulette._id) {
-            const numericId = getNumericId(roulette._id);
-            console.log(`[API] Adicionando roleta_id=${numericId} para roleta UUID=${roulette._id}`);
-            roulette.roleta_id = numericId;
-          }
-          return roulette;
-        });
-        
+        // Retornar erro em vez de tentar endpoint alternativo
         return {
-          error: false,
-          data: processedRoulettes
+          error: true,
+          code: 'NO_DATA_AVAILABLE',
+          message: 'Sem dados disponíveis. Tente novamente mais tarde.',
+          statusCode: 503
         };
       }
     } catch (error: any) {
@@ -244,7 +217,8 @@ export const RouletteApi = {
     try {
       console.log(`[API] Buscando histórico para roleta: ${rouletteName}`);
       
-      const response = await axios.get(`${ENDPOINTS.ROULETTE_HISTORY}/${encodeURIComponent(rouletteName)}`);
+      // Usar a URL diretamente em vez do objeto ENDPOINTS
+      const response = await axios.get(`/api/roulettes/history/${encodeURIComponent(rouletteName)}`);
       
       if (!response.data || !Array.isArray(response.data)) {
         console.error('[API] Resposta inválida do histórico:', response.data);
