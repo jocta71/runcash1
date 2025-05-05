@@ -499,8 +499,8 @@ class UnifiedRouletteClient {
     
     this.fetchPromise = new Promise(async (resolve) => {
       try {
-        // Usar o endpoint REST tradicional que não é o endpoint de streaming
-        const response = await axios.get(ENDPOINTS.ROULETTES_OLD, {
+        // Usar o endpoint REST normal (não o legado e não o de streaming)
+        const response = await axios.get(ENDPOINTS.ROULETTES, {
           headers: {
             'Accept': 'application/json',
             'Cache-Control': 'no-cache'
@@ -573,12 +573,14 @@ class UnifiedRouletteClient {
     try {
       this.log('Tentando endpoint alternativo...');
       
-      // Tentar endpoint antigo como fallback
-      const response = await axios.get(ENDPOINTS.ROULETTES_OLD || '/api/ROULETTES', {
+      // Tentar endpoint normal novamente com configuração diferente
+      const response = await axios.get(ENDPOINTS.ROULETTES, {
         headers: {
           'Accept': 'application/json',
-          'Cache-Control': 'no-cache'
-        }
+          'Cache-Control': 'no-cache',
+          'X-Retry': 'true'
+        },
+        timeout: 10000 // Timeout mais longo
       });
       
       if (response.status === 200) {
