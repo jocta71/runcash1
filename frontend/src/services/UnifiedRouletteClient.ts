@@ -9,7 +9,7 @@
  * do aplicativo usem a mesma fonte de dados.
  */
 
-import { ENDPOINTS } from './api/endpoints';
+import { ENDPOINTS, getFullUrl } from './api/endpoints';
 import EventBus from './EventBus';
 import cryptoService from '../utils/crypto-service';
 import axios from 'axios';
@@ -1246,7 +1246,7 @@ class UnifiedRouletteClient {
     }
   }
 
-  // --- Nova Função para Buscar e Cachear Histórico Inicial ---
+  // --- Função para Buscar e Cachear Histórico Inicial ---
   private async fetchAndCacheInitialHistory(): Promise<void> {
     // Evitar múltiplas buscas simultâneas ou repetidas
     if (this.isFetchingInitialHistory || this.initialHistoricalDataCache.size > 0) {
@@ -1261,11 +1261,13 @@ class UnifiedRouletteClient {
     this.isFetchingInitialHistory = true;
     this.log('Iniciando busca do histórico inicial para todas as roletas...');
 
-    // Criar a promise para que chamadas subsequentes possam aguardá-la
     this.initialHistoryFetchPromise = (async () => {
+      let apiUrl = ''; // Declarar fora para estar acessível no catch/finally
       try {
-        // Usar axios ou fetch para chamar o novo endpoint
-        const response = await axios.get<{ success: boolean; data: Record<string, RouletteNumber[]>; message?: string }>(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
+        // <<< Usar getFullUrl para construir a URL completa >>>
+        apiUrl = getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
+        this.log(`Buscando histórico inicial de: ${apiUrl}`); // Log para depuração
+        const response = await axios.get<{ success: boolean; data: Record<string, RouletteNumber[]>; message?: string }>(apiUrl);
 
         if (response.data && response.data.success && response.data.data) {
           const historicalData = response.data.data;
@@ -1291,7 +1293,9 @@ class UnifiedRouletteClient {
         }
 
       } catch (error: any) {
-        this.error('Erro ao buscar ou cachear histórico inicial:', error.message || error);
+         // Usar apiUrl se disponível, senão o endpoint relativo
+         const endpointDesc = apiUrl || ENDPOINTS.HISTORICAL.ALL_ROULETTES;
+         this.error(`Erro ao buscar histórico de ${endpointDesc}:`, error.message || error);
         // Limpar cache em caso de erro para permitir nova tentativa
         this.initialHistoricalDataCache.clear();
         // Emitir evento de erro (opcional)
