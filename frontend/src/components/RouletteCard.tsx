@@ -31,8 +31,10 @@ interface RouletteNumber {
 }
 
 interface RouletteCardProps {
-  data: RouletteData;
+  data: any; // Manter any por enquanto ou definir tipo específico
   isDetailView?: boolean;
+  onSelect?: (id: string) => void;
+  isSelected?: boolean;
 }
 
 // Interface para os dados específicos que o Card precisa
@@ -87,10 +89,10 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
   };
 };
 
-const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false }) => {
+const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetailView = false, onSelect, isSelected }) => {
   // Estados
-  const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(processRouletteData(data));
-  const [isLoading, setIsLoading] = useState(!rouletteData); // Inicia como loading se não houver dados iniciais
+  const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(processRouletteData(initialData));
+  const [isLoading, setIsLoading] = useState(!rouletteData);
   const [error, setError] = useState<string | null>(null);
   const [isNewNumber, setIsNewNumber] = useState(false);
   const [updateCount, setUpdateCount] = useState(0);
@@ -108,10 +110,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   const { enableSound, enableNotifications } = useRouletteSettingsStore();
   
   // Dados iniciais seguros
-  const safeData = {
-    id: data?.id || data?._id || 'unknown',
-    name: data?.name || data?.nome || 'Roleta sem nome',
-  };
+  const safeData = useMemo(() => ({
+    id: initialData?.id || initialData?._id || 'unknown',
+    name: initialData?.name || initialData?.nome || 'Roleta sem nome',
+  }), [initialData]);
   
   // ID único para este componente
   const componentId = useRef(`roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`).current;
@@ -119,225 +121,67 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   // Obter instância do UnifiedClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
   
-  // Função para lidar com atualizações de dados
-  const handleDataUpdate = useCallback((allRoulettes: any[]) => {
-    if (!allRoulettes || !Array.isArray(allRoulettes) || allRoulettes.length === 0) return;
-    
-    // Encontrar a roleta específica pelo ID ou nome
-    const myRoulette = allRoulettes.find((roulette: any) => 
-      roulette.id === safeData.id || 
-      roulette._id === safeData.id || 
-      roulette.name === safeData.name || 
-      roulette.nome === safeData.name
-    );
-    
-    if (!myRoulette) {
-      console.warn(`[${componentId}] Roleta com ID ${safeData.id} não encontrada na resposta`);
-        return;
-      }
-      
-    // Processar os dados da roleta
-    processApiData(myRoulette);
-        
-    // Atualizar timestamp e contador
-    setUpdateCount(prev => prev + 1);
-    setError(null);
-    setIsLoading(false);
-  }, [safeData.id, safeData.name]);
-  
   // Efeito para iniciar a busca de dados
   useEffect(() => {
-    // Função para lidar com a atualização de UMA roleta específica
-    const handleSingleRouletteUpdate = (data: any) => {
-      if (data && data.id === safeData.id) { // Verificar se a atualização é para esta roleta
-        const processed = processRouletteData(data);
-        if (processed) {
-          setRouletteData(processed);
-          setIsLoading(false);
-          setError(null);
-        } else {
-          setError('Falha ao processar dados da roleta.');
-          setIsLoading(false);
-        }
-      } 
-    };
+    console.log(`[${componentId}] Montando/Atualizando para Roleta ID: ${safeData.id}`);
 
-    // Função para lidar com a atualização GERAL (array de roletas)
-    const handleAllRoulettesUpdate = (allData: any[]) => {
-        const myData = allData.find(r => r.id === safeData.id);
+    const handleUpdate = (updateData: any) => {
+        let myData: any = null;
+        if (Array.isArray(updateData)) {
+            myData = updateData.find(r => r.id === safeData.id);
+        } else if (updateData && updateData.id === safeData.id) {
+            myData = updateData;
+        }
+
         if (myData) {
-            handleSingleRouletteUpdate(myData); // Reutiliza a lógica de processamento
+            console.log(`[${componentId}] Recebendo atualização para ${safeData.name}`, myData);
+            const processed = processRouletteData(myData);
+            if (processed) {
+                 setRouletteData(currentData => {
+                     if (currentData && processed.ultimoNumero !== currentData.ultimoNumero && processed.ultimoNumero !== null) {
+                         console.log(`[${componentId}] Novo número detectado: ${processed.ultimoNumero}`);
+                         setIsNewNumber(true);
+                         setTimeout(() => setIsNewNumber(false), 2000); 
+                     }
+                     return processed; 
+                 });
+                 setIsLoading(false);
+                 setError(null);
+            } else {
+                console.error(`[${componentId}] Falha ao processar dados recebidos.`);
+                setError('Falha ao processar dados da roleta.');
+                setIsLoading(false);
+            }
         }
     };
 
-    // Tentar obter dados atuais do UnifiedClient ao montar
+    console.log(`[${componentId}] Verificando dados existentes no UnifiedClient...`);
     const currentDataFromClient = unifiedClient.getRouletteById(safeData.id);
     if (currentDataFromClient) {
-        handleSingleRouletteUpdate(currentDataFromClient);
+        console.log(`[${componentId}] Dados encontrados no cliente`, currentDataFromClient);
+        handleUpdate(currentDataFromClient); 
     } else {
-         // Se não houver dados no cliente, manter isLoading ou buscar dados iniciais
-         // Se initialData foi fornecido, já o usamos no useState inicial
-         if (!rouletteData) setIsLoading(true); 
+        if (!rouletteData) {
+            console.log(`[${componentId}] Sem dados iniciais ou no cliente, definindo isLoading.`);
+            setIsLoading(true); 
+        } else {
+             console.log(`[${componentId}] Usando dados iniciais passados via props.`);
+             setIsLoading(false); 
+        }
     }
 
-    // Assinar evento 'update'
-    const unsubscribe = unifiedClient.on('update', (updateData) => {
-        if (Array.isArray(updateData)) {
-            handleAllRoulettesUpdate(updateData);
-        } else {
-            handleSingleRouletteUpdate(updateData); // Processa atualização de roleta única
-        }
-    });
+    console.log(`[${componentId}] Assinando evento 'update' do UnifiedClient.`);
+    const unsubscribe = unifiedClient.on('update', handleUpdate);
 
-    // Limpar inscrição ao desmontar
     return () => {
+      console.log(`[${componentId}] Desmontando e cancelando inscrição 'update'.`);
       unsubscribe();
     };
-  }, [safeData.id, unifiedClient]); // Depender do ID da roleta e do cliente
+  }, [safeData.id, unifiedClient]);
   
   // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
   // Console.log para verificar se há apenas uma fonte de requisições:
   console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas UnifiedRouletteClient para obter dados da API.');
-  
-  // Função para processar dados da API
-  const processApiData = (apiRoulette: any) => {
-    debugLog(`Processando dados para roleta ${safeData.name}:`, apiRoulette);
-    
-    if (!apiRoulette) {
-      console.warn(`[${componentId}] Dados vazios ou inválidos para a roleta ${safeData.name}`);
-      return;
-    }
-    
-    // Extrair números da resposta
-    const apiNumbers = extractNumbers(apiRoulette);
-    debugLog(`Números extraídos para ${safeData.name}:`, apiNumbers);
-    
-    // Se não há números, não faz nada
-    if (!apiNumbers || apiNumbers.length === 0) {
-      debugLog(`Nenhum número extraído para ${safeData.name} - API response:`, apiRoulette);
-      return;
-    }
-    
-    // Verificar se temos números novos
-    const hasNewNumbers = updateNumberSequence(apiNumbers);
-    debugLog(`Novos números encontrados para ${safeData.name}: ${hasNewNumbers ? 'SIM' : 'NÃO'}`);
-    
-    // Se não há números novos e já temos dados, não precisamos atualizar a UI
-    if (!hasNewNumbers && rouletteData) {
-      debugLog(`Sem alterações nos números para ${safeData.name} - ignorando atualização`);
-      return;
-    }
-    
-    // Se não tínhamos dados reais antes, atualizamos a UI mesmo sem novos números
-    if (!rouletteData) {
-      setRouletteData({
-        id: safeData.id,
-        nome: safeData.name,
-        provider: rouletteData.provider,
-        status: rouletteData.status,
-        ultimoNumero: rouletteData.ultimoNumero,
-        numeros: apiNumbers.slice(0, 10),
-        winRate: rouletteData.winRate,
-        streak: rouletteData.streak,
-        lastUpdateTime: Date.now(),
-      });
-      debugLog(`Dados iniciais carregados para ${safeData.name} - ${apiNumbers.length} números`);
-    }
-  };
-
-  // Função para extrair números da resposta da API
-  const extractNumbers = (apiData: any): number[] => {
-    // Array para armazenar os números
-    let extractedNumbers: number[] = [];
-    
-    try {
-      // Verificar se os dados estão em formato processado pelo UnifiedRouletteClient
-      if (apiData && Array.isArray(apiData.numero) && apiData.numero.length > 0) {
-        console.log(`Extraindo números a partir do campo 'numero' para ${safeData.name}`);
-        
-        // Mapear cada objeto do array para extrair o número
-        extractedNumbers = apiData.numero
-          .map((item: any) => {
-            // Cada item pode ser um número ou um objeto
-            if (typeof item === 'number') {
-              return item;
-            }
-            // Cada item deve ter uma propriedade 'numero'
-            if (item && typeof item === 'object' && 'numero' in item) {
-              return typeof item.numero === 'number' ? item.numero : parseInt(item.numero);
-            }
-            return null;
-          })
-          .filter((n: any) => n !== null && !isNaN(n));
-      } 
-      // Verificar formato de eventos SSE descriptografados
-      else if (apiData && apiData.data && Array.isArray(apiData.data.numeros)) {
-        console.log(`Extraindo números de dados descriptografados SSE para ${safeData.name}`);
-        extractedNumbers = apiData.data.numeros
-          .map((n: any) => typeof n === 'number' ? n : parseInt(n))
-          .filter((n: any) => n !== null && !isNaN(n));
-      }
-      // Verificar outro formato comum em eventos SSE
-      else if (apiData && Array.isArray(apiData.numeros)) {
-        console.log(`Extraindo números do campo 'numeros' para ${safeData.name}`);
-        extractedNumbers = apiData.numeros
-          .map((n: any) => typeof n === 'number' ? n : parseInt(n))
-          .filter((n: any) => n !== null && !isNaN(n));
-      }
-      // Outros formatos de dados possíveis como fallback
-      else if (Array.isArray(apiData.lastNumbers) && apiData.lastNumbers.length > 0) {
-        extractedNumbers = apiData.lastNumbers
-          .map((n: any) => typeof n === 'number' ? n : (typeof n === 'object' && n?.numero ? n.numero : null))
-          .filter((n: any) => n !== null && !isNaN(n));
-      } else if (Array.isArray(apiData.numbers) && apiData.numbers.length > 0) {
-        extractedNumbers = apiData.numbers
-          .map((n: any) => {
-            if (typeof n === 'object' && n) {
-              return n.numero || n.number || n.value;
-            }
-            return typeof n === 'number' ? n : null;
-          })
-          .filter((n: any) => n !== null && !isNaN(n));
-      }
-      
-      // Verificar se há dados criptografados sem processamento
-      if (extractedNumbers.length === 0 && apiData && apiData.encrypted) {
-        console.log(`Dados criptografados recebidos para ${safeData.name}, aguardando processamento`);
-        return []; // Retornar array vazio e aguardar processamento pelo UnifiedRouletteClient
-      }
-      
-      // Se não encontramos números em nenhum dos formatos, log de aviso
-      if (extractedNumbers.length === 0) {
-        console.warn(`Não foi possível extrair números para ${safeData.name}. Estrutura de dados:`, apiData);
-      } else {
-        console.log(`Extraídos ${extractedNumbers.length} números para ${safeData.name}:`, extractedNumbers.slice(0, 5));
-      }
-    } catch (err) {
-      console.error(`Erro ao extrair números para ${safeData.name}:`, err);
-    }
-    
-    return extractedNumbers;
-  };
-  
-  // Função para mostrar notificação de novo número
-  const showNumberNotification = useCallback((newNumber: number) => {
-    if (newNumber === undefined || newNumber === null) return;
-    
-    // Obter cor do número a partir dos dados da API
-    let color = 'cinza';
-    
-    if (rouletteData && rouletteData.numeros && rouletteData.numeros.length > 0) {
-      const matchingNumber = rouletteData.numeros.find((n: RouletteNumber) => n.numero === newNumber);
-      if (matchingNumber && matchingNumber.cor) {
-        color = matchingNumber.cor.toLowerCase();
-      }
-    }
-    
-    // Mostrar notificação
-    setIsNewNumber(true);
-    setTimeout(() => setIsNewNumber(false), 2000);
-    
-  }, [rouletteData]);
   
   // Função para abrir detalhes da roleta
   const handleCardClick = () => {
@@ -359,53 +203,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     // Números vermelhos na roleta europeia
     const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
     return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
-  };
-
-  // Função para verificar e atualizar sequência de números
-  const updateNumberSequence = (apiNumbers: number[]): boolean => {
-    if (!rouletteData) { // Checar se temos dados base para atualizar
-        // Se não temos, a lógica inicial no useEffect ou processRouletteData deve tratar
-        return false; 
-    }
-
-    if (apiNumbers[0] === rouletteData.ultimoNumero) {
-      return false;
-    }
-
-    const newNumbers: RouletteNumber[] = [];
-    for (const apiNum of apiNumbers) {
-      // Precisamos recriar o objeto RouletteNumber aqui, idealmente com timestamp real da API
-      // Por enquanto, usando timestamp atual como placeholder
-      const now = new Date();
-      const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                       now.getMinutes().toString().padStart(2, '0');
-      const newNumObj: RouletteNumber = { numero: apiNum, timestamp: timeString }; 
-      
-      // Checar se o número já existe no array atual
-      if (rouletteData.numeros.some(n => n.numero === apiNum && n.timestamp === newNumObj.timestamp)) {
-          break; // Para se encontrarmos um que já existe
-      }
-      newNumbers.push(newNumObj);
-    }
-
-    if (newNumbers.length > 0) {
-      const updatedNumbers = [...newNumbers, ...rouletteData.numeros];
-      
-      // Atualizar o estado principal
-      setRouletteData({
-        ...rouletteData, // Manter dados existentes
-        numeros: updatedNumbers.slice(0, 10), // Atualizar array de números (limitado para exibição)
-        ultimoNumero: newNumbers[0].numero, // Atualizar o último número
-        lastUpdateTime: Date.now() // Atualizar timestamp da atualização
-        // NÃO adicionar isNewNumber aqui
-      });
-      
-      // <<< Usar o state setter para isNewNumber >>>
-      setIsNewNumber(true); 
-      showNumberNotification(newNumbers[0].numero);
-      return true;
-    }
-    return false;
   };
 
   if (isLoading) {
