@@ -262,45 +262,56 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
             // <<< Log 3: Verificar resultado do processamento >>>
             console.log(`[${componentId}] Resultado de processRouletteData para atualização:`, processed === null ? 'NULL' : `Status: ${processed.status}, UltimoNum: ${processed.ultimoNumero}, CountNums: ${processed.numeros.length}`);
 
-            if (processed !== null) { 
-                 // console.log(`[${componentId}] Atualizando estado com dados processados:`, processed); 
+            if (processed !== null) {
                  setRouletteData(currentData => {
-                     // Se não houver dados anteriores, simplesmente retorna os processados
+                     // Se não houver dados anteriores ou a atualização não foi processada, retorna o estado atual ou o processado
                      if (!currentData) {
+                         // Se não tem dados atuais, a atualização (se válida) se torna o estado inicial
                          return processed;
                      }
-                     
-                     // Verifica se o último número da atualização é realmente novo
-                     const newNumberObject = processed.numeros.length > 0 ? processed.numeros[0] : null;
-                     const isTrulyNewNumber = newNumberObject && 
-                                            currentData.numeros.length > 0 && 
-                                            newNumberObject.numero !== currentData.numeros[0].numero;
-
-                     let updatedNumeros = currentData.numeros;
-
-                     if (isTrulyNewNumber) {
-                         console.log(`%c[${componentId}] NOVO NÚMERO ADICIONADO: ${newNumberObject.numero}`, 'color: lightgreen; font-weight: bold;');
-                         // Adiciona o novo número no início e mantém o limite (e.g., 10)
-                         updatedNumeros = [newNumberObject, ...currentData.numeros].slice(0, 10);
-                         
-                         // Lógica de destaque visual (pode ser ajustada se necessário)
-                         setIsNewNumber(true);
-                         setTimeout(() => setIsNewNumber(false), 2000); 
-                     } else if (processed.numeros.length > 0 && currentData.numeros.length === 0) {
-                         // Caso especial: Se não havia números antes e a atualização trouxe algum
-                          console.log(`[${componentId}] Preenchendo números iniciais da atualização.`);
-                          updatedNumeros = processed.numeros.slice(0, 10);
-                     } else {
-                         // Se não for um número novo, mantém os números atuais, mas atualiza outras infos
-                         // Isso evita que a lista pisque ou reordene desnecessariamente
-                         updatedNumeros = currentData.numeros;
+                     if (!processed) {
+                          // Se a atualização falhou no processamento, mantém os dados atuais
+                          return currentData;
                      }
 
-                     // Retorna o novo estado combinando infos recentes com a lista de números atualizada
+                     // Verifica se o ÚLTIMO NÚMERO GERAL da atualização é diferente do último número GERAL atual
+                     const isNewSpin = processed.ultimoNumero !== null &&
+                                       currentData.ultimoNumero !== processed.ultimoNumero;
+
+                     let updatedNumeros = currentData.numeros; // Assume que os números não mudaram por padrão
+
+                     if (isNewSpin) {
+                         // Pega o objeto do número mais recente da atualização (deve ser o primeiro em processed.numeros)
+                         const newNumberObject = processed.numeros.length > 0 ? processed.numeros[0] : null;
+
+                         if (newNumberObject && newNumberObject.numero === processed.ultimoNumero) {
+                            // Confirma que o primeiro número no array processado corresponde ao último número geral
+                            console.log(`%c[${componentId}] NOVO NÚMERO DETECTADO (via ultimoNumero): ${processed.ultimoNumero}`, 'color: lightgreen; font-weight: bold;');
+
+                            // Adiciona o novo número (objeto completo) no início da lista atual
+                            updatedNumeros = [newNumberObject, ...currentData.numeros].slice(0, 10); // Mantém limite de 10
+
+                            // Lógica de destaque visual
+                            setIsNewNumber(true);
+                            setTimeout(() => setIsNewNumber(false), 2000);
+                         } else {
+                             console.warn(`[${componentId}] Discrepância detectada: processed.ultimoNumero (${processed.ultimoNumero}) é novo, mas não corresponde ao primeiro item em processed.numeros (${newNumberObject?.numero}). Verifique processRouletteData.`);
+                             // Neste caso, mantém os números atuais por segurança
+                             updatedNumeros = currentData.numeros;
+                         }
+                     } else if (processed.numeros.length > 0 && currentData.numeros.length === 0) {
+                         // Caso especial: Preenchendo números pela primeira vez a partir de uma atualização
+                         console.log(`[${componentId}] Preenchendo números iniciais da atualização.`);
+                         updatedNumeros = processed.numeros.slice(0, 10);
+                     }
+                     // Se não for um novo giro (isNewSpin é false), 'updatedNumeros' já mantém 'currentData.numeros'
+
+                     // Retorna o novo estado combinando infos recentes com a lista de números atualizada/mantida
                      return {
-                         ...processed, // Pega ID, nome, status, provider, winRate, streak, lastUpdate da atualização
-                         numeros: updatedNumeros, // Usa a lista de números atualizada (com o novo adicionado ou não)
-                         ultimoNumero: processed.ultimoNumero // Garante que o último número exibido fora da lista seja o mais recente
+                         ...currentData, // Mantém o estado atual como base
+                         ...processed,  // Sobrescreve com os dados mais recentes (status, winrate, streak, etc.)
+                         numeros: updatedNumeros, // Usa a lista de números atualizada (se novo giro) ou a mantida
+                         // ultimoNumero já vem de processed
                      };
                  });
                  setIsLoading(false);
