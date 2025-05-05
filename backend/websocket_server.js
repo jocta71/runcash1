@@ -929,8 +929,6 @@ app.get('/api/numbers/byid/:roletaId',
 app.get('/api/stream/roulettes', (req, res) => {
   const requestId = Math.random().toString(36).substring(2, 15);
   console.log(`[SSE ${requestId}] 🟢 Nova conexão SSE estabelecida para /api/stream/roulettes`);
-  console.log(`[SSE ${requestId}] Headers: ${JSON.stringify(req.headers)}`);
-  console.log(`[SSE ${requestId}] IP: ${req.ip || req.connection.remoteAddress}`);
   
   // Configurar headers para SSE
   res.setHeader('Content-Type', 'text/event-stream');
@@ -941,9 +939,18 @@ app.get('/api/stream/roulettes', (req, res) => {
   // Função para enviar dados no formato SSE
   const sendEvent = (eventName, data) => {
     try {
+      // Enviar dados no formato que o frontend espera
+      const eventData = {
+        type: eventName,
+        data: {
+          message: "Dados em tempo real do backend",
+          timestamp: new Date().toISOString(),
+          data: data
+        }
+      };
+      
       res.write(`event: ${eventName}\n`);
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-      // Flush para garantir que os dados sejam enviados imediatamente
+      res.write(`data: ${JSON.stringify(eventData)}\n\n`);
       res.flush();
     } catch (error) {
       console.error(`[SSE ${requestId}] Erro ao enviar evento:`, error);
@@ -988,43 +995,28 @@ app.get('/api/stream/roulettes', (req, res) => {
         } else {
           console.log(`[SSE ${requestId}] Enviando dados iniciais de ${results.length} roletas`);
           
-          // Formatar dados para enviar como lista de roletas
-          const roletasList = results.map(result => ({
-            id: result.roleta_id,
-            nome: result._id,
-            provider: 'Desconhecido', // Valor padrão, poderia ser determinado por regras se necessário
-            status: 'online',
-            numeros: [result.numero], // Inicializar com o número mais recente
-            ultimoNumero: result.numero,
-            horarioUltimaAtualizacao: result.timestamp
+          // Formatar dados para enviar
+          const roletasList = await Promise.all(results.map(async (result) => {
+            // Buscar últimos 15 números para esta roleta
+            const numerosRecentes = await collection
+              .find({ roleta_id: result.roleta_id })
+              .sort({ timestamp: -1 })
+              .limit(15)
+              .toArray();
+            
+            return {
+              id: result.roleta_id,
+              nome: result._id,
+              provider: 'Desconhecido',
+              status: 'online',
+              numeros: numerosRecentes.map(doc => doc.numero),
+              ultimoNumero: result.numero,
+              horarioUltimaAtualizacao: result.timestamp
+            };
           }));
           
           // Enviar lista completa de roletas
           sendEvent('update', roletasList);
-          
-          // Também buscar últimos números para cada roleta para montar a sequência
-          for (const roleta of roletasList) {
-            try {
-              // Buscar últimos 15 números para esta roleta
-              const numerosRecentes = await collection
-                .find({ roleta_id: roleta.id })
-                .sort({ timestamp: -1 })
-                .limit(15)
-                .toArray();
-              
-              // Extrair apenas os números e atualizar a roleta
-              if (numerosRecentes.length > 0) {
-                const numeros = numerosRecentes.map(doc => doc.numero);
-                roleta.numeros = numeros;
-                
-                // Enviar atualização individual para esta roleta
-                sendEvent('update', roleta);
-                console.log(`[SSE ${requestId}] Enviado histórico de ${numeros.length} números para roleta ${roleta.nome}`);
-              }
-            } catch (err) {
-              console.error(`[SSE ${requestId}] Erro ao buscar números para roleta ${roleta.nome}:`, err);
-            }
-          }
         }
       } catch (error) {
         console.error(`[SSE ${requestId}] Erro ao buscar dados iniciais:`, error);
@@ -1045,7 +1037,6 @@ app.get('/api/stream/roulettes', (req, res) => {
             message: 'MongoDB desconectado durante a transmissão',
             timestamp: new Date().toISOString()
           });
-          console.log(`[SSE ${requestId}] MongoDB desconectado, tentando reconectar...`);
           return;
         }
         
@@ -1063,38 +1054,27 @@ app.get('/api/stream/roulettes', (req, res) => {
         ]).toArray();
         
         if (results.length > 0) {
-          // Enviar atualizações individuais para cada roleta
+          // Processar cada roleta e enviar atualização
           for (const result of results) {
+            // Buscar últimos 15 números para esta roleta
+            const numerosRecentes = await collection
+              .find({ roleta_id: result.roleta_id })
+              .sort({ timestamp: -1 })
+              .limit(15)
+              .toArray();
+            
             const data = {
               id: result.roleta_id,
               nome: result._id,
               provider: 'Desconhecido',
               status: 'online',
+              numeros: numerosRecentes.map(doc => doc.numero),
               ultimoNumero: result.numero,
               horarioUltimaAtualizacao: result.timestamp
             };
             
-            // Buscar últimos 15 números para esta roleta para atualizar a sequência
-            try {
-              const numerosRecentes = await collection
-                .find({ roleta_id: result.roleta_id })
-                .sort({ timestamp: -1 })
-                .limit(15)
-                .toArray();
-              
-              if (numerosRecentes.length > 0) {
-                data.numeros = numerosRecentes.map(doc => doc.numero);
-              } else {
-                data.numeros = [result.numero];
-              }
-              
-              // Enviar a atualização para o cliente
-              sendEvent('update', data);
-            } catch (err) {
-              console.error(`[SSE ${requestId}] Erro ao buscar números recentes:`, err);
-              data.numeros = [result.numero]; // Fallback para apenas o número atual
-              sendEvent('update', data);
-            }
+            // Enviar atualização individual
+            sendEvent('update', data);
           }
         }
       } catch (error) {
@@ -1105,9 +1085,9 @@ app.get('/api/stream/roulettes', (req, res) => {
           timestamp: new Date().toISOString()
         });
       }
-    }, POLL_INTERVAL); // Usar o mesmo intervalo definido para polling geral
+    }, POLL_INTERVAL);
     
-    // Enviar heartbeat a cada 30 segundos para manter a conexão viva
+    // Enviar heartbeat a cada 30 segundos
     const heartbeatInterval = setInterval(() => {
       sendEvent('heartbeat', {
         timestamp: new Date().toISOString()
