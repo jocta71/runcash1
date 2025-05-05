@@ -349,50 +349,48 @@ class UnifiedRouletteClient {
     this.lastEventId = event.lastEventId;
     
     try {
-      // Verificar se os dados estão em formato JSON
+      // Verificar se os dados estão criptografados ou em formato JSON
       const rawData = event.data;
       let parsedData;
       
-      this.log(`Evento SSE recebido: ID=${event.lastEventId}, Tipo=${event.type}`);
-      
-      // Primeiro tentar fazer o parse do JSON
-      try {
-        parsedData = JSON.parse(rawData);
-        this.log('Dados JSON parseados com sucesso:', JSON.stringify(parsedData).substring(0, 100) + '...');
-      } catch (error) {
-        this.log('Dados não estão em formato JSON válido, verificando outros formatos');
+      if (typeof rawData === 'string' && rawData.startsWith('Fe26.2*')) {
+        this.log('Dados criptografados recebidos');
         
-        // Se não for JSON, verificar se são dados criptografados no formato Iron
-        if (typeof rawData === 'string' && rawData.startsWith('Fe26.2*')) {
-          this.handleEncryptedData(rawData);
-          return;
-        } else if (typeof rawData === 'string' && rawData.includes('"encrypted":true')) {
-          // Dados podem estar em formato JSON com campo encrypted
+        // Tentar descriptografar se tivermos a chave
+        if (cryptoService.hasAccessKey()) {
           try {
-            const encryptedContainer = JSON.parse(rawData);
-            
-            if (encryptedContainer.encrypted && encryptedContainer.encryptedData) {
-              this.log('Dados em container criptografado detectados');
-              this.handleEncryptedData(encryptedContainer);
-              return;
-            }
+            parsedData = await this.decryptEventData(rawData);
           } catch (error) {
-            this.error('Erro ao processar container criptografado:', error);
+            this.error('Erro ao descriptografar dados:', error);
+            
+            // Notificar erro de descriptografia
+            EventBus.emit('roulette:decryption-error', {
+              timestamp: new Date().toISOString(),
+              error: error.message
+            });
+            return;
           }
+        } else {
+          // Notificar que os dados estão criptografados
+          EventBus.emit('roulette:encrypted-data', {
+            timestamp: new Date().toISOString(),
+            hasAccessKey: false
+          });
+          
+          // Emitir evento com dados criptografados
+          this.emit('update', { encrypted: true, raw: rawData });
+          return;
         }
-        
-        this.error('Formato de dados não reconhecido:', rawData.substring(0, 100));
-        return;
+      } else {
+        // Dados em formato JSON
+        try {
+          parsedData = JSON.parse(rawData);
+        } catch (error) {
+          this.error('Erro ao fazer parse dos dados:', error);
+          return;
+        }
       }
       
-      // Verificar se temos um container JSON com dados criptografados
-      if (parsedData && parsedData.encrypted === true) {
-        this.log('Container JSON com dados criptografados detectado');
-        this.handleEncryptedData(parsedData);
-        return;
-      }
-      
-      // Se chegamos aqui, os dados são JSON não criptografados
       // Atualizar cache
       this.updateCache(parsedData);
       
@@ -408,71 +406,14 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Processa dados criptografados do stream
+   * Descriptografa dados criptografados
    */
-  private async handleEncryptedData(data: any): Promise<void> {
-    this.log('Processando dados criptografados');
-    
-    // Verificar se temos a chave de acesso
-    if (!cryptoService.hasAccessKey()) {
-      this.log('Não há chave de acesso disponível para descriptografia');
-      
-      // Notificar que os dados estão criptografados
-      EventBus.emit('roulette:encrypted-data', {
-        timestamp: new Date().toISOString(),
-        hasAccessKey: false
-      });
-      
-      // Emitir evento com dados criptografados
-      this.emit('update', { encrypted: true, raw: data });
-      return;
-    }
-    
-    // Tentar descriptografar
+  private async decryptEventData(encryptedData: string): Promise<any> {
     try {
-      this.log('Tentando descriptografar dados com a chave disponível');
-      let decryptedData;
-      
-      if (typeof data === 'string') {
-        // Dados criptografados em formato bruto
-        decryptedData = await cryptoService.decryptData(data);
-      } else {
-        // Dados em container criptografado
-        decryptedData = await cryptoService.processEncryptedData(data);
-      }
-      
-      this.log('Dados descriptografados com sucesso:', 
-        JSON.stringify(decryptedData).substring(0, 100) + '...');
-      
-      // Verificar se temos dados válidos
-      if (decryptedData) {
-        // Atualizar cache
-        this.updateCache(decryptedData);
-        
-        // Notificar sobre atualização
-        this.emit('update', decryptedData);
-        EventBus.emit('roulette:data-updated', {
-          timestamp: new Date().toISOString(),
-          data: decryptedData
-        });
-        
-        // Log adicional para debug
-        if (Array.isArray(decryptedData)) {
-          this.log(`Processados ${decryptedData.length} itens descriptografados`);
-        } else if (decryptedData.numeros && Array.isArray(decryptedData.numeros)) {
-          this.log(`Processada roleta com ${decryptedData.numeros.length} números`);
-        }
-      } else {
-        this.error('Dados descriptografados são nulos ou inválidos');
-      }
+      return await cryptoService.processEncryptedData(encryptedData);
     } catch (error) {
-      this.error('Erro ao descriptografar dados:', error);
-      
-      // Notificar erro de descriptografia
-      EventBus.emit('roulette:decryption-error', {
-        timestamp: new Date().toISOString(),
-        error: error.message
-      });
+      this.error('Erro na descriptografia:', error);
+      throw error;
     }
   }
   
@@ -797,20 +738,6 @@ class UnifiedRouletteClient {
    */
   private error(...args: any[]): void {
     console.error('[UnifiedRouletteClient]', ...args);
-  }
-  
-  /**
-   * Descriptografa dados criptografados
-   * @deprecated Use handleEncryptedData em vez deste método
-   */
-  private async decryptEventData(encryptedData: string): Promise<any> {
-    console.warn('[UnifiedRouletteClient] Método depreciado decryptEventData chamado, use handleEncryptedData');
-    try {
-      return await cryptoService.processEncryptedData({encryptedData});
-    } catch (error) {
-      this.error('Erro na descriptografia:', error);
-      throw error;
-    }
   }
 }
 

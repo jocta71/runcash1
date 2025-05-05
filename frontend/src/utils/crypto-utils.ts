@@ -300,32 +300,4 @@ export class CryptoService {
 }
 
 // Exportar instância singleton
-export const cryptoService = CryptoService.getInstance();
-
-/**
- * Função auxiliar para definir a chave de acesso para descriptografia
- * @param key Chave de acesso
- */
-export function setAccessKey(key: string) {
-  console.log('[CryptoService] Configurando chave de acesso via helper');
-  cryptoService.setAccessKey(key);
-  return cryptoService.hasAccessKey();
-}
-
-/**
- * Verificar se há uma chave de acesso configurada
- */
-export function hasAccessKey(): boolean {
-  return cryptoService.hasAccessKey();
-}
-
-/**
- * Configurar a chave de acesso na inicialização
- * Deve ser chamado na inicialização da aplicação
- */
-export function setupAccessKey() {
-  const testKey = 'mcs128i123xcxvc-testkey-production-v1'; // Chave de exemplo
-  const result = setAccessKey(testKey);
-  console.log('[CryptoService] Verificação de chave: ' + 
-    (result ? 'Chave configurada com sucesso' : 'Falha ao configurar chave'));
-} 
+export const cryptoService = CryptoService.getInstance(); 
