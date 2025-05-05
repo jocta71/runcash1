@@ -831,7 +831,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             {visibleNumbers.length > 0 ? (
                 <ScrollArea className="h-[300px]">
                   <div className="flex flex-wrap p-3 gap-2">
-                    {visibleNumbers.map((n, idx) => (
+                    {filteredNumbers.map((n, idx) => (
                       <div 
                         key={`${n.numero}-${n.timestamp}-${idx}`} 
                         className="relative cursor-pointer transition-transform hover:scale-110"
