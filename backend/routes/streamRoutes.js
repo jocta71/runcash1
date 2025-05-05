@@ -10,10 +10,52 @@ const { proteger: protect, restringirA: admin } = require('../middlewares/authMi
 
 /**
  * @route   GET /api/stream/roulettes
- * @desc    Stream de atualizações de roletas (SSE)
+ * @desc    Stream de atualizações de roletas (SSE) ou requisição JSON regular com parâmetro nostream=true
  * @access  Public (dados criptografados para usuários sem assinatura)
  */
 router.get('/roulettes', async (req, res) => {
+  // Verificar se a requisição é para streaming ou para dados regulares
+  const noStream = req.query.nostream === 'true';
+  
+  // Se o parâmetro nostream=true for fornecido, tratar como uma requisição JSON regular
+  if (noStream) {
+    console.log('[API] Requisição regular (não-streaming) para /api/stream/roulettes');
+    
+    try {
+      // Obter os dados mais recentes das roletas
+      const roulettes = await rouletteDataService.getRoulettes();
+      
+      // Obter informações do usuário para decidir sobre criptografia
+      let user = req.user || { role: 'public' };
+      const needsEncryption = !(user && user.role === 'admin') && 
+                             !(user && user.subscription && user.subscription.status === 'active');
+      
+      // Se o usuário precisar de criptografia, criptografar os dados
+      if (needsEncryption) {
+        console.log('[Encryption] Criptografando dados para: public-access');
+        try {
+          const encryptedData = await rouletteStreamService.encryptData(roulettes);
+          return res.json({
+            encrypted: true,
+            format: 'iron',
+            encryptedData,
+            message: 'Dados criptografados. Use sua chave de acesso para descriptografar.'
+          });
+        } catch (encryptError) {
+          console.error('[Encryption] Erro ao criptografar dados:', encryptError);
+          return res.status(500).json({ error: 'Erro ao processar dados' });
+        }
+      }
+      
+      // Retornar os dados em formato JSON para requisições não-streaming
+      return res.json(roulettes);
+    } catch (error) {
+      console.error('[API] Erro ao buscar dados para requisição não-streaming:', error);
+      return res.status(500).json({ error: 'Erro ao buscar dados' });
+    }
+  }
+  
+  // Configuração para streaming SSE
   // Obter informações do usuário
   let user = req.user || { role: 'public' };
   
