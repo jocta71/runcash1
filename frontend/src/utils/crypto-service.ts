@@ -348,68 +348,91 @@ try {
   /**
    * Descriptografa dados fornecidos
    */
-  public async decryptData(encryptedData: string): Promise<any> {
-    if (!encryptedData || encryptedData.trim() === '') {
+  public async decryptData(encryptedDataJsonString: string): Promise<any> {
+    if (!encryptedDataJsonString || encryptedDataJsonString.trim() === '') {
+      console.warn("[crypto-service] Tentativa de descriptografar dados vazios.");
       return null;
     }
-  
+
     try {
       // Desativado o uso de dados simulados mesmo em modo de desenvolvimento
-      /* if (this._devModeEnabled) {
-        console.log("[crypto-service] Modo de desenvolvimento ativo, retornando dados simulados");
-        return this.getSimulatedData();
-      } */
-  
+      /* if (this._devModeEnabled) { ... } */
+
       // Se não tivermos uma chave de acesso, retornar erro
       if (!this.hasAccessKey()) {
+        console.error("[crypto-service] Chave de acesso não encontrada para descriptografia.");
         throw new Error("Chave de acesso não encontrada");
       }
-  
-      // Verificar se os dados já estão descriptografados
-      if (typeof encryptedData === 'object') {
-        return encryptedData;
+
+      // Verificar se os dados já são um objeto (improvável vindo do SSE bruto, mas por segurança)
+      if (typeof encryptedDataJsonString === 'object') {
+        console.warn("[crypto-service] Dados recebidos já são um objeto, não uma string JSON criptografada.");
+        // @ts-ignore // Permitir retorno direto se for objeto
+        return encryptedDataJsonString;
       }
-  
-      // Tentativa de descriptografia com a chave atual
-      let decrypted = null;
-      
+
+      let encryptedPayload: { iv?: string, data: string };
       try {
-        // Tratamento para diferentes formatos possíveis de dados
-        if (encryptedData.startsWith('{"') || encryptedData.startsWith('[')) {
-          // Dados já estão em formato JSON, apenas parse
-          return JSON.parse(encryptedData);
-        } else {
-          // Dados provavelmente estão criptografados
-          const bytes = CryptoJS.AES.decrypt(encryptedData, this._accessKey!);
-          decrypted = bytes.toString(CryptoJS.enc.Utf8);
-          
-          // Se a descriptografia resultou em string vazia, provavelmente falhou
-          if (!decrypted) {
-            throw new Error("Falha na descriptografia - resultado vazio");
-          }
-          
-          return JSON.parse(decrypted);
+        // 1. Fazer parse da string JSON recebida do SSE
+        encryptedPayload = JSON.parse(encryptedDataJsonString);
+        if (!encryptedPayload || typeof encryptedPayload.data !== 'string') {
+          console.error("[crypto-service] Formato de dados JSON inválido recebido:", encryptedDataJsonString);
+          throw new Error("Formato de dados JSON inválido após parse");
         }
-      } catch (innerError) {
-        console.error("[crypto-service] Erro na descriptografia:", innerError);
-        
+      } catch (parseError) {
+        console.error("[crypto-service] Erro ao fazer parse dos dados JSON recebidos:", parseError);
+        console.error("[crypto-service] Dados recebidos:", encryptedDataJsonString); // Logar os dados problemáticos
+        // Tentar tratar como texto plano se o parse falhar (caso antigo?)
+        if (encryptedDataJsonString.startsWith('{"') || encryptedDataJsonString.startsWith('[')) {
+           try {
+             console.warn("[crypto-service] Parse inicial falhou, tentando parse direto como fallback.");
+             return JSON.parse(encryptedDataJsonString);
+           } catch (fallbackParseError) {
+             console.error("[crypto-service] Parse direto como fallback também falhou.");
+             throw new Error("Falha ao fazer parse dos dados recebidos como JSON.");
+           }
+        }
+        // Se não for JSON, talvez seja um erro ou formato inesperado
+        console.error("[crypto-service] Dados recebidos não parecem ser JSON criptografado ou texto plano JSON.");
+        throw new Error("Dados recebidos não são JSON válido.");
+      }
+
+
+      // 2. Usar os dados criptografados (base64) com a chave
+      // Nota: CryptoJS.AES.decrypt pode precisar de ajustes para lidar com IV explícito
+      // se o backend (Node crypto) o estiver enviando e for necessário aqui.
+      // Por enquanto, tentando descriptografar apenas com a chave.
+      let decryptedJsonString: string | null = null;
+      try {
+        const bytes = CryptoJS.AES.decrypt(encryptedPayload.data, this._accessKey!);
+        decryptedJsonString = bytes.toString(CryptoJS.enc.Utf8);
+
+        // Se a descriptografia resultou em string vazia, provavelmente falhou
+        if (!decryptedJsonString) {
+          console.error("[crypto-service] Falha na descriptografia - resultado vazio. Chave pode estar incorreta ou dados corrompidos.");
+          throw new Error("Falha na descriptografia - resultado vazio");
+        }
+
+        // 3. Fazer parse do resultado da descriptografia
+        return JSON.parse(decryptedJsonString);
+
+      } catch (decryptOrParseError) {
+        console.error("[crypto-service] Erro durante descriptografia ou parse final:", decryptOrParseError);
+        console.error("[crypto-service] Dados criptografados (base64) tentados:", encryptedPayload.data.substring(0, 50) + "..."); // Logar parte dos dados
+        console.error("[crypto-service] Resultado da descriptografia (se houve):", decryptedJsonString); // Logar resultado antes do parse final
+
         // Desativado o uso de dados simulados mesmo com erro
-        /* if (this._devModeEnabled) {
-          console.warn("[crypto-service] Usando dados simulados devido a erro de descriptografia");
-          return this.getSimulatedData();
-        } */
-        
-        throw innerError;
+        /* if (this._devModeEnabled) { ... } */
+
+        throw decryptOrParseError; // Re-lançar o erro
       }
     } catch (error) {
-      console.error("[crypto-service] Erro geral:", error);
-      
+      console.error("[crypto-service] Erro geral na função decryptData:", error);
+
       // Desativado o uso de dados simulados mesmo com erro
-      /* if (this._devModeEnabled) {
-        console.warn("[crypto-service] Retornando dados simulados após erro");
-        return this.getSimulatedData();
-      } */
-      
+      /* if (this._devModeEnabled) { ... } */
+
+      // Retornar o erro para que a camada superior possa lidar com ele
       throw error;
     }
   }
