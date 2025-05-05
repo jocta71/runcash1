@@ -151,7 +151,16 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     const handleSingleRouletteUpdate = (data: any) => {
       if (data && data.id === safeData.id) { // Verificar se a atualização é para esta roleta
         const processed = processRouletteData(data);
+        
+        // <<< ADICIONAR LOG AQUI >>>
+        console.log(`[RouletteCard ${safeData.id}] Processed data:`, processed);
+        
         if (processed) {
+          // Detectar se o último número mudou
+          if (rouletteData && processed.ultimoNumero !== rouletteData.ultimoNumero && processed.ultimoNumero !== null) {
+            setIsNewNumber(true);
+            setTimeout(() => setIsNewNumber(false), 2000); 
+          }
           setRouletteData(processed);
           setIsLoading(false);
           setError(null);
