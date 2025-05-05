@@ -1,8 +1,8 @@
 import { fetchWithCorsSupport } from '../utils/api-helpers';
 import EventService from './EventService';
 import EventBus from './EventBus';
-import { cryptoService } from '../utils/crypto-utils';
-import UnifiedRouletteClient from './UnifiedRouletteClient';
+import cryptoService from '../utils/crypto-service';
+import { UnifiedRouletteClient } from './UnifiedRouletteClient';
 
 // Intervalo de polling padrão em milissegundos (4 segundos)
 const POLLING_INTERVAL = 4000;

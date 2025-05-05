@@ -662,3 +662,6 @@ class UnifiedRouletteClient {
     console.warn('[UnifiedRouletteClient] handleDecryptedData chamado - Isso não deveria acontecer com SSE. Dados:', data);
   }
 }
+
+// Exportar a classe diretamente (named export)
+export { UnifiedRouletteClient };
