@@ -10,8 +10,8 @@
  */
 
 import { ENDPOINTS } from './api/endpoints';
-import cryptoService from '../utils/crypto-service';
 import EventBus from './EventBus';
+import cryptoService from '../utils/crypto-service';
 import axios from 'axios';
 
 // Tipos para callbacks de eventos
@@ -480,19 +480,41 @@ class UnifiedRouletteClient {
           console.log('[UnifiedRouletteClient] Dados descriptografados com sucesso');
           
           // Se temos dados reais, processar normalmente
-          if (decryptedData && decryptedData.data) {
-            this.handleDecryptedData(decryptedData.data);
+          if (decryptedData) {
+            // Verificar se os dados estão no formato esperado
+            if (decryptedData.data) {
+              // Formato para dados simulados: { data: { roletas: [...] } }
+              // ou formato habitual: { data: [...] }
+              this.handleDecryptedData(decryptedData);
+            } else {
+              // Tentar usar os dados diretamente
+              this.handleDecryptedData(decryptedData);
+            }
           } else {
             console.warn('[UnifiedRouletteClient] Dados descriptografados sem estrutura esperada');
+            // Em modo de desenvolvimento, usar dados simulados de qualquer forma
+            if (cryptoService.isDevModeEnabled()) {
+              this.useSimulatedData();
+            }
           }
         })
         .catch(error => {
           console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
           this.notify('error', 'Erro ao processar dados criptografados');
+          
+          // Em modo de desenvolvimento, usar dados simulados em caso de erro
+          if (cryptoService.isDevModeEnabled()) {
+            this.useSimulatedData();
+          }
         });
     } catch (error) {
       console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
       this.notify('error', 'Erro ao processar dados criptografados');
+      
+      // Em modo de desenvolvimento, usar dados simulados em caso de erro
+      if (cryptoService.isDevModeEnabled()) {
+        this.useSimulatedData();
+      }
     }
   }
   
@@ -577,38 +599,70 @@ class UnifiedRouletteClient {
    * Gera e utiliza dados simulados como fallback quando a descriptografia falha
    */
   private useSimulatedData(): void {
-    this.log('Usando dados simulados como fallback');
+    this.log('Usando dados simulados do crypto-service como fallback');
     
-    // Criar roleta simulada para fins de desenvolvimento quando a descriptografia falha
-    const simulatedData = [{
-      id: 'simulated_recovery_' + Date.now(),
-      nome: 'Roleta Recuperação',
-      provider: 'Simulação após falha de descriptografia',
-      status: 'online',
-      numeros: Array.from({length: 20}, () => Math.floor(Math.random() * 37)),
-      ultimoNumero: Math.floor(Math.random() * 37),
-      horarioUltimaAtualizacao: new Date().toISOString()
-    }];
-    
-    // Adicionar uma segunda roleta simulada para tornar a interface mais interessante
-    simulatedData.push({
-      id: 'simulated_recovery_2_' + Date.now(),
-      nome: 'Roleta Virtual',
-      provider: 'Simulação',
-      status: 'online',
-      numeros: Array.from({length: 20}, () => Math.floor(Math.random() * 37)),
-      ultimoNumero: Math.floor(Math.random() * 37),
-      horarioUltimaAtualizacao: new Date().toISOString()
-    });
-    
-    // Atualizar cache com dados simulados e notificar
-    this.updateCache(simulatedData);
-    this.emit('update', simulatedData);
-    EventBus.emit('roulette:data-updated', {
-      timestamp: new Date().toISOString(),
-      data: simulatedData,
-      source: 'simulation-after-error'
-    });
+    // Usar os dados simulados do crypto-service em vez de criar manualmente
+    cryptoService.decryptData('dummy')
+      .then(simulatedResponse => {
+        if (simulatedResponse && simulatedResponse.data && simulatedResponse.data.roletas) {
+          const simulatedData = simulatedResponse.data.roletas;
+          this.log(`Usando ${simulatedData.length} roletas simuladas do crypto-service`);
+          
+          // Atualizar cache com dados simulados e notificar
+          this.updateCache(simulatedData);
+          this.emit('update', simulatedData);
+          EventBus.emit('roulette:data-updated', {
+            timestamp: new Date().toISOString(),
+            data: simulatedData,
+            source: 'simulation-from-crypto-service'
+          });
+        } else {
+          this.error('Formato de dados simulados inesperado do crypto-service');
+          
+          // Criar roletas simuladas manualmente como fallback
+          const manualSimulatedData = [{
+            id: 'simulated_recovery_' + Date.now(),
+            nome: 'Roleta Simulada Fallback',
+            provider: 'Fallback de Simulação',
+            status: 'online',
+            numeros: Array.from({length: 20}, () => Math.floor(Math.random() * 37)),
+            ultimoNumero: Math.floor(Math.random() * 37),
+            horarioUltimaAtualizacao: new Date().toISOString()
+          }];
+          
+          // Atualizar cache com dados simulados e notificar
+          this.updateCache(manualSimulatedData);
+          this.emit('update', manualSimulatedData);
+          EventBus.emit('roulette:data-updated', {
+            timestamp: new Date().toISOString(),
+            data: manualSimulatedData,
+            source: 'manual-simulation-fallback'
+          });
+        }
+      })
+      .catch(error => {
+        this.error('Erro ao obter dados simulados do crypto-service:', error);
+        
+        // Fallback para dados simulados manualmente em caso de erro
+        const fallbackData = [{
+          id: 'fallback_' + Date.now(),
+          nome: 'Roleta Fallback',
+          provider: 'Erro de Simulação',
+          status: 'online',
+          numeros: Array.from({length: 20}, () => Math.floor(Math.random() * 37)),
+          ultimoNumero: Math.floor(Math.random() * 37),
+          horarioUltimaAtualizacao: new Date().toISOString()
+        }];
+        
+        // Atualizar cache com dados simulados e notificar
+        this.updateCache(fallbackData);
+        this.emit('update', fallbackData);
+        EventBus.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          data: fallbackData,
+          source: 'fallback-after-simulation-error'
+        });
+      });
   }
   
   /**
@@ -957,42 +1011,75 @@ class UnifiedRouletteClient {
    * Processa dados descriptografados
    */
   private handleDecryptedData(data: any): void {
-    console.log('[UnifiedRouletteClient] Processando dados descriptografados');
+    console.log('[UnifiedRouletteClient] Processando dados descriptografados', JSON.stringify(data).substring(0, 200));
     
     try {
       // Verificar a estrutura dos dados descriptografados
       let rouletteData = data;
+      let validStructure = false;
       
-      // Verificar se os dados estão no campo .roletas
-      if (rouletteData.roletas && Array.isArray(rouletteData.roletas)) {
-        console.log(`[UnifiedRouletteClient] Encontrado array de roletas: ${rouletteData.roletas.length} roletas`);
-        rouletteData = rouletteData.roletas;
+      // Verificar formato padrão: { data: [...] } 
+      if (data && data.data) {
+        // Se data.data.roletas existe, é o formato simulado
+        if (data.data.roletas && Array.isArray(data.data.roletas)) {
+          console.log(`[UnifiedRouletteClient] Encontrado formato simulado com ${data.data.roletas.length} roletas`);
+          rouletteData = data.data.roletas;
+          validStructure = true;
+        } 
+        // Se data.data é um array, é o formato padrão
+        else if (Array.isArray(data.data)) {
+          console.log(`[UnifiedRouletteClient] Encontrado formato padrão com ${data.data.length} roletas`);
+          rouletteData = data.data;
+          validStructure = true;
+        }
+        // Se data.data é outro formato, usar diretamente
+        else {
+          console.log('[UnifiedRouletteClient] Usando data.data diretamente');
+          rouletteData = data.data;
+        }
+      }
+      // Verificar formato alternativo: { roletas: [...] }
+      else if (data && data.roletas && Array.isArray(data.roletas)) {
+        console.log(`[UnifiedRouletteClient] Encontrado formato alternativo com ${data.roletas.length} roletas`);
+        rouletteData = data.roletas;
+        validStructure = true;
       }
       
-      // Se temos um array vazio ou objeto vazio, usar simulação
-      if ((Array.isArray(rouletteData) && rouletteData.length === 0) || 
-          (typeof rouletteData === 'object' && Object.keys(rouletteData).length === 0)) {
-        console.log('[UnifiedRouletteClient] Dados vazios, ignorando');
-        return;
-      }
-      
-      // Atualizar cache
-      this.updateCache(rouletteData);
-      
-      // Notificar sobre atualização
-      this.emit('update', rouletteData);
-      EventBus.emit('roulette:data-updated', {
-        timestamp: new Date().toISOString(),
-        data: rouletteData,
-        source: 'sse-decrypted'
-      });
-      
-      // Log adicional para debug
+      // Verificar se temos um array válido para processar
       if (Array.isArray(rouletteData)) {
-        console.log(`[UnifiedRouletteClient] Processados ${rouletteData.length} itens`);
+        console.log(`[UnifiedRouletteClient] Processando array com ${rouletteData.length} roletas`);
+        validStructure = true;
+        
+        // Atualizar cache com os dados
+        this.updateCache(rouletteData);
+        
+        // Emitir evento de atualização
+        this.emit('update', Array.from(this.rouletteData.values()));
+        EventBus.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          data: Array.from(this.rouletteData.values()),
+          source: 'decrypted-data'
+        });
+      } else {
+        console.warn('[UnifiedRouletteClient] Dados descriptografados não contêm array de roletas');
+      }
+      
+      if (!validStructure) {
+        console.warn('[UnifiedRouletteClient] Dados descriptografados sem estrutura esperada');
+        // Tentar extrair metadados ou outras informações úteis
+        if (data && typeof data === 'object') {
+          EventBus.emit('roulette:metadata', {
+            timestamp: new Date().toISOString(),
+            data
+          });
+        }
+        
+        // Tentar usar dados simulados como fallback
+        this.useSimulatedData();
       }
     } catch (error) {
-      console.error('[UnifiedRouletteClient] Erro ao processar dados descriptografados:', error);
+      this.error('Erro ao processar dados descriptografados:', error);
+      this.useSimulatedData();
     }
   }
   

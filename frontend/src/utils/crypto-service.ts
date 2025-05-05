@@ -6,404 +6,371 @@
 // Importando apenas CryptoJS
 import CryptoJS from 'crypto-js';
 
-// Implementação direta das funções necessárias para evitar problemas de build
-let _accessKey: string | null = null;
-const STORAGE_KEY = 'roulette_access_key';
-
-// Implementação local da variável e função de dev mode
-let _devModeEnabled = false;
-function isDevModeEnabled(): boolean {
-  return _devModeEnabled;
-}
-
-// Função local para ativar modo de desenvolvimento
-function enableDevMode(enable: boolean = true): boolean {
-  _devModeEnabled = enable;
-  console.log(`[CryptoService] Modo de desenvolvimento ${enable ? 'ativado' : 'desativado'}`);
-  return _devModeEnabled;
-}
-
-// Função para extrair e configurar a chave de acesso de um evento
-function extractAndSetAccessKeyFromEvent(eventData: any): boolean {
-  console.log('[CryptoService] Tentando extrair chave de acesso do evento');
-  try {
-    // Verificar se o eventData é uma string
-    if (typeof eventData === 'string') {
-      try {
-        // Tentar fazer parse do JSON
-        const jsonData = JSON.parse(eventData);
-        return processJsonData(jsonData);
-      } catch (e) {
-        console.log('[CryptoService] Evento não é um JSON válido');
-        return false;
-      }
-    } else if (eventData && typeof eventData === 'object') {
-      // Já é um objeto, verificar campos relevantes
-      return processJsonData(eventData);
-    }
-    return false;
-  } catch (error) {
-    console.error('[CryptoService] Erro ao extrair chave de acesso:', error);
-    return false;
-  }
-}
-
-// Função auxiliar para processar dados JSON e extrair chave
-function processJsonData(data: any): boolean {
-  // Verificar campos comuns que podem conter a chave
-  if (data.accessKey) {
-    console.log('[CryptoService] Chave de acesso encontrada no campo accessKey');
-    setAccessKey(data.accessKey);
-    return true;
-  }
-  if (data.key) {
-    console.log('[CryptoService] Chave de acesso encontrada no campo key');
-    setAccessKey(data.key);
-    return true;
-  }
-  if (data.data && typeof data.data === 'object') {
-    // Verificar no campo aninhado data
-    if (data.data.accessKey) {
-      console.log('[CryptoService] Chave de acesso encontrada em data.accessKey');
-      setAccessKey(data.data.accessKey);
-      return true;
-    }
-    if (data.data.key) {
-      console.log('[CryptoService] Chave de acesso encontrada em data.key');
-      setAccessKey(data.data.key);
-      return true;
-    }
-  }
-  if (data.auth && typeof data.auth === 'object') {
-    // Verificar no campo aninhado auth
-    if (data.auth.key) {
-      console.log('[CryptoService] Chave de acesso encontrada em auth.key');
-      setAccessKey(data.auth.key);
-      return true;
-    }
-    if (data.auth.accessKey) {
-      console.log('[CryptoService] Chave de acesso encontrada em auth.accessKey');
-      setAccessKey(data.auth.accessKey);
-      return true;
-    }
-  }
-  console.log('[CryptoService] Nenhuma chave de acesso encontrada no evento');
-  return false;
-}
-
-// Função para configurar a chave de acesso na inicialização
-function setupAccessKey(): void {
-  const testKey = 'mcs128i123xcxvc-testkey-production-v1'; // Chave de exemplo
-  const result = setAccessKey(testKey);
-  console.log('[CryptoService] Verificação de chave: ' +
-    (result ? 'Chave configurada com sucesso' : 'Falha ao configurar chave'));
-}
-
-// Variável para localStorage seguro
-const safeLocalStorage = (() => {
-  if (typeof window !== 'undefined' && window.localStorage) {
-    return window.localStorage;
-  } else {
-    // Polyfill para Node.js ou SSR
-    const storage: Record<string, string> = {};
-    return {
-      getItem: (key: string): string | null => storage[key] ?? null,
-      setItem: (key: string, value: string): void => { storage[key] = value; },
-      removeItem: (key: string): void => { delete storage[key]; },
-      clear: (): void => { Object.keys(storage).forEach(key => delete storage[key]); }
-    };
-  }
-})();
-
-// Tentar carregar a chave do armazenamento
-try {
-  const storedKey = safeLocalStorage.getItem(STORAGE_KEY);
-  if (storedKey) {
-    _accessKey = storedKey;
-  }
-} catch (e) {
-  console.error('[CryptoService] Erro ao carregar chave inicial');
-}
-
-// Funções do serviço
-function hasAccessKey(): boolean {
-  return !!_accessKey;
-}
-
-function setAccessKey(key: string): boolean {
-  _accessKey = key;
-  try {
-    safeLocalStorage.setItem(STORAGE_KEY, key);
-  } catch (e) {
-    console.error('[CryptoService] Erro ao salvar chave:', e);
-  }
-  return hasAccessKey();
-}
-
-function clearAccessKey(): void {
-  _accessKey = null;
-  safeLocalStorage.removeItem(STORAGE_KEY);
-}
-
-function addAccessKeyToHeaders(headers: HeadersInit = {}): HeadersInit {
-  if (_accessKey) {
-    return {
-      ...headers,
-      'Authorization': `Bearer ${_accessKey}`
-    };
-  }
-  return headers;
-}
-
-// Função para gerar dados simulados
-function getSimulatedData(): any {
-  const now = new Date();
-  const randomNumbers = Array.from({length: 15}, () => Math.floor(Math.random() * 37));
+// Classe CryptoService que implementa toda a funcionalidade
+class CryptoService {
+  private _accessKey: string | null = null;
+  private _devModeEnabled = false;
+  private readonly STORAGE_KEY = 'roulette_access_key';
   
-  // Aumentar número de roletas simuladas para mais testes
-  const simulatedData = {
-    data: {
-      message: "Dados simulados - modo de desenvolvimento",
-      timestamp: Date.now(),
-      details: "Esta é uma simulação. A implementação real requer o algoritmo exato usado pelo backend.",
-      roletas: [
-        {
-          id: "simulated_1",
-          nome: "Roleta Simulada 1",
-          provider: "Evolution",
-          status: "online",
-          numeros: randomNumbers,
-          ultimoNumero: randomNumbers[0],
-          horarioUltimaAtualizacao: now.toISOString()
-        },
-        {
-          id: "simulated_2",
-          nome: "Roleta Simulada 2",
-          provider: "Pragmatic",
-          status: "online",
-          numeros: Array.from({length: 15}, () => Math.floor(Math.random() * 37)),
-          ultimoNumero: randomNumbers[1],
-          horarioUltimaAtualizacao: now.toISOString()
-        },
-        {
-          id: "simulated_3",
-          nome: "Roleta Simulada 3",
-          provider: "Ezugi",
-          status: "online",
-          numeros: Array.from({length: 15}, () => Math.floor(Math.random() * 37)),
-          ultimoNumero: randomNumbers[2] || 0,
-          horarioUltimaAtualizacao: now.toISOString()
-        }
-      ]
-    }
-  };
-  
-  console.log('[DEBUG] Dados simulados gerados:', JSON.stringify(simulatedData));
-  return simulatedData;
-}
-
-// Função para descriptografar dados no formato Iron
-async function decryptData(ironEncrypted: string): Promise<any> {
-  if (!_accessKey) {
-    throw new Error('Chave de acesso não disponível');
-  }
-  
-  // Verificar se o modo de desenvolvimento está ativado
-  if (isDevModeEnabled()) {
-    console.log('[CryptoService] Modo de desenvolvimento ativado, usando dados simulados');
-    return getSimulatedData();
-  }
-  
-  try {
-    console.log('[CryptoService] Tentando descriptografar dados');
-    
-    // Verificar formato
-    if (!ironEncrypted || typeof ironEncrypted !== 'string') {
-      throw new Error('Formato de dados inválido');
-    }
-    
-    // Processar diferentes formatos
-    let targetData = ironEncrypted;
-    
-    // Se não começar com Fe26.2, verificar se é um JSON
-    if (!targetData.startsWith('Fe26.2')) {
-      try {
-        if (targetData.includes('"encryptedData"') || targetData.includes('"encrypted"')) {
-          const jsonData = JSON.parse(targetData);
-          if (jsonData.encryptedData) {
-            targetData = jsonData.encryptedData;
-          }
-        }
-      } catch (error) {
-        console.log('[CryptoService] Não é um JSON válido');
-      }
-    }
-    
-    // Extrair partes da string Iron
-    const parts = targetData.split('*');
-    console.log('[CryptoService] Formato Iron partes:', parts.length);
-    
-    // Tentar processar formato de 3 partes
-    if (parts.length === 3) {
-      console.log('[CryptoService] Processando formato de 3 partes');
-      
-      // Derivar chave e IV
-      const key = CryptoJS.PBKDF2(_accessKey, 'runcash-salt', {
-        keySize: 256 / 32,
-        iterations: 1000
-      });
-      
-      const ivValue = CryptoJS.enc.Utf8.parse(_accessKey.substring(0, 16));
-      
-      // Decodificar e descriptografar
-      const encryptedBytes = CryptoJS.enc.Base64.parse(parts[2]);
-      const decryptedData = CryptoJS.AES.decrypt(
-        encryptedBytes.toString(CryptoJS.enc.Base64),
-        key,
-        {
-          mode: CryptoJS.mode.CBC,
-          padding: CryptoJS.pad.Pkcs7,
-          iv: ivValue
-        }
-      );
-      
-      // Converter resultado
-      const decryptedString = decryptedData.toString(CryptoJS.enc.Utf8);
-      
-      // Tentar parsear como JSON
-      try {
-        if (decryptedString.startsWith('{') || decryptedString.startsWith('[')) {
-          return JSON.parse(decryptedString);
-        } else {
-          return { data: decryptedString };
-        }
-      } catch (e) {
-        return { data: decryptedString };
-      }
-    }
-    
-    // Se não for formato de 3 partes, precisamos de pelo menos 4 partes
-    if (parts.length < 4) {
-      throw new Error('Formato Iron inválido: número insuficiente de partes');
-    }
-    
-    // Processo para formato de 4+ partes
-    const encryptedBase64 = parts[3];
-    const encryptedBytes = CryptoJS.enc.Base64.parse(encryptedBase64);
-    const key = CryptoJS.PBKDF2(_accessKey, 'runcash-salt', {
-      keySize: 256 / 32,
-      iterations: 1000
-    });
-    const ivValue = CryptoJS.enc.Utf8.parse(_accessKey.substring(0, 16));
-    
-    // Descriptografar
-    const decryptedData = CryptoJS.AES.decrypt(
-      encryptedBytes.toString(CryptoJS.enc.Base64),
-      key,
-      {
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7,
-        iv: ivValue
-      }
-    );
-    
-    // Processar resultado
-    const decryptedString = decryptedData.toString(CryptoJS.enc.Utf8);
-    
-    // Tentar parsear como JSON
-    if (decryptedString.startsWith('{') || decryptedString.startsWith('[')) {
-      return JSON.parse(decryptedString);
+  // Variável para localStorage seguro
+  private safeLocalStorage = (() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage;
     } else {
-      return { data: decryptedString };
+      // Polyfill para Node.js ou SSR
+      const storage: Record<string, string> = {};
+      return {
+        getItem: (key: string): string | null => storage[key] ?? null,
+        setItem: (key: string, value: string): void => { storage[key] = value; },
+        removeItem: (key: string): void => { delete storage[key]; },
+        clear: (): void => { Object.keys(storage).forEach(key => delete storage[key]); }
+      };
     }
-  } catch (error) {
-    console.error('[CryptoService] Erro ao descriptografar:', error);
-    
-    // Usar simulação se modo de desenvolvimento estiver ativado
-    if (isDevModeEnabled()) {
-      return getSimulatedData();
+  })();
+  
+  constructor() {
+    // Tentar carregar a chave do armazenamento
+    try {
+      const storedKey = this.safeLocalStorage.getItem(this.STORAGE_KEY);
+      if (storedKey) {
+        this._accessKey = storedKey;
+      }
+    } catch (e) {
+      console.error('[CryptoService] Erro ao carregar chave inicial');
     }
-    
-    throw error;
   }
-}
-
-// Função para tentar chaves comuns
-function tryCommonKeys(): boolean {
-  console.log('[CryptoService] Tentando chaves comuns');
   
-  // Lista de chaves comuns para tentar
-  const commonKeys = [
-    'mcs128i123xcxvc-testkey-production-v1',
-    'mcs128i123xcxvc-testkey-development-v1',
-    'mcs128i123xcxvc-testkey-staging-v1',
-    'default-key-v1',
-    'roulette-key-v1'
-  ];
+  /**
+   * Verifica se o modo de desenvolvimento está ativado
+   */
+  public isDevModeEnabled(): boolean {
+    return this._devModeEnabled;
+  }
   
-  // Tentar cada chave
-  for (const key of commonKeys) {
-    console.log(`[CryptoService] Tentando chave: ${key.substring(0, 5)}...`);
-    setAccessKey(key);
-    
-    if (hasAccessKey()) {
-      console.log('[CryptoService] Chave configurada com sucesso');
+  /**
+   * Ativa ou desativa o modo de desenvolvimento
+   */
+  public enableDevMode(enable: boolean = true): boolean {
+    this._devModeEnabled = enable;
+    console.log(`[CryptoService] Modo de desenvolvimento ${enable ? 'ativado' : 'desativado'}`);
+    return this._devModeEnabled;
+  }
+  
+  /**
+   * Extrai e configura a chave de acesso de um evento
+   */
+  public extractAndSetAccessKeyFromEvent(eventData: any): boolean {
+    console.log('[CryptoService] Tentando extrair chave de acesso do evento');
+    try {
+      // Verificar se o eventData é uma string
+      if (typeof eventData === 'string') {
+        try {
+          // Tentar fazer parse do JSON
+          const jsonData = JSON.parse(eventData);
+          return this.processJsonData(jsonData);
+        } catch (e) {
+          console.log('[CryptoService] Evento não é um JSON válido');
+          return false;
+        }
+      } else if (eventData && typeof eventData === 'object') {
+        // Já é um objeto, verificar campos relevantes
+        return this.processJsonData(eventData);
+      }
+      return false;
+    } catch (error) {
+      console.error('[CryptoService] Erro ao extrair chave de acesso:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Função auxiliar para processar dados JSON e extrair chave
+   */
+  private processJsonData(data: any): boolean {
+    // Verificar campos comuns que podem conter a chave
+    if (data.accessKey) {
+      console.log('[CryptoService] Chave de acesso encontrada no campo accessKey');
+      this.setAccessKey(data.accessKey);
       return true;
     }
-  }
-  
-  console.log('[CryptoService] Nenhuma chave comum funcionou');
-  return false;
-}
-
-// Processar resposta da API
-async function processApiResponse(response: any): Promise<any> {
-  if (!response.encrypted || !response.encryptedData) {
-    return response.data || [];
-  }
-  
-  try {
-    const decryptedData = await decryptData(response.encryptedData);
-    return decryptedData.data || decryptedData;
-  } catch (error) {
-    throw new Error('Falha ao descriptografar dados da API');
-  }
-}
-
-// Processar dados criptografados
-async function processEncryptedData(encryptedData: any): Promise<any> {
-  if (!hasAccessKey()) {
-    throw new Error('Chave de acesso não disponível');
-  }
-  
-  try {
-    if (!encryptedData || !encryptedData.encryptedData) {
-      if (encryptedData && encryptedData.data) {
-        return encryptedData.data;
+    if (data.key) {
+      console.log('[CryptoService] Chave de acesso encontrada no campo key');
+      this.setAccessKey(data.key);
+      return true;
+    }
+    if (data.data && typeof data.data === 'object') {
+      // Verificar no campo aninhado data
+      if (data.data.accessKey) {
+        console.log('[CryptoService] Chave de acesso encontrada em data.accessKey');
+        this.setAccessKey(data.data.accessKey);
+        return true;
       }
-      throw new Error('Formato de dados inválido');
+      if (data.data.key) {
+        console.log('[CryptoService] Chave de acesso encontrada em data.key');
+        this.setAccessKey(data.data.key);
+        return true;
+      }
+    }
+    if (data.auth && typeof data.auth === 'object') {
+      // Verificar no campo aninhado auth
+      if (data.auth.key) {
+        console.log('[CryptoService] Chave de acesso encontrada em auth.key');
+        this.setAccessKey(data.auth.key);
+        return true;
+      }
+      if (data.auth.accessKey) {
+        console.log('[CryptoService] Chave de acesso encontrada em auth.accessKey');
+        this.setAccessKey(data.auth.accessKey);
+        return true;
+      }
+    }
+    console.log('[CryptoService] Nenhuma chave de acesso encontrada no evento');
+    return false;
+  }
+  
+  /**
+   * Configura a chave de acesso na inicialização
+   */
+  public setupAccessKey(): void {
+    const testKey = 'mcs128i123xcxvc-testkey-production-v1'; // Chave de exemplo
+    const result = this.setAccessKey(testKey);
+    console.log('[CryptoService] Verificação de chave: ' +
+      (result ? 'Chave configurada com sucesso' : 'Falha ao configurar chave'));
+  }
+  
+  /**
+   * Verifica se existe uma chave de acesso configurada
+   */
+  public hasAccessKey(): boolean {
+    return !!this._accessKey;
+  }
+  
+  /**
+   * Define a chave de acesso e salva no localStorage
+   */
+  public setAccessKey(key: string): boolean {
+    this._accessKey = key;
+    try {
+      this.safeLocalStorage.setItem(this.STORAGE_KEY, key);
+    } catch (e) {
+      console.error('[CryptoService] Erro ao salvar chave:', e);
+    }
+    return this.hasAccessKey();
+  }
+  
+  /**
+   * Limpa a chave de acesso
+   */
+  public clearAccessKey(): void {
+    this._accessKey = null;
+    this.safeLocalStorage.removeItem(this.STORAGE_KEY);
+  }
+  
+  /**
+   * Adiciona a chave de acesso aos headers de uma requisição
+   */
+  public addAccessKeyToHeaders(headers: HeadersInit = {}): HeadersInit {
+    if (this._accessKey) {
+      return {
+        ...headers,
+        'Authorization': `Bearer ${this._accessKey}`
+      };
+    }
+    return headers;
+  }
+  
+  /**
+   * Retorna dados simulados para desenvolvimento
+   */
+  private getSimulatedData(): any {
+    // Gerar números aleatórios para simulação (0-36)
+    const generateNumbers = (count: number) => {
+      return Array.from({ length: count }, () => Math.floor(Math.random() * 37));
+    };
+    
+    // Obter timestamp atual
+    const timestamp = Date.now();
+    const formattedDate = new Date(timestamp).toISOString();
+    
+    // Criar roletas simuladas
+    const simulatedRoulettes = [
+      {
+        id: "simulated_1",
+        nome: "Roleta Simulada 1",
+        provider: "Evolution",
+        status: "online",
+        numeros: generateNumbers(15),
+        ultimoNumero: Math.floor(Math.random() * 37),
+        horarioUltimaAtualizacao: formattedDate
+      },
+      {
+        id: "simulated_2",
+        nome: "Roleta Simulada 2",
+        provider: "Pragmatic",
+        status: "online",
+        numeros: generateNumbers(15),
+        ultimoNumero: Math.floor(Math.random() * 37),
+        horarioUltimaAtualizacao: formattedDate
+      },
+      {
+        id: "simulated_3",
+        nome: "Roleta Simulada 3",
+        provider: "Ezugi",
+        status: "online",
+        numeros: generateNumbers(15),
+        ultimoNumero: Math.floor(Math.random() * 37),
+        horarioUltimaAtualizacao: formattedDate
+      }
+    ];
+    
+    // Estrutura final dos dados simulados
+    const simulatedData = {
+      data: simulatedRoulettes
+    };
+    
+    console.log('[DEBUG] Dados simulados gerados:', JSON.stringify(simulatedData));
+    return simulatedData;
+  }
+  
+  /**
+   * Descriptografa dados fornecidos
+   */
+  public async decryptData(encryptedData: string): Promise<any> {
+    if (!encryptedData || encryptedData.trim() === '') {
+      return null;
+    }
+  
+    try {
+      // Se estamos no modo de desenvolvimento, retornar dados simulados
+      if (this._devModeEnabled) {
+        console.log("[crypto-service] Modo de desenvolvimento ativo, retornando dados simulados");
+        return this.getSimulatedData();
+      }
+  
+      // Se não tivermos uma chave de acesso, retornar erro
+      if (!this.hasAccessKey()) {
+        throw new Error("Chave de acesso não encontrada");
+      }
+  
+      // Verificar se os dados já estão descriptografados
+      if (typeof encryptedData === 'object') {
+        return encryptedData;
+      }
+  
+      // Tentativa de descriptografia com a chave atual
+      let decrypted = null;
+      
+      try {
+        // Tratamento para diferentes formatos possíveis de dados
+        if (encryptedData.startsWith('{"') || encryptedData.startsWith('[')) {
+          // Dados já estão em formato JSON, apenas parse
+          return JSON.parse(encryptedData);
+        } else {
+          // Dados provavelmente estão criptografados
+          const bytes = CryptoJS.AES.decrypt(encryptedData, this._accessKey!);
+          decrypted = bytes.toString(CryptoJS.enc.Utf8);
+          
+          // Se a descriptografia resultou em string vazia, provavelmente falhou
+          if (!decrypted) {
+            throw new Error("Falha na descriptografia - resultado vazio");
+          }
+          
+          return JSON.parse(decrypted);
+        }
+      } catch (innerError) {
+        console.error("[crypto-service] Erro na descriptografia:", innerError);
+        
+        // Em desenvolvimento, retornar dados simulados mesmo com erro
+        if (this._devModeEnabled) {
+          console.warn("[crypto-service] Usando dados simulados devido a erro de descriptografia");
+          return this.getSimulatedData();
+        }
+        
+        throw innerError;
+      }
+    } catch (error) {
+      console.error("[crypto-service] Erro geral:", error);
+      
+      // Se modo de desenvolvimento ativo, retornar dados simulados mesmo com erro
+      if (this._devModeEnabled) {
+        console.warn("[crypto-service] Retornando dados simulados após erro");
+        return this.getSimulatedData();
+      }
+      
+      throw error;
+    }
+  }
+  
+  /**
+   * Tenta usar chaves comuns para configurar o acesso
+   */
+  public tryCommonKeys(): boolean {
+    console.log('[CryptoService] Tentando chaves comuns');
+    
+    // Lista de chaves comuns para tentar
+    const commonKeys = [
+      'mcs128i123xcxvc-testkey-production-v1',
+      'mcs128i123xcxvc-testkey-development-v1',
+      'mcs128i123xcxvc-testkey-staging-v1',
+      'default-key-v1',
+      'roulette-key-v1'
+    ];
+    
+    // Tentar cada chave
+    for (const key of commonKeys) {
+      console.log(`[CryptoService] Tentando chave: ${key.substring(0, 5)}...`);
+      this.setAccessKey(key);
+      
+      if (this.hasAccessKey()) {
+        console.log('[CryptoService] Chave configurada com sucesso');
+        return true;
+      }
     }
     
-    const decryptedData = await decryptData(encryptedData.encryptedData);
-    return decryptedData.data || decryptedData;
-  } catch (error) {
-    throw new Error('Falha ao processar dados criptografados');
+    console.log('[CryptoService] Nenhuma chave comum funcionou');
+    return false;
+  }
+  
+  /**
+   * Processa resposta da API
+   */
+  public async processApiResponse(response: any): Promise<any> {
+    if (!response.encrypted && !response.encryptedData) {
+      return response.data || [];
+    }
+    
+    try {
+      const decryptedData = await this.decryptData(response.encryptedData);
+      return decryptedData.data || decryptedData;
+    } catch (error) {
+      throw new Error('Falha ao descriptografar dados da API');
+    }
+  }
+  
+  /**
+   * Processa dados criptografados
+   */
+  public async processEncryptedData(encryptedData: any): Promise<any> {
+    if (!this.hasAccessKey()) {
+      throw new Error('Chave de acesso não disponível');
+    }
+    
+    try {
+      if (!encryptedData || !encryptedData.encryptedData) {
+        if (encryptedData && encryptedData.data) {
+          return encryptedData.data;
+        }
+        throw new Error('Formato de dados inválido');
+      }
+      
+      const decryptedData = await this.decryptData(encryptedData.encryptedData);
+      return decryptedData.data || decryptedData;
+    } catch (error) {
+      throw new Error('Falha ao processar dados criptografados');
+    }
   }
 }
 
-// Objeto de serviço de criptografia
-const cryptoService = {
-  hasAccessKey,
-  setAccessKey,
-  setupAccessKey,
-  clearAccessKey,
-  extractAndSetAccessKeyFromEvent,
-  decryptData,
-  enableDevMode,
-  isDevModeEnabled,
-  tryCommonKeys,
-  processApiResponse,
-  processEncryptedData
-};
-
+// Criar e exportar instância única do serviço
+const cryptoService = new CryptoService();
 export default cryptoService; 
