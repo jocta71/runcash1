@@ -31,7 +31,9 @@ interface RouletteNumber {
 }
 
 interface RouletteCardProps {
-  data: RouletteData;
+  initialData: RouletteData;
+  onSelect?: (id: string) => void;
+  isSelected?: boolean;
   isDetailView?: boolean;
 }
 
@@ -87,10 +89,10 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
   };
 };
 
-const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false }) => {
+const RouletteCard: React.FC<RouletteCardProps> = ({ initialData, onSelect, isSelected, isDetailView }) => {
   // Estados
-  const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(processRouletteData(data));
-  const [isLoading, setIsLoading] = useState(!rouletteData); // Inicia como loading se não houver dados iniciais
+  const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(processRouletteData(initialData));
+  const [isLoading, setIsLoading] = useState(!rouletteData);
   const [error, setError] = useState<string | null>(null);
   const [isNewNumber, setIsNewNumber] = useState(false);
   const [updateCount, setUpdateCount] = useState(0);
@@ -109,8 +111,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   
   // Dados iniciais seguros
   const safeData = {
-    id: data?.id || data?._id || 'unknown',
-    name: data?.name || data?.nome || 'Roleta sem nome',
+    id: initialData?.id || initialData?._id || 'unknown',
+    name: initialData?.name || initialData?.nome || 'Roleta sem nome',
   };
   
   // ID único para este componente
@@ -119,81 +121,69 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   // Obter instância do UnifiedClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
   
-  // Função para lidar com atualizações de dados
-  const handleDataUpdate = useCallback((allRoulettes: any[]) => {
-    if (!allRoulettes || !Array.isArray(allRoulettes) || allRoulettes.length === 0) return;
-    
-    // Encontrar a roleta específica pelo ID ou nome
-    const myRoulette = allRoulettes.find((roulette: any) => 
-      roulette.id === safeData.id || 
-      roulette._id === safeData.id || 
-      roulette.name === safeData.name || 
-      roulette.nome === safeData.name
-    );
-    
-    if (!myRoulette) {
-      console.warn(`[${componentId}] Roleta com ID ${safeData.id} não encontrada na resposta`);
-        return;
-      }
-      
-    // Processar os dados da roleta
-    processApiData(myRoulette);
-        
-    // Atualizar timestamp e contador
-    setUpdateCount(prev => prev + 1);
-    setError(null);
-    setIsLoading(false);
-  }, [safeData.id, safeData.name]);
-  
-  // Efeito para iniciar a busca de dados
+  // useEffect para buscar dados iniciais e assinar updates
   useEffect(() => {
-    // Função para lidar com a atualização de UMA roleta específica
-    const handleSingleRouletteUpdate = (data: any) => {
-      if (data && data.id === safeData.id) { // Verificar se a atualização é para esta roleta
-        const processed = processRouletteData(data);
+    // Função para processar UM update e definir o estado
+    const handleSingleUpdate = (data: any) => {
+      if (data && data.id === safeData.id) {
+        console.log(`[DEBUG ${componentId}] Recebido update para esta roleta:`, data);
+        const processed = processRouletteData(data); // Processa os dados recebidos
         if (processed) {
-          setRouletteData(processed);
+          // Compara com o estado ANTERIOR para detectar novo número
+          setRouletteData(prevState => {
+            if (prevState && processed.ultimoNumero !== prevState.ultimoNumero && processed.ultimoNumero !== null) {
+              console.log(`[DEBUG ${componentId}] Novo número detectado: ${processed.ultimoNumero}`);
+              setIsNewNumber(true);
+              setTimeout(() => setIsNewNumber(false), 2000); // Resetar após animação
+            }
+            return processed; // Retorna o novo estado processado
+          });
           setIsLoading(false);
           setError(null);
         } else {
+          console.error(`[DEBUG ${componentId}] Falha ao processar dados recebidos.`);
           setError('Falha ao processar dados da roleta.');
           setIsLoading(false);
         }
-      } 
+      }
     };
 
-    // Função para lidar com a atualização GERAL (array de roletas)
-    const handleAllRoulettesUpdate = (allData: any[]) => {
-        const myData = allData.find(r => r.id === safeData.id);
-        if (myData) {
-            handleSingleRouletteUpdate(myData); // Reutiliza a lógica de processamento
-        }
-    };
-
-    // Tentar obter dados atuais do UnifiedClient ao montar
+    // Tenta obter dados do cache do cliente ao montar
+    console.log(`[DEBUG ${componentId}] Tentando obter dados do cache para ${safeData.id}`);
     const currentDataFromClient = unifiedClient.getRouletteById(safeData.id);
     if (currentDataFromClient) {
-        handleSingleRouletteUpdate(currentDataFromClient);
+        console.log(`[DEBUG ${componentId}] Dados encontrados no cache:`, currentDataFromClient);
+        handleSingleUpdate(currentDataFromClient); // Processa dados do cache
     } else {
-         // Se não houver dados no cliente, manter isLoading ou buscar dados iniciais
-         // Se initialData foi fornecido, já o usamos no useState inicial
-         if (!rouletteData) setIsLoading(true); 
+        // Se não há no cache E não tínhamos initialData processado, manter loading
+        if (!rouletteData) {
+            console.log(`[DEBUG ${componentId}] Sem dados no cache ou initialData, mantendo loading.`);
+            setIsLoading(true);
+        }
     }
 
-    // Assinar evento 'update'
+    // Assina o evento 'update'
+    console.log(`[DEBUG ${componentId}] Assinando evento 'update'.`);
     const unsubscribe = unifiedClient.on('update', (updateData) => {
         if (Array.isArray(updateData)) {
-            handleAllRoulettesUpdate(updateData);
+            // Se for array, encontra os dados desta roleta específica
+            const myData = updateData.find(r => r.id === safeData.id);
+            if (myData) {
+                handleSingleUpdate(myData);
+            }
         } else {
-            handleSingleRouletteUpdate(updateData); // Processa atualização de roleta única
+            // Se for objeto único, processa diretamente
+            handleSingleUpdate(updateData);
         }
     });
 
-    // Limpar inscrição ao desmontar
+    // Limpa a inscrição ao desmontar
     return () => {
+      console.log(`[DEBUG ${componentId}] Cancelando inscrição do evento 'update'.`);
       unsubscribe();
     };
-  }, [safeData.id, unifiedClient]); // Depender do ID da roleta e do cliente
+    // Não incluir rouletteData nas dependências para evitar loop de re-assinatura
+  }, [safeData.id, unifiedClient]); 
   
   // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
   // Console.log para verificar se há apenas uma fonte de requisições:
@@ -370,8 +360,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   
   // Função para abrir detalhes da roleta
   const handleCardClick = () => {
-    // Removida a navegação para a página de detalhes
-    return; // Não faz nada ao clicar no card
+    if (onSelect && rouletteData) {
+      onSelect(rouletteData.id);
+    }
   };
   
   // Formatar tempo relativo
@@ -543,15 +534,18 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         
         {/* Números recentes */}
         <div className="flex justify-center items-center space-x-1 min-h-[40px]">
-          {lastNumbersToDisplay.slice(0, 5).map((num, index) => (
-            <NumberDisplay 
-              key={`${componentId}-num-${index}-${num}`} 
-              number={num} 
-              size="medium" 
-              highlight={index === 0 && isNewNumber}
-            />
-          ))}
-          {lastNumbersToDisplay.length === 0 && <span className="text-xs text-muted-foreground">Nenhum número recente</span>}
+          {lastNumbersToDisplay.length > 0 ? (
+              lastNumbersToDisplay.slice(0, 5).map((num, index) => (
+                <NumberDisplay 
+                  key={`${componentId}-num-${index}-${num}`}
+                  number={num} 
+                  size="medium" 
+                  highlight={index === 0 && isNewNumber}
+                />
+              ))
+          ) : (
+              <span className="text-xs text-muted-foreground">Nenhum número recente</span>
+          )}
         </div>
       </CardContent>
 
