@@ -1159,8 +1159,8 @@ class UnifiedRouletteClient {
     try {
       this.log('Tentando conectar ao WebSocket para dados do scraper...');
       
-      // Usar URL correta para o backend do scraper
-      const wsUrl = 'wss://backendapi-production-36b5.up.railway.app';
+      // Usar a URL configurada na propriedade webSocketUrl
+      const wsUrl = this.webSocketUrl;
       
       // Criar nova conexão WebSocket
       this.socket = new WebSocket(wsUrl);
@@ -1379,12 +1379,13 @@ class UnifiedRouletteClient {
     }
     
     try {
-      // Formato compatível com o servidor do scraper
+      // Formato compatível com o backend API
       const requestMessage = JSON.stringify({
         type: 'request',
         action: 'get_data',
         target: 'roulettes',
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        accessKey: cryptoService.getAccessKey() || ''
       });
       
       this.socket.send(requestMessage);
