@@ -9,7 +9,6 @@
  * do aplicativo usem a mesma fonte de dados.
  */
 
-
 import { ENDPOINTS } from './api/endpoints';
 import EventBus from './EventBus';
 import cryptoService from '../utils/crypto-service';
@@ -86,7 +85,7 @@ class UnifiedRouletteClient {
   private eventCallbacks: Map<string, Set<EventCallback>> = new Map();
   
   // URL do serviço WebSocket
-  private webSocketUrl = 'wss://backendapi-production-36b5.up.railway.app';
+  private webSocketUrl = 'wss://backendscraper-production-ccda.up.railway.app';
   private socket: WebSocket | null = null;
   private webSocketConnected = false;
   private webSocketReconnectTimer: number | null = null;
@@ -108,6 +107,15 @@ class UnifiedRouletteClient {
     this.streamReconnectInterval = options.reconnectInterval || 5000;
     this.maxStreamReconnectAttempts = options.maxReconnectAttempts || 10;
     
+    // Inicializar streaming se habilitado e autoConnect
+    // Polling será iniciado apenas como fallback caso o streaming falhe
+    if (this.streamingEnabled && options.autoConnect !== false) {
+      this.connectStream();
+    } else if (this.pollingEnabled) {
+      // Iniciar polling apenas se streaming estiver desabilitado
+      this.startPolling();
+    }
+    
     // Registrar eventos de visibilidade para gerenciar recursos
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.handleVisibilityChange);
@@ -115,17 +123,11 @@ class UnifiedRouletteClient {
       window.addEventListener('blur', this.handleBlur);
     }
     
-    // Priorizar conexão SSE (ao invés de WebSocket) 
-    if (this.streamingEnabled && options.autoConnect !== false) {
-      this.log('Iniciando com conexão SSE (prioridade)');
-      this.connectStream();
-    } else if (this.pollingEnabled) {
-      // Iniciar polling apenas se streaming estiver desabilitado
-      this.startPolling();
-    }
-    
-    // Buscar dados iniciais imediatamente
+    // Buscar dados iniciais imediatamente, mas sem iniciar polling
     this.fetchRouletteData();
+    
+    // Tentar conectar ao WebSocket para dados reais
+    this.connectToWebSocket();
     
     this.isInitialized = true;
   }
@@ -145,6 +147,12 @@ class UnifiedRouletteClient {
    * Garante que apenas uma conexão SSE seja estabelecida por vez
    */
   public connectStream(): void {
+    // Se WebSocket estiver conectado, não usar SSE
+    if (this.webSocketConnected) {
+      this.log('WebSocket já está conectado, não iniciando SSE');
+      return;
+    }
+    
     if (!this.streamingEnabled) {
       this.log('Streaming está desabilitado');
       return;
@@ -729,19 +737,25 @@ class UnifiedRouletteClient {
       return Array.from(this.rouletteData.values());
     }
     
-    // Verificar se o SSE já está conectado
-    if (this.isStreamConnected) {
-      this.log('Stream SSE já está conectado, usando dados em cache');
+    // Verificar se o WebSocket ou SSE está conectado
+    if (this.webSocketConnected) {
+      this.log('WebSocket está conectado, solicitando dados...');
+      this.requestLatestRouletteData();
       return Array.from(this.rouletteData.values());
     }
     
-    // Tentar conectar ao SSE se não estiver conectado
-    if (!this.isStreamConnected && !this.isStreamConnecting) {
-      this.log('Tentando conectar ao SSE para obter dados reais...');
-      this.connectStream();
+    // Tentar conectar ao WebSocket primeiro
+    if (!this.webSocketConnected && !this.socket) {
+      this.log('Tentando conectar ao WebSocket para obter dados reais...');
+      this.connectToWebSocket();
       
       // Esperar um pouco para dar tempo da conexão se estabelecer
       await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Se conexão foi bem-sucedida, solicitar dados imediatamente
+      if (this.webSocketConnected) {
+        this.requestLatestRouletteData();
+      }
     }
     
     // Verificar se o cache ainda é válido
@@ -750,14 +764,27 @@ class UnifiedRouletteClient {
       return Array.from(this.rouletteData.values());
     }
     
+    // Se o streaming está conectado, usar dados do cache
+    if (this.isStreamConnected) {
+      this.log('Stream conectado, usando dados em cache');
+      return Array.from(this.rouletteData.values());
+    }
+    
+    // Não há dados válidos no cache e nenhuma conexão estabelecida
+    // Iniciar/reconectar ao stream como fallback se não conseguir conectar via WebSocket
+    if (!this.webSocketConnected) {
+      this.log('Sem dados válidos em cache. Tentando conexão SSE como fallback...');
+      this.connectStream();
+    }
+    
     // Se já tivermos alguns dados, retorná-los mesmo que não sejam recentes
     if (this.rouletteData.size > 0) {
-      this.log('Retornando dados existentes em cache enquanto aguarda conexão SSE');
+      this.log('Retornando dados existentes em cache enquanto aguarda conexão');
       return Array.from(this.rouletteData.values());
     }
     
     // Avisar o usuário que não temos dados disponíveis ainda
-    console.warn('[UnifiedRouletteClient] Tentando obter dados reais via SSE, aguarde. Se não aparecer, verifique sua conexão.');
+    console.warn('[UnifiedRouletteClient] Tentando obter dados reais, aguarde. Se não aparecer, verifique sua conexão.');
     
     // Se não tivermos absolutamente nenhum dado, retornar array vazio
     // O componente que chamou este método receberá atualizações via eventos quando os dados chegarem
@@ -1132,8 +1159,8 @@ class UnifiedRouletteClient {
     try {
       this.log('Tentando conectar ao WebSocket para dados do scraper...');
       
-      // Usar a URL configurada na propriedade webSocketUrl
-      const wsUrl = this.webSocketUrl;
+      // Usar URL correta para o backend do scraper
+      const wsUrl = 'wss://backendscraper-production-ccda.up.railway.app';
       
       // Criar nova conexão WebSocket
       this.socket = new WebSocket(wsUrl);
@@ -1352,13 +1379,12 @@ class UnifiedRouletteClient {
     }
     
     try {
-      // Formato compatível com o backend API
+      // Formato compatível com o servidor do scraper
       const requestMessage = JSON.stringify({
         type: 'request',
         action: 'get_data',
         target: 'roulettes',
-        timestamp: Date.now(),
-        accessKey: cryptoService.getAccessKey() || ''
+        timestamp: Date.now()
       });
       
       this.socket.send(requestMessage);
