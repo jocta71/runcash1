@@ -1,4 +1,4 @@
-import { ChartBar, BarChart, ChevronDown, Filter, X } from "lucide-react";
+import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle } from "lucide-react";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   ResponsiveContainer,
@@ -32,6 +32,18 @@ import NumberDisplay from './NumberDisplay';
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import axios from 'axios';
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -334,6 +346,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const [aiError, setAiError] = useState<string | null>(null);
   
   const componentInstanceId = useRef(uniqueId('panel-stats-')).current;
+
+  // <<< NOVO ESTADO para o modal de estratégia >>>
+  const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
+  const [strategyName, setStrategyName] = useState(""); // Estado para o nome da estratégia
 
   // Esta função será chamada pelo listener do 'update' do UnifiedClient
   const processRouletteUpdate = useCallback((updatedRouletteData: any) => {
@@ -711,15 +727,68 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     }
   }, [aiQuery, roletaId, componentInstanceId]); // Adicionar dependências
 
+  // <<< NOVA FUNÇÃO placeholder para salvar estratégia >>>
+  const handleSaveStrategy = () => {
+    console.log("Salvando estratégia:", strategyName);
+    // Lógica para salvar (localStorage ou API) virá aqui
+    setIsStrategyModalOpen(false); // Fecha o modal após salvar (ou tentar)
+    setStrategyName(""); // Limpa o nome
+  };
+
   return (
     <div className="w-full rounded-lg overflow-y-auto max-h-screen border-l border-border">
-      <div className="p-5 border-b border-gray-800 bg-opacity-40">
-        <h2 className="text-white flex items-center text-xl font-bold mb-3">
-          <BarChart className="mr-3 text-vegas-green h-6 w-6" /> Estatísticas da {roletaNome}
-        </h2>
-        <p className="text-sm text-gray-400">
-          {isLoading ? "Carregando histórico..." : (historicalNumbers.length === 0 ? "Nenhum histórico disponível." : "")}
-        </p>
+      <div className="p-5 border-b border-gray-800 bg-opacity-40 flex justify-between items-center">
+        <div>
+          <h2 className="text-white flex items-center text-xl font-bold mb-1">
+            <BarChart className="mr-3 text-vegas-green h-6 w-6" /> Estatísticas da {roletaNome}
+          </h2>
+          <p className="text-sm text-gray-400">
+            {isLoading ? "Carregando histórico..." : (historicalNumbers.length === 0 ? "Nenhum histórico disponível." : "")}
+          </p>
+        </div>
+        
+        {/* <<< BOTÃO PARA ABRIR MODAL DE ESTRATÉGIA >>> */}
+        <Dialog open={isStrategyModalOpen} onOpenChange={setIsStrategyModalOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 px-2 text-xs">
+              <PlusCircle size={14} className="mr-1" />
+              Criar Estratégia
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[480px] bg-card border-border">
+            <DialogHeader>
+              <DialogTitle>Criar Nova Estratégia</DialogTitle>
+              <DialogDescription>
+                Defina um nome e as condições para sua estratégia de roleta.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              {/* Formulário - Começando com o nome */}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="strategy-name" className="text-right">
+                  Nome
+                </Label>
+                <Input 
+                  id="strategy-name" 
+                  value={strategyName}
+                  onChange={(e) => setStrategyName(e.target.value)}
+                  placeholder="Ex: Vizinhos do Zero - Streak 3"
+                  className="col-span-3 bg-input border-border"
+                />
+              </div>
+              {/* Área para adicionar condições virá aqui */}
+              <div className="mt-4 p-4 border-t border-border">
+                <p className="text-sm text-center text-muted-foreground">[Interface para adicionar condições será implementada aqui]</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                 <Button type="button" variant="secondary">Cancelar</Button>
+              </DialogClose>
+              <Button type="button" onClick={handleSaveStrategy} disabled={!strategyName.trim()}>Salvar Estratégia</Button> { /* Desabilita se não tiver nome */}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
       
       {/* Nova seção de filtros avançados */}
