@@ -36,7 +36,7 @@ window.ROULETTE_SYSTEM_INITIALIZED = false;
 function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
-  const eventService = new EventService();
+  const eventService = EventService;
   const unifiedClient = UnifiedRouletteClient.getInstance();
   
   window.ROULETTE_SYSTEM_INITIALIZED = true;
