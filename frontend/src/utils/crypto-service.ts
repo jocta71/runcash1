@@ -60,6 +60,15 @@ class CryptoService {
   // Timer para atualização automática
   private atualizacaoTimer: number | null = null;
   
+  // Flag para usar dados reais do scraper
+  private _useRealScraperData = false;
+  // URL do scraper para buscar dados reais
+  private scraperUrl = '/api/scraper/roulettes';
+  // Último timestamp de dados recebidos do scraper
+  private lastScraperFetch = 0;
+  // Cache de dados do scraper
+  private scraperDataCache: any = null;
+  
   constructor() {
     // Tentar carregar a chave do armazenamento
     try {
@@ -71,9 +80,43 @@ class CryptoService {
       console.error('[CryptoService] Erro ao carregar chave inicial');
     }
     
+    // Verificar configurações do localStorage para o uso do scraper
+    try {
+      this._useRealScraperData = this.safeLocalStorage.getItem('useRealScraper') === 'true';
+      const savedScraperUrl = this.safeLocalStorage.getItem('scraperUrl');
+      if (savedScraperUrl) {
+        this.scraperUrl = savedScraperUrl;
+      } else {
+        // Verificar variáveis de ambiente (no Vite, usamos importação.meta.env)
+        if (typeof import.meta !== 'undefined' && import.meta.env) {
+          if (import.meta.env.VITE_USE_REAL_SCRAPER === 'true') {
+            this._useRealScraperData = true;
+          }
+          
+          if (import.meta.env.VITE_SCRAPER_URL) {
+            this.scraperUrl = import.meta.env.VITE_SCRAPER_URL;
+          }
+        }
+      }
+      
+      if (this._useRealScraperData) {
+        console.log(`[CryptoService] Usando dados reais do scraper: ${this.scraperUrl}`);
+      }
+    } catch (e) {
+      console.error('[CryptoService] Erro ao carregar configurações do scraper:', e);
+    }
+    
     // Iniciar timer de atualização automática (se necessário)
     if (typeof window !== 'undefined') {
       this.iniciarAtualizacaoAutomatica();
+      
+      // Adicionar listener para forçar atualização
+      window.addEventListener('forceDataUpdate', () => {
+        console.log('[CryptoService] Forçando atualização de dados');
+        this.scraperDataCache = null;
+        this.lastScraperFetch = 0;
+        this.rotacionarSequencias();
+      });
     }
   }
   
@@ -88,9 +131,21 @@ class CryptoService {
     
     // Criar novo timer para executar a cada 30 segundos
     this.atualizacaoTimer = window.setInterval(() => {
-      if (this._devModeEnabled) {
-        console.log('[CryptoService] Atualizando sequências simuladas');
-        this.rotacionarSequencias();
+      if (this._devModeEnabled || this._useRealScraperData) {
+        console.log('[CryptoService] Atualizando dados');
+        
+        if (this._devModeEnabled) {
+          this.rotacionarSequencias();
+        }
+        
+        if (this._useRealScraperData) {
+          // Forçar atualização do cache após 2 minutos
+          const now = Date.now();
+          if (now - this.lastScraperFetch > 120000) {
+            this.scraperDataCache = null;
+            this.lastScraperFetch = 0;
+          }
+        }
       }
     }, 30000) as unknown as number;
   }
@@ -345,6 +400,132 @@ class CryptoService {
   }
   
   /**
+   * Ativa o uso de dados reais do scraper
+   */
+  public enableRealScraperData(enable: boolean = true): boolean {
+    this._useRealScraperData = enable;
+    console.log(`[CryptoService] Uso de dados reais do scraper ${enable ? 'ativado' : 'desativado'}`);
+    return this._useRealScraperData;
+  }
+
+  /**
+   * Verifica se está usando dados reais do scraper
+   */
+  public isUsingRealScraperData(): boolean {
+    return this._useRealScraperData;
+  }
+
+  /**
+   * Define a URL do scraper
+   */
+  public setScraperUrl(url: string): void {
+    this.scraperUrl = url;
+    console.log(`[CryptoService] URL do scraper configurada: ${url}`);
+    // Limpar cache ao mudar a URL
+    this.scraperDataCache = null;
+    this.lastScraperFetch = 0;
+  }
+
+  /**
+   * Formata os dados do scraper para o formato esperado pelo UnifiedRouletteClient
+   */
+  private formatScraperData(data: any): any {
+    console.log('[CryptoService] Formatando dados do scraper');
+    
+    try {
+      // Verificar se já está no formato esperado
+      if (data && data.data && Array.isArray(data.data)) {
+        console.log('[CryptoService] Dados já estão no formato esperado');
+        return data;
+      }
+      
+      // Verificar se é um array direto de roletas
+      if (Array.isArray(data)) {
+        console.log('[CryptoService] Convertendo array direto para formato padrão');
+        return { data };
+      }
+      
+      // Verificar estrutura específica do scraper (ajustar conforme necessário)
+      if (data && data.roulettes && Array.isArray(data.roulettes)) {
+        console.log('[CryptoService] Convertendo formato do scraper para formato padrão');
+        
+        // Mapear dados do scraper para o formato esperado
+        const formattedData = data.roulettes.map((roulette: any) => {
+          return {
+            id: roulette.id || `scraper_${Math.random().toString(36).substring(7)}`,
+            nome: roulette.name || roulette.nome || 'Roleta sem nome',
+            provider: roulette.provider || 'Scraper',
+            status: roulette.status || 'online',
+            numeros: roulette.last_numbers || roulette.numeros || [],
+            ultimoNumero: roulette.last_number || roulette.ultimoNumero || 
+                          (roulette.last_numbers && roulette.last_numbers[0]) || 
+                          (roulette.numeros && roulette.numeros[0]) || 0,
+            horarioUltimaAtualizacao: roulette.updated_at || roulette.horarioUltimaAtualizacao || new Date().toISOString()
+          };
+        });
+        
+        return { data: formattedData };
+      }
+      
+      // Se chegou aqui, o formato é desconhecido
+      console.warn('[CryptoService] Formato de dados do scraper desconhecido:', data);
+      // Retornar no formato esperado, mas vazio
+      return { data: [] };
+      
+    } catch (error) {
+      console.error('[CryptoService] Erro ao formatar dados do scraper:', error);
+      return { data: [] };
+    }
+  }
+
+  /**
+   * Busca dados reais do scraper
+   */
+  private async fetchScraperData(): Promise<any> {
+    const now = Date.now();
+    
+    // Usar cache se tiver menos de 10 segundos
+    if (this.scraperDataCache && now - this.lastScraperFetch < 10000) {
+      console.log('[CryptoService] Usando cache de dados do scraper');
+      return Promise.resolve(this.scraperDataCache);
+    }
+    
+    console.log(`[CryptoService] Buscando dados reais do scraper: ${this.scraperUrl}`);
+    
+    try {
+      // Fazer requisição para o scraper
+      const response = await fetch(this.scraperUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar dados do scraper: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Formatar dados para o formato esperado
+      const formattedData = this.formatScraperData(data);
+      
+      this.lastScraperFetch = now;
+      this.scraperDataCache = formattedData;
+      
+      console.log('[CryptoService] Dados do scraper recebidos e formatados com sucesso');
+      return formattedData;
+    } catch (error) {
+      console.error('[CryptoService] Erro ao buscar dados do scraper:', error);
+      
+      // Se tiver cache, usar mesmo desatualizado
+      if (this.scraperDataCache) {
+        console.warn('[CryptoService] Usando cache desatualizado do scraper');
+        return this.scraperDataCache;
+      }
+      
+      // Sem cache, usar dados simulados
+      console.warn('[CryptoService] Usando dados simulados como fallback');
+      return this.getSimulatedData();
+    }
+  }
+
+  /**
    * Descriptografa dados fornecidos
    */
   public async decryptData(encryptedData: string): Promise<any> {
@@ -353,6 +534,22 @@ class CryptoService {
     }
   
     try {
+      // Se estamos usando dados reais do scraper, tentar buscar
+      if (this._useRealScraperData) {
+        console.log("[crypto-service] Modo scraper real ativo, buscando dados");
+        try {
+          return await this.fetchScraperData();
+        } catch (scraperError) {
+          console.error("[crypto-service] Erro ao buscar dados do scraper:", scraperError);
+          
+          // Se modo de desenvolvimento também estiver ativo, usar simulação como fallback
+          if (this._devModeEnabled) {
+            console.warn("[crypto-service] Usando dados simulados como fallback após erro do scraper");
+            return this.getSimulatedData();
+          }
+        }
+      }
+      
       // Se estamos no modo de desenvolvimento, retornar dados simulados
       if (this._devModeEnabled) {
         console.log("[crypto-service] Modo de desenvolvimento ativo, retornando dados simulados");
@@ -495,4 +692,5 @@ class CryptoService {
 
 // Criar e exportar instância única do serviço
 const cryptoService = new CryptoService();
+export { cryptoService };
 export default cryptoService; 
