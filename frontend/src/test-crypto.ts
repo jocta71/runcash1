@@ -6,13 +6,14 @@
  */
 
 import { 
-  cryptoService, 
   setAccessKey, 
   enableDevMode, 
   isDevModeEnabled, 
   tryCommonKeys,
   extractAndSetAccessKeyFromEvent 
 } from './utils/crypto-utils';
+
+import { cryptoService } from './utils/crypto-service';
 
 // Configurar o teste para ambiente Node.js
 console.log("🔧 Ambiente: Node.js");

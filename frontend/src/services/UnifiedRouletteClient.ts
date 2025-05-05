@@ -10,7 +10,8 @@
  */
 
 import { ENDPOINTS } from './api/endpoints';
-import { cryptoService, extractAndSetAccessKeyFromEvent, setApiKey } from '../utils/crypto-utils';
+import { extractAndSetAccessKeyFromEvent, setApiKey } from '../utils/crypto-utils';
+import { cryptoService } from '../utils/crypto-service';
 import EventBus from './EventBus';
 import axios from 'axios';
 

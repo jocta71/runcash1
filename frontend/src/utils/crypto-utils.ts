@@ -752,15 +752,4 @@ export function enableDevMode(enabled = true) {
 // Verificar se o modo de desenvolvimento está ativado
 export function isDevModeEnabled() {
   return safeLocalStorage.getItem('crypto_dev_mode') === 'true';
-}
-
-// Exportar todas as funções como API "cryptoService" para manter compatibilidade
-export const cryptoService = {
-  hasAccessKey,
-  setAccessKey,
-  clearAccessKey,
-  addAccessKeyToHeaders,
-  decryptData,
-  processApiResponse,
-  processEncryptedData
-}; 
+} 
