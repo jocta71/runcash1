@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Copy, RefreshCw, Info, Lock, AlertTriangle } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { Copy, RefreshCw, Info, Lock } from 'lucide-react';
+import { RootState } from '@/store/store';
 
 import {
   Card,
   CardContent,
+  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -15,9 +17,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import SubscriptionRequired from '@/components/SubscriptionRequired';
 
 interface AccessKey {
   id: string;
@@ -32,136 +35,52 @@ const GerenciarChaves: React.FC = () => {
   const [accessKey, setAccessKey] = useState<AccessKey | null>(null);
   const [copied, setCopied] = useState(false);
   const [showKey, setShowKey] = useState(false);
-  const [isLocalMode, setIsLocalMode] = useState(false);
   
-  const { user } = useAuth();
-
-  // Gerar uma chave localmente e salvá-la no localStorage
-  const generateLocalKey = () => {
-    // Função para gerar uma string aleatória
-    const generateRandomString = (length: number) => {
-      const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      return Array.from({ length }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
-    };
-    
-    // Gerar ID e chave
-    const newId = 'local_' + Date.now();
-    const newKey = generateRandomString(64);
-    const now = new Date().toISOString();
-    
-    const keyData: AccessKey = {
-      id: newId,
-      key: newKey,
-      createdAt: now,
-      lastUsed: null
-    };
-    
-    // Salvar no localStorage
-    localStorage.setItem('runcash_access_key', JSON.stringify(keyData));
-    
-    return keyData;
-  };
-
+  const user = useSelector((state: RootState) => state.auth.user);
+  const isSubscribed = user?.subscription?.isActive || false;
+  
   useEffect(() => {
-    if (user) {
+    if (isSubscribed) {
       fetchAccessKey();
     }
-  }, [user]);
+  }, [isSubscribed]);
 
   const fetchAccessKey = async () => {
     setLoading(true);
     try {
-      // Primeiro verificar se há uma chave no localStorage
-      const localKeyData = localStorage.getItem('runcash_access_key');
-      if (localKeyData) {
-        const parsedKey = JSON.parse(localKeyData);
-        setAccessKey(parsedKey);
-        setIsLocalMode(true);
-        setLoading(false);
-        return;
-      }
-      
-      // Tentar buscar do servidor
       const response = await axios.get('/api/subscription/access-key');
       setAccessKey(response.data);
-      setIsLocalMode(false);
     } catch (error) {
       console.error('Erro ao buscar chave de acesso:', error);
-      
-      // Se o erro for 404, gerar uma chave local
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        console.log('Endpoint não disponível, usando modo local');
-        const localKey = generateLocalKey();
-        setAccessKey(localKey);
-        setIsLocalMode(true);
-        
-        toast({
-          title: 'Modo local ativado',
-          description: 'O servidor de chaves não está disponível. Uma chave local foi gerada.',
-          variant: 'default',
-        });
-      } else {
-        toast({
-          title: 'Erro',
-          description: 'Não foi possível buscar sua chave de acesso.',
-          variant: 'destructive',
-        });
-      }
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível buscar sua chave de acesso.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const regenerateKey = async () => {
-    if (window.confirm('Tem certeza que deseja regenerar sua chave de acesso? A chave atual será invalidada e todas as integrações existentes precisarão ser atualizadas.')) {
-      setRegenerating(true);
-      try {
-        if (isLocalMode) {
-          // Regenerar localmente
-          const localKey = generateLocalKey();
-          setAccessKey(localKey);
-          
-          toast({
-            title: 'Chave regenerada',
-            description: 'Sua nova chave de acesso local foi gerada com sucesso.',
-          });
-        } else {
-          // Regenerar no servidor
-          const response = await axios.post('/api/subscription/regenerate-key');
-          setAccessKey(response.data);
-        }
-        
-        setShowKey(true);
-        if (!isLocalMode) {
-          toast({
-            title: 'Chave regenerada',
-            description: 'Sua nova chave de acesso foi gerada com sucesso.',
-          });
-        }
-      } catch (error) {
-        console.error('Erro ao regenerar chave:', error);
-        
-        // Se o erro for 404, mudar para modo local
-        if (axios.isAxiosError(error) && error.response?.status === 404) {
-          const localKey = generateLocalKey();
-          setAccessKey(localKey);
-          setIsLocalMode(true);
-          
-          toast({
-            title: 'Modo local ativado',
-            description: 'O servidor de chaves não está disponível. Uma chave local foi gerada.',
-            variant: 'default',
-          });
-        } else {
-          toast({
-            title: 'Erro',
-            description: 'Não foi possível regenerar sua chave de acesso.',
-            variant: 'destructive',
-          });
-        }
-      } finally {
-        setRegenerating(false);
-      }
+    setRegenerating(true);
+    try {
+      const response = await axios.post('/api/subscription/regenerate-key');
+      setAccessKey(response.data);
+      setShowKey(true);
+      toast({
+        title: 'Chave regenerada',
+        description: 'Sua nova chave de acesso foi gerada com sucesso.',
+      });
+    } catch (error) {
+      console.error('Erro ao regenerar chave:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível regenerar sua chave de acesso.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -190,6 +109,10 @@ const GerenciarChaves: React.FC = () => {
     return `${formatDistanceToNow(new Date(date), { locale: ptBR, addSuffix: true })}`;
   };
 
+  if (!isSubscribed) {
+    return <SubscriptionRequired />;
+  }
+
   return (
     <div className="gerenciar-chaves-container max-w-4xl mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">
@@ -201,21 +124,11 @@ const GerenciarChaves: React.FC = () => {
         Mantenha sua chave em segurança e não a compartilhe com terceiros.
       </p>
       
-      {isLocalMode && (
-        <Alert variant="warning" className="mb-6">
-          <AlertTriangle className="h-5 w-5" />
-          <AlertTitle>Modo de Chave Local</AlertTitle>
-          <AlertDescription>
-            O servidor de chaves não está disponível. Usando uma chave armazenada localmente que funcionará apenas neste dispositivo.
-          </AlertDescription>
-        </Alert>
-      )}
-
       <Card className="mb-6">
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>Sua Chave de Acesso</CardTitle>
-            <Tooltip>
+            <Tooltip delayDuration={300}>
               <Info className="h-5 w-5 text-blue-500" />
               <span>Esta chave permite o acesso aos dados criptografados do RunCash</span>
             </Tooltip>
@@ -238,7 +151,7 @@ const GerenciarChaves: React.FC = () => {
                 />
                 <Button 
                   variant="outline" 
-                  size="sm"
+                  size="sm" 
                   className="absolute right-0 top-0 h-full"
                   onClick={toggleShowKey}
                 >
@@ -261,13 +174,6 @@ const GerenciarChaves: React.FC = () => {
                   <span className="font-medium">Último uso:</span>
                   <span>{formatLastUsed(accessKey.lastUsed)}</span>
                 </div>
-                
-                {isLocalMode && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="font-medium text-amber-500">Tipo:</span>
-                    <span className="text-amber-500">Chave Local</span>
-                  </div>
-                )}
               </div>
             </div>
           ) : (
@@ -305,7 +211,7 @@ const GerenciarChaves: React.FC = () => {
           </div>
         </CardFooter>
       </Card>
-        
+      
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Informações Importantes</CardTitle>
@@ -319,7 +225,7 @@ const GerenciarChaves: React.FC = () => {
               <Lock className="h-5 w-5 mt-1 text-orange-500" />
               <div>
                 <p className="font-bold">Segurança da Chave</p>
-                <p className="text-muted-foreground">Nunca compartilhe sua chave de API. Ela é pessoal e está vinculada à sua conta.</p>
+                <p className="text-muted-foreground">Nunca compartilhe sua chave de API. Ela é pessoal e está vinculada à sua assinatura.</p>
               </div>
             </div>
             
@@ -327,11 +233,7 @@ const GerenciarChaves: React.FC = () => {
               <Info className="h-5 w-5 mt-1 text-blue-500" />
               <div>
                 <p className="font-bold">Uso da Chave</p>
-                <p className="text-muted-foreground">
-                  {isLocalMode 
-                    ? "Sua chave local será usada automaticamente pelo RunCash neste dispositivo para descriptografar os dados." 
-                    : "Sua chave é usada automaticamente pelo RunCash para descriptografar os dados das roletas."}
-                </p>
+                <p className="text-muted-foreground">Sua chave é usada automaticamente pelo RunCash para descriptografar os dados das roletas.</p>
               </div>
             </div>
             
@@ -339,11 +241,7 @@ const GerenciarChaves: React.FC = () => {
               <RefreshCw className="h-5 w-5 mt-1 text-red-500" />
               <div>
                 <p className="font-bold">Regeneração</p>
-                <p className="text-muted-foreground">
-                  {isLocalMode 
-                    ? "Se regenerar sua chave local, a antiga será invalidada e você precisará atualizar a página para aplicar a nova chave." 
-                    : "Se regenerar sua chave, a antiga será invalidada imediatamente e você precisará atualizar em todos os dispositivos."}
-                </p>
+                <p className="text-muted-foreground">Se regenerar sua chave, a antiga será invalidada imediatamente e você precisará atualizar em todos os dispositivos.</p>
               </div>
             </div>
           </div>

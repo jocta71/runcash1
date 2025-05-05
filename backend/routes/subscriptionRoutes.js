@@ -49,17 +49,17 @@ router.get('/status', protect, async (req, res) => {
 /**
  * @route   GET /api/subscription/access-key
  * @desc    Obtém uma chave de acesso para descriptografia de dados da API
- * @access  Privado - Requer apenas autenticação (sem restrição de assinatura)
+ * @access  Privado - Requer assinatura ativa
  */
 router.get('/access-key', protect, async (req, res) => {
   try {
-    // Verificar apenas se o usuário existe (sem verificação de assinatura)
+    // Verificar se o usuário tem assinatura ativa
     const user = await User.findById(req.user._id);
     
-    if (!user) {
-      return res.status(404).json({ 
+    if (!user || !user.subscription || !user.subscription.isActive) {
+      return res.status(403).json({ 
         success: false, 
-        message: 'Usuário não encontrado' 
+        message: 'Assinatura ativa necessária para acessar chaves da API' 
       });
     }
     
@@ -99,20 +99,18 @@ router.get('/access-key', protect, async (req, res) => {
  */
 router.delete('/access-key', authenticate, subscriptionController.revokeAccessKey);
 
-/**
- * @route   POST /api/subscription/regenerate-key
- * @desc    Regenera a chave de acesso da API
- * @access  Privado - Requer apenas autenticação (sem restrição de assinatura)
- */
+// @desc    Regenerate API access key
+// @route   POST /api/subscription/regenerate-key
+// @access  Private
 router.post('/regenerate-key', protect, async (req, res) => {
   try {
-    // Verificar apenas se o usuário existe (sem verificação de assinatura)
+    // Verificar se o usuário tem assinatura ativa
     const user = await User.findById(req.user._id);
     
-    if (!user) {
-      return res.status(404).json({ 
+    if (!user || !user.subscription || !user.subscription.isActive) {
+      return res.status(403).json({ 
         success: false, 
-        message: 'Usuário não encontrado' 
+        message: 'Assinatura ativa necessária para gerenciar chaves da API' 
       });
     }
     
@@ -150,11 +148,9 @@ router.post('/regenerate-key', protect, async (req, res) => {
   }
 });
 
-/**
- * @route   POST /api/subscription/validate-key
- * @desc    Valida uma chave de acesso da API
- * @access  Público
- */
+// @desc    Validate API access key
+// @route   POST /api/subscription/validate-key
+// @access  Public
 router.post('/validate-key', async (req, res) => {
   try {
     const { key } = req.body;
@@ -176,13 +172,13 @@ router.post('/validate-key', async (req, res) => {
       });
     }
     
-    // Verificar apenas se o usuário existe (sem verificação de assinatura)
+    // Verificar se o usuário associado tem assinatura ativa
     const user = await User.findById(subscriptionKey.userId);
     
-    if (!user) {
-      return res.status(404).json({ 
+    if (!user || !user.subscription || !user.subscription.isActive) {
+      return res.status(403).json({ 
         success: false, 
-        message: 'Usuário associado à chave não encontrado' 
+        message: 'Assinatura associada à chave não está ativa' 
       });
     }
     
