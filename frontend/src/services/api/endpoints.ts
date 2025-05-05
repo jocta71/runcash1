@@ -10,7 +10,19 @@ export const ENDPOINTS = {
   EVENTS: '/api/events',
   
   // Endpoint para estratégias
-  STRATEGIES: '/api/strategies'
+  STRATEGIES: '/api/strategies',
+
+  // Novos endpoints de streaming SSE
+  STREAM: {
+    // Endpoint principal para streaming de roletas
+    ROULETTES: '/api/stream/roulettes',
+    
+    // Endpoint para estatísticas do serviço de streaming
+    STATS: '/api/stream/stats',
+    
+    // Endpoint para diagnóstico do serviço de streaming
+    DIAGNOSTIC: '/api/stream/diagnostic'
+  }
 };
 
 // Obtém a URL base da API a partir de variáveis de ambiente
