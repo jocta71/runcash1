@@ -32,7 +32,7 @@ export const RouletteApi = {
    */
   async fetchAllRoulettes(): Promise<ApiResponse<any[]>> {
     try {
-      console.warn('[API] DEPRECIADO: fetchAllRoulettes - Considere usar UnifiedRouletteClient.getInstance().getAllRoulettes() para dados em tempo real');
+      console.warn('[API] DEPRECIADO: fetchAllRoulettes - Considere usar UnifiedRouletteClient para dados em tempo real');
       console.log('[API] Buscando dados de roletas através do UnifiedRouletteClient');
       
       // Importar dinamicamente o UnifiedRouletteClient para evitar dependência circular
@@ -64,7 +64,7 @@ export const RouletteApi = {
         console.warn('[API] Erro ao obter dados do UnifiedRouletteClient, tentando endpoint tradicional:', primaryError);
         
         // Fallback para o endpoint tradicional se o UnifiedRouletteClient falhar
-        const fallbackResponse = await axios.get(ENDPOINTS.ROULETTES);
+        const fallbackResponse = await axios.get(ENDPOINTS.ROULETTES_OLD);
         
         if (!fallbackResponse.data) {
           console.error('[API] Resposta inválida do endpoint fallback:', fallbackResponse.data);
