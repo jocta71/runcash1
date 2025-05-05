@@ -508,30 +508,24 @@ class UnifiedRouletteClient {
               this.handleDecryptedData(decryptedData);
             }
           } else {
-            console.warn('[UnifiedRouletteClient] Dados descriptografados sem estrutura esperada');
-            // Em modo de desenvolvimento, usar dados simulados de qualquer forma
-            if (cryptoService.isDevModeEnabled()) {
-              this.useSimulatedData();
-            }
+            console.warn('[UnifiedRouletteClient] Dados descriptografados vazios ou inválidos');
+            // Tentar conectar ao WebSocket para dados reais
+            this.connectToWebSocket();
           }
         })
         .catch(error => {
           console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
           this.notify('error', 'Erro ao processar dados criptografados');
           
-          // Em modo de desenvolvimento, usar dados simulados em caso de erro
-          if (cryptoService.isDevModeEnabled()) {
-            this.useSimulatedData();
-          }
+          // Tentar conectar ao WebSocket como alternativa
+          this.connectToWebSocket();
         });
     } catch (error) {
       console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
       this.notify('error', 'Erro ao processar dados criptografados');
       
-      // Em modo de desenvolvimento, usar dados simulados em caso de erro
-      if (cryptoService.isDevModeEnabled()) {
-        this.useSimulatedData();
-      }
+      // Tentar conectar ao WebSocket como alternativa
+      this.connectToWebSocket();
     }
   }
   
@@ -750,6 +744,20 @@ class UnifiedRouletteClient {
       return Array.from(this.rouletteData.values());
     }
     
+    // Tentar conectar ao WebSocket primeiro
+    if (!this.webSocketConnected && !this.socket) {
+      this.log('Tentando conectar ao WebSocket para obter dados reais...');
+      this.connectToWebSocket();
+      
+      // Esperar um pouco para dar tempo da conexão se estabelecer
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Se conexão foi bem-sucedida, solicitar dados imediatamente
+      if (this.webSocketConnected) {
+        this.requestLatestRouletteData();
+      }
+    }
+    
     // Verificar se o cache ainda é válido
     if (this.isCacheValid()) {
       this.log('Usando dados em cache (ainda válidos)');
@@ -762,29 +770,21 @@ class UnifiedRouletteClient {
       return Array.from(this.rouletteData.values());
     }
     
-    // Tentar conectar ao WebSocket se não estiver conectado
-    if (!this.webSocketConnected && !this.socket) {
-      this.log('Tentando conectar ao WebSocket...');
-      this.connectToWebSocket();
+    // Não há dados válidos no cache e nenhuma conexão estabelecida
+    // Iniciar/reconectar ao stream como fallback se não conseguir conectar via WebSocket
+    if (!this.webSocketConnected) {
+      this.log('Sem dados válidos em cache. Tentando conexão SSE como fallback...');
+      this.connectStream();
     }
-    
-    // Não há dados válidos no cache e streaming não está conectado
-    // Iniciar/reconectar ao stream em vez de fazer chamada REST
-    this.log('Sem dados válidos em cache. Iniciando conexão SSE...');
-    this.connectStream();
     
     // Se já tivermos alguns dados, retorná-los mesmo que não sejam recentes
     if (this.rouletteData.size > 0) {
-      this.log('Retornando dados existentes em cache enquanto aguarda WebSocket/SSE');
+      this.log('Retornando dados existentes em cache enquanto aguarda conexão');
       return Array.from(this.rouletteData.values());
     }
     
-    // Em modo de desenvolvimento e sem conexão, usar dados simulados
-    if (cryptoService.isDevModeEnabled() && !this.webSocketConnected && !this.isStreamConnected) {
-      this.log('Sem conexões ativas e em modo de desenvolvimento, usando dados simulados');
-      this.useSimulatedData();
-      return Array.from(this.rouletteData.values());
-    }
+    // Avisar o usuário que não temos dados disponíveis ainda
+    console.warn('[UnifiedRouletteClient] Tentando obter dados reais, aguarde. Se não aparecer, verifique sua conexão.');
     
     // Se não tivermos absolutamente nenhum dado, retornar array vazio
     // O componente que chamou este método receberá atualizações via eventos quando os dados chegarem
@@ -1121,12 +1121,14 @@ class UnifiedRouletteClient {
           });
         }
         
-        // Tentar usar dados simulados como fallback
-        this.useSimulatedData();
+        // Tentar conectar ao WebSocket diretamente 
+        this.log('Tentando conectar ao WebSocket para obter dados reais...');
+        this.connectToWebSocket();
       }
     } catch (error) {
       this.error('Erro ao processar dados descriptografados:', error);
-      this.useSimulatedData();
+      // Tentar conectar ao WebSocket diretamente 
+      this.connectToWebSocket();
     }
   }
   
@@ -1348,10 +1350,10 @@ class UnifiedRouletteClient {
     if (this.webSocketReconnectAttempts >= this.maxWebSocketReconnectAttempts) {
       this.error(`Número máximo de tentativas de reconexão WebSocket (${this.maxWebSocketReconnectAttempts}) atingido, desistindo...`);
       
-      // Fallback para simulação se estiver em modo de desenvolvimento
-      if (cryptoService.isDevModeEnabled()) {
-        this.log('Usando dados simulados como fallback após falha no WebSocket');
-        this.useSimulatedData();
+      // Tentar o fallback SSE em vez de simulação
+      if (!this.isStreamConnected && !this.isStreamConnecting) {
+        this.log('Tentando conexão SSE como alternativa após falha no WebSocket');
+        this.connectStream();
       }
       
       return;

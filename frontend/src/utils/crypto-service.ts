@@ -136,6 +136,8 @@ class CryptoService {
    * Ativa ou desativa o modo de desenvolvimento
    */
   public enableDevMode(enable: boolean = true): boolean {
+    // Forçar modo de desenvolvimento como desativado para usar dados reais
+    enable = false;
     this._devModeEnabled = enable;
     console.log(`[CryptoService] Modo de desenvolvimento ${enable ? 'ativado' : 'desativado'}`);
     
@@ -352,11 +354,11 @@ class CryptoService {
     }
   
     try {
-      // Se estamos no modo de desenvolvimento, retornar dados simulados
-      if (this._devModeEnabled) {
+      // Desativado o uso de dados simulados mesmo em modo de desenvolvimento
+      /* if (this._devModeEnabled) {
         console.log("[crypto-service] Modo de desenvolvimento ativo, retornando dados simulados");
         return this.getSimulatedData();
-      }
+      } */
   
       // Se não tivermos uma chave de acesso, retornar erro
       if (!this.hasAccessKey()) {
@@ -391,22 +393,22 @@ class CryptoService {
       } catch (innerError) {
         console.error("[crypto-service] Erro na descriptografia:", innerError);
         
-        // Em desenvolvimento, retornar dados simulados mesmo com erro
-        if (this._devModeEnabled) {
+        // Desativado o uso de dados simulados mesmo com erro
+        /* if (this._devModeEnabled) {
           console.warn("[crypto-service] Usando dados simulados devido a erro de descriptografia");
           return this.getSimulatedData();
-        }
+        } */
         
         throw innerError;
       }
     } catch (error) {
       console.error("[crypto-service] Erro geral:", error);
       
-      // Se modo de desenvolvimento ativo, retornar dados simulados mesmo com erro
-      if (this._devModeEnabled) {
+      // Desativado o uso de dados simulados mesmo com erro
+      /* if (this._devModeEnabled) {
         console.warn("[crypto-service] Retornando dados simulados após erro");
         return this.getSimulatedData();
-      }
+      } */
       
       throw error;
     }
