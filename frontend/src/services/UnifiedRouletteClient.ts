@@ -10,8 +10,7 @@
  */
 
 import { ENDPOINTS } from './api/endpoints';
-import { extractAndSetAccessKeyFromEvent } from '../utils/crypto-utils';
-import { cryptoService } from '../utils/crypto-service';
+import cryptoService from '../utils/crypto-service';
 import EventBus from './EventBus';
 import axios from 'axios';
 
@@ -340,7 +339,7 @@ class UnifiedRouletteClient {
       
       // Tentar extrair a chave de acesso do evento connected
       try {
-        const keyExtracted = extractAndSetAccessKeyFromEvent(data);
+        const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(data);
         if (keyExtracted) {
           this.log('✅ Chave de acesso extraída e configurada a partir do evento connected');
         } else {
@@ -384,7 +383,7 @@ class UnifiedRouletteClient {
       if (!cryptoService.hasAccessKey()) {
         this.log('Sem chave de acesso configurada, tentando extrair do evento');
         try {
-          extractAndSetAccessKeyFromEvent(rawData);
+          cryptoService.extractAndSetAccessKeyFromEvent(rawData);
         } catch (error) {
           this.log('Não foi possível extrair chave de acesso do evento');
         }
@@ -397,7 +396,7 @@ class UnifiedRouletteClient {
         
         // Se este evento tem uma chave, salvá-la
         if (!cryptoService.hasAccessKey()) {
-          extractAndSetAccessKeyFromEvent(parsedData);
+          cryptoService.extractAndSetAccessKeyFromEvent(parsedData);
         }
       } catch (error) {
         this.log('Dados não estão em formato JSON válido, verificando outros formatos');
@@ -442,7 +441,7 @@ class UnifiedRouletteClient {
       if (parsedData && (parsedData.accessKey || parsedData.key || 
          (parsedData.auth && (parsedData.auth.key || parsedData.auth.accessKey)))) {
         // Este evento provavelmente contém uma chave de acesso
-        const keyExtracted = extractAndSetAccessKeyFromEvent(parsedData);
+        const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(parsedData);
         if (keyExtracted) {
           this.log('✅ Chave de acesso extraída e configurada a partir do evento update');
           // Solicitar dados atualizados agora que temos a chave
@@ -933,20 +932,6 @@ class UnifiedRouletteClient {
    */
   private error(...args: any[]): void {
     console.error('[UnifiedRouletteClient]', ...args);
-  }
-  
-  /**
-   * Descriptografa dados criptografados
-   * @deprecated Use handleEncryptedData em vez deste método
-   */
-  private async decryptEventData(encryptedData: string): Promise<any> {
-    console.warn('[UnifiedRouletteClient] Método depreciado decryptEventData chamado, use handleEncryptedData');
-    try {
-      return await cryptoService.processEncryptedData({encryptedData});
-    } catch (error) {
-      this.error('Erro na descriptografia:', error);
-      throw error;
-    }
   }
   
   /**
