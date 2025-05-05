@@ -27,6 +27,9 @@ console.log(`JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'}`);
 // Inicializar Express
 const app = express();
 
+// Aplicar correções de produção (se estiver no Railway)
+const applyProductionFixes = require('./production_fix');
+
 // FIREWALL DE SEGURANÇA: Bloqueio absoluto da rota /api/roulettes
 // Este middleware é executado ANTES de qualquer outro middleware
 // para garantir que a rota seja bloqueada independentemente de outras configurações
@@ -458,6 +461,12 @@ async function connectToMongoDB() {
       const samples = await collection.find().limit(3).toArray();
       console.log('Exemplos de documentos:');
       console.log(JSON.stringify(samples, null, 2));
+    }
+    
+    // Aplicar correções para ambiente de produção Railway
+    if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID) {
+      console.log('Detectado ambiente Railway - aplicando correções para produção');
+      applyProductionFixes(app, db, collection);
     }
     
     // Iniciar o polling para verificar novos dados
