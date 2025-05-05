@@ -227,7 +227,7 @@ class RouletteDataService {
       const numeros = await db.collection('roleta_numeros') 
         .find(findQuery)
         .sort({ timestamp: -1 })
-        .limit(5)
+        .limit(20)
         .toArray();
       
       if (!numeros || numeros.length === 0) {
@@ -294,10 +294,7 @@ class RouletteDataService {
   formatRouletteEvent(roleta, numeros) {
     const ultimoNumeroObj = numeros.length > 0 ? numeros[0] : null;
     
-    // Log para depurar o array numeros
-    // console.log(`[DEBUG formatRouletteEvent ${roleta.nome}] Recebeu ${numeros?.length} números. Primeiro número obj:`, ultimoNumeroObj);
-
-    const eventoFormatado = {
+    return {
       type: 'update', // Manter consistente com o frontend
       data: {
         id: roleta.id, // Usar ID que foi passado (provavelmente string de _id)
@@ -308,14 +305,24 @@ class RouletteDataService {
         status: roleta.status || 'online', // Adicionar se disponível
         numeros: numeros.map(n => n.numero), // Apenas os números
         ultimoNumero: ultimoNumeroObj ? ultimoNumeroObj.numero : null,
+        horarioUltimaAtualizacao: ultimoNumeroObj ? ultimoNumeroObj.timestamp.toISOString() : new Date().toISOString(),
         timestamp: ultimoNumeroObj ? ultimoNumeroObj.timestamp.getTime() : Date.now(), // Timestamp em ms para compatibilidade
+        // Adicionar cores se disponíveis
+        cores: numeros.map(n => this.determinarCor(n.numero)),
+        ultimaCor: ultimoNumeroObj ? this.determinarCor(ultimoNumeroObj.numero) : null,
       }
     };
+  }
 
-    // LOG ADICIONADO PARA VER O RESULTADO DA FORMATAÇÃO
-    console.log(`[DEBUG formatRouletteEvent ${roleta.nome}] Evento formatado:`, JSON.stringify(eventoFormatado));
-
-    return eventoFormatado;
+  /**
+   * Determina a cor do número da roleta
+   * @param {number} numero 
+   * @returns {string} - 'vermelho', 'preto', ou 'verde'
+   */
+  determinarCor(numero) {
+    if (numero === 0) return 'verde';
+    const vermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    return vermelhos.includes(numero) ? 'vermelho' : 'preto';
   }
 
   /**
