@@ -1174,7 +1174,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   </div>
                  ))}
                </div>
-               {/* ... (Botão Adicionar Condição) ... */}
+               {/* <<< BOTÃO ADICIONAR CONDIÇÃO RESTAURADO >>> */}
+               <Button variant="outline" size="sm" onClick={addCondition} className="mt-2 justify-start">
+                 <PlusCircle size={14} className="mr-2" /> Adicionar Condição
+               </Button>
             </div>
             <DialogFooter>
               <DialogClose asChild>
