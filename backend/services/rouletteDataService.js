@@ -221,13 +221,13 @@ class RouletteDataService {
 
     try {
       // Buscar os números mais recentes usando o roleta.id (string numérica)
+      // AJUSTE: Limitar a 5 números
       const findQuery = { roleta_id: roletaId }; 
-      // console.log(`[DEBUG ${roletaNome}] Usando query:`, findQuery); // Log menos verboso
 
       const numeros = await db.collection('roleta_numeros') 
         .find(findQuery)
         .sort({ timestamp: -1 })
-        .limit(20)
+        .limit(5) // Buscar apenas os últimos 5
         .toArray();
       
       if (!numeros || numeros.length === 0) {
@@ -288,7 +288,7 @@ class RouletteDataService {
   /**
    * Formata os dados da roleta e seus números para o evento SSE
    * @param {Object} roleta - Objeto da roleta (AGORA ESPERA TER O CAMPO 'id' COMO STRING)
-   * @param {Array} numeros - Array dos últimos números (ordenados do mais recente para o mais antigo)
+   * @param {Array} numeros - Array dos últimos números (limitado a 5, ordenados do mais recente para o mais antigo)
    * @returns {Object} - Objeto formatado para o evento SSE
    */
   formatRouletteEvent(roleta, numeros) {
@@ -297,19 +297,18 @@ class RouletteDataService {
     return {
       type: 'update', // Manter consistente com o frontend
       data: {
-        id: roleta.id, // Usar ID que foi passado (provavelmente string de _id)
+        id: roleta.id, // Usar ID que foi passado (string numérica de roleta_id)
         roleta_id: roleta.id, // Incluir ambos para compatibilidade
         nome: roleta.nome || 'Nome Desconhecido', 
         roleta_nome: roleta.nome || 'Nome Desconhecido',
-        provider: roleta.provider || 'Desconhecido', // Adicionar se disponível
-        status: roleta.status || 'online', // Adicionar se disponível
-        numeros: numeros.map(n => n.numero), // Apenas os números
+        provider: roleta.provider || 'Desconhecido', // Manter se útil
+        status: roleta.status || 'online', // Manter se útil
+        numeros: numeros.map(n => n.numero), // Apenas os 5 números mais recentes
         ultimoNumero: ultimoNumeroObj ? ultimoNumeroObj.numero : null,
-        horarioUltimaAtualizacao: ultimoNumeroObj ? ultimoNumeroObj.timestamp.toISOString() : new Date().toISOString(),
-        timestamp: ultimoNumeroObj ? ultimoNumeroObj.timestamp.getTime() : Date.now(), // Timestamp em ms para compatibilidade
-        // Adicionar cores se disponíveis
-        cores: numeros.map(n => this.determinarCor(n.numero)),
-        ultimaCor: ultimoNumeroObj ? this.determinarCor(ultimoNumeroObj.numero) : null,
+        timestamp: ultimoNumeroObj ? ultimoNumeroObj.timestamp.getTime() : Date.now(), // Manter timestamp em ms
+        // REMOVIDO: horarioUltimaAtualizacao 
+        // REMOVIDO: cores
+        // REMOVIDO: ultimaCor
       }
     };
   }
@@ -319,6 +318,8 @@ class RouletteDataService {
    * @param {number} numero 
    * @returns {string} - 'vermelho', 'preto', ou 'verde'
    */
+  // A função determinarCor ainda pode ser útil se o frontend precisar dela no futuro,
+  // mas não é mais usada diretamente no formatRouletteEvent
   determinarCor(numero) {
     if (numero === 0) return 'verde';
     const vermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
