@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 const { MongoClient } = require('mongodb');
+const SubscriptionKey = require('../models/subscriptionKeyModel');
+const User = require('../models/userModel');
 
 // Configuração do banco de dados
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
@@ -156,40 +158,36 @@ const verifyAccessKey = async (accessKey) => {
 };
 
 /**
- * Revogar ou desativar uma chave de acesso
+ * Revoga uma chave de acesso
+ * @route   DELETE /api/subscription/access-key
+ * @access  Privado
  */
 const revokeAccessKey = async (req, res) => {
-  try {
-    // Verificar se o usuário está autenticado
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "Autenticação necessária para revogar uma chave de acesso"
-      });
+    try {
+        // Verificar se o usuário existe
+        const user = await User.findById(req.user._id);
+        
+        if (!user) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Usuário não encontrado' 
+            });
+        }
+        
+        // Remover a chave de acesso do usuário
+        await SubscriptionKey.findOneAndDelete({ userId: req.user._id });
+        
+        res.json({
+            success: true,
+            message: 'Chave de acesso revogada com sucesso'
+        });
+    } catch (error) {
+        console.error('Erro ao revogar chave de acesso:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Erro ao revogar a chave de acesso' 
+        });
     }
-    
-    const userId = req.user.id;
-    
-    // Conectar ao banco de dados
-    const { db } = await connectToDatabase();
-    
-    // Desativar todas as chaves do usuário
-    await db.collection('accessKeys').updateMany(
-      { userId: userId },
-      { $set: { active: false } }
-    );
-    
-    return res.json({
-      success: true,
-      message: "Chave de acesso revogada com sucesso"
-    });
-  } catch (error) {
-    console.error('[AccessKey] Erro ao revogar chave de acesso:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Erro ao revogar chave de acesso"
-    });
-  }
 };
 
 module.exports = {
