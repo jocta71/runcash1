@@ -393,7 +393,7 @@ const highLowOptions = [
 interface ConditionValueInputProps {
   conditionType: string;
   operator: string; 
-  value: any;
+  value: any; // Pode ser string, number, ou { color: string; count: number | null }
   onChange: (newValue: any) => void;
   disabled: boolean;
 }
@@ -405,39 +405,73 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
   onChange,
   disabled
 }) => {
+  // Helper para garantir que value seja um objeto para tipos complexos
+  const getValueObject = (): { color: string; count: number | null } => {
+    if (typeof value === 'object' && value !== null && 'color' in value && 'count' in value) {
+      // Se count for string vazia ou inválida no estado antigo, trata como null
+      const count = typeof value.count === 'number' ? value.count : null;
+      return { ...value, count }; 
+    }
+    // Se não for objeto ou não tiver as chaves, retorna um padrão com null
+    return { color: '', count: null };
+  };
+
   const commonProps = { // Props comuns para inputs/selects
-    value: value,
-    onValueChange: onChange, // Para Select
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value), // Para Input
     disabled: disabled,
-    className: "bg-input border-border h-9 text-sm" // Classe comum
+    className: "bg-input border-border h-9 text-sm w-full" // Garante largura total dentro do grid
   };
 
   switch (conditionType) {
+    // --- Tipos Simples (sem alterações significativas, apenas garantindo fallback para '') ---
     case 'color':
       return (
-        <Select {...commonProps} >
-          <SelectTrigger><SelectValue placeholder="Cor..." /></SelectTrigger>
+        <Select 
+            value={value || ''} 
+            onValueChange={onChange} 
+            disabled={disabled}
+        >
+          <SelectTrigger className={commonProps.className}><SelectValue placeholder="Cor..." /></SelectTrigger>
           <SelectContent className="bg-card border-border text-white">
             {colorOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
           </SelectContent>
         </Select>
       );
-    case 'number':
+    case 'number': // Input para número simples (0-36)
       return (
         <Input
           {...commonProps}
+          // Lida com null/undefined no value
+          value={value === null || value === undefined ? '' : String(value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === '') {
+                onChange(''); // Ou talvez null? String vazia é mais comum para input controlado
+            } else {
+                const num = parseInt(val, 10);
+                // Permite apenas números no range, ou string vazia
+                if (!isNaN(num) && num >= 0 && num <= 36) {
+                     onChange(num); 
+                } else if (!isNaN(num) && (num < 0 || num > 36)){
+                     // Se fora do range, não atualiza (ou pode mostrar erro)
+                     // Poderia chamar onChange com o valor antigo ou null/''
+                     // Por simplicidade, não atualizamos o estado com valor inválido
+                } else {
+                   // Se não for número (ex: 'abc'), não atualiza o estado
+                }
+            }
+          }}
           type="number"
           placeholder="0-36"
+          // min/max são validações do browser, mas onChange controla o estado
           min={0}
           max={36}
-          onChange={(e) => onChange(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
         />
       );
+     // ... (outros cases simples: parity, dozen, column, high_low - usar value={value || ''}) ...
      case 'parity':
         return (
-         <Select {...commonProps} >
-             <SelectTrigger><SelectValue placeholder="Paridade..." /></SelectTrigger>
+         <Select value={value || ''} onValueChange={onChange} disabled={disabled}>
+             <SelectTrigger className={commonProps.className}><SelectValue placeholder="Paridade..." /></SelectTrigger>
              <SelectContent className="bg-card border-border text-white">
                  {parityOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
              </SelectContent>
@@ -445,8 +479,8 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
         );
     case 'dozen':
         return (
-         <Select {...commonProps} >
-             <SelectTrigger><SelectValue placeholder="Dúzia..." /></SelectTrigger>
+         <Select value={value || ''} onValueChange={onChange} disabled={disabled}>
+             <SelectTrigger className={commonProps.className}><SelectValue placeholder="Dúzia..." /></SelectTrigger>
              <SelectContent className="bg-card border-border text-white">
                  {dozenOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
              </SelectContent>
@@ -454,8 +488,8 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
         );
     case 'column':
          return (
-          <Select {...commonProps} >
-              <SelectTrigger><SelectValue placeholder="Coluna..." /></SelectTrigger>
+          <Select value={value || ''} onValueChange={onChange} disabled={disabled}>
+              <SelectTrigger className={commonProps.className}><SelectValue placeholder="Coluna..." /></SelectTrigger>
               <SelectContent className="bg-card border-border text-white">
                   {columnOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
@@ -463,31 +497,80 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
          );
     case 'high_low':
          return (
-          <Select {...commonProps} >
-              <SelectTrigger><SelectValue placeholder="Metade..." /></SelectTrigger>
+          <Select value={value || ''} onValueChange={onChange} disabled={disabled}>
+              <SelectTrigger className={commonProps.className}><SelectValue placeholder="Metade..." /></SelectTrigger>
               <SelectContent className="bg-card border-border text-white">
                   {highLowOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
           </Select>
          );
+
+    // --- Tipos Complexos (streak_color, miss_color) ---
     case 'streak_color':
-    case 'miss_color':
-        // Estes tipos precisam de DOIS valores: a cor e a contagem.
-        // Vamos retornar um input numérico para a CONTAGEM por enquanto.
-        // A cor precisaria ser definida em outro lugar ou adaptar este componente.
-         return (
-             <Input
-               {...commonProps}
-               type="number"
-               placeholder="Contagem (giros)"
-               min={1}
-               onChange={(e) => onChange(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
-             />
+    case 'miss_color': {
+        const currentValue = getValueObject(); // Garante { color: string; count: number | null }
+        const colorValue = currentValue.color;
+        const countValue = currentValue.count; // Agora pode ser number | null
+
+        const streakMissColorOptions = colorOptions.filter(opt => opt.value !== 'green'); 
+
+        const handleColorChange = (newColor: string) => {
+            // Preserva a contagem atual (seja number ou null)
+            onChange({ ...currentValue, color: newColor }); 
+        };
+
+        // ATUALIZADO handleCountChange
+        const handleCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const rawValue = e.target.value;
+            if (rawValue === '') {
+                // Se input está vazio, atualiza estado para count: null
+                onChange({ ...currentValue, count: null });
+            } else {
+                const newCount = parseInt(rawValue, 10);
+                // Se for um número inteiro válido e positivo, atualiza o estado
+                if (!isNaN(newCount) && newCount >= 1) { 
+                    onChange({ ...currentValue, count: newCount });
+                } else {
+                    // Se for inválido (texto, zero, negativo), não atualiza o estado.
+                    // O input mostrará o valor inválido, mas o estado permanece.
+                }
+            }
+        };
+
+        return (
+            <div className="grid grid-cols-2 gap-2 w-full">
+                {/* Select Cor (sem mudanças aqui) */}
+                <Select 
+                    value={colorValue} 
+                    onValueChange={handleColorChange} 
+                    disabled={disabled}
+                >
+                    <SelectTrigger className={commonProps.className}><SelectValue placeholder="Cor..." /></SelectTrigger>
+                    <SelectContent className="bg-card border-border text-white">
+                         {streakMissColorOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                     </SelectContent>
+                </Select>
+                
+                {/* Input Contagem - ATUALIZADO value prop */}
+                 <Input
+                    {...commonProps}
+                    // Converte null para '' para o input, senão usa String()
+                    value={countValue === null ? '' : String(countValue)}
+                    onChange={handleCountChange}
+                    type="number"
+                    placeholder="Giros"
+                    min={1} // Validação do browser
+                 />
+             </div>
          );
+    }
     default:
+      // Fallback (mantém input simples, usa value || '')
       return (
         <Input
           {...commonProps}
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
           placeholder="Valor..."
         />
       );
