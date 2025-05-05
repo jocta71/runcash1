@@ -189,21 +189,22 @@ class RouletteDataService {
       // Array para coletar dados atualizados
       const updatedRouletteDataBatch = [];
 
+      // Processar cada roleta e coletar atualizações
+      // Usar Promise.all para processar em paralelo (opcional, mas pode ser mais rápido)
       await Promise.all(distinctRoulettes.map(async (roleta) => {
-        // AGORA processRoulette retorna apenas o objeto de dados da roleta ou null
         const updatedData = await this.processRoulette(roleta, db);
         if (updatedData) {
-            updatedRouletteDataBatch.push(updatedData); // Adiciona o objeto de dados diretamente
+            updatedRouletteDataBatch.push(updatedData);
         }
       }));
       
+      // Enviar o lote se houver atualizações
       if (updatedRouletteDataBatch.length > 0) {
           console.log(`[RouletteData] Enviando lote com ${updatedRouletteDataBatch.length} roletas atualizadas.`);
-          // Enviar o array de objetos de dados diretamente
-          // O Stream Service vai encapsular no formato SSE
+          // Definir um tipo diferente para o evento de lote
           const batchEvent = {
-              type: 'batch_update', // Manter o tipo para o stream service identificar
-              data: updatedRouletteDataBatch // Array de objetos de roleta {id, nome, numeros...}
+              type: 'batch_update',
+              data: updatedRouletteDataBatch // Array de objetos formatados
           }
           rouletteStreamService.broadcastUpdate(batchEvent);
       } else {
@@ -219,15 +220,15 @@ class RouletteDataService {
   }
 
   /**
-   * Processa uma roleta específica, busca seus últimos números e RETORNA o objeto de dados formatado se houver novidade
+   * Processa uma roleta específica, busca seu último número e RETORNA os dados formatados se houver novidade
    * @param {Object} roleta - Objeto da roleta (com id=string_numerica e nome)
    * @param {Db} db - Instância do banco de dados MongoDB
-   * @returns {Object | null} - Retorna o objeto de dados {id, nome, numeros...} ou null
+   * @returns {Object | null} - Retorna os dados formatados para SSE ou null se não houver atualização
    */
   async processRoulette(roleta, db) {
     if (!roleta || !roleta.id) {
         console.warn('[RouletteData] Tentativa de processar roleta inválida (sem id string):', roleta);
-        return null; // Retorna null em caso de erro
+        return null; 
     }
     
     const roletaId = roleta.id; 
@@ -236,90 +237,78 @@ class RouletteDataService {
     try {
       const findQuery = { roleta_id: roletaId }; 
 
-      const numeros = await db.collection('roleta_numeros') 
+      // Buscar APENAS o número mais recente
+      const numeroMaisRecente = await db.collection('roleta_numeros') 
         .find(findQuery)
         .sort({ timestamp: -1 })
-        .limit(20)
-        .toArray();
+        .limit(1) // <<< Buscar apenas 1 documento
+        .next();   // <<< Pegar o documento diretamente (ou null)
       
-      if (!numeros || numeros.length === 0) {
-        // console.log(`[DEBUG ${roletaNome}] Nenhum número encontrado...`); // Log menos verboso
+      if (!numeroMaisRecente) {
+        // console.log(`[DEBUG ${roletaNome}] Nenhum número encontrado...`); 
         return null;
       }
       
-      const numeroMaisRecente = numeros[0];
       const ultimoEnviado = this.latestNumbers[roletaId];
-      
-      // console.log(`\n[DEBUG ${roletaNome}] ----- Verificando Atualização -----`); // Log menos verboso
-      // console.log(`[DEBUG ${roletaNome}] Mais Recente DB: Numero=${numeroMaisRecente.numero}, Timestamp=${numeroMaisRecente.timestamp?.toISOString()}`);
-      // if (ultimoEnviado) {
-      //   console.log(`[DEBUG ${roletaNome}] Último Enviado:  Numero=${ultimoEnviado.numero}, Timestamp=${ultimoEnviado.timestamp?.toISOString()}`);
-      // } else {
-      //   console.log(`[DEBUG ${roletaNome}] Último Enviado:  Nenhum (primeira vez)`);
-      // }
 
       let isNew = false;
       if (!ultimoEnviado) {
         isNew = true;
-        // console.log(`[DEBUG ${roletaNome}] Resultado: NOVO (primeira vez)`);
       } else if (numeroMaisRecente.timestamp > ultimoEnviado.timestamp) {
         isNew = true;
-        // console.log(`[DEBUG ${roletaNome}] Resultado: NOVO (timestamp maior)`);
       } else if (numeroMaisRecente.timestamp.getTime() === ultimoEnviado.timestamp.getTime() && 
                  numeroMaisRecente.numero !== ultimoEnviado.numero) {
         isNew = true;
-        // console.log(`[DEBUG ${roletaNome}] Resultado: NOVO (timestamp igual, número diferente)`);
-      } else {
-        // console.log(`[DEBUG ${roletaNome}] Resultado: NÃO NOVO`);
-      }
-
-      // console.log(`[DEBUG ${roletaNome}] ----- Fim Verificação -----`);
+      } 
 
       if (isNew) {
         console.log(`[RouletteData] Novo número detectado para ${roletaNome}: ${numeroMaisRecente.numero}`);
         this.latestNumbers[roletaId] = numeroMaisRecente;
         this.lastDataTime = Date.now();
         
-        // Formatar e RETORNAR apenas os dados da roleta
-        const formattedData = this.formatRouletteData(roleta, numeros);
-        return formattedData; // Retorna {id, nome, numeros...}
+        // Formatar e RETORNAR os dados (passando apenas o último número)
+        const formattedData = this.formatRouletteEvent(roleta, numeroMaisRecente);
+        return formattedData;
       } else {
         return null; // Nenhum dado novo para retornar
       }
     } catch (error) {
       console.error(`[RouletteData] Erro ao processar roleta ${roletaNome}:`, error);
-      return null; // Retorna null em caso de erro
+      return null; 
     }
   }
 
   /**
-   * Formata os dados da roleta e seus números para serem enviados
-   * @param {Object} roleta - Objeto da roleta (AGORA ESPERA TER O CAMPO 'id' COMO STRING)
-   * @param {Array} numeros - Array dos últimos números (ordenados do mais recente para o mais antigo)
-   * @returns {Object} - Objeto de dados da roleta {id, nome, numeros...}
+   * Formata os dados da roleta e seu último número para o evento SSE
+   * @param {Object} roleta - Objeto da roleta (com id string e nome)
+   * @param {Object} ultimoNumeroObj - O documento do último número encontrado
+   * @returns {Object} - Objeto formatado para o evento SSE
    */
-  formatRouletteData(roleta, numeros) { // Renomeado de formatRouletteEvent
-    const ultimoNumeroObj = numeros.length > 0 ? numeros[0] : null;
+  formatRouletteEvent(roleta, ultimoNumeroObj) {
+    // Remover a necessidade de determinar a cor aqui, se não for mais usada
+    // const ultimaCor = ultimoNumeroObj ? this.determinarCor(ultimoNumeroObj.numero) : null;
     
-    // Retorna diretamente o objeto de dados
     return {
+      type: 'update', // Manter consistente com o frontend
+      data: {
         id: roleta.id, 
         roleta_id: roleta.id, 
         nome: roleta.nome || 'Nome Desconhecido', 
         roleta_nome: roleta.nome || 'Nome Desconhecido',
         provider: roleta.provider || 'Desconhecido', 
         status: roleta.status || 'online', 
-        numeros: numeros.map(n => n.numero), 
+        // REMOVIDO: Array 'numeros' 
         ultimoNumero: ultimoNumeroObj ? ultimoNumeroObj.numero : null,
-        horarioUltimaAtualizacao: ultimoNumeroObj ? ultimoNumeroObj.timestamp.toISOString() : new Date().toISOString(),
+        // REMOVIDO: horarioUltimaAtualizacao
         timestamp: ultimoNumeroObj ? ultimoNumeroObj.timestamp.getTime() : Date.now(), 
-        cores: numeros.map(n => this.determinarCor(n.numero)),
-        ultimaCor: ultimoNumeroObj ? this.determinarCor(ultimoNumeroObj.numero) : null,
+        // REMOVIDO: cores
+        // REMOVIDO: ultimaCor
+      }
     };
   }
 
   /**
-   * Determina a cor do número da roleta
+   * Determina a cor do número da roleta (mantido caso seja útil em outro lugar)
    * @param {number} numero 
    * @returns {string} - 'vermelho', 'preto', ou 'verde'
    */
