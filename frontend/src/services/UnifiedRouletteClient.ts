@@ -96,7 +96,7 @@ class UnifiedRouletteClient {
    * Construtor privado para garantir singleton
    */
   private constructor(options: RouletteClientOptions = {}) {
-    console.log('[UnifiedRouletteClient] Inicializando...');
+    this.log('Inicializando cliente unificado de dados de roletas');
     
     // Aplicar opções
     this.streamingEnabled = options.streamingEnabled !== false;
@@ -114,18 +114,17 @@ class UnifiedRouletteClient {
       window.addEventListener('blur', this.handleBlur);
     }
     
-    // Priorizar conexão WebSocket
-    if (options.autoConnect !== false) {
-      console.log('[UnifiedRouletteClient] Iniciando com conexão WebSocket (prioridade)');
-      this.connectToWebSocket();
+    // Priorizar conexão SSE (ao invés de WebSocket) 
+    if (this.streamingEnabled && options.autoConnect !== false) {
+      this.log('Iniciando com conexão SSE (prioridade)');
+      this.connectStream();
     } else if (this.pollingEnabled) {
-      // Iniciar polling apenas se WebSocket não conectar
-      // this.startPolling(); // Polling desativado por enquanto
-      console.log('[UnifiedRouletteClient] Polling desativado, conexão WS é primária.');
+      // Iniciar polling apenas se streaming estiver desabilitado
+      this.startPolling();
     }
     
-    // Buscar dados iniciais imediatamente via API REST (fallback inicial)
-    this.fetchInitialRouletteDataViaApi(); 
+    // Buscar dados iniciais imediatamente
+    this.fetchRouletteData();
     
     this.isInitialized = true;
   }
@@ -141,21 +140,578 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Busca dados iniciais via API REST - usado no arranque
+   * Conecta ao stream de eventos SSE
+   * Garante que apenas uma conexão SSE seja estabelecida por vez
    */
-  private async fetchInitialRouletteDataViaApi(): Promise<void> {
+  public connectStream(): void {
+    if (!this.streamingEnabled) {
+      this.log('Streaming está desabilitado');
+      return;
+    }
+    
+    if (this.isStreamConnected || this.isStreamConnecting) {
+      this.log('Stream já está conectado ou conectando');
+      return;
+    }
+    
+    // Verificar se já existe uma tentativa de conexão global
+    if (UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT) {
+      this.log('Outra instância já está tentando conectar ao stream, aguardando...');
+      
+      // Aguardar 1 segundo e tentar novamente
+      setTimeout(() => {
+        UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+        this.connectStream();
+      }, 1000);
+      return;
+    }
+    
+    // Marcar que estamos tentando conectar (flag global)
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = true;
+    this.isStreamConnecting = true;
+    this.log(`Conectando ao stream SSE: ${ENDPOINTS.STREAM.ROULETTES}`);
+    
     try {
-      // Usar endpoint REST /api/roletas que não exige autenticação
-      const response = await axios.get('/api/roletas'); // ou getFullUrl(ENDPOINTS.REST.ROULETTES_PUBLIC)
-      if (response.data && Array.isArray(response.data)) {
-        console.log(`[UnifiedRouletteClient] Dados iniciais de roletas (${response.data.length}) obtidos via API REST`);
-        this.updateCache(response.data);
-        this.emit('update', response.data);
-      } else {
-        console.log('[UnifiedRouletteClient] Resposta da API REST inicial vazia ou inválida');
+      // Parar polling se estiver ativo, já que vamos usar o streaming
+      this.stopPolling();
+      
+      // Construir URL com query params para autenticação, se necessário
+      let streamUrl = ENDPOINTS.STREAM.ROULETTES;
+      if (cryptoService.hasAccessKey()) {
+        const accessKey = cryptoService.getAccessKey();
+        if (accessKey) {
+          streamUrl += `?key=${encodeURIComponent(accessKey)}`;
+        }
       }
+      
+      // Criar conexão SSE
+      this.eventSource = new EventSource(streamUrl);
+      
+      // Configurar handlers de eventos
+      this.eventSource.onopen = this.handleStreamOpen.bind(this);
+      this.eventSource.onerror = this.handleStreamError.bind(this);
+      
+      // Eventos específicos
+      this.eventSource.addEventListener('update', this.handleStreamUpdate.bind(this));
+      this.eventSource.addEventListener('connected', this.handleStreamConnected.bind(this));
     } catch (error) {
-      console.error('[UnifiedRouletteClient] Erro ao buscar dados iniciais via API REST:', error);
+      this.error('Erro ao conectar ao stream:', error);
+      this.isStreamConnecting = false;
+      UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+      this.reconnectStream();
+    }
+  }
+  
+  /**
+   * Desconecta do stream SSE
+   */
+  public disconnectStream(): void {
+    if (!this.isStreamConnected && !this.isStreamConnecting) {
+      return;
+    }
+    
+    this.log('Desconectando do stream SSE');
+    
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    
+    if (this.streamReconnectTimer) {
+      window.clearTimeout(this.streamReconnectTimer);
+      this.streamReconnectTimer = null;
+    }
+    
+    this.isStreamConnected = false;
+    this.isStreamConnecting = false;
+    this.streamReconnectAttempts = 0;
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+    
+    // Notificar sobre a desconexão
+    this.emit('disconnect', { timestamp: Date.now() });
+    EventBus.emit('roulette:stream-disconnected', { timestamp: new Date().toISOString() });
+    
+    // Iniciar polling como fallback se estiver habilitado
+    if (this.pollingEnabled && !this.pollingTimer) {
+      this.log('Iniciando polling após desconexão do stream');
+      this.startPolling();
+    }
+  }
+  
+  /**
+   * Reconecta ao stream de eventos após uma desconexão
+   */
+  private reconnectStream(): void {
+    if (this.streamReconnectTimer) {
+      window.clearTimeout(this.streamReconnectTimer);
+    }
+    
+    this.streamReconnectAttempts++;
+    
+    if (this.streamReconnectAttempts > this.maxStreamReconnectAttempts) {
+      this.error(`Máximo de tentativas de reconexão (${this.maxStreamReconnectAttempts}) atingido`);
+      
+      // Emitir evento
+      this.emit('max-reconnect', { attempts: this.streamReconnectAttempts });
+      EventBus.emit('roulette:stream-max-reconnect', { 
+        attempts: this.streamReconnectAttempts,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Iniciar polling como fallback se não estiver ativo
+      if (this.pollingEnabled && !this.pollingTimer) {
+        this.log('Iniciando polling como fallback após falha nas reconexões');
+        this.startPolling();
+      }
+      
+      return;
+    }
+    
+    const delay = this.streamReconnectInterval * Math.min(this.streamReconnectAttempts, 5);
+    this.log(`Tentando reconectar em ${delay}ms (tentativa ${this.streamReconnectAttempts})`);
+    
+    // Notificar sobre tentativa de reconexão
+    this.emit('reconnecting', { attempt: this.streamReconnectAttempts, delay });
+    
+    this.streamReconnectTimer = window.setTimeout(() => {
+      if (this.eventSource) {
+        this.eventSource.close();
+        this.eventSource = null;
+      }
+      
+      this.isStreamConnected = false;
+      this.isStreamConnecting = false;
+      UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+      this.connectStream();
+    }, delay);
+  }
+  
+  /**
+   * Handler para abertura de conexão do stream
+   */
+  private handleStreamOpen(): void {
+    this.log('Conexão SSE estabelecida');
+    this.isStreamConnected = true;
+    this.isStreamConnecting = false;
+    this.streamReconnectAttempts = 0;
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+    
+    // Notificar sobre conexão
+    this.emit('connect', { timestamp: Date.now() });
+    EventBus.emit('roulette:stream-connected', { timestamp: new Date().toISOString() });
+    
+    // Se polling estiver ativo como fallback, parar
+    if (this.pollingTimer) {
+      this.log('Stream conectado, desativando polling fallback');
+      this.stopPolling();
+    }
+  }
+  
+  /**
+   * Handler para erros na conexão do stream
+   */
+  private handleStreamError(event: Event): void {
+    this.error('Erro na conexão SSE:', event);
+    
+    this.isStreamConnected = false;
+    this.isStreamConnecting = false;
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+    
+    // Notificar erro
+    this.emit('error', { event, timestamp: Date.now() });
+    
+    // Reconectar
+    this.reconnectStream();
+    
+    // Iniciar polling como fallback se não estiver ativo
+    if (this.pollingEnabled && !this.pollingTimer) {
+      this.log('Iniciando polling como fallback após erro no stream');
+      this.startPolling();
+    }
+  }
+  
+  /**
+   * Handler para evento inicial 'connected'
+   */
+  private handleStreamConnected(event: MessageEvent): void {
+    try {
+      this.log(`Evento 'connected' recebido: ${event.data.substring(0, 100)}...`);
+      
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (error) {
+        this.error('Erro ao fazer parse JSON do evento connected:', error);
+        return;
+      }
+      
+      // Tentar extrair a chave de acesso do evento connected
+      try {
+        const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(data);
+        if (keyExtracted) {
+          this.log('✅ Chave de acesso extraída e configurada a partir do evento connected');
+        } else {
+          this.log('⚠️ Nenhuma chave de acesso encontrada no evento connected');
+        }
+      } catch (error) {
+        this.error('Erro ao extrair chave de acesso do evento connected:', error);
+      }
+      
+      // Notificar
+      this.emit('connected', data);
+      EventBus.emit('roulette:stream-ready', { 
+        timestamp: new Date().toISOString(),
+        data
+      });
+      
+      // Se recebemos o evento connected, solicitar dados imediatamente
+      // para garantir que temos os dados mais recentes
+      this.log('Evento connected recebido, solicitando dados atualizados');
+      this.forceUpdate();
+    } catch (error) {
+      this.error('Erro ao processar evento connected:', error, event.data);
+    }
+  }
+  
+  /**
+   * Handler para eventos de atualização do stream
+   */
+  private async handleStreamUpdate(event: MessageEvent): Promise<void> {
+    this.lastReceivedAt = Date.now();
+    this.lastEventId = event.lastEventId;
+    
+    try {
+      // Verificar se os dados estão em formato JSON
+      const rawData = event.data;
+      let parsedData;
+      
+      this.log(`Evento SSE recebido: ID=${event.lastEventId}, Tipo=${event.type}`);
+      
+      // Tentar extrair chave de acesso do evento, se necessário
+      if (!cryptoService.hasAccessKey()) {
+        this.log('Sem chave de acesso configurada, tentando extrair do evento');
+        try {
+          cryptoService.extractAndSetAccessKeyFromEvent(rawData);
+        } catch (error) {
+          this.log('Não foi possível extrair chave de acesso do evento');
+        }
+      }
+      
+      // Primeiro tentar fazer o parse do JSON
+      try {
+        parsedData = JSON.parse(rawData);
+        this.log('Dados JSON parseados com sucesso:', JSON.stringify(parsedData).substring(0, 100) + '...');
+        
+        // Se este evento tem uma chave, salvá-la
+        if (!cryptoService.hasAccessKey()) {
+          cryptoService.extractAndSetAccessKeyFromEvent(parsedData);
+        }
+      } catch (error) {
+        this.log('Dados não estão em formato JSON válido, verificando outros formatos');
+        
+        // Se não for JSON, verificar se são dados criptografados no formato Iron
+        if (typeof rawData === 'string' && rawData.startsWith('Fe26.2')) {
+          this.handleEncryptedData(rawData);
+          return;
+        } else if (typeof rawData === 'string' && rawData.includes('"encrypted":true')) {
+          // Dados podem estar em formato JSON com campo encrypted
+          try {
+            const encryptedContainer = JSON.parse(rawData);
+            
+            if (encryptedContainer.encrypted && encryptedContainer.encryptedData) {
+              this.log('Dados em container criptografado detectados');
+              this.handleEncryptedData(encryptedContainer);
+              return;
+            }
+          } catch (error) {
+            this.error('Erro ao processar container criptografado:', error);
+          }
+        }
+        
+        this.error('Formato de dados não reconhecido:', rawData.substring(0, 100));
+        return;
+      }
+      
+      // Verificar se temos um container JSON com dados criptografados
+      if (parsedData && parsedData.encrypted === true) {
+        this.log('Container JSON com dados criptografados detectado');
+        this.handleEncryptedData(parsedData);
+        return;
+      }
+      
+      // Verificar se temos uma mensagem de erro ou notificação especial
+      if (parsedData && parsedData.error === true) {
+        this.handleErrorMessage(parsedData);
+        return;
+      }
+      
+      // Verificar se temos uma mensagem sobre chave de acesso
+      if (parsedData && (parsedData.accessKey || parsedData.key || 
+         (parsedData.auth && (parsedData.auth.key || parsedData.auth.accessKey)))) {
+        // Este evento provavelmente contém uma chave de acesso
+        const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(parsedData);
+        if (keyExtracted) {
+          this.log('✅ Chave de acesso extraída e configurada a partir do evento update');
+          // Solicitar dados atualizados agora que temos a chave
+          this.forceUpdate();
+        }
+      }
+      
+      // Se chegamos aqui, os dados são JSON não criptografados
+      // Atualizar cache com os dados recebidos
+      this.updateCache(parsedData);
+      
+      // Notificar sobre atualização
+      this.emit('update', parsedData);
+      EventBus.emit('roulette:data-updated', {
+        timestamp: new Date().toISOString(),
+        data: parsedData
+      });
+    } catch (error) {
+      this.error('Erro ao processar evento update:', error);
+    }
+  }
+  
+  /**
+   * Processa dados criptografados recebidos do servidor
+   */
+  private handleEncryptedData(encryptedData: any): void {
+    console.log('[UnifiedRouletteClient] Processando dados criptografados');
+    
+    try {
+      // Tentar extrair a chave de acesso dos dados
+      this.extractAccessKey(encryptedData);
+      
+      // Processar os dados criptografados
+      cryptoService.processEncryptedData(encryptedData)
+        .then(decryptedData => {
+          console.log('[UnifiedRouletteClient] Dados descriptografados com sucesso');
+          
+          // Se temos dados reais, processar normalmente
+          if (decryptedData) {
+            // Verificar se os dados estão no formato esperado
+            if (decryptedData.data) {
+              // Formato para dados simulados: { data: { roletas: [...] } }
+              // ou formato habitual: { data: [...] }
+              this.handleDecryptedData(decryptedData);
+            } else {
+              // Tentar usar os dados diretamente
+              this.handleDecryptedData(decryptedData);
+            }
+          } else {
+            console.warn('[UnifiedRouletteClient] Dados descriptografados vazios ou inválidos');
+            // Tentar conectar ao WebSocket para dados reais
+            this.connectToWebSocket();
+          }
+        })
+        .catch(error => {
+          console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
+          this.notify('error', 'Erro ao processar dados criptografados');
+          
+          // Tentar conectar ao WebSocket como alternativa
+          this.connectToWebSocket();
+        });
+    } catch (error) {
+      console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
+      this.notify('error', 'Erro ao processar dados criptografados');
+      
+      // Tentar conectar ao WebSocket como alternativa
+      this.connectToWebSocket();
+    }
+  }
+  
+  /**
+   * Tenta extrair a chave de acesso dos dados recebidos
+   * Esta função analisa os dados e procura por campos que possam conter a chave
+   */
+  private extractAccessKey(data: any): boolean {
+    console.log('[UnifiedRouletteClient] Tentando extrair chave de acesso dos dados');
+    
+    try {
+      // Se for uma string, tentar converter para objeto
+      let dataObj = data;
+      if (typeof data === 'string') {
+        // Verificar se é um JSON
+        if (data.startsWith('{') || data.startsWith('[')) {
+          try {
+            dataObj = JSON.parse(data);
+          } catch (e) {
+            console.log('[UnifiedRouletteClient] Dados não são JSON válido');
+          }
+        }
+      }
+      
+      // Procurar campos comuns que possam conter a chave
+      if (typeof dataObj === 'object' && dataObj !== null) {
+        // Campos possíveis para a chave de acesso
+        const possibleKeyFields = [
+          'accessKey', 'key', 'apiKey', 'token', 'secret', 
+          'auth.key', 'auth.token', 'authorization', 'decrypt_key',
+          'meta.key', 'metadata.key', 'header.key'
+        ];
+        
+        for (const field of possibleKeyFields) {
+          const keys = field.split('.');
+          let value = dataObj;
+          
+          // Navegar na estrutura para encontrar o campo aninhado
+          for (const key of keys) {
+            value = value?.[key];
+            if (value === undefined) break;
+          }
+          
+          // Se encontramos um valor que parece ser uma chave
+          if (typeof value === 'string' && value.length > 8) {
+            console.log(`[UnifiedRouletteClient] Possível chave encontrada no campo ${field}`);
+            const keySet = cryptoService.setAccessKey(value);
+            
+            if (keySet) {
+              console.log('[UnifiedRouletteClient] Chave de acesso configurada com sucesso');
+              return true;
+            }
+          }
+        }
+        
+        // Tentar encontrar o hash na própria estrutura do formato Iron
+        if (typeof data === 'string' && data.startsWith('Fe26.2*')) {
+          const parts = data.split('*');
+          if (parts.length >= 2) {
+            const hash = parts[1];
+            if (hash && hash.length > 8) {
+              console.log('[UnifiedRouletteClient] Tentando usar o hash como chave:', hash);
+              const keySet = cryptoService.setAccessKey(hash);
+              if (keySet) {
+                console.log('[UnifiedRouletteClient] Hash configurado como chave de acesso');
+                return true;
+              }
+            }
+          }
+        }
+      }
+      
+      console.log('[UnifiedRouletteClient] Nenhuma chave de acesso encontrada nos dados');
+      return false;
+    } catch (error) {
+      console.error('[UnifiedRouletteClient] Erro ao extrair chave de acesso:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Gera e utiliza dados simulados como fallback quando a descriptografia falha
+   */
+  private useSimulatedData(): void {
+    this.log('Usando dados simulados do crypto-service como fallback');
+    
+    // Usar os dados simulados do crypto-service em vez de criar manualmente
+    cryptoService.decryptData('dummy')
+      .then(simulatedResponse => {
+        if (simulatedResponse && simulatedResponse.data && simulatedResponse.data.roletas) {
+          const simulatedData = simulatedResponse.data.roletas;
+          this.log(`Usando ${simulatedData.length} roletas simuladas do crypto-service`);
+          
+          // Atualizar cache com dados simulados e notificar
+          this.updateCache(simulatedData);
+          this.emit('update', simulatedData);
+          EventBus.emit('roulette:data-updated', {
+            timestamp: new Date().toISOString(),
+            data: simulatedData,
+            source: 'simulation-from-crypto-service'
+          });
+        } else {
+          this.error('Formato de dados simulados inesperado do crypto-service');
+          
+          // Criar roletas simuladas manualmente como fallback
+          const manualSimulatedData = [{
+            id: 'simulated_recovery_' + Date.now(),
+            nome: 'Roleta Simulada Fallback',
+            provider: 'Fallback de Simulação',
+            status: 'online',
+            numeros: Array.from({length: 20}, () => Math.floor(Math.random() * 37)),
+            ultimoNumero: Math.floor(Math.random() * 37),
+            horarioUltimaAtualizacao: new Date().toISOString()
+          }];
+          
+          // Atualizar cache com dados simulados e notificar
+          this.updateCache(manualSimulatedData);
+          this.emit('update', manualSimulatedData);
+          EventBus.emit('roulette:data-updated', {
+            timestamp: new Date().toISOString(),
+            data: manualSimulatedData,
+            source: 'manual-simulation-fallback'
+          });
+        }
+      })
+      .catch(error => {
+        this.error('Erro ao obter dados simulados do crypto-service:', error);
+        
+        // Fallback para dados simulados manualmente em caso de erro
+        const fallbackData = [{
+          id: 'fallback_' + Date.now(),
+          nome: 'Roleta Fallback',
+          provider: 'Erro de Simulação',
+          status: 'online',
+          numeros: Array.from({length: 20}, () => Math.floor(Math.random() * 37)),
+          ultimoNumero: Math.floor(Math.random() * 37),
+          horarioUltimaAtualizacao: new Date().toISOString()
+        }];
+        
+        // Atualizar cache com dados simulados e notificar
+        this.updateCache(fallbackData);
+        this.emit('update', fallbackData);
+        EventBus.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          data: fallbackData,
+          source: 'fallback-after-simulation-error'
+        });
+      });
+  }
+  
+  /**
+   * Inicia o polling como fallback
+   * Só deve ser usado quando o streaming não está disponível
+   */
+  private startPolling(): void {
+    if (!this.pollingEnabled) {
+      return;
+    }
+    
+    // Não iniciar polling se o streaming estiver conectado ou conectando
+    if (this.isStreamConnected || this.isStreamConnecting) {
+      this.log('Streaming conectado ou conectando, não iniciando polling');
+      return;
+    }
+    
+    if (this.pollingTimer) {
+      window.clearInterval(this.pollingTimer);
+    }
+    
+    this.log(`Iniciando polling como fallback (intervalo: ${this.pollingInterval}ms)`);
+    
+    // Buscar dados imediatamente
+    this.fetchRouletteData();
+    
+    // Configurar intervalo
+    this.pollingTimer = window.setInterval(() => {
+      // Verificar novamente se o streaming não foi conectado
+      if (this.isStreamConnected || this.isStreamConnecting) {
+        this.log('Streaming conectado, parando polling');
+        this.stopPolling();
+        return;
+      }
+      
+      this.fetchRouletteData();
+    }, this.pollingInterval) as unknown as number;
+  }
+  
+  /**
+   * Para o polling
+   */
+  private stopPolling(): void {
+    if (this.pollingTimer) {
+      window.clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+      this.log('Polling parado');
     }
   }
   
@@ -165,58 +721,47 @@ class UnifiedRouletteClient {
   public async fetchRouletteData(): Promise<any[]> {
     // Evitar requisições simultâneas
     if (this.isFetching) {
-      console.log('[UnifiedRouletteClient] Requisição já em andamento, aguardando...');
+      this.log('Requisição já em andamento, aguardando...');
       if (this.fetchPromise) {
         return this.fetchPromise;
       }
       return Array.from(this.rouletteData.values());
     }
     
-    // Verificar se o WebSocket está conectado
-    if (this.webSocketConnected) {
-      console.log('[UnifiedRouletteClient] WebSocket está conectado, solicitando dados atualizados...');
-      this.requestLatestRouletteData(); // Solicita atualização via WS
-      return Array.from(this.rouletteData.values()); // Retorna cache atual
+    // Verificar se o SSE já está conectado
+    if (this.isStreamConnected) {
+      this.log('Stream SSE já está conectado, usando dados em cache');
+      return Array.from(this.rouletteData.values());
     }
     
-    // Tentar conectar ao WebSocket se não estiver conectado
-    if (!this.webSocketConnected && !this.socket) {
-      console.log('[UnifiedRouletteClient] Tentando conectar ao WebSocket para obter dados reais...');
-      this.connectToWebSocket();
+    // Tentar conectar ao SSE se não estiver conectado
+    if (!this.isStreamConnected && !this.isStreamConnecting) {
+      this.log('Tentando conectar ao SSE para obter dados reais...');
+      this.connectStream();
       
       // Esperar um pouco para dar tempo da conexão se estabelecer
       await new Promise(resolve => setTimeout(resolve, 500));
     }
     
-    // Verificar se o cache ainda é válido (mesmo sem WS)
+    // Verificar se o cache ainda é válido
     if (this.isCacheValid()) {
-      console.log('[UnifiedRouletteClient] Usando dados em cache (ainda válidos)');
+      this.log('Usando dados em cache (ainda válidos)');
       return Array.from(this.rouletteData.values());
     }
     
-    // Tentar buscar via API REST como fallback final se WS falhar e cache expirar
-    console.log('[UnifiedRouletteClient] WebSocket não conectado e cache expirado. Tentando API REST como fallback...');
-    this.isFetching = true;
-    this.fetchPromise = axios.get('/api/roletas') // Endpoint público
-      .then(response => {
-        if (response.data && Array.isArray(response.data)) {
-          console.log(`[UnifiedRouletteClient] Dados obtidos via API REST fallback (${response.data.length})`);
-          this.updateCache(response.data);
-          this.emit('update', response.data);
-          return Array.from(this.rouletteData.values());
-        }
-        return Array.from(this.rouletteData.values()); // Retorna cache antigo se API falhar
-      })
-      .catch(error => {
-        console.error('[UnifiedRouletteClient] Erro ao buscar dados via API REST fallback:', error);
-        return Array.from(this.rouletteData.values()); // Retorna cache antigo em caso de erro
-      })
-      .finally(() => {
-        this.isFetching = false;
-        this.fetchPromise = null;
-      });
-      
-    return this.fetchPromise;
+    // Se já tivermos alguns dados, retorná-los mesmo que não sejam recentes
+    if (this.rouletteData.size > 0) {
+      this.log('Retornando dados existentes em cache enquanto aguarda conexão SSE');
+      return Array.from(this.rouletteData.values());
+    }
+    
+    // Avisar o usuário que não temos dados disponíveis ainda
+    console.warn('[UnifiedRouletteClient] Tentando obter dados reais via SSE, aguarde. Se não aparecer, verifique sua conexão.');
+    
+    // Se não tivermos absolutamente nenhum dado, retornar array vazio
+    // O componente que chamou este método receberá atualizações via eventos quando os dados chegarem
+    this.log('Nenhum dado disponível ainda, retornando array vazio');
+    return [];
   }
   
   /**
@@ -243,11 +788,11 @@ class UnifiedRouletteClient {
         }
       });
       
-      console.log(`[UnifiedRouletteClient] Cache atualizado com ${data.length} roletas`);
+      this.log(`Cache atualizado com ${data.length} roletas`);
     } else if (data && data.id) {
       // Atualizar uma única roleta
       this.rouletteData.set(data.id, data);
-      console.log(`[UnifiedRouletteClient] Cache atualizado para roleta ${data.id}`);
+      this.log(`Cache atualizado para roleta ${data.id}`);
     }
   }
   
@@ -290,7 +835,7 @@ class UnifiedRouletteClient {
       try {
         callback(data);
       } catch (error) {
-        console.error(`[UnifiedRouletteClient] Erro em callback para evento ${event}:`, error);
+        this.error(`Erro em callback para evento ${event}:`, error);
       }
     }
   }
@@ -300,24 +845,24 @@ class UnifiedRouletteClient {
    */
   private handleVisibilityChange = (): void => {
     if (document.hidden) {
-      console.log('[UnifiedRouletteClient] Página não visível, pausando serviços');
+      this.log('Página não visível, pausando serviços');
       
       // Pausar polling se ativo
-      // if (this.pollingTimer) {
-      //   window.clearInterval(this.pollingTimer);
-      //   this.pollingTimer = null;
-      // }
-    } else {
-      console.log('[UnifiedRouletteClient] Página visível, retomando serviços');
-      
-      // Tentar reconectar WebSocket se não estiver conectado
-      if (!this.webSocketConnected && !this.socket) {
-        this.connectToWebSocket();
+      if (this.pollingTimer) {
+        window.clearInterval(this.pollingTimer);
+        this.pollingTimer = null;
       }
-      // Usar polling apenas se WebSocket falhar - DESATIVADO POR ENQUANTO
-      // else if (this.pollingEnabled && !this.pollingTimer && !this.webSocketConnected) {
-      //   this.startPolling();
-      // }
+    } else {
+      this.log('Página visível, retomando serviços');
+      
+      // Priorizar streaming
+      if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
+        this.connectStream();
+      }
+      // Usar polling apenas se streaming falhar
+      else if (this.pollingEnabled && !this.pollingTimer && !this.isStreamConnected) {
+        this.startPolling();
+      }
     }
   }
   
@@ -325,10 +870,10 @@ class UnifiedRouletteClient {
    * Manipulador para evento de foco na janela
    */
   private handleFocus = (): void => {
-    console.log('[UnifiedRouletteClient] Janela ganhou foco');
+    this.log('Janela ganhou foco');
     
-    // Atualizar dados imediatamente apenas se WebSocket não estiver conectado
-    if (!this.webSocketConnected && !this.socket) {
+    // Atualizar dados imediatamente apenas se não estiver usando streaming
+    if (!this.isStreamConnected && !this.isStreamConnecting) {
       this.fetchRouletteData();
     }
   }
@@ -337,7 +882,7 @@ class UnifiedRouletteClient {
    * Manipulador para evento de perda de foco
    */
   private handleBlur = (): void => {
-    console.log('[UnifiedRouletteClient] Janela perdeu foco');
+    this.log('Janela perdeu foco');
   }
   
   /**
@@ -372,30 +917,31 @@ class UnifiedRouletteClient {
    */
   public getStatus(): any {
     return {
-      isStreamConnected: false, // SSE removido
-      isStreamConnecting: false, // SSE removido
-      streamReconnectAttempts: 0, // SSE removido
-      isPollingActive: false, // Polling desativado
-      lastEventId: null, // SSE removido
-      lastReceivedAt: this.lastUpdateTime, // Usar último update do cache
+      isStreamConnected: this.isStreamConnected,
+      isStreamConnecting: this.isStreamConnecting,
+      streamReconnectAttempts: this.streamReconnectAttempts,
+      isPollingActive: !!this.pollingTimer,
+      lastEventId: this.lastEventId,
+      lastReceivedAt: this.lastReceivedAt,
       lastUpdateTime: this.lastUpdateTime,
       cacheSize: this.rouletteData.size,
-      isCacheValid: this.isCacheValid(),
-      isWebSocketConnected: this.webSocketConnected,
-      webSocketReconnectAttempts: this.webSocketReconnectAttempts
+      isCacheValid: this.isCacheValid()
     };
   }
   
   /**
    * Força uma atualização imediata dos dados
+   * Tenta reconectar o streaming se não estiver conectado
    */
   public forceUpdate(): Promise<any[]> {
-    console.log('[UnifiedRouletteClient] Forçando atualização de dados...');
-    // Tenta reconectar WebSocket se não estiver conectado
-    if (!this.webSocketConnected && !this.socket) {
-      this.connectToWebSocket();
+    // Se streaming não estiver conectado, tenta reconectar
+    if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
+      this.log('Forçando reconexão do stream');
+      this.connectStream();
+      return Promise.resolve(Array.from(this.rouletteData.values()));
     }
-    // Sempre chama fetchRouletteData que tem a lógica de fallback para REST
+    
+    // Caso contrário, busca dados via REST
     return this.fetchRouletteData();
   }
   
@@ -403,10 +949,16 @@ class UnifiedRouletteClient {
    * Limpa recursos ao desmontar
    */
   public dispose(): void {
-    console.log('[UnifiedRouletteClient] Limpando recursos...');
     // Limpar timers
-    // if (this.pollingTimer) { ... } // Polling removido
-    // if (this.streamReconnectTimer) { ... } // SSE removido
+    if (this.pollingTimer) {
+      window.clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+    
+    if (this.streamReconnectTimer) {
+      window.clearTimeout(this.streamReconnectTimer);
+      this.streamReconnectTimer = null;
+    }
     
     if (this.webSocketReconnectTimer) {
       window.clearTimeout(this.webSocketReconnectTimer);
@@ -419,11 +971,14 @@ class UnifiedRouletteClient {
       this.socket = null;
     }
     
-    // Fechar stream SSE - Removido
-    // if (this.eventSource) { ... }
+    // Fechar stream
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
     
-    // Reset da flag de conexão global - Removido
-    // UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+    // Reset da flag de conexão global
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
     
     // Remover event listeners
     if (typeof document !== 'undefined') {
@@ -434,6 +989,41 @@ class UnifiedRouletteClient {
     
     // Limpar callbacks
     this.eventCallbacks.clear();
+  }
+  
+  /**
+   * Registra mensagem de log
+   */
+  private log(...args: any[]): void {
+    if (this.logEnabled) {
+      console.log('[UnifiedRouletteClient]', ...args);
+    }
+  }
+  
+  /**
+   * Registra mensagem de erro
+   */
+  private error(...args: any[]): void {
+    console.error('[UnifiedRouletteClient]', ...args);
+  }
+  
+  /**
+   * Manipula mensagens de erro ou notificação especial
+   */
+  private handleErrorMessage(data: any): void {
+    this.log('Recebida mensagem de erro ou notificação:', JSON.stringify(data).substring(0, 100));
+    
+    // Emitir evento de erro
+    EventBus.emit('roulette:api-message', {
+      timestamp: new Date().toISOString(),
+      type: data.error ? 'error' : 'notification',
+      message: data.message || 'Mensagem sem detalhes',
+      code: data.code,
+      data
+    });
+    
+    // Notificar assinantes
+    this.emit('message', data);
   }
   
   /**
@@ -449,11 +1039,14 @@ class UnifiedRouletteClient {
       
       // Verificar formato padrão: { data: [...] } 
       if (data && data.data) {
-        // Se data.data.roletas existe, é o formato simulado - REMOVIDO
-        // if (data.data.roletas && Array.isArray(data.data.roletas)) { ... }
-        
+        // Se data.data.roletas existe, é o formato simulado
+        if (data.data.roletas && Array.isArray(data.data.roletas)) {
+          console.log(`[UnifiedRouletteClient] Encontrado formato simulado com ${data.data.roletas.length} roletas`);
+          rouletteData = data.data.roletas;
+          validStructure = true;
+        } 
         // Se data.data é um array, é o formato padrão
-        if (Array.isArray(data.data)) {
+        else if (Array.isArray(data.data)) {
           console.log(`[UnifiedRouletteClient] Encontrado formato padrão com ${data.data.length} roletas`);
           rouletteData = data.data;
           validStructure = true;
@@ -462,19 +1055,12 @@ class UnifiedRouletteClient {
         else {
           console.log('[UnifiedRouletteClient] Usando data.data diretamente');
           rouletteData = data.data;
-          validStructure = true; // Assumir válido se tiver `data`
         }
       }
       // Verificar formato alternativo: { roletas: [...] }
       else if (data && data.roletas && Array.isArray(data.roletas)) {
         console.log(`[UnifiedRouletteClient] Encontrado formato alternativo com ${data.roletas.length} roletas`);
         rouletteData = data.roletas;
-        validStructure = true;
-      }
-      // Verificar se os dados são diretamente um array de roletas
-      else if (Array.isArray(data)) {
-        console.log(`[UnifiedRouletteClient] Dados são um array direto com ${data.length} roletas`);
-        rouletteData = data;
         validStructure = true;
       }
       
@@ -491,7 +1077,7 @@ class UnifiedRouletteClient {
         EventBus.emit('roulette:data-updated', {
           timestamp: new Date().toISOString(),
           data: Array.from(this.rouletteData.values()),
-          source: 'decrypted-data' // Fonte agora é sempre descriptografada ou API
+          source: 'decrypted-data'
         });
       } else {
         console.warn('[UnifiedRouletteClient] Dados descriptografados não contêm array de roletas');
@@ -508,11 +1094,11 @@ class UnifiedRouletteClient {
         }
         
         // Tentar conectar ao WebSocket diretamente 
-        console.log('[UnifiedRouletteClient] Estrutura inválida, tentando reconectar WebSocket...');
+        this.log('Tentando conectar ao WebSocket para obter dados reais...');
         this.connectToWebSocket();
       }
     } catch (error) {
-      console.error('[UnifiedRouletteClient] Erro ao processar dados descriptografados:', error);
+      this.error('Erro ao processar dados descriptografados:', error);
       // Tentar conectar ao WebSocket diretamente 
       this.connectToWebSocket();
     }
@@ -536,37 +1122,20 @@ class UnifiedRouletteClient {
    * Conecta ao servidor WebSocket para receber dados reais do scraper
    */
   private connectToWebSocket(): void {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      console.log('[UnifiedRouletteClient] WebSocket já está conectado.');
-      return;
-    }
-    if (this.socket && this.socket.readyState === WebSocket.CONNECTING) {
-      console.log('[UnifiedRouletteClient] Conexão WebSocket já está em andamento.');
-      return;
-    }
-    
-    // Fechar socket existente se houver e não estiver fechado
-    if (this.socket && this.socket.readyState !== WebSocket.CLOSED) {
-      console.log('[UnifiedRouletteClient] Fechando conexão WebSocket anterior...');
+    if (this.socket) {
+      // Já existe uma conexão, fechá-la antes de criar nova
       this.socket.close();
+      this.socket = null;
     }
-    
-    this.socket = null; // Limpar referência
-    this.webSocketConnected = false;
     
     try {
-      console.log('[UnifiedRouletteClient] Tentando conectar ao WebSocket...');
+      this.log('Tentando conectar ao WebSocket para dados do scraper...');
       
       // Usar a URL configurada na propriedade webSocketUrl
       const wsUrl = this.webSocketUrl;
       
-      // Incluir token na query string para autenticação inicial
-      const accessKey = cryptoService.getAccessKey();
-      const connectionUrl = accessKey ? `${wsUrl}?token=${encodeURIComponent(accessKey)}` : wsUrl;
-      console.log(`[UnifiedRouletteClient] Conectando a: ${connectionUrl.replace(/token=.*?(&|$)/, 'token=******$1')}`);
-      
       // Criar nova conexão WebSocket
-      this.socket = new WebSocket(connectionUrl);
+      this.socket = new WebSocket(wsUrl);
       
       // Configurar handlers de eventos
       this.socket.onopen = this.handleWebSocketOpen.bind(this);
@@ -574,13 +1143,10 @@ class UnifiedRouletteClient {
       this.socket.onerror = this.handleWebSocketError.bind(this);
       this.socket.onclose = this.handleWebSocketClose.bind(this);
       
-      // Incrementar tentativas apenas se não estiver já conectando
-      if (!this.webSocketConnected) {
-         this.webSocketReconnectAttempts++;
-      }
+      this.webSocketReconnectAttempts++;
       
     } catch (error) {
-      console.error('[UnifiedRouletteClient] Erro ao iniciar conexão WebSocket:', error);
+      this.error('Erro ao conectar ao WebSocket:', error);
       this.scheduleWebSocketReconnect();
     }
   }
@@ -589,12 +1155,21 @@ class UnifiedRouletteClient {
    * Handler para evento de abertura da conexão WebSocket
    */
   private handleWebSocketOpen(event: Event): void {
-    console.log('[UnifiedRouletteClient] Conexão WebSocket estabelecida com sucesso');
+    this.log('Conexão WebSocket estabelecida com sucesso');
     this.webSocketConnected = true;
-    this.webSocketReconnectAttempts = 0; // Resetar tentativas ao conectar
+    this.webSocketReconnectAttempts = 0;
     
-    // Enviar autenticação se necessário (embora já tenhamos enviado via query)
-    // if (cryptoService.hasAccessKey()) { ... } // Removido pois token vai na query
+    // Enviar autenticação se necessário
+    if (cryptoService.hasAccessKey()) {
+      const accessKey = cryptoService.getAccessKey();
+      const authMessage = JSON.stringify({
+        type: 'auth',
+        token: accessKey,
+        client: 'runcash-frontend'
+      });
+      this.socket?.send(authMessage);
+      this.log('Enviada mensagem de autenticação para o WebSocket');
+    }
     
     // Solicitar dados imediatamente após a conexão
     this.requestLatestRouletteData();
@@ -613,7 +1188,7 @@ class UnifiedRouletteClient {
     try {
       // Processar a mensagem recebida
       const message = JSON.parse(event.data);
-      console.log('[UnifiedRouletteClient] Mensagem WebSocket recebida:', message.type || 'sem tipo');
+      this.log('Mensagem WebSocket recebida:', message.type || 'sem tipo');
       
       // Verificar tipo de mensagem
       if (message.type === 'numero' || message.type === 'update' || message.type === 'event' || message.type === 'new_number') {
@@ -631,7 +1206,7 @@ class UnifiedRouletteClient {
         };
         
         // Log detalhado para depuração
-        console.log(`[UnifiedRouletteClient] Recebido número ${rouletteData.ultimoNumero} para roleta ${rouletteData.nome} (${rouletteData.id})`);
+        this.log(`Recebido número ${rouletteData.ultimoNumero} para roleta ${rouletteData.nome} (${rouletteData.id})`);
         
         // Se recebemos apenas um número, adicioná-lo à sequência
         if (!rouletteData.numeros.length && rouletteData.ultimoNumero !== undefined) {
@@ -659,7 +1234,7 @@ class UnifiedRouletteClient {
       } else if (message.type === 'roulettes' || message.type === 'roletas' || message.type === 'list') {
         // Lista completa de roletas
         if (Array.isArray(message.data)) {
-          console.log(`[UnifiedRouletteClient] Recebida lista com ${message.data.length} roletas do WebSocket`);
+          this.log(`Recebida lista com ${message.data.length} roletas do WebSocket`);
           this.updateCache(message.data);
           this.emit('update', message.data);
           EventBus.emit('roulette:all-data-updated', {
@@ -671,28 +1246,28 @@ class UnifiedRouletteClient {
       } else if (message.type === 'auth-result') {
         // Resultado de autenticação
         if (message.success) {
-          console.log('[UnifiedRouletteClient] Autenticação no WebSocket bem-sucedida');
+          this.log('Autenticação no WebSocket bem-sucedida');
           // Solicitar dados após autenticação
           this.requestLatestRouletteData();
         } else {
-          console.error('[UnifiedRouletteClient] Falha na autenticação no WebSocket:', message.message || 'Motivo desconhecido');
+          this.error('Falha na autenticação no WebSocket:', message.message || 'Motivo desconhecido');
         }
       } else if (message.type === 'log' || message.type === 'info') {
         // Mensagem de log do servidor
-        console.log(`[UnifiedRouletteClient] Mensagem de log do servidor: ${message.message || JSON.stringify(message)}`);
+        this.log(`Mensagem de log do servidor: ${message.message || JSON.stringify(message)}`);
       } else {
         // Tipo desconhecido - tentar processar mesmo assim se tiver dados relevantes
-        console.log(`[UnifiedRouletteClient] Tipo de mensagem desconhecido: ${message.type || 'undefined'}`);
+        this.log(`Tipo de mensagem desconhecido: ${message.type || 'undefined'}`);
         
         // Verificar se podemos extrair dados de roleta mesmo assim
         if (message.roleta_id || message.roleta || message.id || message.data) {
           if (message.data && Array.isArray(message.data)) {
             // Provavelmente é uma lista de roletas
-            console.log(`[UnifiedRouletteClient] Processando lista de ${message.data.length} roletas de mensagem não tipada`);
+            this.log(`Processando lista de ${message.data.length} roletas de mensagem não tipada`);
             this.updateCache(message.data);
           } else if (message.numero !== undefined || message.ultimoNumero !== undefined) {
             // Provavelmente é uma atualização de número
-            console.log(`[UnifiedRouletteClient] Processando atualização de número de mensagem não tipada: ${message.numero || message.ultimoNumero}`);
+            this.log(`Processando atualização de número de mensagem não tipada: ${message.numero || message.ultimoNumero}`);
             const rouletteData = {
               id: message.roleta_id || message.id || 'unknown',
               nome: message.roleta_nome || message.nome || message.roleta || 'Roleta Desconhecida',
@@ -707,7 +1282,7 @@ class UnifiedRouletteClient {
         }
       }
     } catch (error) {
-      console.error('[UnifiedRouletteClient] Erro ao processar mensagem WebSocket:', error);
+      this.error('Erro ao processar mensagem WebSocket:', error);
     }
   }
   
@@ -715,7 +1290,7 @@ class UnifiedRouletteClient {
    * Handler para erros na conexão WebSocket
    */
   private handleWebSocketError(event: Event): void {
-    console.error('[UnifiedRouletteClient] Erro na conexão WebSocket:', event);
+    this.error('Erro na conexão WebSocket:', event);
     this.webSocketConnected = false;
     this.scheduleWebSocketReconnect();
   }
@@ -724,7 +1299,7 @@ class UnifiedRouletteClient {
    * Handler para fechamento da conexão WebSocket
    */
   private handleWebSocketClose(event: CloseEvent): void {
-    console.log(`[UnifiedRouletteClient] Conexão WebSocket fechada: Código ${event.code}, Razão: ${event.reason}`);
+    this.log(`Conexão WebSocket fechada: Código ${event.code}, Razão: ${event.reason}`);
     this.webSocketConnected = false;
     
     // Verificar se devemos tentar reconectar
@@ -745,22 +1320,24 @@ class UnifiedRouletteClient {
     
     // Verificar se excedemos o número máximo de tentativas
     if (this.webSocketReconnectAttempts >= this.maxWebSocketReconnectAttempts) {
-      console.error(`[UnifiedRouletteClient] Número máximo de tentativas de reconexão WebSocket (${this.maxWebSocketReconnectAttempts}) atingido, desistindo...`);
+      this.error(`Número máximo de tentativas de reconexão WebSocket (${this.maxWebSocketReconnectAttempts}) atingido, desistindo...`);
       
-      // Tentar o fallback SSE em vez de simulação - Lógica SSE removida
-      // if (!this.isStreamConnected && !this.isStreamConnecting) { ... }
-      console.log('[UnifiedRouletteClient] Falha na conexão WebSocket. Tente recarregar a página ou verifique a conexão do backend.');
+      // Tentar o fallback SSE em vez de simulação
+      if (!this.isStreamConnected && !this.isStreamConnecting) {
+        this.log('Tentando conexão SSE como alternativa após falha no WebSocket');
+        this.connectStream();
+      }
       
       return;
     }
     
     // Calcular tempo de espera (backoff exponencial)
     const reconnectDelay = Math.min(1000 * Math.pow(2, this.webSocketReconnectAttempts), 30000);
-    console.log(`[UnifiedRouletteClient] Agendando reconexão WebSocket em ${reconnectDelay}ms (tentativa ${this.webSocketReconnectAttempts})`);
+    this.log(`Agendando reconexão WebSocket em ${reconnectDelay}ms (tentativa ${this.webSocketReconnectAttempts})`);
     
     // Agendar reconexão
     this.webSocketReconnectTimer = window.setTimeout(() => {
-      console.log('[UnifiedRouletteClient] Tentando reconectar ao WebSocket...');
+      this.log('Tentando reconectar ao WebSocket...');
       this.connectToWebSocket();
     }, reconnectDelay) as unknown as number;
   }
@@ -784,9 +1361,9 @@ class UnifiedRouletteClient {
       });
       
       this.socket.send(requestMessage);
-      console.log('[UnifiedRouletteClient] Solicitação de dados recentes enviada via WebSocket');
+      this.log('Solicitação de dados recentes enviada via WebSocket');
     } catch (error) {
-      console.error('[UnifiedRouletteClient] Erro ao solicitar dados via WebSocket:', error);
+      this.error('Erro ao solicitar dados via WebSocket:', error);
     }
   }
 }
