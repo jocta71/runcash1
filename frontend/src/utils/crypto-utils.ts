@@ -32,9 +32,11 @@ export class CryptoService {
   private static instance: CryptoService;
   private accessKey: string | null = null;
   private keyData: any = null;
+  private isLocalKey: boolean = false;
   
-  // Chave de localStorage para armazenar a chave de acesso
+  // Chaves de localStorage para armazenar a chave de acesso
   private readonly STORAGE_KEY = 'roulette_access_key';
+  private readonly LOCAL_KEY = 'runcash_access_key';
   
   constructor() {
     // Tentar carregar a chave do localStorage
@@ -57,9 +59,28 @@ export class CryptoService {
   private loadAccessKey(): void {
     try {
       if (typeof window !== 'undefined') {
+        // Primeiro tenta a chave normal
         const storedKey = localStorage.getItem(this.STORAGE_KEY);
         if (storedKey) {
           this.accessKey = storedKey;
+          this.isLocalKey = false;
+          return;
+        }
+        
+        // Se não encontrar, tenta a chave local
+        const localKeyData = localStorage.getItem(this.LOCAL_KEY);
+        if (localKeyData) {
+          try {
+            const parsedKey = JSON.parse(localKeyData);
+            if (parsedKey.key) {
+              this.accessKey = parsedKey.key;
+              this.isLocalKey = true;
+              console.log('[CryptoService] Usando chave local para descriptografia');
+              return;
+            }
+          } catch (e) {
+            console.error('[CryptoService] Erro ao analisar chave local:', e);
+          }
         }
       }
     } catch (error) {
@@ -86,6 +107,7 @@ export class CryptoService {
    */
   public setAccessKey(key: string): void {
     this.accessKey = key;
+    this.isLocalKey = false;
     this.saveAccessKey();
     console.log('[CryptoService] Chave de acesso configurada e salva');
   }
@@ -98,10 +120,18 @@ export class CryptoService {
   }
   
   /**
+   * Verificar se a chave atual é uma chave local
+   */
+  public isUsingLocalKey(): boolean {
+    return this.isLocalKey;
+  }
+  
+  /**
    * Limpar a chave de acesso
    */
   public clearAccessKey(): void {
     this.accessKey = null;
+    this.isLocalKey = false;
     if (typeof window !== 'undefined') {
       localStorage.removeItem(this.STORAGE_KEY);
     }
@@ -318,4 +348,30 @@ export class CryptoService {
 }
 
 // Exportar instância singleton
-export const cryptoService = CryptoService.getInstance(); 
+export const cryptoService = CryptoService.getInstance();
+
+// Adicionar suporte para chave local armazenada no localStorage
+
+// Verificar se existe uma chave local
+export const getLocalAccessKey = (): string | null => {
+  try {
+    const localKeyData = localStorage.getItem('runcash_access_key');
+    if (!localKeyData) return null;
+    
+    const parsedKey = JSON.parse(localKeyData);
+    return parsedKey.key || null;
+  } catch (error) {
+    console.error('Erro ao recuperar chave local:', error);
+    return null;
+  }
+};
+
+// Verificar e definir a chave local no serviço de criptografia
+export const useLocalAccessKey = (): boolean => {
+  const localKey = getLocalAccessKey();
+  if (localKey && !cryptoService.hasAccessKey()) {
+    cryptoService.setAccessKey(localKey);
+    return true;
+  }
+  return false;
+}; 
