@@ -6,7 +6,6 @@
 const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
 const User = require('../api/models/User');
-const config = require('../config/config');
 const { Usuario } = require('../models');
 
 // Configuração do JWT - deve ser obtida do arquivo de configuração
@@ -54,7 +53,7 @@ exports.proteger = async (req, res, next) => {
     }
     
     // Verificar e decodificar o token
-    const decodificado = jwt.verify(token, config.jwt.secret);
+    const decodificado = jwt.verify(token, JWT_SECRET);
     
     // Buscar usuário para confirmar que ele existe e está ativo
     const usuario = await Usuario.findByPk(decodificado.id);
