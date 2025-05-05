@@ -832,6 +832,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                 <ScrollArea className="h-[300px]">
                   <div className="flex flex-wrap p-3 gap-2">
                     {filteredNumbers.map((n, idx) => (
+                      // Formatar o timestamp dentro do JSX
                       <div 
                         key={`${n.numero}-${n.timestamp}-${idx}`} 
                         className="relative cursor-pointer transition-transform hover:scale-110"
@@ -842,7 +843,18 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                           size="medium" 
                           highlight={highlightedNumber === n.numero}
                         />
-                        <div className="text-xs text-gray-400 text-center mt-1">{n.timestamp}</div>
+                        <div className="text-xs text-gray-400 text-center mt-1">
+                          {(() => {
+                            // Lógica de formatação movida para cá
+                            try {
+                                const date = new Date(n.timestamp); 
+                                if (!isNaN(date.getTime())) {
+                                    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                                }
+                            } catch (e) { /* Ignora erro */ }
+                            return "--:--"; // Retorna padrão em caso de erro ou data inválida
+                          })()}
+                        </div>
                       </div>
                     ))}
                   </div>
