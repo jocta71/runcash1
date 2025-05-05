@@ -1,18 +1,14 @@
 import { Loader2 } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { RouletteData } from '@/types';
 import NumberDisplay from './NumberDisplay';
 import { Badge } from "@/components/ui/badge";
 import { useRouletteSettingsStore } from '@/stores/rouletteSettingsStore';
 import { cn } from '@/lib/utils';
-import UnifiedRouletteClient from '../services/UnifiedRouletteClient';
-import EventBus from '../services/EventBus';
-import { TrendingUp, Zap, CheckCircle, XCircle, AlertTriangle, Info, Gauge } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import globalRouletteDataService from '@/services/GlobalRouletteDataService';
+import EventBus from '@/services/EventBus';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;
@@ -24,86 +20,100 @@ const debugLog = (...args: any[]) => {
   }
 };
 
-interface RouletteNumber {
-  numero: number;
-  timestamp: string;
-  cor?: string; // Adicionar cor opcional se vier da API
+// Modificando a classe GlobalRouletteDataManager para usar o serviço global
+class GlobalRouletteDataManager {
+  private static instance: GlobalRouletteDataManager | null = null;
+  private updateCallbacks: Map<string, (data: any) => void> = new Map();
+  private initialDataLoaded: boolean = false;
+  
+  private constructor() {
+    console.log('[RouletteCard] Inicializando gerenciador de dados');
+  }
+  
+  public static getInstance(): GlobalRouletteDataManager {
+    if (!GlobalRouletteDataManager.instance) {
+      GlobalRouletteDataManager.instance = new GlobalRouletteDataManager();
+    }
+    return GlobalRouletteDataManager.instance;
+  }
+  
+  public subscribe(id: string, callback: (data: any) => void): () => void {
+    console.log(`[RouletteCard] Novo assinante registrado: ${id}`);
+    this.updateCallbacks.set(id, callback);
+    
+    // Usar o globalRouletteDataService para obter dados
+    const currentData = globalRouletteDataService.getAllRoulettes();
+    
+    // Se já temos dados, notificar imediatamente
+    if (currentData && currentData.length > 0) {
+      callback(currentData);
+      this.initialDataLoaded = true;
+    } else {
+      // Forçar uma atualização usando o serviço global
+      globalRouletteDataService.forceUpdate();
+    }
+    
+    // Registrar callback no serviço global para receber atualizações
+    globalRouletteDataService.subscribe(id, () => {
+      const rouletteData = globalRouletteDataService.getAllRoulettes();
+      if (rouletteData && rouletteData.length > 0) {
+        callback(rouletteData);
+      }
+    });
+    
+    // Retornar função para cancelar inscrição
+    return () => {
+      this.updateCallbacks.delete(id);
+      globalRouletteDataService.unsubscribe(id);
+      console.log(`[RouletteCard] Assinante removido: ${id}`);
+    };
+  }
+
+  // Obter dados mais recentes (sem garantia de atualização)
+  public getData(): any[] {
+    return globalRouletteDataService.getAllRoulettes();
+  }
+  
+  // Obter timestamp da última atualização
+  public getLastUpdateTime(): number {
+    return Date.now(); // Usar o timestamp atual como fallback
+  }
+
+  // Verificar se os dados iniciais foram carregados
+  public isInitialized(): boolean {
+    return this.initialDataLoaded;
+  }
 }
 
 interface RouletteCardProps {
-  initialData: RouletteData;
-  onSelect?: (id: string) => void;
-  isSelected?: boolean;
+  data: RouletteData;
   isDetailView?: boolean;
 }
 
-// Interface para os dados específicos que o Card precisa
-interface ProcessedRouletteData {
-  id: string;
-  nome: string;
-  provider: string;
-  status: string;
-  ultimoNumero: number | null;
-  numeros: RouletteNumber[]; // Array de objetos { numero: number, timestamp: string }
-  winRate: number;
-  streak: number;
-  lastUpdateTime: number;
-}
-
-// Função para extrair e processar dados da roleta (Adaptar para nova estrutura)
-const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
-  if (!roulette || !roulette.id) return null;
-
-  // Adaptar para pegar os números da estrutura correta (ex: roulette.numero)
-  const numerosComTimestamp: RouletteNumber[] = (Array.isArray(roulette.numero) ? roulette.numero : []).map((item: any) => {
-      let timeString = "00:00";
-      if (item.timestamp) {
-          try {
-              const date = new Date(item.timestamp);
-              timeString = date.getHours().toString().padStart(2, '0') + ':' +
-                           date.getMinutes().toString().padStart(2, '0');
-          } catch (e) { /* Ignorar erro de timestamp */ }
-      }
-      return {
-          numero: Number(item.numero),
-          timestamp: timeString
-      };
-  }).filter((n: any) => !isNaN(n.numero) && n.numero >= 0 && n.numero <= 36);
-
-  const ultimoNumero = numerosComTimestamp.length > 0 ? numerosComTimestamp[0].numero : null;
-  
-  // Calcular winRate e streak (manter lógica existente se aplicável)
-  const winRate = roulette.winRate || Math.random() * 100; // Placeholder
-  const streak = roulette.streak || Math.floor(Math.random() * 5); // Placeholder
-
-  return {
-    id: roulette.id,
-    nome: roulette.nome || roulette.name || 'Roleta Desconhecida',
-    provider: roulette.provider || 'Desconhecido',
-    status: roulette.status || 'offline',
-    ultimoNumero: ultimoNumero,
-    numeros: numerosComTimestamp.slice(0, 10), // Limitar a 10 para exibição no card
-    winRate: winRate,
-    streak: streak,
-    lastUpdateTime: roulette.timestamp ? new Date(roulette.timestamp).getTime() : Date.now(),
-  };
-};
-
-const RouletteCard: React.FC<RouletteCardProps> = ({ initialData, onSelect, isSelected, isDetailView }) => {
+const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false }) => {
   // Estados
-  const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(processRouletteData(initialData));
-  const [isLoading, setIsLoading] = useState(!rouletteData);
-  const [error, setError] = useState<string | null>(null);
+  const [lastNumber, setLastNumber] = useState<number | null>(null);
+  const [recentNumbers, setRecentNumbers] = useState<number[]>([]);
+  const [allNumbers, setAllNumbers] = useState<number[]>([]); // Array com todos os números, sem limite
   const [isNewNumber, setIsNewNumber] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
   const [updateCount, setUpdateCount] = useState(0);
-  const [loadingTimeout, setLoadingTimeout] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [hasRealData, setHasRealData] = useState(false);
+  const [rawRouletteData, setRawRouletteData] = useState<any>(null);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [allRoulettesData, setAllRoulettesData] = useState<any[]>([]);
+  const [loadingTimeout, setLoadingTimeout] = useState<boolean>(false); // Estado para controlar timeout do carregamento
+  const [reloadingData, setReloadingData] = useState<boolean>(false); // Estado para controlar feedback visual ao recarregar
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null); // Referência para o timeout
   
   // Hooks
   const navigate = useNavigate();
@@ -111,83 +121,110 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ initialData, onSelect, isSe
   
   // Dados iniciais seguros
   const safeData = {
-    id: initialData?.id || initialData?._id || 'unknown',
-    name: initialData?.name || initialData?.nome || 'Roleta sem nome',
+    id: data?.id || data?._id || 'unknown',
+    name: data?.name || data?.nome || 'Roleta sem nome',
   };
   
   // ID único para este componente
   const componentId = useRef(`roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`).current;
   
-  // Obter instância do UnifiedClient
-  const unifiedClient = UnifiedRouletteClient.getInstance();
+  // Referência ao gerenciador global
+  const dataManager = useMemo(() => GlobalRouletteDataManager.getInstance(), []);
   
-  // useEffect para buscar dados iniciais e assinar updates
+  // Função para lidar com atualizações de dados
+  const handleDataUpdate = useCallback((allRoulettes: any[]) => {
+    if (!allRoulettes || !Array.isArray(allRoulettes) || allRoulettes.length === 0) return;
+    
+    // Armazenar todas as roletas
+    setAllRoulettesData(allRoulettes);
+    
+    // Encontrar a roleta específica pelo ID ou nome
+    const myRoulette = allRoulettes.find((roulette: any) => 
+      roulette.id === safeData.id || 
+      roulette._id === safeData.id || 
+      roulette.name === safeData.name || 
+      roulette.nome === safeData.name
+    );
+    
+    if (!myRoulette) {
+      console.warn(`[${componentId}] Roleta com ID ${safeData.id} não encontrada na resposta`);
+        return;
+      }
+      
+    // Salvar dados brutos para uso posterior
+    setRawRouletteData(myRoulette);
+      
+    // Processar os dados da roleta
+    processApiData(myRoulette);
+        
+    // Atualizar timestamp e contador
+        setLastUpdateTime(Date.now());
+        setUpdateCount(prev => prev + 1);
+    setError(null);
+    setLoading(false);
+  }, [safeData.id, safeData.name]);
+  
+  // Efeito para iniciar a busca de dados
   useEffect(() => {
-    // Função para processar UM update e definir o estado
-    const handleSingleUpdate = (data: any) => {
-      if (data && data.id === safeData.id) {
-        console.log(`[DEBUG ${componentId}] Recebido update para esta roleta:`, data);
-        const processed = processRouletteData(data); // Processa os dados recebidos
-        if (processed) {
-          // Compara com o estado ANTERIOR para detectar novo número
-          setRouletteData(prevState => {
-            if (prevState && processed.ultimoNumero !== prevState.ultimoNumero && processed.ultimoNumero !== null) {
-              console.log(`[DEBUG ${componentId}] Novo número detectado: ${processed.ultimoNumero}`);
-              setIsNewNumber(true);
-              setTimeout(() => setIsNewNumber(false), 2000); // Resetar após animação
-            }
-            return processed; // Retorna o novo estado processado
-          });
-          setIsLoading(false);
-          setError(null);
-        } else {
-          console.error(`[DEBUG ${componentId}] Falha ao processar dados recebidos.`);
-          setError('Falha ao processar dados da roleta.');
-          setIsLoading(false);
+    // Configurar loading inicial
+    setLoading(true);
+    
+    // Configurar um timeout para caso o carregamento demore demais
+    // Define um timeout de 15 segundos para mostrar uma mensagem amigável
+    timeoutRef.current = setTimeout(() => {
+      if (loading && !hasRealData) {
+        console.log('[RouletteCard] Timeout de carregamento atingido');
+        setLoadingTimeout(true);
+      }
+    }, 15000);
+    
+    // Assinar atualizações do gerenciador global
+    const unsubscribe = dataManager.subscribe(componentId, handleDataUpdate);
+    
+    // Assinar eventos do EventBus para atualizações SSE
+    EventBus.on('roulette:data-updated', (eventData) => {
+      console.log(`[${componentId}] Evento roulette:data-updated recebido:`, eventData);
+      
+      // Verificar se temos dados válidos no evento
+      if (eventData && eventData.data) {
+        // Se for um array, processamos todas as roletas
+        if (Array.isArray(eventData.data)) {
+          handleDataUpdate(eventData.data);
+        } 
+        // Se for uma roleta única, verificamos se é a nossa e atualizamos
+        else if (eventData.data.id === safeData.id || 
+                eventData.data._id === safeData.id || 
+                eventData.data.name === safeData.name || 
+                eventData.data.nome === safeData.name) {
+          handleDataUpdate([eventData.data]);
         }
       }
-    };
-
-    // Tenta obter dados do cache do cliente ao montar
-    console.log(`[DEBUG ${componentId}] Tentando obter dados do cache para ${safeData.id}`);
-    const currentDataFromClient = unifiedClient.getRouletteById(safeData.id);
-    if (currentDataFromClient) {
-        console.log(`[DEBUG ${componentId}] Dados encontrados no cache:`, currentDataFromClient);
-        handleSingleUpdate(currentDataFromClient); // Processa dados do cache
-    } else {
-        // Se não há no cache E não tínhamos initialData processado, manter loading
-        if (!rouletteData) {
-            console.log(`[DEBUG ${componentId}] Sem dados no cache ou initialData, mantendo loading.`);
-            setIsLoading(true);
-        }
-    }
-
-    // Assina o evento 'update'
-    console.log(`[DEBUG ${componentId}] Assinando evento 'update'.`);
-    const unsubscribe = unifiedClient.on('update', (updateData) => {
-        if (Array.isArray(updateData)) {
-            // Se for array, encontra os dados desta roleta específica
-            const myData = updateData.find(r => r.id === safeData.id);
-            if (myData) {
-                handleSingleUpdate(myData);
-            }
-        } else {
-            // Se for objeto único, processa diretamente
-            handleSingleUpdate(updateData);
-        }
     });
-
-    // Limpa a inscrição ao desmontar
+    
+    // Limpar inscrição ao desmontar o componente
     return () => {
-      console.log(`[DEBUG ${componentId}] Cancelando inscrição do evento 'update'.`);
       unsubscribe();
+      
+      // Remover listener do EventBus
+      EventBus.off('roulette:data-updated', null);
+      
+      // Limpar timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      
+      // Certificar-se de limpar qualquer outro recurso de requisição
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
-    // Não incluir rouletteData nas dependências para evitar loop de re-assinatura
-  }, [safeData.id, unifiedClient]); 
+  }, [dataManager, componentId, handleDataUpdate]);
   
   // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
   // Console.log para verificar se há apenas uma fonte de requisições:
-  console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas UnifiedRouletteClient para obter dados da API.');
+  console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas GlobalRouletteDataManager para obter dados da API.');
   
   // Função para processar dados da API
   const processApiData = (apiRoulette: any) => {
@@ -199,69 +236,33 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ initialData, onSelect, isSe
     }
     
     // Extrair números da resposta
-    const apiNumbers = extractNumbers(apiRoulette); // Retorna number[]
+    const apiNumbers = extractNumbers(apiRoulette);
     debugLog(`Números extraídos para ${safeData.name}:`, apiNumbers);
     
+    // Se não há números, não faz nada
     if (!apiNumbers || apiNumbers.length === 0) {
       debugLog(`Nenhum número extraído para ${safeData.name} - API response:`, apiRoulette);
-      // <<< Se não há números E não tínhamos dados, definir estado como "sem números" >>>
-      if (!rouletteData) {
-          setRouletteData({
-            id: apiRoulette.id || safeData.id,
-            nome: apiRoulette.nome || apiRoulette.name || safeData.name,
-            provider: apiRoulette.provider || 'Desconhecido',
-            status: apiRoulette.status || 'offline',
-            ultimoNumero: null,
-            numeros: [], // Array vazio de RouletteNumber
-            winRate: apiRoulette.winRate || 0,
-            streak: apiRoulette.streak || 0,
-            lastUpdateTime: apiRoulette.timestamp ? new Date(apiRoulette.timestamp).getTime() : Date.now(),
-          });
-           setIsLoading(false); // Garantir que parou de carregar
-      }
       return;
     }
     
-    // Verificar se temos números novos (esta função pode ser simplificada depois)
+    // Verificar se temos números novos
     const hasNewNumbers = updateNumberSequence(apiNumbers);
     debugLog(`Novos números encontrados para ${safeData.name}: ${hasNewNumbers ? 'SIM' : 'NÃO'}`);
     
-    // Se não tínhamos dados reais antes, inicializar o estado corretamente
-    if (!rouletteData) {
-        // <<< CORRIGIR A INICIALIZAÇÃO DO ESTADO >>>
-        // Mapear apiNumbers para RouletteNumber[]
-        const initialNumeros: RouletteNumber[] = apiNumbers.slice(0, 10).map(num => ({
-            numero: num,
-            timestamp: new Date().toLocaleTimeString() // Usar timestamp placeholder
-        }));
-
-        setRouletteData({
-            id: apiRoulette.id || safeData.id, // Usar dados da apiRoulette
-            nome: apiRoulette.nome || apiRoulette.name || safeData.name,
-            provider: apiRoulette.provider || 'Desconhecido',
-            status: apiRoulette.status || 'offline',
-            ultimoNumero: initialNumeros.length > 0 ? initialNumeros[0].numero : null,
-            numeros: initialNumeros, // <<< Usar array formatado
-            winRate: apiRoulette.winRate || 0, // Usar dados da apiRoulette ou padrão
-            streak: apiRoulette.streak || 0,
-            lastUpdateTime: apiRoulette.timestamp ? new Date(apiRoulette.timestamp).getTime() : Date.now(), // Usar dados da apiRoulette
-        });
-        debugLog(`Dados iniciais carregados para ${safeData.name} - ${apiNumbers.length} números`);
-        setIsLoading(false); // Garantir que parou de carregar
-        return; // Retornar após inicializar
-    }
-
-    // Se já tínhamos dados e não há números novos, não fazer nada
-    if (!hasNewNumbers) {
+    // Se não há números novos e já temos dados, não precisamos atualizar a UI
+    if (!hasNewNumbers && hasRealData) {
       debugLog(`Sem alterações nos números para ${safeData.name} - ignorando atualização`);
-      // Atualizar apenas o timestamp se desejado
-      // setRouletteData(prev => prev ? {...prev, lastUpdateTime: Date.now()} : null);
       return;
     }
-
-    // Se chegamos aqui, é porque hasNewNumbers é true e a função updateNumberSequence
-    // já atualizou o estado rouletteData corretamente.
-    debugLog(`Estado atualizado com novos números para ${safeData.name}`);
+    
+    // Se não tínhamos dados reais antes, atualizamos a UI mesmo sem novos números
+    if (!hasRealData) {
+      setAllNumbers(apiNumbers);
+      setRecentNumbers(apiNumbers.slice(0, 20)); // Mostrar até 20 números recentes
+      setLastNumber(apiNumbers[0]); // O número mais recente
+      setHasRealData(true);
+      debugLog(`Dados iniciais carregados para ${safeData.name} - ${apiNumbers.length} números`);
+    }
   };
 
   // Função para extrair números da resposta da API
@@ -345,29 +346,29 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ initialData, onSelect, isSe
     // Obter cor do número a partir dos dados da API
     let color = 'cinza';
     
-    if (rouletteData && rouletteData.numeros && rouletteData.numeros.length > 0) {
-      const matchingNumber = rouletteData.numeros.find((n: RouletteNumber) => n.numero === newNumber);
+    if (rawRouletteData && rawRouletteData.numero && rawRouletteData.numero.length > 0) {
+      const matchingNumber = rawRouletteData.numero.find((n: any) => n.numero === newNumber);
       if (matchingNumber && matchingNumber.cor) {
         color = matchingNumber.cor.toLowerCase();
       }
     }
     
     // Mostrar notificação
-    setIsNewNumber(true);
-    setTimeout(() => setIsNewNumber(false), 2000);
+    setToastVisible(true);
+    setToastMessage(`Novo número: ${newNumber} (${color})`);
+    setTimeout(() => setToastVisible(false), 3000);
     
-  }, [rouletteData]);
+  }, [rawRouletteData]);
   
   // Função para abrir detalhes da roleta
   const handleCardClick = () => {
-    if (onSelect && rouletteData) {
-      onSelect(rouletteData.id);
-    }
+    // Removida a navegação para a página de detalhes
+    return; // Não faz nada ao clicar no card
   };
   
   // Formatar tempo relativo
   const getTimeAgo = () => {
-    const seconds = Math.floor((Date.now() - rouletteData.lastUpdateTime) / 1000);
+    const seconds = Math.floor((Date.now() - lastUpdateTime) / 1000);
     if (seconds < 60) return `${seconds}s atrás`;
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s atrás`;
   };
@@ -383,109 +384,60 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ initialData, onSelect, isSe
 
   // Função para verificar e atualizar sequência de números
   const updateNumberSequence = (apiNumbers: number[]): boolean => {
-    if (!rouletteData) { // Checar se temos dados base para atualizar
-        // Se não temos, a lógica inicial no useEffect ou processRouletteData deve tratar
-        return false; 
-    }
-
-    if (apiNumbers[0] === rouletteData.ultimoNumero) {
-      return false;
-    }
-
-    const newNumbers: RouletteNumber[] = [];
-    for (const apiNum of apiNumbers) {
-      // Precisamos recriar o objeto RouletteNumber aqui, idealmente com timestamp real da API
-      // Por enquanto, usando timestamp atual como placeholder
-      const now = new Date();
-      const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
-                       now.getMinutes().toString().padStart(2, '0');
-      const newNumObj: RouletteNumber = { numero: apiNum, timestamp: timeString }; 
-      
-      // Checar se o número já existe no array atual
-      if (rouletteData.numeros.some(n => n.numero === apiNum && n.timestamp === newNumObj.timestamp)) {
-          break; // Para se encontrarmos um que já existe
-      }
-      newNumbers.push(newNumObj);
-    }
-
-    if (newNumbers.length > 0) {
-      const updatedNumbers = [...newNumbers, ...rouletteData.numeros];
-      
-      // Atualizar o estado principal
-      setRouletteData({
-        ...rouletteData, // Manter dados existentes
-        numeros: updatedNumbers.slice(0, 10), // Atualizar array de números (limitado para exibição)
-        ultimoNumero: newNumbers[0].numero, // Atualizar o último número
-        lastUpdateTime: Date.now() // Atualizar timestamp da atualização
-        // NÃO adicionar isNewNumber aqui
-      });
-      
-      // <<< Usar o state setter para isNewNumber >>>
-      setIsNewNumber(true); 
-      showNumberNotification(newNumbers[0].numero);
+    // Caso 1: Não temos números ainda - inicializar com os da API (já tratado no processApiData)
+    if (allNumbers.length === 0) {
       return true;
     }
+    
+    // Caso 2: Verificar se o último número da API é igual ao nosso
+    if (apiNumbers[0] === allNumbers[0]) {
+      // Nenhum número novo
+      return false;
+    }
+    
+    // Caso 3: Temos números novos na API
+    // Procurar por números novos que ainda não estão na nossa lista
+    const newNumbers = [];
+    
+    // Percorrer a lista da API até encontrar um número que já temos
+    for (let i = 0; i < apiNumbers.length; i++) {
+      const apiNum = apiNumbers[i];
+      
+      // Se encontramos um número que já está na nossa lista, paramos
+      if (allNumbers.includes(apiNum)) {
+        break;
+      }
+      
+      // Adicionar o número novo à nossa lista temporária
+      newNumbers.push(apiNum);
+    }
+    
+    // Se encontramos números novos, atualizamos o estado
+    if (newNumbers.length > 0) {
+      debugLog(`${newNumbers.length} novos números para ${safeData.name}: ${newNumbers.join(', ')}`);
+      
+      // Adicionar os novos números no início da nossa lista
+      const updatedAllNumbers = [...newNumbers, ...allNumbers];
+      
+      // Atualizar estados
+      setAllNumbers(updatedAllNumbers);
+      setRecentNumbers(updatedAllNumbers.slice(0, 20));
+      setLastNumber(newNumbers[0]);
+      setIsNewNumber(true);
+      
+      // Mostrar notificação para o primeiro novo número
+      showNumberNotification(newNumbers[0]);
+      
+      // Resetar a animação após 2 segundos
+      setTimeout(() => {
+        setIsNewNumber(false);
+      }, 2000);
+      
+      return true;
+    }
+    
     return false;
   };
-
-  if (isLoading) {
-    return (
-      <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden bg-card text-card-foreground animate-pulse">
-        <CardHeader className="p-4">
-          <div className="h-6 bg-muted rounded w-3/4"></div>
-          <div className="h-4 bg-muted rounded w-1/2 mt-1"></div>
-        </CardHeader>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex justify-center items-center space-x-2">
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-          </div>
-          <div className="h-4 bg-muted rounded w-full"></div>
-        </CardContent>
-        <CardFooter className="p-4 bg-muted/50 flex justify-between items-center">
-          <div className="h-4 bg-muted rounded w-1/4"></div>
-          <div className="h-4 bg-muted rounded w-1/3"></div>
-        </CardFooter>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-        <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden border-destructive bg-destructive/10 text-destructive-foreground">
-           <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Erro</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent className="p-4">
-                <p className="text-xs">{error}</p>
-                <Button variant="link" size="sm" className="mt-2 text-xs p-0 h-auto" onClick={() => unifiedClient.forceUpdate()}>Tentar novamente</Button>
-            </CardContent>
-        </Card>
-    );
-  }
-
-  if (!rouletteData) {
-    return (
-        <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden border-muted bg-muted/10 text-muted-foreground">
-           <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Sem Dados</CardTitle>
-                <Info className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="p-4">
-                <p className="text-xs">Ainda não há dados disponíveis para {safeData.name || 'esta roleta'}.</p>
-            </CardContent>
-        </Card>
-    );
-  }
-  
-  // Renderização normal do Card com os dados do estado `rouletteData`
-  const { nome, provider, status, ultimoNumero, numeros, winRate, streak, lastUpdateTime } = rouletteData;
-  const isOnline = status?.toLowerCase() === 'online';
-  const lastNumbersToDisplay = numeros.map(n => n.numero);
 
   return (
     <Card 
@@ -494,8 +446,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ initialData, onSelect, isSe
         "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ", 
         "hover:border-vegas-green/50",
         isNewNumber ? "border-vegas-green animate-pulse" : "",
-        isDetailView ? "w-full" : "w-full",
-        !isOnline ? "opacity-60 grayscale" : ""
+        isDetailView ? "w-full" : "w-full"
       )}
       onClick={handleCardClick}
     >
@@ -524,42 +475,118 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ initialData, onSelect, isSe
           </h3>
           <div className="flex gap-1 items-center">
             <Badge 
-              variant={rouletteData ? "secondary" : "default"} 
-              className={`text-xs ${rouletteData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
+              variant={hasRealData ? "secondary" : "default"} 
+              className={`text-xs ${hasRealData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
             >
-              {rouletteData ? "Online" : "Sem dados"}
+              {loading ? "Atualizando..." : (hasRealData ? "Online" : "Sem dados")}
             </Badge>
           </div>
         </div>
         
         {/* Números recentes */}
-        <div className="flex justify-center items-center space-x-1 min-h-[40px]">
-          {lastNumbersToDisplay.length > 0 ? (
-              lastNumbersToDisplay.slice(0, 5).map((num, index) => (
-                <NumberDisplay 
-                  key={`${componentId}-num-${index}-${num}`}
-                  number={num} 
-                  size="medium" 
-                  highlight={index === 0 && isNewNumber}
-                />
-              ))
+        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/50" style={{ backgroundColor: 'rgb(19 22 20 / var(--tw-bg-opacity, 1))' }}>
+          {recentNumbers.length > 0 ? (
+            recentNumbers.slice(0, 20).map((num, idx) => (
+            <NumberDisplay 
+              key={`${num}-${idx}`}
+              number={num} 
+              size="small" 
+              highlight={idx === 0 && isNewNumber}
+            />
+            ))
           ) : (
-              <span className="text-xs text-muted-foreground">Nenhum número recente</span>
+            <div className="text-center text-gray-400 py-2 w-full">
+              {loading ? (
+                <div className="flex flex-col items-center justify-center">
+                  <div className="flex items-center justify-center mb-2">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2 text-vegas-green" />
+                    Carregando números...
+                  </div>
+                  {loadingTimeout && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      <p>O carregamento está demorando mais que o normal.</p>
+                      <button 
+                        onClick={() => {
+                          setLoadingTimeout(false);
+                          setLoading(true);
+                          setReloadingData(true); // Ativar efeito visual de recarregamento
+                          
+                          // Forçar atualização dos dados
+                          globalRouletteDataService.forceUpdate();
+                          
+                          // Reiniciar o timeout
+                          if (timeoutRef.current) {
+                            clearTimeout(timeoutRef.current);
+                          }
+                          timeoutRef.current = setTimeout(() => {
+                            setLoadingTimeout(true);
+                            setReloadingData(false); // Desativar efeito após timeout
+                          }, 15000);
+                          
+                          // Desativar efeito visual após 2 segundos para dar feedback
+                          setTimeout(() => {
+                            setReloadingData(false);
+                          }, 2000);
+                        }}
+                        className={`px-3 py-1 mt-2 text-xs ${reloadingData 
+                          ? 'bg-vegas-green/40 text-white animate-pulse' 
+                          : 'bg-vegas-green/20 text-vegas-green hover:bg-vegas-green/30'} 
+                          transition-colors rounded-md flex items-center justify-center`}
+                        disabled={reloadingData}
+                      >
+                        {reloadingData ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            Recarregando...
+                          </>
+                        ) : 'Tentar novamente'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center">
+                  <p className="mb-2">Erro ao carregar números</p>
+                  <button 
+                    onClick={() => {
+                      setError(null);
+                      setLoading(true);
+                      setReloadingData(true); // Ativar efeito visual
+                      
+                      // Forçar atualização dos dados
+                      globalRouletteDataService.forceUpdate();
+                      
+                      // Desativar efeito visual após 2 segundos
+                      setTimeout(() => {
+                        setReloadingData(false);
+                      }, 2000);
+                    }}
+                    className={`px-3 py-1 text-xs ${reloadingData 
+                      ? 'bg-vegas-green/40 text-white animate-pulse' 
+                      : 'bg-vegas-green/20 text-vegas-green hover:bg-vegas-green/30'} 
+                      transition-colors rounded-md flex items-center justify-center`}
+                    disabled={reloadingData}
+                  >
+                    {reloadingData ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        Recarregando...
+                      </>
+                    ) : 'Tentar novamente'}
+                  </button>
+                </div>
+              ) : "Nenhum número disponível"}
+            </div>
           )}
         </div>
       </CardContent>
 
-      <CardFooter className="p-4 bg-muted/50 flex justify-between items-center text-xs text-muted-foreground">
-        <span>{provider}</span>
-        <Tooltip>
-          <TooltipTrigger>
-            <span>Atualizado: {new Date(lastUpdateTime).toLocaleTimeString()}</span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{new Date(lastUpdateTime).toLocaleString()}</p>
-          </TooltipContent>
-        </Tooltip>
-      </CardFooter>
+      {/* Toast de notificação */}
+      {toastVisible && (
+        <div className="fixed bottom-4 right-4 bg-[#14161F] bg-opacity-95 border border-vegas-green text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
+          {toastMessage}
+        </div>
+      )}
     </Card>
   );
 };
