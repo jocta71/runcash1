@@ -380,223 +380,98 @@ class UnifiedRouletteClient {
   private async handleStreamUpdate(event: MessageEvent): Promise<void> {
     this.lastReceivedAt = Date.now();
     this.lastEventId = event.lastEventId;
-    
+
     try {
-      // Verificar se os dados estão em formato JSON
-      const rawData = event.data;
-      let parsedData;
-      
-      this.log(`Evento SSE recebido: ID=${event.lastEventId}, Tipo=${event.type}`);
-      
-      // Tentar extrair chave de acesso do evento, se necessário
+      const rawData = event.data; // Dados como string vindos do SSE
+      this.log(`Evento SSE recebido: ID=${event.lastEventId}, Tipo=${event.type}, Dados=${rawData.substring(0, 100)}...`);
+
+      // A chave de acesso deve ser configurada antes ou no evento 'connected'.
+      // Não tentaremos extrair de cada evento 'update' para simplificar.
       if (!cryptoService.hasAccessKey()) {
-        this.log('Sem chave de acesso configurada, tentando extrair do evento');
-        try {
-          cryptoService.extractAndSetAccessKeyFromEvent(rawData);
-        } catch (error) {
-          this.log('Não foi possível extrair chave de acesso do evento');
-        }
+        this.log('Chave de acesso ainda não configurada. Aguardando evento connected ou configuração manual.');
+        // Poderia tentar extrair aqui como fallback, mas idealmente a chave vem antes.
+        // const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(rawData);
+        // if (keyExtracted) { this.log('Chave extraída do evento update.'); }
       }
-      
-      // Primeiro tentar fazer o parse do JSON
+
+      // Os dados DEVEM ser um JSON string contendo {iv, data}
+      let parsedPayload: { iv?: string, data: string };
       try {
-        parsedData = JSON.parse(rawData);
-        this.log('Dados JSON parseados com sucesso:', JSON.stringify(parsedData).substring(0, 100) + '...');
-        
-        // Se este evento tem uma chave, salvá-la
-        if (!cryptoService.hasAccessKey()) {
-          cryptoService.extractAndSetAccessKeyFromEvent(parsedData);
+        parsedPayload = JSON.parse(rawData);
+
+        // Verificar se o payload parseado tem a estrutura esperada
+        if (!parsedPayload || typeof parsedPayload.data !== 'string') {
+            this.error('Payload JSON parseado não contém campo "data" string:', parsedPayload);
+            return; // Ignorar evento malformado
         }
+
+        this.log('Dados JSON parseados com sucesso. Passando para descriptografia.');
+        // Passar o objeto parseado para handleEncryptedData
+        // Nota: handleEncryptedData/processEncryptedData esperam um objeto com a chave "encryptedData",
+        // mas o backend envia {iv, data}. Precisamos alinhar isso.
+        // Vamos passar o objeto {iv, data} diretamente para decryptData.
+
+        // **Chamada Direta para decryptData com a string JSON original**
+        // (cryptoService.decryptData foi ajustado para esperar a string JSON)
+        try {
+          const decryptedData = await cryptoService.decryptData(rawData);
+          this.log('[UnifiedRouletteClient] Dados descriptografados com sucesso pelo cryptoService');
+          this.handleDecryptedData(decryptedData); // Processa os dados internos
+        } catch (decryptionError) {
+            this.error('Erro retornado pelo cryptoService.decryptData:', decryptionError);
+            // Tratar erro de descriptografia (chave errada? dados corrompidos?)
+            this.emit('decrypt-error', { error: decryptionError });
+        }
+
       } catch (error) {
-        this.log('Dados não estão em formato JSON válido, verificando outros formatos');
-        
-        // Se não for JSON, verificar se são dados criptografados no formato Iron
-        if (typeof rawData === 'string' && rawData.startsWith('Fe26.2')) {
-          this.handleEncryptedData(rawData);
-          return;
-        } else if (typeof rawData === 'string' && rawData.includes('"encrypted":true')) {
-          // Dados podem estar em formato JSON com campo encrypted
-          try {
-            const encryptedContainer = JSON.parse(rawData);
-            
-            if (encryptedContainer.encrypted && encryptedContainer.encryptedData) {
-              this.log('Dados em container criptografado detectados');
-              this.handleEncryptedData(encryptedContainer);
-              return;
-            }
-          } catch (error) {
-            this.error('Erro ao processar container criptografado:', error);
-          }
-        }
-        
-        this.error('Formato de dados não reconhecido:', rawData.substring(0, 100));
-        return;
+        // Se JSON.parse falhar, os dados estão corrompidos ou em formato inesperado
+        this.error('Erro ao fazer parse JSON dos dados SSE recebidos:', error);
+        this.error('Dados brutos recebidos:', rawData.substring(0, 200)); // Logar dados problemáticos
+
+        // Remover a lógica antiga que verificava 'Fe26.2' ou 'encrypted:true'
+        // Pois esperamos SEMPRE o JSON {iv, data} do backend
+
+        this.emit('parse-error', { error: error, rawData: rawData });
+        return; // Ignorar evento malformado
       }
-      
-      // Verificar se temos um container JSON com dados criptografados
-      if (parsedData && parsedData.encrypted === true) {
-        this.log('Container JSON com dados criptografados detectado');
-        this.handleEncryptedData(parsedData);
-        return;
-      }
-      
-      // Verificar se temos uma mensagem de erro ou notificação especial
-      if (parsedData && parsedData.error === true) {
-        this.handleErrorMessage(parsedData);
-        return;
-      }
-      
-      // Verificar se temos uma mensagem sobre chave de acesso
-      if (parsedData && (parsedData.accessKey || parsedData.key || 
-         (parsedData.auth && (parsedData.auth.key || parsedData.auth.accessKey)))) {
-        // Este evento provavelmente contém uma chave de acesso
-        const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(parsedData);
-        if (keyExtracted) {
-          this.log('✅ Chave de acesso extraída e configurada a partir do evento update');
-          // Solicitar dados atualizados agora que temos a chave
-          this.forceUpdate();
-        }
-      }
-      
-      // Se chegamos aqui, os dados são JSON não criptografados
-      // Atualizar cache com os dados recebidos
-      this.updateCache(parsedData);
-      
-      // Notificar sobre atualização
-      this.emit('update', parsedData);
-      EventBus.emit('roulette:data-updated', {
-        timestamp: new Date().toISOString(),
-        data: parsedData
-      });
+
     } catch (error) {
-      this.error('Erro ao processar evento update:', error);
+      // Captura erros gerais inesperados no processamento do evento
+      this.error('Erro inesperado ao processar evento SSE:', error);
     }
   }
   
   /**
    * Processa dados criptografados recebidos do servidor
+   * DEPRECIADO: A lógica agora está integrada em handleStreamUpdate que chama cryptoService.decryptData diretamente.
+   * Mantido brevemente para referência ou caso precise ser reativado com lógica diferente.
    */
-  private handleEncryptedData(encryptedData: any): void {
-    console.log('[UnifiedRouletteClient] Processando dados criptografados');
-    
-    try {
-      // Tentar extrair a chave de acesso dos dados
-      this.extractAccessKey(encryptedData);
-      
-      // Processar os dados criptografados
-      cryptoService.processEncryptedData(encryptedData)
-        .then(decryptedData => {
-          console.log('[UnifiedRouletteClient] Dados descriptografados com sucesso');
-          
-          // Se temos dados reais, processar normalmente
-          if (decryptedData) {
-            // Verificar se os dados estão no formato esperado
-            if (decryptedData.data) {
-              // Formato para dados simulados: { data: { roletas: [...] } }
-              // ou formato habitual: { data: [...] }
-              this.handleDecryptedData(decryptedData);
-            } else {
-              // Tentar usar os dados diretamente
-              this.handleDecryptedData(decryptedData);
-            }
-          } else {
-            console.warn('[UnifiedRouletteClient] Dados descriptografados vazios ou inválidos');
-            // Tentar conectar ao WebSocket para dados reais
-            this.connectToWebSocket();
-          }
-        })
-        .catch(error => {
-          console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
-          this.notify('error', 'Erro ao processar dados criptografados');
-          
-          // Tentar conectar ao WebSocket como alternativa
-          this.connectToWebSocket();
-        });
-    } catch (error) {
-      console.error('[UnifiedRouletteClient] Erro ao processar dados criptografados:', error);
-      this.notify('error', 'Erro ao processar dados criptografados');
-      
-      // Tentar conectar ao WebSocket como alternativa
-      this.connectToWebSocket();
-    }
+  private handleEncryptedData(encryptedDataContainer: any): void {
+    this.log('[UnifiedRouletteClient] handleEncryptedData foi chamado (DEPRECIADO). A lógica principal está em handleStreamUpdate.');
+    // A chamada original era cryptoService.processEncryptedData(encryptedDataContainer)
+    // que por sua vez chamava cryptoService.decryptData(...)
+    // Agora handleStreamUpdate chama cryptoService.decryptData diretamente.
+
+    // Exemplo de como seria se ainda usasse processEncryptedData:
+    /*
+    console.log('[UnifiedRouletteClient] Processando dados via handleEncryptedData (DEPRECIADO)');
+    this.extractAccessKey(encryptedDataContainer); // Tenta extrair chave se necessário
+    cryptoService.processEncryptedData(encryptedDataContainer)
+      .then(decryptedData => {
+        console.log('[UnifiedRouletteClient] Dados descriptografados com sucesso (via handleEncryptedData)');
+        this.handleDecryptedData(decryptedData);
+      })
+      .catch(error => {
+        this.error('Erro ao processar dados criptografados (via handleEncryptedData):', error);
+        this.emit('decrypt-error', { error: error });
+      });
+    */
   }
   
   /**
-   * Tenta extrair a chave de acesso dos dados recebidos
-   * Esta função analisa os dados e procura por campos que possam conter a chave
+   * Função auxiliar para extrair a chave de acesso dos dados recebidos
+   * (Considerar mover para cryptoService ou remover se a chave sempre vier antes)
    */
-  private extractAccessKey(data: any): boolean {
-    console.log('[UnifiedRouletteClient] Tentando extrair chave de acesso dos dados');
-    
-    try {
-      // Se for uma string, tentar converter para objeto
-      let dataObj = data;
-      if (typeof data === 'string') {
-        // Verificar se é um JSON
-        if (data.startsWith('{') || data.startsWith('[')) {
-          try {
-            dataObj = JSON.parse(data);
-          } catch (e) {
-            console.log('[UnifiedRouletteClient] Dados não são JSON válido');
-          }
-        }
-      }
-      
-      // Procurar campos comuns que possam conter a chave
-      if (typeof dataObj === 'object' && dataObj !== null) {
-        // Campos possíveis para a chave de acesso
-        const possibleKeyFields = [
-          'accessKey', 'key', 'apiKey', 'token', 'secret', 
-          'auth.key', 'auth.token', 'authorization', 'decrypt_key',
-          'meta.key', 'metadata.key', 'header.key'
-        ];
-        
-        for (const field of possibleKeyFields) {
-          const keys = field.split('.');
-          let value = dataObj;
-          
-          // Navegar na estrutura para encontrar o campo aninhado
-          for (const key of keys) {
-            value = value?.[key];
-            if (value === undefined) break;
-          }
-          
-          // Se encontramos um valor que parece ser uma chave
-          if (typeof value === 'string' && value.length > 8) {
-            console.log(`[UnifiedRouletteClient] Possível chave encontrada no campo ${field}`);
-            const keySet = cryptoService.setAccessKey(value);
-            
-            if (keySet) {
-              console.log('[UnifiedRouletteClient] Chave de acesso configurada com sucesso');
-              return true;
-            }
-          }
-        }
-        
-        // Tentar encontrar o hash na própria estrutura do formato Iron
-        if (typeof data === 'string' && data.startsWith('Fe26.2*')) {
-          const parts = data.split('*');
-          if (parts.length >= 2) {
-            const hash = parts[1];
-            if (hash && hash.length > 8) {
-              console.log('[UnifiedRouletteClient] Tentando usar o hash como chave:', hash);
-              const keySet = cryptoService.setAccessKey(hash);
-              if (keySet) {
-                console.log('[UnifiedRouletteClient] Hash configurado como chave de acesso');
-                return true;
-              }
-            }
-          }
-        }
-      }
-      
-      console.log('[UnifiedRouletteClient] Nenhuma chave de acesso encontrada nos dados');
-      return false;
-    } catch (error) {
-      console.error('[UnifiedRouletteClient] Erro ao extrair chave de acesso:', error);
-      return false;
-    }
-  }
   
   /**
    * Gera e utiliza dados simulados como fallback quando a descriptografia falha
