@@ -485,174 +485,92 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Método principal para buscar dados mais recentes das roletas
-   * Modificado para usar o endpoint de streaming em vez de polling
-   * @returns Promise resolvida com os dados mais recentes ou rejeitada com erro
+   * Busca os dados mais recentes das roletas
+   * @deprecated Use UnifiedRouletteClient.getInstance().getAllRoulettes() em vez deste método.
+   * Este método será removido em versões futuras.
    */
   public fetchLatestData(): Promise<any> {
-    // Método mantido por compatibilidade, mas agora recomendamos usar o RouletteStreamClient
-    // Emitir aviso sobre mudança de método
-    console.warn('[RouletteFeedService] Este método está depreciado. Use RouletteStreamClient para dados em tempo real.');
-    EventBus.emit('roulette:method-deprecated', {
-      message: 'RouletteFeedService.fetchLatestData está depreciado. Migre para RouletteStreamClient.'
+    // Mostrar aviso explícito sobre depreciação
+    console.warn(
+      '[RouletteFeedService] AVISO DE DEPRECIAÇÃO: fetchLatestData() está depreciado.' +
+      '\nUse UnifiedRouletteClient.getInstance().getAllRoulettes() para dados de roletas.' +
+      '\nEste método será removido em versões futuras.'
+    );
+    
+    // Verificar se já há uma requisição em andamento
+    if (this.isFetching) {
+      if (this.fetchPromise) {
+        return this.fetchPromise;
+      }
+      
+      // Se não tiver uma Promise válida, retornar os dados em cache
+      if (Object.values(this.roulettes).length > 0) {
+        return Promise.resolve(Object.values(this.roulettes));
+      }
+      return Promise.resolve([]);
+    }
+    
+    // Verificar se o cache ainda é válido
+    if (this.isCacheValid()) {
+      return Promise.resolve(Object.values(this.roulettes));
+    }
+    
+    // Inicializar estado da request
+    this.isFetching = true;
+    this.lastFetchTime = Date.now();
+    
+    // Se não puder fazer request devido ao rate limiting, retornar cache
+    if (!this.canMakeRequest()) {
+      console.warn('[RouletteFeedService] Limite de requisições atingido, usando cache');
+      this.isFetching = false;
+      return Promise.resolve(Object.values(this.roulettes));
+    }
+    
+    // Criar ID único para esta requisição
+    const requestId = this.generateRequestId();
+    
+    // Registrar requisição pendente
+    this.pendingRequests[requestId] = {
+      timestamp: Date.now(),
+      url: '/api/stream/roulettes',
+      service: 'RouletteFeedService'
+    };
+    
+    // Importar UnifiedRouletteClient e usar para buscar os dados
+    import('./UnifiedRouletteClient').then(module => {
+      const UnifiedRouletteClient = module.default;
+      // Forçar atualização dos dados através do cliente unificado
+      UnifiedRouletteClient.getInstance().forceUpdate();
+    }).catch(error => {
+      console.error('[RouletteFeedService] Erro ao importar UnifiedRouletteClient:', error);
     });
-
-    // Retornar uma Promise que resolve com os dados em cache ou busca novos dados uma última vez
-    return new Promise(async (resolve, reject) => {
+    
+    // Criar promise para compatibilidade com código existente
+    this.fetchPromise = new Promise((resolve, reject) => {
       try {
-        // Verificar se estamos já em processo de busca
-        if (this.isFetching) {
-          console.log('[RouletteFeedService] Requisição já em andamento, aguardando...');
-          if (this.fetchPromise) {
-            return this.fetchPromise;
-          }
-          return resolve(this.roulettes);
+        // Usar cache e resolver imediatamente
+        if (Object.values(this.roulettes).length > 0) {
+          resolve(Object.values(this.roulettes));
+        } else {
+          // Sem dados em cache, resolver com array vazio
+          resolve([]);
         }
-
-        // Gerar ID único para esta requisição
-        const requestId = this.generateRequestId();
         
-        this.isFetching = true;
-        this.lastFetchTime = Date.now();
+        // Limpar estado
+        this.isFetching = false;
+        this.fetchPromise = null;
+        delete this.pendingRequests[requestId];
         
-        // Registrar o início da requisição para fins de monitoramento
-        this.pendingRequests[requestId] = {
-            timestamp: Date.now(),
-          url: '/api/stream/roulettes',
-          service: 'RouletteFeedService'
-        };
-        
-        try {
-          console.log('[RouletteFeedService] Iniciando busca de dados (método depreciado)');
-          
-          // Preparar headers para a requisição
-          const headers = {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache'
-          };
-          
-          // Adicionar chave de acesso se disponível
-          if (cryptoService.hasAccessKey()) {
-            const accessKey = localStorage.getItem('roulette_access_key');
-            if (accessKey) {
-              headers['Authorization'] = `Bearer ${accessKey}`;
-            }
-          }
-          
-          // Realizar uma última requisição à nova URL
-          const response = await fetch('/api/stream/roulettes', {
-            method: 'GET',
-            headers,
-            credentials: 'include'
-          });
-          
-          // Verificar se a resposta foi bem-sucedida
-          if (!response.ok) {
-            throw new Error(`Erro ao buscar dados: ${response.status} ${response.statusText}`);
-          }
-          
-          // Processar a resposta
-          const contentType = response.headers.get('Content-Type') || '';
-          
-          // Verificar se a resposta é JSON ou stream
-          if (contentType.includes('application/json')) {
-            // Resposta é JSON
-            const data = await response.json();
-            
-            console.log('[RouletteFeedService] Dados recebidos:', 
-              Array.isArray(data) ? `${data.length} roletas` : 'Objeto de dados');
-            
-            // Verificar se os dados estão criptografados
-            if (data.encrypted) {
-              console.log('[RouletteFeedService] Dados criptografados recebidos');
-              
-              // Tentar processar dados criptografados
-              try {
-                if (cryptoService.hasAccessKey()) {
-                  const decryptedData = await cryptoService.processEncryptedData(data);
-                  console.log('[RouletteFeedService] Dados descriptografados com sucesso');
-                  
-                  // Emitir evento sobre dados descriptografados com sucesso
-                  EventBus.emit('roulette:decryption-success', {
-                    message: 'Dados descriptografados com sucesso'
-                  });
-                  
-                  // Atualizar cache e retornar dados
-                  this.updateRouletteCache(decryptedData);
-                  resolve(decryptedData);
-                } else {
-                  console.warn('[RouletteFeedService] Dados criptografados, mas sem chave de acesso');
-                  
-                  // Emitir evento sobre dados criptografados
-                  EventBus.emit('roulette:encrypted-data', {
-                    message: 'Dados criptografados recebidos. É necessária uma chave de acesso válida.'
-                  });
-                  
-                  throw new Error('Dados criptografados. É necessária uma assinatura ativa para acessar.');
-                }
-              } catch (decryptError) {
-                console.error('[RouletteFeedService] Erro ao descriptografar:', decryptError);
-                
-                // Emitir evento sobre falha na descriptografia
-                EventBus.emit('roulette:decryption-error', {
-                  error: decryptError,
-                  message: 'Erro ao descriptografar dados. Verifique sua chave de acesso.'
-                });
-                
-                throw new Error('Falha ao descriptografar dados. Verifique sua chave de acesso.');
-              }
-            } else {
-              // Atualizar cache e retornar dados normais
-              this.updateRouletteCache(Array.isArray(data) ? data : [data]);
-              resolve(data);
-            }
-          } else {
-            // Resposta é stream - informar que isto requer RouletteStreamClient
-            console.warn('[RouletteFeedService] Resposta é um stream. Use RouletteStreamClient para processá-la.');
-            
-            // Emitir evento informativo sobre a necessidade de usar o cliente de streaming
-            EventBus.emit('roulette:stream-required', {
-              message: 'Este endpoint retorna um stream. Use RouletteStreamClient para dados em tempo real.'
-            });
-            
-            // Resolver com dados em cache ou array vazio
-            resolve(Object.values(this.roulettes).length > 0 ? Object.values(this.roulettes) : []);
-          }
-          
-          // Registrar sucesso
-          this.successfulFetchesCount++;
-          this.lastSuccessTimestamp = Date.now();
-          this.consecutiveErrors = 0;
-          this.consecutiveSuccesses++;
-          
-          // Limpar este request pendente
-          delete this.pendingRequests[requestId];
-          
-        } catch (error) {
-          console.error('[RouletteFeedService] Erro ao buscar dados:', error);
-          this.failedFetchesCount++;
-            this.consecutiveErrors++;
-            this.consecutiveSuccesses = 0;
-            
-          // Emitir evento de erro
-          EventBus.emit('roulette:fetch-error', {
-            error,
-            message: `Erro ao buscar dados: ${error.message}`
-          });
-          
-          // Limpar este request pendente
-          delete this.pendingRequests[requestId];
-          
-          reject(error);
-        } finally {
-          this.isFetching = false;
-          this.fetchPromise = null;
-        }
       } catch (error) {
         console.error('[RouletteFeedService] Erro geral:', error);
+        this.isFetching = false;
+        this.fetchPromise = null;
+        delete this.pendingRequests[requestId];
         reject(error);
       }
     });
+    
+    return this.fetchPromise;
   }
 
   /**
