@@ -50,12 +50,20 @@ interface ProcessedRouletteData {
   lastUpdateTime: number;
 }
 
-// Função para extrair e processar dados da roleta (Adaptar para nova estrutura)
+// Função processRouletteData GLOBAL
 const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
-  if (!roulette || !roulette.id) return null;
+  const rouletteIdForLog = roulette?.id || 'ID Desconhecido';
+  console.log(`[processRouletteData - ${rouletteIdForLog}] Iniciando processamento. Dados recebidos:`, roulette); // Log 1: Dados de entrada
 
-  // Adaptar para pegar os números da estrutura correta (ex: roulette.numero)
-  const numerosComTimestamp: RouletteNumber[] = (Array.isArray(roulette.numero) ? roulette.numero : []).map((item: any) => {
+  if (!roulette || !roulette.id) {
+      console.warn(`[processRouletteData - ${rouletteIdForLog}] Dados inválidos ou sem ID.`);
+      return null;
+  }
+
+  const sourceArray = Array.isArray(roulette.numero) ? roulette.numero : [];
+  console.log(`[processRouletteData - ${rouletteIdForLog}] Array fonte para números:`, sourceArray); // Log 2: Array fonte
+
+  const numerosComTimestamp: RouletteNumber[] = sourceArray.map((item: any) => {
       let timeString = "00:00";
       if (item.timestamp) {
           try {
@@ -69,30 +77,38 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
           timestamp: timeString
       };
   }).filter((n: any) => !isNaN(n.numero) && n.numero >= 0 && n.numero <= 36);
+  
+  console.log(`[processRouletteData - ${rouletteIdForLog}] Números processados com timestamp:`, numerosComTimestamp); // Log 3: Números processados
 
   const ultimoNumero = numerosComTimestamp.length > 0 ? numerosComTimestamp[0].numero : null;
-  
-  // Calcular winRate e streak (manter lógica existente se aplicável)
-  const winRate = roulette.winRate || Math.random() * 100; // Placeholder
-  const streak = roulette.streak || Math.floor(Math.random() * 5); // Placeholder
+  const winRate = roulette.winRate || Math.random() * 100; 
+  const streak = roulette.streak || Math.floor(Math.random() * 5); 
+  const finalUpdateTime = roulette.timestamp ? new Date(roulette.timestamp).getTime() : Date.now();
 
-  return {
+  const result = {
     id: roulette.id,
     nome: roulette.nome || roulette.name || 'Roleta Desconhecida',
     provider: roulette.provider || 'Desconhecido',
     status: roulette.status || 'offline',
     ultimoNumero: ultimoNumero,
-    numeros: numerosComTimestamp.slice(0, 10), // Limitar a 10 para exibição no card
+    numeros: numerosComTimestamp.slice(0, 10), // <<< Pega os números processados
     winRate: winRate,
     streak: streak,
-    lastUpdateTime: roulette.timestamp ? new Date(roulette.timestamp).getTime() : Date.now(),
+    lastUpdateTime: finalUpdateTime,
   };
+  console.log(`[processRouletteData - ${rouletteIdForLog}] Objeto final retornado:`, result); // Log 4: Resultado final
+  return result;
 };
 
 const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetailView = false, onSelect, isSelected }) => {
   // Estados
-  const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(processRouletteData(initialData));
-  const [isLoading, setIsLoading] = useState(!rouletteData);
+  const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(() => {
+       // Usar função no useState para processar apenas uma vez na montagem inicial
+       const processedInitial = processRouletteData(initialData);
+       console.log(`[RouletteCard - ${initialData?.id}] Estado inicial definido com:`, processedInitial); // Log 5: Estado inicial
+       return processedInitial;
+  });
+  const [isLoading, setIsLoading] = useState(!rouletteData); // Correto: true se não houver dados iniciais
   const [error, setError] = useState<string | null>(null);
   const [isNewNumber, setIsNewNumber] = useState(false);
   const [updateCount, setUpdateCount] = useState(0);
@@ -123,7 +139,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   
   // Efeito para iniciar a busca de dados
   useEffect(() => {
-    console.log(`[${componentId}] Montando/Atualizando para Roleta ID: ${safeData.id}`);
+    console.log(`[${componentId}] useEffect executado. ID: ${safeData.id}`);
 
     const handleUpdate = (updateData: any) => {
         let myData: any = null;
@@ -134,9 +150,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         }
 
         if (myData) {
-            console.log(`[${componentId}] Recebendo atualização para ${safeData.name}`, myData);
-            const processed = processRouletteData(myData);
+            // console.log(`[${componentId}] Recebendo atualização para ${safeData.name}`, myData);
+            const processed = processRouletteData(myData); // Usa a função GLOBAL com logs
             if (processed) {
+                 console.log(`[${componentId}] Atualizando estado com dados processados:`, processed); // Log 6: Antes de setRouletteData
                  setRouletteData(currentData => {
                      if (currentData && processed.ultimoNumero !== currentData.ultimoNumero && processed.ultimoNumero !== null) {
                          console.log(`[${componentId}] Novo número detectado: ${processed.ultimoNumero}`);
@@ -158,7 +175,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     console.log(`[${componentId}] Verificando dados existentes no UnifiedClient...`);
     const currentDataFromClient = unifiedClient.getRouletteById(safeData.id);
     if (currentDataFromClient) {
-        console.log(`[${componentId}] Dados encontrados no cliente`, currentDataFromClient);
+        // console.log(`[${componentId}] Dados encontrados no cliente`, currentDataFromClient);
         handleUpdate(currentDataFromClient); 
     } else {
         if (!rouletteData) {
@@ -204,6 +221,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
     return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
   };
+
+  // Log para verificar o estado antes de renderizar
+  console.log(`[${componentId}] Renderizando. Estado rouletteData:`, rouletteData); // Log 7: Estado na renderização
 
   if (isLoading) {
     return (
@@ -259,9 +279,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     );
   }
   
-  // Renderização normal do Card com os dados do estado `rouletteData`
+  // Desestruturação e Renderização Normal
   const { nome, provider, status, ultimoNumero, numeros, winRate, streak, lastUpdateTime } = rouletteData;
   const isOnline = status?.toLowerCase() === 'online';
+  console.log(`[${componentId}] Renderizando números:`, numeros); // Log 8: Array de números antes de mapear
   const lastNumbersToDisplay = numeros.map(n => n.numero);
 
   return (
