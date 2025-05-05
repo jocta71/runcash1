@@ -10,6 +10,11 @@ export const ENDPOINTS = {
     
     // Endpoint para diagnóstico do serviço de streaming
     DIAGNOSTIC: '/api/stream/diagnostic'
+  },
+
+  // Endpoints para dados históricos
+  HISTORICAL: {
+    ALL_ROULETTES: '/api/historical/all-roulettes', // Endpoint para buscar histórico inicial de todas as roletas
   }
 };
 

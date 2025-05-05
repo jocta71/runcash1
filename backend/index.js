@@ -166,6 +166,15 @@ if (fs.existsSync(apiIndexPath)) {
     } catch (err) {
       console.log('Rotas de assinatura não disponíveis no diretório principal:', err.message);
     }
+
+    // Carregar rotas de dados históricos
+    try {
+      const historicalDataRoutes = require('./routes/historicalDataRoutes');
+      app.use('/api/historical', historicalDataRoutes);
+      console.log('Rotas de dados históricos carregadas com sucesso');
+    } catch (err) {
+      console.log('Rotas de dados históricos não disponíveis:', err.message);
+    }
   } catch (err) {
     console.error('Erro ao carregar rotas individuais:', err);
   }
