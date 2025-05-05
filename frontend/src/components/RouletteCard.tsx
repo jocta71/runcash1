@@ -89,7 +89,7 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
               itemFormat = 'object_number'; // formato { number: ..., timestamp: ... }
           } else if (typeof firstItem.numero !== 'undefined') {
               itemFormat = 'object_numero'; // formato { numero: ..., timestamp: ... }
-          } else {
+    } else {
               itemFormat = 'unknown';
               console.warn(`[processRouletteData - ${rouletteIdForLog}] Array '${sourceKey}' contém objetos, mas sem 'number' ou 'numero'.`);
           }
@@ -105,6 +105,9 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
 
   if (sourceKey === 'none') {
     console.log(`[processRouletteData - ${rouletteIdForLog}] Nenhuma fonte de números ('numbers', 'numero', 'lastNumbers') encontrada ou array vazio.`);
+    // Se não achou fonte, retorna null para não sobrescrever dados possivelmente bons
+    console.warn(`[processRouletteData - ${rouletteIdForLog}] Retornando null pois nenhuma fonte de números foi encontrada.`);
+    return null; 
   }
   console.log(`[processRouletteData - ${rouletteIdForLog}] Fonte: '${sourceKey}', Formato Item: '${itemFormat}', Total Itens: ${sourceArray.length}`);
 
@@ -163,6 +166,10 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
 
   console.log(`[processRouletteData - ${rouletteIdForLog}] Números processados válidos (primeiros 10):`, numerosComTimestamp.slice(0, 10));
 
+  // Adicionar verificação extra: Se após processar, não sobrar nenhum número válido
+  // e a fonte original foi encontrada, ainda assim pode ser útil retornar os outros dados.
+  // A decisão de retornar null deve ser apenas se a FONTE não foi encontrada.
+
   // 3. Obter outros dados (sem alterações aqui)
   const ultimoNumero = numerosComTimestamp.length > 0 ? numerosComTimestamp[0].numero : null;
   const winRate = roulette.winRate !== undefined ? roulette.winRate : Math.random() * 100; // Usar valor real se existir
@@ -182,8 +189,7 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
     streak: streak,
     lastUpdateTime: finalUpdateTime,
   };
-  // Log final simplificado
-  console.log(`[processRouletteData - ${rouletteIdForLog}] Objeto final retornado. Status: ${result.status}, UltimoNum: ${result.ultimoNumero}, CountNums: ${result.numeros.length}`);
+  console.log(`[processRouletteData - ${rouletteIdForLog}] Objeto final retornado...`);
   return result;
 };
 
@@ -238,9 +244,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
 
         if (myData) {
             // console.log(`[${componentId}] Recebendo atualização para ${safeData.name}`, myData);
-            const processed = processRouletteData(myData); // Usa a função GLOBAL com logs
-            if (processed) {
-                 console.log(`[${componentId}] Atualizando estado com dados processados:`, processed); // Log 6: Antes de setRouletteData
+            const processed = processRouletteData(myData); 
+            
+            // MODIFICAÇÃO AQUI: Só atualiza o estado se o processamento foi bem-sucedido
+            if (processed !== null) { 
+                 console.log(`[${componentId}] Atualizando estado com dados processados:`, processed);
                  setRouletteData(currentData => {
                      if (currentData && processed.ultimoNumero !== currentData.ultimoNumero && processed.ultimoNumero !== null) {
                          console.log(`[${componentId}] Novo número detectado: ${processed.ultimoNumero}`);
@@ -252,9 +260,10 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
                  setIsLoading(false);
                  setError(null);
             } else {
-                console.error(`[${componentId}] Falha ao processar dados recebidos.`);
-                setError('Falha ao processar dados da roleta.');
-                setIsLoading(false);
+                // Log que o processamento falhou, mas NÃO atualiza o estado
+                console.warn(`[${componentId}] processRouletteData retornou null. Estado NÃO será atualizado para preservar dados existentes.`);
+                // Poderia opcionalmente definir isLoading como false aqui se já tiver dados antigos válidos
+                if (rouletteData) setIsLoading(false);
             }
         }
     };
@@ -281,7 +290,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
       console.log(`[${componentId}] Desmontando e cancelando inscrição 'update'.`);
       unsubscribe();
     };
-  }, [safeData.id, unifiedClient]);
+  }, [safeData.id, unifiedClient, rouletteData]);
   
   // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
   // Console.log para verificar se há apenas uma fonte de requisições:
