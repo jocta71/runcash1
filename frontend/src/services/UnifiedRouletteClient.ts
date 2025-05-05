@@ -466,8 +466,8 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Busca dados das roletas via API REST
-   * Usado para carga inicial ou como fallback quando o streaming não está disponível
+   * Busca dados das roletas (usa apenas cache e inicia SSE)
+   * Não faz mais chamadas HTTP REST para /api/ROULETTES
    */
   public async fetchRouletteData(): Promise<any[]> {
     // Evitar requisições simultâneas
@@ -485,84 +485,27 @@ class UnifiedRouletteClient {
       return Array.from(this.rouletteData.values());
     }
     
-    // Se o streaming está conectado, não precisamos fazer polling
+    // Se o streaming está conectado, usar dados do cache
     if (this.isStreamConnected) {
       this.log('Stream conectado, usando dados em cache');
       return Array.from(this.rouletteData.values());
     }
     
-    // Iniciar nova requisição
-    this.isFetching = true;
-    this.lastUpdateTime = Date.now();
+    // Não há dados válidos no cache e streaming não está conectado
+    // Iniciar/reconectar ao stream em vez de fazer chamada REST
+    this.log('Sem dados válidos em cache. Iniciando conexão SSE...');
+    this.connectStream();
     
-    this.log('Buscando dados das roletas via API REST');
+    // Se já tivermos alguns dados, retorná-los mesmo que não sejam recentes
+    if (this.rouletteData.size > 0) {
+      this.log('Retornando dados existentes em cache enquanto aguarda SSE');
+      return Array.from(this.rouletteData.values());
+    }
     
-    this.fetchPromise = new Promise(async (resolve) => {
-      try {
-        // Usar o endpoint diretamente
-        const response = await axios.get('/api/ROULETTES', {
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
-          },
-          timeout: 8000
-        });
-        
-        // Processar resposta
-        this.log(`Dados recebidos: ${response.status}`);
-        
-        if (response.status === 200) {
-          const data = response.data;
-          
-          // Verificar se os dados estão criptografados
-          if (data.encrypted && cryptoService.hasAccessKey()) {
-            try {
-              const decryptedData = await cryptoService.processEncryptedData(data);
-              this.updateCache(decryptedData);
-              resolve(Array.from(this.rouletteData.values()));
-            } catch (decryptError) {
-              this.error('Erro ao descriptografar dados:', decryptError);
-              EventBus.emit('roulette:decryption-error', {
-                timestamp: new Date().toISOString(),
-                error: decryptError.message
-              });
-              
-              // Retornar dados atuais
-              resolve(Array.from(this.rouletteData.values()));
-            }
-          } else if (data.encrypted) {
-            // Dados criptografados sem chave de acesso
-            EventBus.emit('roulette:encrypted-data', {
-              timestamp: new Date().toISOString(),
-              hasAccessKey: false
-            });
-            
-            // Retornar dados atuais
-            resolve(Array.from(this.rouletteData.values()));
-          } else {
-            // Dados não criptografados
-            const roulettes = Array.isArray(data) ? data : 
-                            (data.data && Array.isArray(data.data) ? data.data : []);
-            
-            this.updateCache(roulettes);
-            resolve(Array.from(this.rouletteData.values()));
-          }
-        } else {
-          this.error(`Erro ao buscar dados: ${response.status}`);
-          // Retornar dados do cache se houver
-          resolve(Array.from(this.rouletteData.values()));
-        }
-      } catch (error) {
-        this.error('Erro ao buscar dados:', error);
-        // Retornar dados do cache se houver
-        resolve(Array.from(this.rouletteData.values()));
-      } finally {
-        this.isFetching = false;
-        this.fetchPromise = null;
-      }
-    });
-    
-    return this.fetchPromise;
+    // Se não tivermos absolutamente nenhum dado, retornar array vazio
+    // O componente que chamou este método receberá atualizações via eventos quando os dados chegarem
+    this.log('Nenhum dado disponível ainda, retornando array vazio');
+    return [];
   }
   
   /**
