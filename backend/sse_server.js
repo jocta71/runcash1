@@ -12,6 +12,7 @@ const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@ru
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.SSE_POLL_INTERVAL || 2000; // Intervalo para buscar dados do MongoDB
 const JWT_SECRET = process.env.JWT_SECRET || 'runcashh_secret_key'; // Chave para validar tokens (se aplicável ao SSE)
+const FRONTEND_ORIGIN = process.env.FRONTEND_URL || 'https://runcashh111.vercel.app'; // Origem do seu frontend
 
 console.log('==== Configuração do Servidor SSE ====');
 console.log(`PORT: ${PORT}`);
@@ -19,7 +20,7 @@ console.log(`MONGODB_URI: ${MONGODB_URI ? MONGODB_URI.replace(/:.*@/, ':****@') 
 console.log(`COLLECTION_NAME: ${COLLECTION_NAME}`);
 console.log(`POLL_INTERVAL: ${POLL_INTERVAL}ms`);
 console.log(`JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'}`);
-
+console.log(`FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}`);
 
 const app = express();
 
