@@ -940,21 +940,33 @@ app.get('/api/stream/roulettes', (req, res) => {
   // Função para enviar dados no formato SSE
   const sendEvent = (eventName, data) => {
     try {
-      // Enviar dados no formato que o frontend espera
-      const eventData = {
+      // Criptografar os dados antes de enviar
+      const encryptedPayload = encryptData({
         type: eventName,
         data: {
           message: "Dados em tempo real do backend",
           timestamp: new Date().toISOString(),
           data: data
         }
-      };
-      
+      });
+
+      if (!encryptedPayload) {
+        console.error(`[SSE ${requestId}] Falha ao criptografar dados para o evento ${eventName}`);
+        return; // Não enviar se a criptografia falhar
+      }
+
+      // Enviar dados criptografados
       res.write(`event: ${eventName}\n`);
-      res.write(`data: ${JSON.stringify(eventData)}\n\n`);
+      res.write(`data: ${JSON.stringify(encryptedPayload)}\n\n`);
       res.flush();
     } catch (error) {
-      console.error(`[SSE ${requestId}] Erro ao enviar evento:`, error);
+      // Capturar erros específicos do res.write ou res.flush
+      if (error.code === 'ERR_STREAM_WRITE_AFTER_END') {
+        console.warn(`[SSE ${requestId}] Tentativa de escrita em stream fechado para evento ${eventName}. Conexão pode ter sido fechada.`);
+      } else {
+        console.error(`[SSE ${requestId}] Erro ao enviar evento ${eventName}:`, error);
+      }
+      // Considerar fechar a conexão ou limpar intervalos se erros persistirem
     }
   };
   
