@@ -512,9 +512,22 @@ export default class RouletteFeedService {
       service: 'roulette-feed'
     };
     
+    // Preparar cabeçalhos com a chave de acesso, se disponível
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache'
+    };
+    
+    // Adicionar a chave de acesso ao cabeçalho se estiver disponível
+    const headersWithAuth = cryptoService.addAccessKeyToHeaders(headers);
+    
     // Criar e armazenar a promise
     this.fetchPromise = new Promise((resolve, reject) => {
-      fetch(rouletteUrl)
+      fetch(rouletteUrl, {
+        method: 'GET',
+        headers: headersWithAuth,
+        credentials: 'same-origin'
+      })
         .then(response => {
           // Verificar se a resposta foi bem-sucedida
           if (!response.ok) {
@@ -526,6 +539,8 @@ export default class RouletteFeedService {
           // Verificar se os dados estão criptografados
           if (data.encrypted && data.encryptedData) {
             try {
+              logger.info('📦 Dados criptografados recebidos, tentando descriptografar');
+              
               // Tentar descriptografar os dados usando o CryptoService
               const decryptedData = await cryptoService.processApiResponse(data);
               
@@ -543,11 +558,24 @@ export default class RouletteFeedService {
               // Registrar o sucesso da requisição
               this.notifyRequestComplete(requestId, 'success');
               
+              // Emitir evento global informando sobre o sucesso da descriptografia
+              EventService.emitGlobalEvent('data_decryption_success', {
+                timestamp: Date.now(),
+                dataType: 'roulettes'
+              });
+              
               // Resolver a promessa com os dados descriptografados
               resolve(decryptedData);
             } catch (decryptError) {
               // Se não conseguir descriptografar, usar a versão não-criptografada
-              console.warn('Não foi possível descriptografar os dados:', decryptError);
+              logger.warn('🔒 Não foi possível descriptografar os dados:', decryptError);
+              
+              // Emitir evento global informando sobre a falha na descriptografia
+              EventService.emitGlobalEvent('data_decryption_failed', {
+                timestamp: Date.now(),
+                error: decryptError.message,
+                dataType: 'roulettes'
+              });
               
               // Verificar se há dados não-criptografados disponíveis
               if (data.data) {
@@ -567,7 +595,7 @@ export default class RouletteFeedService {
                 resolve(data.data);
               } else {
                 // Se não houver dados não-criptografados, informar sobre a necessidade de assinatura
-                const error = new Error('Os dados estão criptografados e você não tem a chave de acesso. Obtenha uma assinatura para acessar todos os dados.');
+                const error = new Error('Os dados estão criptografados e você não tem a chave de acesso válida. Obtenha uma assinatura e gere uma chave de acesso para visualizar todos os dados.');
                 
                 // Atualizar estatísticas de falha
                 this.failedFetchesCount++;
@@ -582,7 +610,10 @@ export default class RouletteFeedService {
             }
           } else {
             // Dados não estão criptografados, processar normalmente
-            this.updateRouletteCache(data.data || []);
+            logger.info('📦 Dados não-criptografados recebidos');
+            
+            const responseData = data.data || data || [];
+            this.updateRouletteCache(responseData);
             this.notifyDataUpdate();
             
             // Atualizar estatísticas de requisições
@@ -594,11 +625,11 @@ export default class RouletteFeedService {
             this.notifyRequestComplete(requestId, 'success');
             
             // Resolver a promessa com os dados
-            resolve(data.data || []);
+            resolve(responseData);
           }
         })
         .catch(error => {
-          console.error('Erro ao buscar dados das roletas:', error);
+          logger.error('❌ Erro ao buscar dados das roletas:', error);
           
           // Atualizar estatísticas de falha
           this.failedFetchesCount++;

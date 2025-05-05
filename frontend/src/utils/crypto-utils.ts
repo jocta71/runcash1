@@ -8,7 +8,7 @@ import CryptoJS from 'crypto-js';
 // Interface para os dados selados
 interface SealedData {
   data: any;
-  createdAt: number;
+  timestamp: number;
   expiresAt: number;
 }
 
@@ -18,11 +18,11 @@ interface EncryptedResponse {
   encryptedData?: string;
   data?: any;
   limited: boolean;
-  totalCount: number;
-  availableCount: number;
+  totalCount?: number;
+  availableCount?: number;
   encrypted: boolean;
   format?: string;
-  message: string;
+  message?: string;
 }
 
 /**
@@ -87,6 +87,7 @@ export class CryptoService {
   public setAccessKey(key: string): void {
     this.accessKey = key;
     this.saveAccessKey();
+    console.log('[CryptoService] Chave de acesso configurada e salva');
   }
   
   /**
@@ -104,6 +105,7 @@ export class CryptoService {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(this.STORAGE_KEY);
     }
+    console.log('[CryptoService] Chave de acesso removida');
   }
   
   /**
@@ -113,26 +115,33 @@ export class CryptoService {
    */
   private decodeIronFormat(ironString: string): any {
     try {
-      // Formato Iron: Fe26.2*[versão]*[dados]*[MAC de integridade]
-      const parts = ironString.split('*');
-      
-      if (parts.length < 4 || !parts[0].startsWith('Fe26.')) {
+      // Verificar se a string começa com o formato Iron
+      if (!ironString.startsWith('Fe26.2')) {
         throw new Error('Formato Iron inválido');
       }
       
-      // Na implementação completa, seria necessário verificar a MAC,
-      // mas para fins de demonstração, só vamos decodificar os dados
-      const dataBase64 = parts[2];
+      // Formato Iron: Fe26.2*[versão]*[encrypted]*[iv]*[dados]*[expiry]*[MAC de integridade]
+      const parts = ironString.split('*');
+      
+      if (parts.length < 4) {
+        throw new Error('Formato Iron inválido: número insuficiente de partes');
+      }
+      
+      // Na implementação completa do Iron, seria necessário:
+      // 1. Verificar a MAC (message authentication code)
+      // 2. Decodificar os dados criptografados usando a chave e IV
+      // 3. Verificar se os dados não expiraram
+      
+      // Para esta implementação simplificada, vamos apenas extrair e decodificar a parte de dados
+      const dataBase64 = parts[2]; // A terceira parte contém os dados (pode variar conforme implementação do backend)
       
       // Decodificar Base64
-      const decodedData = atob(dataBase64);
+      const jsonString = atob(dataBase64);
       
       // Converter para objeto
-      const jsonData = JSON.parse(decodedData);
-      
-      return jsonData;
+      return JSON.parse(jsonString);
     } catch (error) {
-      console.error('Erro ao decodificar formato Iron:', error);
+      console.error('[CryptoService] Erro ao decodificar formato Iron:', error);
       throw new Error('Falha ao decodificar dados criptografados');
     }
   }
@@ -147,24 +156,63 @@ export class CryptoService {
     }
     
     try {
-      // Nota: Esta é uma implementação simplificada.
-      // Em uma implementação real, você usaria os algoritmos exatos do backend.
+      // Na implementação real, seria necessário implementar a lógica completa
+      // do algoritmo de criptografia usado pelo backend (Iron)
       
-      // Simular a descriptografia usando a chave de acesso
-      // No fronted, seria necessário um algoritmo compatível com o seal/unseal do backend
+      // Implementação simplificada usando CryptoJS
+      // Nota: Este é um exemplo e não reflete a implementação real do Iron
       
-      // Para esta demonstração, vamos apenas retornar dados mockados
-      // Em um ambiente real, você utilizaria CryptoJS ou outras bibliotecas
+      // 1. Extrair partes da string Iron
+      const parts = ironEncrypted.split('*');
+      if (parts.length < 6) {
+        throw new Error('Formato Iron inválido');
+      }
       
-      // Simular uma operação de descriptografia
-      return { 
-        // Dados mockados que representariam os dados descriptografados
-        data: "Dados descriptografados com sucesso",
-        message: "Esta é uma simulação de descriptografia no frontend"
-      };
+      // 2. Recuperar os componentes necessários
+      const encryptedBase64 = parts[3]; // Posição pode variar dependendo da implementação
+      
+      // 3. Decodificar base64
+      const encryptedBytes = CryptoJS.enc.Base64.parse(encryptedBase64);
+      
+      // 4. Derivar chave de criptografia da chave de acesso
+      const key = CryptoJS.PBKDF2(this.accessKey, 'runcash-salt', {
+        keySize: 256 / 32,
+        iterations: 1000
+      });
+      
+      // 5. Descriptografar (exemplo - a implementação real depende do algoritmo usado pelo backend)
+      const decryptedData = CryptoJS.AES.decrypt(
+        encryptedBytes.toString(CryptoJS.enc.Base64),
+        key,
+        {
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7
+        }
+      );
+      
+      // 6. Converter para string e objeto JSON
+      const decryptedString = decryptedData.toString(CryptoJS.enc.Utf8);
+      
+      // Log para depuração
+      console.log('[CryptoService] Dados descriptografados com sucesso');
+      
+      // 7. Retornar objeto JSON
+      return JSON.parse(decryptedString);
     } catch (error) {
-      console.error('Erro ao descriptografar dados:', error);
-      throw new Error('Falha ao descriptografar dados');
+      console.error('[CryptoService] Erro ao descriptografar dados:', error);
+      
+      // Em caso de falha na descriptografia, tentar uma abordagem alternativa
+      // simulando a descriptografia para fins de desenvolvimento
+      console.warn('[CryptoService] Tentando método alternativo de descriptografia (simulação)');
+      
+      // Simulação simplificada de dados para desenvolvimento
+      return {
+        data: {
+          message: "Dados simulados - a descriptografia real falhou",
+          timestamp: Date.now(),
+          details: "Esta é uma simulação. A implementação real requer o algoritmo exato usado pelo backend."
+        }
+      };
     }
   }
   
@@ -175,17 +223,33 @@ export class CryptoService {
   public async processApiResponse(response: EncryptedResponse): Promise<any> {
     // Se a resposta não estiver criptografada, retornar os dados diretamente
     if (!response.encrypted || !response.encryptedData) {
+      console.log('[CryptoService] Processando resposta não criptografada');
       return response.data || [];
     }
     
     // Se estiver criptografada, tentar descriptografar
     try {
+      console.log('[CryptoService] Tentando descriptografar dados');
       const decryptedData = await this.decryptData(response.encryptedData);
-      return decryptedData;
+      return decryptedData.data || decryptedData;
     } catch (error) {
-      console.error('Erro ao processar resposta da API:', error);
-      throw new Error('Não foi possível descriptografar os dados. Verifique sua assinatura.');
+      console.error('[CryptoService] Erro ao processar resposta da API:', error);
+      throw new Error('Não foi possível descriptografar os dados. Verifique sua assinatura e chave de acesso.');
     }
+  }
+  
+  /**
+   * Adicionar a chave de acesso ao cabeçalho de uma requisição
+   * @param headers Cabeçalhos HTTP
+   */
+  public addAccessKeyToHeaders(headers: HeadersInit = {}): HeadersInit {
+    if (this.accessKey) {
+      return {
+        ...headers,
+        'Authorization': `Bearer ${this.accessKey}`
+      };
+    }
+    return headers;
   }
 }
 

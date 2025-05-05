@@ -11,6 +11,7 @@ const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const { encryptRouletteData, verifyAccessKey } = require('./middlewares/encryptionMiddleware');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -19,6 +20,13 @@ dotenv.config();
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const JWT_SECRET = process.env.JWT_SECRET || "runcash_jwt_secret_key_2023";
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "runcash_default_encryption_key_2024";
+
+// Definir chave de criptografia no ambiente caso não exista
+if (!process.env.ENCRYPTION_KEY) {
+  process.env.ENCRYPTION_KEY = ENCRYPTION_KEY;
+  console.log('[Server] Chave de criptografia definida com valor padrão');
+}
 
 console.log('=== RunCash Unified Server ===');
 console.log(`PORT: ${PORT}`);
@@ -91,6 +99,10 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 app.use(express.json());
+
+// Aplicar o middleware de verificação de chave de acesso e criptografia
+app.use(verifyAccessKey);
+app.use(encryptRouletteData);
 
 // Verificar se a pasta api existe e carregar o index.js da API
 const apiIndexPath = path.join(__dirname, 'api', 'index.js');
@@ -273,4 +285,5 @@ server.listen(PORT, () => {
   console.log('- / (status do servidor)');
   console.log('- /api (rotas da API principal)');
   console.log('- /emit-event (compatibilidade com WebSocket, se ativado)');
+  console.log('[Server] Criptografia de API: ATIVADA');
 });
