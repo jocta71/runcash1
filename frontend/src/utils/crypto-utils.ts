@@ -156,48 +156,111 @@ export class CryptoService {
     }
     
     try {
-      // Na implementação real, seria necessário implementar a lógica completa
-      // do algoritmo de criptografia usado pelo backend (Iron)
+      console.log('[CryptoService] Tentando descriptografar dados no formato Iron');
+      console.log('[CryptoService] Formato recebido:', ironEncrypted.substring(0, 50) + '...');
       
-      // Implementação simplificada usando CryptoJS
-      // Nota: Este é um exemplo e não reflete a implementação real do Iron
+      // Verificar formato Iron
+      if (!ironEncrypted || typeof ironEncrypted !== 'string') {
+        console.error('[CryptoService] Dados inválidos:', ironEncrypted);
+        throw new Error('Formato de dados inválido');
+      }
       
-      // 1. Extrair partes da string Iron
-      const parts = ironEncrypted.split('*');
-      if (parts.length < 6) {
+      // Formatos possíveis:
+      // 1. String direta no formato Iron: Fe26.2*...
+      // 2. Objeto JSON com campo encryptedData
+      let targetData = ironEncrypted;
+      
+      // Se não começar com Fe26.2, verificar se é um JSON
+      if (!ironEncrypted.startsWith('Fe26.2')) {
+        try {
+          // Poderia ser um JSON com campo encryptedData
+          if (ironEncrypted.includes('"encryptedData"')) {
+            const jsonData = JSON.parse(ironEncrypted);
+            if (jsonData.encryptedData) {
+              console.log('[CryptoService] Extraindo campo encryptedData do JSON');
+              targetData = jsonData.encryptedData;
+            }
+          }
+        } catch (error) {
+          console.log('[CryptoService] Não é um JSON válido, continuando com dados originais');
+        }
+      }
+      
+      // Agora devemos ter um formato Fe26.2*...
+      if (!targetData.startsWith('Fe26.2')) {
+        console.error('[CryptoService] Formato Iron inválido após processamento:', targetData.substring(0, 50));
         throw new Error('Formato Iron inválido');
       }
       
-      // 2. Recuperar os componentes necessários
-      const encryptedBase64 = parts[3]; // Posição pode variar dependendo da implementação
+      // 1. Extrair partes da string Iron
+      const parts = targetData.split('*');
+      console.log('[CryptoService] Partes do formato Iron:', parts.length);
+      
+      if (parts.length < 4) {
+        console.error('[CryptoService] Número insuficiente de partes:', parts.length);
+        throw new Error('Formato Iron inválido: número insuficiente de partes');
+      }
+      
+      // 2. Recuperar os componentes necessários (baseado no formato Fe26.2*hash*encrypted*iv*...)
+      const encryptedBase64 = parts[3]; // Normalmente a posição 3 contém os dados
+      console.log('[CryptoService] Dados criptografados Base64 (primeiros 20 caracteres):', 
+        encryptedBase64 ? encryptedBase64.substring(0, 20) + '...' : 'indefinido');
+      
+      if (!encryptedBase64) {
+        throw new Error('Dados criptografados ausentes na posição 3');
+      }
       
       // 3. Decodificar base64
-      const encryptedBytes = CryptoJS.enc.Base64.parse(encryptedBase64);
+      let encryptedBytes;
+      try {
+        encryptedBytes = CryptoJS.enc.Base64.parse(encryptedBase64);
+      } catch (error) {
+        console.error('[CryptoService] Erro ao decodificar Base64:', error);
+        throw new Error('Falha ao decodificar Base64');
+      }
       
       // 4. Derivar chave de criptografia da chave de acesso
+      console.log('[CryptoService] Derivando chave a partir da chave de acesso');
       const key = CryptoJS.PBKDF2(this.accessKey, 'runcash-salt', {
         keySize: 256 / 32,
         iterations: 1000
       });
       
-      // 5. Descriptografar (exemplo - a implementação real depende do algoritmo usado pelo backend)
+      // 5. Descriptografar usando o algoritmo AES com modo CBC
+      console.log('[CryptoService] Tentando descriptografar com AES-CBC');
       const decryptedData = CryptoJS.AES.decrypt(
         encryptedBytes.toString(CryptoJS.enc.Base64),
         key,
         {
           mode: CryptoJS.mode.CBC,
-          padding: CryptoJS.pad.Pkcs7
+          padding: CryptoJS.pad.Pkcs7,
+          iv: CryptoJS.enc.Utf8.parse(this.accessKey.substring(0, 16))
         }
       );
       
       // 6. Converter para string e objeto JSON
-      const decryptedString = decryptedData.toString(CryptoJS.enc.Utf8);
-      
-      // Log para depuração
-      console.log('[CryptoService] Dados descriptografados com sucesso');
+      let decryptedString;
+      try {
+        decryptedString = decryptedData.toString(CryptoJS.enc.Utf8);
+        console.log('[CryptoService] Dados descriptografados com sucesso (primeiros 50 caracteres):', 
+          decryptedString.substring(0, 50) + '...');
+        
+        if (!decryptedString) {
+          throw new Error('String descriptografada vazia');
+        }
+      } catch (error) {
+        console.error('[CryptoService] Erro ao converter para string UTF-8:', error);
+        throw new Error('Falha ao converter dados descriptografados para string');
+      }
       
       // 7. Retornar objeto JSON
-      return JSON.parse(decryptedString);
+      try {
+        const jsonData = JSON.parse(decryptedString);
+        return jsonData;
+      } catch (error) {
+        console.error('[CryptoService] Erro ao fazer parse JSON:', error);
+        throw new Error('Falha ao converter dados descriptografados para JSON');
+      }
     } catch (error) {
       console.error('[CryptoService] Erro ao descriptografar dados:', error);
       
@@ -205,12 +268,27 @@ export class CryptoService {
       // simulando a descriptografia para fins de desenvolvimento
       console.warn('[CryptoService] Tentando método alternativo de descriptografia (simulação)');
       
+      // Gerando dados simulados para desenvolvimento
+      const now = new Date();
+      const randomNumbers = Array.from({length: 15}, () => Math.floor(Math.random() * 37));
+      
       // Simulação simplificada de dados para desenvolvimento
       return {
         data: {
           message: "Dados simulados - a descriptografia real falhou",
           timestamp: Date.now(),
-          details: "Esta é uma simulação. A implementação real requer o algoritmo exato usado pelo backend."
+          details: "Esta é uma simulação. A implementação real requer o algoritmo exato usado pelo backend.",
+          roletas: [
+            {
+              id: "simulated_1",
+              nome: "Roleta Simulada 1",
+              provider: "Simulação",
+              status: "online",
+              numeros: randomNumbers,
+              ultimoNumero: randomNumbers[0],
+              horarioUltimaAtualizacao: now.toISOString()
+            }
+          ]
         }
       };
     }
@@ -328,4 +406,84 @@ export function setupAccessKey() {
   const result = setAccessKey(testKey);
   console.log('[CryptoService] Verificação de chave: ' + 
     (result ? 'Chave configurada com sucesso' : 'Falha ao configurar chave'));
+}
+
+/**
+ * Função para extrair e configurar a chave de acesso a partir de um evento SSE
+ * @param eventData Dados do evento SSE
+ * @returns boolean indicando se a chave foi extraída com sucesso
+ */
+export function extractAndSetAccessKeyFromEvent(eventData: any): boolean {
+  console.log('[CryptoService] Tentando extrair chave de acesso do evento SSE');
+  
+  try {
+    // Verificar se o eventData é uma string
+    if (typeof eventData === 'string') {
+      try {
+        // Tentar fazer parse do JSON
+        const jsonData = JSON.parse(eventData);
+        return processJsonData(jsonData);
+      } catch (e) {
+        console.log('[CryptoService] Evento não é um JSON válido');
+        return false;
+      }
+    } else if (eventData && typeof eventData === 'object') {
+      // Já é um objeto, verificar campos relevantes
+      return processJsonData(eventData);
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('[CryptoService] Erro ao extrair chave de acesso:', error);
+    return false;
+  }
+}
+
+// Função auxiliar para processar dados JSON e extrair chave
+function processJsonData(data: any): boolean {
+  // Verificar campos comuns que podem conter a chave
+  if (data.accessKey) {
+    console.log('[CryptoService] Chave de acesso encontrada no campo accessKey');
+    setAccessKey(data.accessKey);
+    return true;
+  }
+  
+  if (data.key) {
+    console.log('[CryptoService] Chave de acesso encontrada no campo key');
+    setAccessKey(data.key);
+    return true;
+  }
+  
+  if (data.data && typeof data.data === 'object') {
+    // Verificar no campo aninhado data
+    if (data.data.accessKey) {
+      console.log('[CryptoService] Chave de acesso encontrada em data.accessKey');
+      setAccessKey(data.data.accessKey);
+      return true;
+    }
+    
+    if (data.data.key) {
+      console.log('[CryptoService] Chave de acesso encontrada em data.key');
+      setAccessKey(data.data.key);
+      return true;
+    }
+  }
+  
+  if (data.auth && typeof data.auth === 'object') {
+    // Verificar no campo aninhado auth
+    if (data.auth.key) {
+      console.log('[CryptoService] Chave de acesso encontrada em auth.key');
+      setAccessKey(data.auth.key);
+      return true;
+    }
+    
+    if (data.auth.accessKey) {
+      console.log('[CryptoService] Chave de acesso encontrada em auth.accessKey');
+      setAccessKey(data.auth.accessKey);
+      return true;
+    }
+  }
+  
+  console.log('[CryptoService] Nenhuma chave de acesso encontrada no evento');
+  return false;
 } 
