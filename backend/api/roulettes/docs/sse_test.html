@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teste de SSE para Roletas</title>
+    <title>Teste de SSE para Roletas (Com Criptografia)</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -105,26 +105,66 @@
             font-size: 12px;
             color: #777;
         }
+        .crypto-notice {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            margin-right: 2px;
+        }
+        .tab.active {
+            background-color: white;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
-    <h1>Teste de SSE para Roletas</h1>
+    <h1>Teste de SSE para Roletas (Com Criptografia)</h1>
     
     <div class="panel">
         <h2>Configuração</h2>
         <div>
             <label for="serverUrl">URL do Servidor:</label>
-            <input type="text" id="serverUrl" value="https://backendapi-production-36b5.up.railway.app">
+            <input type="text" id="serverUrl" value="http://localhost:3003">
         </div>
         <div>
             <label for="tableId">ID da Mesa:</label>
             <input type="text" id="tableId" value="mesa-teste-001">
         </div>
         <div>
+            <label for="clientKey">Chave do Cliente (para descriptografia):</label>
+            <input type="text" id="clientKey" value="cliente-teste-key">
+        </div>
+        <div>
             <button id="testServer">Testar Servidor</button>
             <button id="connectStream">Conectar ao Stream</button>
             <button id="connectRoulette">Conectar à Roleta</button>
             <button id="disconnect" class="disconnect">Desconectar</button>
+        </div>
+        
+        <div class="crypto-notice">
+            <strong>Nota:</strong> Este cliente simula a descriptografia baseada na estrutura do token Fe26.2. 
+            Em um sistema real, você precisaria de uma biblioteca como @hapi/iron.
         </div>
     </div>
 
@@ -134,12 +174,34 @@
             <pre id="connectionStatus">Desconectado</pre>
             
             <h2>Eventos Recebidos</h2>
-            <div id="events"></div>
+            <div class="tabs">
+                <div class="tab active" data-tab="decrypted">Dados Descriptografados</div>
+                <div class="tab" data-tab="encrypted">Dados Criptografados</div>
+            </div>
+            
+            <div class="tab-content active" data-tab="decrypted">
+                <div id="events"></div>
+            </div>
+            
+            <div class="tab-content" data-tab="encrypted">
+                <div id="encryptedEvents"></div>
+            </div>
         </div>
         
         <div class="panel">
             <h2>Dados Brutos</h2>
-            <pre id="rawData">Nenhum dado recebido</pre>
+            <div class="tabs">
+                <div class="tab active" data-tab="raw-encrypted">Criptografado</div>
+                <div class="tab" data-tab="raw-decrypted">Descriptografado</div>
+            </div>
+            
+            <div class="tab-content active" data-tab="raw-encrypted">
+                <pre id="rawData">Nenhum dado recebido</pre>
+            </div>
+            
+            <div class="tab-content" data-tab="raw-decrypted">
+                <pre id="decryptedData">Dados não descriptografados</pre>
+            </div>
         </div>
     </div>
 
@@ -147,17 +209,78 @@
         // Elementos DOM
         const serverUrlInput = document.getElementById('serverUrl');
         const tableIdInput = document.getElementById('tableId');
+        const clientKeyInput = document.getElementById('clientKey');
         const connectStreamBtn = document.getElementById('connectStream');
         const connectRouletteBtn = document.getElementById('connectRoulette');
         const testServerBtn = document.getElementById('testServer');
         const disconnectBtn = document.getElementById('disconnect');
         const connectionStatus = document.getElementById('connectionStatus');
         const events = document.getElementById('events');
+        const encryptedEvents = document.getElementById('encryptedEvents');
         const rawData = document.getElementById('rawData');
+        const decryptedData = document.getElementById('decryptedData');
+        
+        // Sistema de abas
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                const tabGroup = tab.parentElement;
+                
+                // Desativar todas as abas neste grupo
+                tabGroup.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                
+                // Encontrar o container pai da aba e desativar todos os conteúdos
+                const container = tabGroup.closest('.panel');
+                container.querySelectorAll('.tab-content').forEach(content => {
+                    if (content.dataset.tab.startsWith(tabName.split('-')[0])) {
+                        content.classList.remove('active');
+                    }
+                });
+                
+                // Ativar a aba clicada e seu conteúdo
+                tab.classList.add('active');
+                container.querySelector(`.tab-content[data-tab="${tabName}"]`).classList.add('active');
+            });
+        });
         
         // Variáveis globais
         let eventSource = null;
         let eventCount = 0;
+        
+        // Função para simular a descriptografia de dados Fe26.2
+        function simulateDecryption(encryptedData, clientKey) {
+            if (!encryptedData || !encryptedData.startsWith('fe26.2')) {
+                return { error: 'Formato de dados inválido' };
+            }
+            
+            try {
+                // Em um sistema real, isso seria feito usando @hapi/iron
+                // Aqui estamos apenas extraindo a parte da string que simula Base64
+                const parts = encryptedData.split('**');
+                if (parts.length < 4) {
+                    return { error: 'Formato Fe26.2 inválido' };
+                }
+                
+                // Simular o processo de descriptografia
+                // Neste exemplo, assumimos que a última parte contém dados Base64
+                // que podemos extrair e decodificar
+                
+                // Tentativa de descriptografia simulada
+                // Na versão real, usaríamos Iron.unseal()
+                return {
+                    decrypted: true,
+                    number: Math.floor(Math.random() * 37),
+                    color: ['vermelho', 'preto', 'verde'][Math.floor(Math.random() * 3)],
+                    tableId: tableIdInput.value,
+                    tableName: `Mesa de Roleta ${tableIdInput.value}`,
+                    timestamp: new Date().toISOString(),
+                    _note: "SIMULAÇÃO de descriptografia - em um sistema real, os dados viriam do token Fe26.2"
+                };
+            } catch (error) {
+                console.error('Erro ao simular descriptografia:', error);
+                return { error: 'Falha na descriptografia' };
+            }
+        }
         
         // Função para conectar ao endpoint de teste
         function connectToTestStream() {
@@ -182,25 +305,55 @@
                 
                 eventSource.onmessage = function(event) {
                     eventCount++;
-                    const data = JSON.parse(event.data);
+                    const encryptedData = event.data;
                     
-                    // Adicionar ao log de eventos
-                    const color = data.color === 'vermelho' ? 'red' : (data.color === 'preto' ? 'black' : 'green');
+                    // Tenta descriptografar os dados
+                    const clientKey = clientKeyInput.value;
+                    const decryptedData = simulateDecryption(encryptedData, clientKey);
                     
-                    const eventElement = document.createElement('div');
-                    eventElement.className = 'event-item';
-                    eventElement.innerHTML = `
+                    // Mostrar dados criptografados
+                    rawData.textContent = `Evento #${eventCount}\n${encryptedData}`;
+                    
+                    // Adicionar ao histórico de eventos criptografados
+                    const encEvent = document.createElement('div');
+                    encEvent.className = 'event-item';
+                    encEvent.innerHTML = `
                         <div>
-                            <span class="event-number color-${color}">${data.number}</span>
                             <span>Evento #${eventCount}</span>
                         </div>
-                        <div class="timestamp">${new Date().toLocaleTimeString()} - ${data.timestamp}</div>
+                        <div>${encryptedData}</div>
+                        <div class="timestamp">${new Date().toLocaleTimeString()}</div>
                     `;
+                    encryptedEvents.insertBefore(encEvent, encryptedEvents.firstChild);
                     
-                    events.insertBefore(eventElement, events.firstChild);
-                    
-                    // Mostrar dados brutos
-                    rawData.textContent = `Evento #${eventCount}\n${event.data}`;
+                    // Se foi possível descriptografar, mostrar os dados descriptografados
+                    if (!decryptedData.error) {
+                        // Adicionar ao log de eventos descriptografados
+                        const color = decryptedData.color === 'vermelho' ? 'red' : 
+                               (decryptedData.color === 'preto' ? 'black' : 'green');
+                        
+                        const eventElement = document.createElement('div');
+                        eventElement.className = 'event-item';
+                        eventElement.innerHTML = `
+                            <div>
+                                <span class="event-number color-${color}">${decryptedData.number}</span>
+                                <span>Evento #${eventCount}</span>
+                            </div>
+                            <div class="timestamp">${new Date().toLocaleTimeString()}</div>
+                            <div><small>Descriptografado (simulação)</small></div>
+                        `;
+                        
+                        events.insertBefore(eventElement, events.firstChild);
+                        
+                        // Mostrar dados descriptografados
+                        decryptedData._decryption_note = "SIMULAÇÃO - em um sistema real, estes dados seriam extraídos do token";
+                        decryptedData._client_key_used = clientKey;
+                        decryptedData._client_key_status = "Simulado";
+                        
+                        decryptedData.textContent = JSON.stringify(decryptedData, null, 2);
+                    } else {
+                        decryptedData.textContent = JSON.stringify(decryptedData, null, 2);
+                    }
                 };
                 
                 eventSource.onerror = function(error) {
@@ -226,7 +379,7 @@
             }
             
             try {
-                const url = `${serverUrl}/api/roulettes/stream/rounds/ROULETTE/${tableId}/v2/live`;
+                const url = `${serverUrl}/stream/rounds/ROULETTE/${tableId}/v2/live`;
                 connectionStatus.textContent = `Conectando a ${url}...`;
                 
                 eventSource = new EventSource(url);
@@ -237,26 +390,56 @@
                 
                 eventSource.addEventListener('update', function(event) {
                     eventCount++;
-                    const data = JSON.parse(event.data);
+                    const encryptedData = event.data;
                     
-                    // Adicionar ao log de eventos
-                    const color = data.color === 'vermelho' ? 'red' : (data.color === 'preto' ? 'black' : 'green');
+                    // Mostrar dados criptografados
+                    rawData.textContent = `Evento #${eventCount}\nTipo: ${event.type}\nID: ${event.lastEventId}\nDados: ${encryptedData}`;
                     
-                    const eventElement = document.createElement('div');
-                    eventElement.className = 'event-item';
-                    eventElement.innerHTML = `
+                    // Adicionar ao histórico de eventos criptografados
+                    const encEvent = document.createElement('div');
+                    encEvent.className = 'event-item';
+                    encEvent.innerHTML = `
                         <div>
-                            <span class="event-number color-${color}">${data.number}</span>
                             <span>Evento #${eventCount}</span>
                         </div>
-                        <div>Mesa: ${data.tableName || data.tableId}</div>
-                        <div class="timestamp">${new Date().toLocaleTimeString()} - ${data.timestamp}</div>
+                        <div>${encryptedData.substring(0, 40)}...</div>
+                        <div class="timestamp">${new Date().toLocaleTimeString()}</div>
                     `;
+                    encryptedEvents.insertBefore(encEvent, encryptedEvents.firstChild);
                     
-                    events.insertBefore(eventElement, events.firstChild);
+                    // Tenta descriptografar os dados
+                    const clientKey = clientKeyInput.value;
+                    const decryptedData = simulateDecryption(encryptedData, clientKey);
                     
-                    // Mostrar dados brutos
-                    rawData.textContent = `Evento #${eventCount}\nTipo: ${event.type}\nID: ${event.lastEventId}\nDados: ${event.data}`;
+                    // Se foi possível descriptografar, mostrar os dados descriptografados
+                    if (!decryptedData.error) {
+                        // Adicionar ao log de eventos descriptografados
+                        const color = decryptedData.color === 'vermelho' ? 'red' : 
+                               (decryptedData.color === 'preto' ? 'black' : 'green');
+                        
+                        const eventElement = document.createElement('div');
+                        eventElement.className = 'event-item';
+                        eventElement.innerHTML = `
+                            <div>
+                                <span class="event-number color-${color}">${decryptedData.number}</span>
+                                <span>Evento #${eventCount}</span>
+                            </div>
+                            <div>Mesa: ${decryptedData.tableName || decryptedData.tableId}</div>
+                            <div class="timestamp">${new Date().toLocaleTimeString()}</div>
+                            <div><small>Descriptografado (simulação)</small></div>
+                        `;
+                        
+                        events.insertBefore(eventElement, events.firstChild);
+                        
+                        // Mostrar dados descriptografados
+                        decryptedData._decryption_note = "SIMULAÇÃO - em um sistema real, estes dados seriam extraídos do token";
+                        decryptedData._client_key_used = clientKey;
+                        decryptedData._client_key_status = "Simulado";
+                        
+                        decryptedData.textContent = JSON.stringify(decryptedData, null, 2);
+                    } else {
+                        decryptedData.textContent = JSON.stringify(decryptedData, null, 2);
+                    }
                 }, false);
                 
                 eventSource.onerror = function(error) {

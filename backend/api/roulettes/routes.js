@@ -15,6 +15,21 @@ const {
   hasPermission
 } = require('./middleware');
 
+// Controladores da API unificada
+const {
+  getAllRoulettes,
+  getCompactRoulettes,
+  getConsolidatedRoulettes,
+  getRouletteEvents,
+  getAllInOneEvent
+} = require('./unified_controller');
+
+// Middleware da API unificada
+const {
+  verifyUnifiedClientKey,
+  allowPublicAccess
+} = require('./unified_middleware');
+
 // Configurar middleware global para verificar autenticação
 router.use(isAuthenticated);
 
@@ -46,6 +61,43 @@ router.post('/simulate/:tableId',
   verifyClientKeyMiddleware,
   hasPermission('admin_roulette'),
   simulateRandomResult
+);
+
+// ========= Novas rotas da API Unificada ==========
+
+// Retorna todas as roletas com seus números
+router.get('/all', 
+  allowPublicAccess,
+  verifyUnifiedClientKey,
+  getAllRoulettes
+);
+
+// Retorna dados compactos das roletas
+router.get('/compact', 
+  allowPublicAccess,
+  verifyUnifiedClientKey,
+  getCompactRoulettes
+);
+
+// Retorna formato consolidado de todas as roletas
+router.get('/consolidated', 
+  allowPublicAccess,
+  verifyUnifiedClientKey,
+  getConsolidatedRoulettes
+);
+
+// Retorna roletas no formato de eventos (sem streaming)
+router.get('/events', 
+  allowPublicAccess,
+  verifyUnifiedClientKey,
+  getRouletteEvents
+);
+
+// Retorna todas as roletas em um único evento
+router.get('/events/all-in-one', 
+  allowPublicAccess,
+  verifyUnifiedClientKey,
+  getAllInOneEvent
 );
 
 module.exports = router; 
