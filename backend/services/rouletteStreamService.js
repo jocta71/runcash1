@@ -11,6 +11,49 @@ class RouletteStreamService {
     this.clients = new Map(); // Mapa de clientes conectados
     this.eventId = 0; // ID sequencial para os eventos
     this.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'runcash_default_encryption_key_2024';
+    this.lastBroadcastTime = 0;
+    this.lastBroadcastData = null;
+    
+    // Inicializar monitoramento de conexões
+    this.setupConnectionMonitoring();
+  }
+
+  /**
+   * Configura o monitoramento de conexões
+   */
+  setupConnectionMonitoring() {
+    // A cada 30 segundos, verificar se há clientes desconectados
+    setInterval(() => {
+      this.checkConnections();
+    }, 30000);
+  }
+
+  /**
+   * Verifica conexões para remover clientes desconectados
+   */
+  checkConnections() {
+    const initialCount = this.clients.size;
+    
+    if (initialCount === 0) return;
+    
+    console.log(`[SSE] Verificando ${initialCount} conexões...`);
+    
+    for (const [clientId, client] of this.clients.entries()) {
+      try {
+        if (client.res.writableEnded || !client.res.writable) {
+          console.log(`[SSE] Removendo cliente desconectado: ${clientId}`);
+          this.clients.delete(clientId);
+        }
+      } catch (error) {
+        console.error(`[SSE] Erro ao verificar cliente ${clientId}:`, error);
+        this.clients.delete(clientId);
+      }
+    }
+    
+    const removedCount = initialCount - this.clients.size;
+    if (removedCount > 0) {
+      console.log(`[SSE] Removidos ${removedCount} clientes desconectados.`);
+    }
   }
 
   /**
@@ -48,6 +91,18 @@ class RouletteStreamService {
       this.clients.delete(clientId);
     });
     
+    // Se tivermos dados recentes, enviar imediatamente para o novo cliente
+    if (this.lastBroadcastData && Date.now() - this.lastBroadcastTime < 60000) {
+      try {
+        console.log(`[SSE] Enviando dados recentes para novo cliente ${clientId}`);
+        setTimeout(() => {
+          this.sendUpdateToClient(client, this.lastBroadcastData, this.eventId + 1);
+        }, 1000); // Pequeno atraso para garantir que o cliente esteja pronto
+      } catch (error) {
+        console.error(`[SSE] Erro ao enviar dados iniciais para ${clientId}:`, error);
+      }
+    }
+    
     return clientId;
   }
 
@@ -57,6 +112,8 @@ class RouletteStreamService {
    */
   broadcastUpdate(data) {
     this.eventId++;
+    this.lastBroadcastTime = Date.now();
+    this.lastBroadcastData = data;
     
     if (this.clients.size === 0) {
       return; // Nenhum cliente conectado
@@ -64,24 +121,33 @@ class RouletteStreamService {
     
     console.log(`[SSE] Enviando atualização para ${this.clients.size} clientes. EventID: ${this.eventId}`);
     
+    // Contador para sucesso/falha
+    let successCount = 0;
+    let failCount = 0;
+    
     // Processar cada cliente
     for (const [clientId, client] of this.clients.entries()) {
       try {
         // Verificar se o cliente ainda está conectado
-        if (client.res.writableEnded) {
+        if (client.res.writableEnded || !client.res.writable) {
           console.log(`[SSE] Removendo cliente desconectado: ${clientId}`);
           this.clients.delete(clientId);
+          failCount++;
           continue;
         }
         
         // Processar dados conforme tipo de cliente
         this.sendUpdateToClient(client, data, this.eventId);
+        successCount++;
       } catch (error) {
         console.error(`[SSE] Erro ao enviar para cliente ${clientId}:`, error);
         // Remover cliente em caso de erro
         this.clients.delete(clientId);
+        failCount++;
       }
     }
+    
+    console.log(`[SSE] Broadcast concluído: ${successCount} sucesso, ${failCount} falhas`);
   }
 
   /**
@@ -93,20 +159,42 @@ class RouletteStreamService {
   async sendUpdateToClient(client, data, eventId) {
     // Verificar se o cliente precisa receber dados criptografados
     const needsEncryption = this.shouldEncryptForClient(client);
-    let processedData;
+    let finalData = data;
     
-    if (needsEncryption) {
-      // Criptografar dados para clientes sem assinatura
-      processedData = await this.encryptData(data);
-    } else {
-      // Enviar dados normais para clientes com assinatura
-      processedData = data;
+    try {
+      if (needsEncryption) {
+        // Criptografar dados para clientes sem assinatura
+        const encryptedStr = await this.encryptData(data);
+        finalData = {
+          encrypted: true,
+          format: 'iron',
+          encryptedData: encryptedStr,
+          message: 'Dados criptografados. Use sua chave de acesso para descriptografar.'
+        };
+      }
+      
+      // Adicionar timestamp para todos os eventos
+      if (typeof finalData === 'object' && finalData !== null) {
+        finalData._timestamp = Date.now();
+      }
+      
+      // Formatar a mensagem no padrão SSE
+      const dataString = JSON.stringify(finalData);
+      client.res.write(`id: ${eventId}\n`);
+      client.res.write(`event: update\n`);
+      client.res.write(`data: ${dataString}\n\n`);
+    } catch (error) {
+      console.error('[SSE] Erro ao processar/enviar dados:', error);
+      // Tentar enviar um evento de erro como fallback
+      try {
+        client.res.write(`id: ${eventId}\n`);
+        client.res.write(`event: error\n`);
+        client.res.write(`data: ${JSON.stringify({ error: 'Erro ao processar dados' })}\n\n`);
+      } catch (e) {
+        // Se falhar ao enviar o erro, provavelmente a conexão está morta
+        throw new Error('Falha completa na conexão');
+      }
     }
-    
-    // Formatar a mensagem no padrão SSE
-    client.res.write(`id: ${eventId}\n`);
-    client.res.write(`event: update\n`);
-    client.res.write(`data: ${processedData}\n\n`);
   }
 
   /**
@@ -176,6 +264,27 @@ class RouletteStreamService {
    */
   getClientCount() {
     return this.clients.size;
+  }
+
+  /**
+   * Retorna o timestamp da última transmissão
+   */
+  getLastBroadcastTime() {
+    return this.lastBroadcastTime;
+  }
+
+  /**
+   * Envia um evento de teste para verificar se o sistema está funcionando
+   */
+  sendTestEvent() {
+    const testData = {
+      type: 'test',
+      timestamp: Date.now(),
+      message: 'Teste de funcionamento do sistema'
+    };
+    
+    this.broadcastUpdate(testData);
+    return true;
   }
 
   /**

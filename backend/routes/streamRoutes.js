@@ -5,76 +5,157 @@
 const express = require('express');
 const router = express.Router();
 const rouletteStreamService = require('../services/rouletteStreamService');
-const { verifyAccessKey } = require('../middlewares/encryptionMiddleware');
+const rouletteDataService = require('../services/rouletteDataService');
+const { protect, admin } = require('../middleware/authMiddleware');
 
 /**
  * @route   GET /api/stream/roulettes
- * @desc    Conecta a um stream SSE para receber atualizações de roletas em tempo real
- * @access  Público (criptografia aplicada conforme permissões)
+ * @desc    Stream de atualizações de roletas (SSE)
+ * @access  Public (dados criptografados para usuários sem assinatura)
  */
-router.get('/roulettes', verifyAccessKey, (req, res) => {
-  try {
-    // Configurar cliente para o serviço de streaming
-    const client = {
-      res,
-      user: req.user || null,
-      // Se não houver usuário autenticado ou não tiver chave de acesso, criptografar os dados
-      needsEncryption: !req.user || !req.user.hasValidAccessKey
-    };
-    
-    // Registrar cliente no serviço de streaming
-    rouletteStreamService.addClient(client);
-    
-    // Nota: não fechar a resposta - a conexão é mantida aberta para SSE
-  } catch (error) {
-    console.error('Erro ao iniciar stream de roletas:', error);
-    res.status(500).json({ error: 'Erro ao iniciar stream' });
-  }
-});
-
-/**
- * @route   POST /api/stream/simulate-event
- * @desc    Simula um evento de atualização de roleta (apenas para testes)
- * @access  Privado - Admin
- */
-router.post('/simulate-event', (req, res) => {
-  // Verificar se o usuário é admin (em uma implementação real)
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Acesso negado' });
-  }
+router.get('/roulettes', async (req, res) => {
+  // Obter informações do usuário
+  let user = req.user || { role: 'public' };
+  
+  console.log(`[Stream] Nova conexão de ${user.role || 'usuário anônimo'}`);
+  console.log(`[Stream] IP: ${req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress}`);
   
   try {
-    const eventData = req.body;
-    
-    // Broadcast do evento para todos os clientes conectados
-    rouletteStreamService.broadcastUpdate(eventData);
-    
-    res.json({
-      success: true, 
-      message: 'Evento enviado',
-      clientCount: rouletteStreamService.getClientCount()
+    // Configurar cliente para o serviço de streaming
+    rouletteStreamService.addClient({
+      res,
+      user,
+      needsEncryption: !(user && user.role === 'admin') && 
+                      !(user && user.subscription && user.subscription.status === 'active')
     });
+    
+    // Nota: O serviço de streaming gerenciará o ciclo de vida da resposta
   } catch (error) {
-    console.error('Erro ao simular evento:', error);
-    res.status(500).json({ error: 'Erro ao simular evento' });
+    console.error('[Stream] Erro ao configurar stream SSE:', error);
+    res.status(500).json({ error: 'Erro ao configurar stream' });
   }
 });
 
 /**
  * @route   GET /api/stream/stats
  * @desc    Retorna estatísticas do serviço de streaming
- * @access  Privado - Admin
+ * @access  Private
  */
-router.get('/stats', (req, res) => {
-  // Verificar se o usuário é admin (em uma implementação real)
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Acesso negado' });
+router.get('/stats', protect, admin, (req, res) => {
+  try {
+    const streamStats = {
+      connections: rouletteStreamService.getClientCount(),
+      lastBroadcastTime: rouletteStreamService.getLastBroadcastTime(),
+      eventId: rouletteStreamService.eventId,
+    };
+    
+    const dataStats = rouletteDataService.getStats();
+    
+    res.json({
+      stream: streamStats,
+      data: dataStats,
+      system: {
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        timestamp: Date.now()
+      }
+    });
+  } catch (error) {
+    console.error('[Stream] Erro ao obter estatísticas:', error);
+    res.status(500).json({ error: 'Erro ao obter estatísticas' });
   }
-  
-  res.json({
-    connectedClients: rouletteStreamService.getClientCount(),
-    eventId: rouletteStreamService.eventId
-  });
+});
+
+/**
+ * @route   GET /api/stream/diagnostic
+ * @desc    Endpoint de diagnóstico para verificar o status do serviço de streaming
+ * @access  Public
+ */
+router.get('/diagnostic', (req, res) => {
+  try {
+    const status = {
+      streamServiceActive: true,
+      clientCount: rouletteStreamService.getClientCount(),
+      lastBroadcastTime: rouletteStreamService.getLastBroadcastTime() || null,
+      dataServiceActive: rouletteDataService.isRunning || false,
+      lastFetchTime: rouletteDataService.lastFetchTime || null
+    };
+    
+    // Adicionar delay entre último broadcast e agora
+    if (status.lastBroadcastTime) {
+      status.timeSinceLastBroadcast = Date.now() - status.lastBroadcastTime;
+      status.broadcastStatus = status.timeSinceLastBroadcast < 30000 ? 'ok' : 'delayed';
+    } else {
+      status.broadcastStatus = 'never';
+    }
+    
+    // Adicionar informações de conexão
+    status.yourIP = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    status.timestamp = Date.now();
+    
+    res.json(status);
+  } catch (error) {
+    console.error('[Stream] Erro em diagnóstico:', error);
+    res.status(500).json({ 
+      error: 'Erro ao realizar diagnóstico',
+      errorDetails: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/stream/simulate-event
+ * @desc    Simula um evento para testar o streaming
+ * @access  Private (somente admin)
+ */
+router.post('/simulate-event', protect, admin, (req, res) => {
+  try {
+    const { type = 'test', data = {} } = req.body;
+    
+    // Criar evento de teste
+    const testEvent = {
+      type,
+      timestamp: Date.now(),
+      data: {
+        ...data,
+        message: data.message || 'Evento de teste',
+        simulatedBy: req.user.email
+      }
+    };
+    
+    // Enviar para todos os clientes conectados
+    rouletteStreamService.broadcastUpdate(testEvent);
+    
+    res.json({
+      success: true,
+      message: 'Evento simulado enviado com sucesso',
+      clients: rouletteStreamService.getClientCount(),
+      event: testEvent
+    });
+  } catch (error) {
+    console.error('[Stream] Erro ao simular evento:', error);
+    res.status(500).json({ error: 'Erro ao simular evento' });
+  }
+});
+
+/**
+ * @route   POST /api/stream/test
+ * @desc    Envia um evento de teste para verificar o funcionamento
+ * @access  Public
+ */
+router.post('/test', (req, res) => {
+  try {
+    const success = rouletteStreamService.sendTestEvent();
+    
+    res.json({
+      success: true,
+      message: 'Evento de teste enviado',
+      clientCount: rouletteStreamService.getClientCount()
+    });
+  } catch (error) {
+    console.error('[Stream] Erro ao enviar evento de teste:', error);
+    res.status(500).json({ error: 'Erro ao enviar evento de teste' });
+  }
 });
 
 module.exports = router; 
