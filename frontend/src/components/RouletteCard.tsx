@@ -20,71 +20,6 @@ const debugLog = (...args: any[]) => {
   }
 };
 
-// Modificando a classe GlobalRouletteDataManager para usar o serviço global
-class GlobalRouletteDataManager {
-  private static instance: GlobalRouletteDataManager | null = null;
-  private updateCallbacks: Map<string, (data: any) => void> = new Map();
-  private initialDataLoaded: boolean = false;
-  
-  private constructor() {
-    console.log('[RouletteCard] Inicializando gerenciador de dados');
-  }
-  
-  public static getInstance(): GlobalRouletteDataManager {
-    if (!GlobalRouletteDataManager.instance) {
-      GlobalRouletteDataManager.instance = new GlobalRouletteDataManager();
-    }
-    return GlobalRouletteDataManager.instance;
-  }
-  
-  public subscribe(id: string, callback: (data: any) => void): () => void {
-    console.log(`[RouletteCard] Novo assinante registrado: ${id}`);
-    this.updateCallbacks.set(id, callback);
-    
-    // Usar o globalRouletteDataService para obter dados
-    const currentData = globalRouletteDataService.getAllRoulettes();
-    
-    // Se já temos dados, notificar imediatamente
-    if (currentData && currentData.length > 0) {
-      callback(currentData);
-      this.initialDataLoaded = true;
-    } else {
-      // Forçar uma atualização usando o serviço global
-      globalRouletteDataService.forceUpdate();
-    }
-    
-    // Registrar callback no serviço global para receber atualizações
-    globalRouletteDataService.subscribe(id, () => {
-      const rouletteData = globalRouletteDataService.getAllRoulettes();
-      if (rouletteData && rouletteData.length > 0) {
-        callback(rouletteData);
-      }
-    });
-    
-    // Retornar função para cancelar inscrição
-    return () => {
-      this.updateCallbacks.delete(id);
-      globalRouletteDataService.unsubscribe(id);
-      console.log(`[RouletteCard] Assinante removido: ${id}`);
-    };
-  }
-
-  // Obter dados mais recentes (sem garantia de atualização)
-  public getData(): any[] {
-    return globalRouletteDataService.getAllRoulettes();
-  }
-  
-  // Obter timestamp da última atualização
-  public getLastUpdateTime(): number {
-    return Date.now(); // Usar o timestamp atual como fallback
-  }
-
-  // Verificar se os dados iniciais foram carregados
-  public isInitialized(): boolean {
-    return this.initialDataLoaded;
-  }
-}
-
 interface RouletteCardProps {
   data: RouletteData;
   isDetailView?: boolean;
@@ -127,9 +62,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
   
   // ID único para este componente
   const componentId = useRef(`roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`).current;
-  
-  // Referência ao gerenciador global
-  const dataManager = useMemo(() => GlobalRouletteDataManager.getInstance(), []);
   
   // Função para lidar com atualizações de dados
   const handleDataUpdate = useCallback((allRoulettes: any[]) => {
@@ -179,7 +111,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
     }, 15000);
     
     // Assinar atualizações do gerenciador global
-    const unsubscribe = dataManager.subscribe(componentId, handleDataUpdate);
+    const unsubscribe = globalRouletteDataService.subscribe(componentId, handleDataUpdate);
     
     // Assinar eventos do EventBus para atualizações SSE
     EventBus.on('roulette:data-updated', (eventData) => {
@@ -220,11 +152,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data, isDetailView = false 
         intervalRef.current = null;
       }
     };
-  }, [dataManager, componentId, handleDataUpdate]);
+  }, [handleDataUpdate]);
   
   // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
   // Console.log para verificar se há apenas uma fonte de requisições:
-  console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas GlobalRouletteDataManager para obter dados da API.');
+  console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas GlobalRouletteDataService para obter dados da API.');
   
   // Função para processar dados da API
   const processApiData = (apiRoulette: any) => {
