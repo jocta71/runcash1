@@ -1,5 +1,10 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
-import globalRouletteDataService from '@/services/GlobalRouletteDataService';
+import { getLogger } from './utils/logger';
+import { RequestThrottler } from './utils/requestThrottler';
+import EventService from './EventService';
+import { UnifiedRouletteClient } from './UnifiedRouletteClient';
+import EventBus from './EventBus';
+import cryptoService from '../utils/crypto-service';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -68,6 +73,9 @@ class RESTSocketService {
   // Propriedade para armazenar o último timer ID criado
   private _lastCreatedTimerId: NodeJSTimeout | null = null;
   
+  // Referência ao cliente unificado
+  private unifiedClient: UnifiedRouletteClient;
+  
   private constructor() {
     console.log('[RESTSocketService] Inicializando serviço REST API com polling');
     
@@ -97,13 +105,28 @@ class RESTSocketService {
     setInterval(() => {
       this.checkTimerHealth();
     }, 30000);
+
+    // Obter instância do UnifiedRouletteClient
+    this.unifiedClient = UnifiedRouletteClient.getInstance();
+
+    // Ouvir atualizações do UnifiedRouletteClient via EventBus
+    EventBus.on('roulette:data-updated', this.handleCentralDataUpdate);
+    EventBus.on('roulette:stream-connected', () => console.log('Conexão SSE estabelecida (notificação via EventBus)'));
+    EventBus.on('roulette:stream-disconnected', () => console.warn('Conexão SSE perdida (notificação via EventBus)'));
+
+    // Obter dados iniciais do cliente unificado
+    const initialData = this.unifiedClient.getAllRoulettes();
+    if (initialData && initialData.length > 0) {
+      console.log('[RESTSocketService] Processando dados iniciais do serviço global');
+      this.processDataAsEvents(initialData);
+    }
   }
 
   // Manipular alterações de visibilidade da página
   private handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
       console.log('[RESTSocketService] Página voltou a ficar visível, solicitando atualização via serviço global');
-      globalRouletteDataService.forceUpdate();
+      this.forceUpdate();
     }
   }
 
@@ -120,17 +143,17 @@ class RESTSocketService {
     console.log('[RESTSocketService] Não criando timer próprio - usando serviço global centralizado');
     
     // Registrar para receber atualizações do serviço global
-    globalRouletteDataService.subscribe('RESTSocketService-main', () => {
+    EventBus.on('roulette:data-updated', () => {
       console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
       // Reprocessar dados do serviço global quando houver atualização
-      const data = globalRouletteDataService.getAllRoulettes();
+      const data = this.unifiedClient.getAllRoulettes();
       if (data && Array.isArray(data)) {
         this.processDataAsEvents(data);
       }
     });
     
     // Processar dados iniciais se disponíveis
-    const initialData = globalRouletteDataService.getAllRoulettes();
+    const initialData = this.unifiedClient.getAllRoulettes();
     if (initialData && initialData.length > 0) {
       console.log('[RESTSocketService] Processando dados iniciais do serviço global');
       this.processDataAsEvents(initialData);
@@ -444,10 +467,10 @@ class RESTSocketService {
   public async requestRecentNumbers(): Promise<boolean> {
     try {
       console.log('[RESTSocketService] Forçando atualização de dados via serviço global');
-      await globalRouletteDataService.forceUpdate();
+      await this.forceUpdate();
       
       // Processar os dados atualizados
-      const data = globalRouletteDataService.getAllRoulettes();
+      const data = this.unifiedClient.getAllRoulettes();
       if (data && Array.isArray(data)) {
         this.processDataAsEvents(data);
       }
@@ -470,10 +493,10 @@ class RESTSocketService {
   public async requestRouletteNumbers(roletaId: string): Promise<boolean> {
     try {
       console.log(`[RESTSocketService] Buscando números para roleta ${roletaId} via serviço global`);
-      await globalRouletteDataService.forceUpdate();
+      await this.forceUpdate();
       
       // Processar os dados atualizados
-      const data = globalRouletteDataService.getAllRoulettes();
+      const data = this.unifiedClient.getAllRoulettes();
       if (data && Array.isArray(data)) {
         const roleta = data.find(r => r.id === roletaId);
         if (roleta && roleta.numero && Array.isArray(roleta.numero)) {
@@ -503,25 +526,10 @@ class RESTSocketService {
     try {
       this._isLoadingHistoricalData = true;
       
-      // Buscar dados detalhados pelo serviço global
-      const data = await globalRouletteDataService.fetchDetailedRouletteData();
+      console.warn(`[RESTSocketService] Dados detalhados não disponíveis via UnifiedClient`);
       
-      if (Array.isArray(data)) {
-        // Processar os dados recebidos
-        data.forEach(roleta => {
-          if (roleta.id && roleta.numero && Array.isArray(roleta.numero)) {
-            // Extrair apenas os números
-            const numeros = roleta.numero.map((n: any) => n.numero || n.number || 0);
-            
-            // Armazenar no histórico
-            this.setRouletteHistory(roleta.id, numeros);
-            
-            console.log(`[RESTSocketService] Carregados ${numeros.length} números históricos para ${roleta.nome || 'roleta desconhecida'}`);
-          }
-        });
-        
-        console.log(`[RESTSocketService] Dados históricos carregados para ${data.length} roletas`);
-      }
+      // Retornar vazio pois não há fonte para dados detalhados
+      return;
     } catch (error) {
       console.error('[RESTSocketService] Erro ao carregar dados históricos:', error);
     } finally {
@@ -589,8 +597,8 @@ class RESTSocketService {
   private startSecondEndpointPolling() {
     console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
     
-    // Usar o GlobalRouletteDataService para obter dados
-    globalRouletteDataService.subscribe('RESTSocketService', () => {
+    // Usar o UnifiedRouletteClient para obter dados
+    EventBus.on('roulette:data-updated', () => {
       console.log('[RESTSocketService] Recebendo dados do serviço centralizado');
       this.processDataFromCentralService();
     });
@@ -613,7 +621,7 @@ class RESTSocketService {
       console.log('[RESTSocketService] Processando dados do serviço centralizado');
       
       // Obter os dados do serviço global
-      const rouletteData = globalRouletteDataService.getAllRoulettes();
+      const rouletteData = this.unifiedClient.getAllRoulettes();
       
       // Registrar esta chamada como bem-sucedida
       const now = Date.now();
@@ -711,6 +719,39 @@ class RESTSocketService {
     
     return merged;
   }
+
+  // Força uma atualização dos dados (delegando ao UnifiedClient)
+  public async forceUpdate(): Promise<void> {
+    console.log('Forçando atualização de dados via UnifiedRouletteClient');
+    try {
+      await this.unifiedClient.forceUpdate();
+      // A atualização será recebida pelo handler handleCentralDataUpdate via EventBus
+    } catch (error) {
+      console.error('Erro ao forçar atualização:', error);
+      this.notifyErrorListeners(new Error('Falha ao forçar atualização'));
+    }
+  }
+
+  // Notificar listeners de erro
+  private notifyErrorListeners(error: Error): void {
+    const errorListeners = this.listeners.get('*');
+    if (errorListeners) {
+      errorListeners.forEach(callback => {
+        try {
+          callback(error);
+        } catch (e) {
+          console.error('Erro ao executar callback de erro:', e);
+        }
+      });
+    }
+  }
+
+  // Definir o método para tratar atualizações do EventBus
+  private handleCentralDataUpdate = (eventData: any) => {
+    console.log('Recebida atualização do UnifiedRouletteClient via EventBus');
+    const newData = this.unifiedClient.getAllRoulettes(); // Buscar os dados mais recentes do cliente
+    this.processDataAsEvents(newData); // Usar a função existente para notificar
+  };
 }
 
 export default RESTSocketService; 
