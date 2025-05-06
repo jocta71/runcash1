@@ -390,312 +390,312 @@ let dbInstance = null;
 
 // Conectar ao MongoDB
 async function connectDB() {
-  // Usar a mesma URI do MongoDB que o sistema já usa
-  const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
-  const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'runcash';
-  
-  console.log('🔄 Conectando ao MongoDB para obter dados de roleta...');
-  console.log(`🔶 URI do MongoDB: ${MONGODB_URI.replace(/:[^:]*@/, ':****@')}`);
-  console.log(`🔶 Banco de dados: ${MONGODB_DB_NAME}`);
-  
-  // Corrigir: Adicionar opções explícitas de conexão para evitar problemas de timeout
-  const mongoOptions = {
-    connectTimeoutMS: 10000,
-    socketTimeoutMS: 45000,
-    serverSelectionTimeoutMS: 15000,
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  };
-  
-  console.log('🔄 Tentando conectar com opções:', JSON.stringify(mongoOptions));
-  
-  // Conectar ao MongoDB com tratamento de erro aprimorado
-  const client = new MongoClient(MONGODB_URI, mongoOptions);
-  
-  try {
-    await client.connect();
-    console.log('✅ Conectado ao MongoDB com sucesso!');
+    // Usar a mesma URI do MongoDB que o sistema já usa
+    const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
+    const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'runcash';
     
-    const db = client.db(MONGODB_DB_NAME);
+    console.log('🔄 Conectando ao MongoDB para obter dados de roleta...');
+    console.log(`🔶 URI do MongoDB: ${MONGODB_URI.replace(/:[^:]*@/, ':****@')}`);
+    console.log(`🔶 Banco de dados: ${MONGODB_DB_NAME}`);
     
-    // Primeiro, vamos verificar quais coleções existem
-    const colecoes = await db.listCollections().toArray();
-    console.log(`📂 Coleções disponíveis no MongoDB (${colecoes.length}):`, colecoes.map(c => c.name).join(', '));
-    
-    // Verificar se a coleção existe antes de tentar acessá-la
-    const roletaNumerosExists = colecoes.some(c => c.name === 'roleta_numeros');
-    if (!roletaNumerosExists) {
-      console.error('❌ Coleção roleta_numeros não encontrada no banco de dados');
-      throw new Error('Coleção roleta_numeros não encontrada');
-    }
-    
-    // Acessar a coleção roleta_numeros
-    const roletaNumeros = db.collection('roleta_numeros');
-    
-    // Verificar a estrutura de um documento para entender os campos
-    const sampleDocument = await roletaNumeros.findOne({});
-    if (!sampleDocument) {
-      console.error('❌ Não foi possível encontrar nenhum documento na coleção roleta_numeros');
-      throw new Error('Coleção vazia');
-    }
-    
-    console.log('📄 Exemplo de documento na coleção roleta_numeros:', JSON.stringify(sampleDocument, null, 2));
-    
-    // Ajustar a consulta com base na estrutura real do documento
-    // Determinar o nome correto do campo de cor (pode ser 'cor', 'color', etc.)
-    const corField = sampleDocument?.cor ? 'cor' : (sampleDocument?.color ? 'color' : 'cor');
-    const numeroField = sampleDocument?.numero ? 'numero' : (sampleDocument?.number ? 'number' : 'numero');
-    
-    console.log(`🔍 Campos identificados - cor: "${corField}", número: "${numeroField}"`);
-    
-    // Verificar se o campo timestamp existe
-    if (!sampleDocument.hasOwnProperty('timestamp')) {
-      console.error('❌ Campo timestamp não encontrado nos documentos');
-      throw new Error('Campo timestamp não encontrado');
-    }
-    
-    // Buscar os últimos 1000 números da coleção principal, ordenados por timestamp
-    const latestNumbers = await roletaNumeros
-      .find({}, { projection: { [corField]: 1, [numeroField]: 1, timestamp: 1 } })
-      .sort({ timestamp: -1 })
-      .limit(1000)
-      .toArray();
-    
-    console.log(`📊 Encontrados ${latestNumbers.length} números recentes no MongoDB`);
-    if (latestNumbers.length === 0) {
-      console.error('❌ A consulta não retornou nenhum resultado');
-      throw new Error('Consulta vazia');
-    }
-    
-    if (latestNumbers.length > 0) {
-      console.log('📄 Primeiro número:', JSON.stringify(latestNumbers[0], null, 2));
-    }
-    
-    // Determinar os valores possíveis para as cores
-    const coresDistintas = await roletaNumeros.distinct(corField);
-    console.log(`🎨 Cores distintas encontradas: ${coresDistintas.join(', ')}`);
-    
-    // Valores mapeados para cores padrão (vermelho, preto, verde)
-    const mapaCores = {
-      'vermelho': 'vermelho',
-      'red': 'vermelho',
-      'preto': 'preto',
-      'black': 'preto',
-      'verde': 'verde',
-      'green': 'verde'
+    // Corrigir: Adicionar opções explícitas de conexão para evitar problemas de timeout
+    const mongoOptions = {
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      serverSelectionTimeoutMS: 15000,
+      useNewUrlParser: true,
+      useUnifiedTopology: true
     };
     
-    // Mapeamento dinâmico de cores
-    const corVermelha = coresDistintas.find(c => c.toLowerCase().includes('red') || c.toLowerCase().includes('verm'));
-    const corPreta = coresDistintas.find(c => c.toLowerCase().includes('black') || c.toLowerCase().includes('preto'));
-    const corVerde = coresDistintas.find(c => c.toLowerCase().includes('green') || c.toLowerCase().includes('verde'));
+    console.log('🔄 Tentando conectar com opções:', JSON.stringify(mongoOptions));
     
-    // Pipeline de agregação ajustado para usar os nomes de campo corretos
-    const aggregation = [
-      {
-        $group: {
-          _id: null,
-          totalNumeros: { $sum: 1 },
-          redCount: { 
-            $sum: { 
-              $cond: [
-                { 
-                  $or: [
-                    { $eq: [`$${corField}`, corVermelha] },
-                    { $eq: [`$${corField}`, 'vermelho'] },
-                    { $eq: [`$${corField}`, 'red'] }
-                  ]
-                }, 
-                1, 
-                0
-              ] 
+    // Conectar ao MongoDB com tratamento de erro aprimorado
+  const client = new MongoClient(MONGODB_URI, mongoOptions);
+    
+    try {
+      await client.connect();
+      console.log('✅ Conectado ao MongoDB com sucesso!');
+      
+      const db = client.db(MONGODB_DB_NAME);
+      
+      // Primeiro, vamos verificar quais coleções existem
+      const colecoes = await db.listCollections().toArray();
+      console.log(`📂 Coleções disponíveis no MongoDB (${colecoes.length}):`, colecoes.map(c => c.name).join(', '));
+      
+      // Verificar se a coleção existe antes de tentar acessá-la
+      const roletaNumerosExists = colecoes.some(c => c.name === 'roleta_numeros');
+      if (!roletaNumerosExists) {
+        console.error('❌ Coleção roleta_numeros não encontrada no banco de dados');
+        throw new Error('Coleção roleta_numeros não encontrada');
+      }
+      
+      // Acessar a coleção roleta_numeros
+      const roletaNumeros = db.collection('roleta_numeros');
+      
+      // Verificar a estrutura de um documento para entender os campos
+      const sampleDocument = await roletaNumeros.findOne({});
+      if (!sampleDocument) {
+        console.error('❌ Não foi possível encontrar nenhum documento na coleção roleta_numeros');
+        throw new Error('Coleção vazia');
+      }
+      
+      console.log('📄 Exemplo de documento na coleção roleta_numeros:', JSON.stringify(sampleDocument, null, 2));
+      
+      // Ajustar a consulta com base na estrutura real do documento
+      // Determinar o nome correto do campo de cor (pode ser 'cor', 'color', etc.)
+      const corField = sampleDocument?.cor ? 'cor' : (sampleDocument?.color ? 'color' : 'cor');
+      const numeroField = sampleDocument?.numero ? 'numero' : (sampleDocument?.number ? 'number' : 'numero');
+      
+      console.log(`🔍 Campos identificados - cor: "${corField}", número: "${numeroField}"`);
+      
+      // Verificar se o campo timestamp existe
+      if (!sampleDocument.hasOwnProperty('timestamp')) {
+        console.error('❌ Campo timestamp não encontrado nos documentos');
+        throw new Error('Campo timestamp não encontrado');
+      }
+      
+    // Buscar os últimos 1000 números da coleção principal, ordenados por timestamp
+      const latestNumbers = await roletaNumeros
+      .find({}, { projection: { [corField]: 1, [numeroField]: 1, timestamp: 1 } })
+        .sort({ timestamp: -1 })
+      .limit(1000)
+        .toArray();
+      
+      console.log(`📊 Encontrados ${latestNumbers.length} números recentes no MongoDB`);
+      if (latestNumbers.length === 0) {
+        console.error('❌ A consulta não retornou nenhum resultado');
+        throw new Error('Consulta vazia');
+      }
+      
+      if (latestNumbers.length > 0) {
+        console.log('📄 Primeiro número:', JSON.stringify(latestNumbers[0], null, 2));
+      }
+      
+      // Determinar os valores possíveis para as cores
+      const coresDistintas = await roletaNumeros.distinct(corField);
+      console.log(`🎨 Cores distintas encontradas: ${coresDistintas.join(', ')}`);
+      
+      // Valores mapeados para cores padrão (vermelho, preto, verde)
+      const mapaCores = {
+        'vermelho': 'vermelho',
+        'red': 'vermelho',
+        'preto': 'preto',
+        'black': 'preto',
+        'verde': 'verde',
+        'green': 'verde'
+      };
+      
+      // Mapeamento dinâmico de cores
+      const corVermelha = coresDistintas.find(c => c.toLowerCase().includes('red') || c.toLowerCase().includes('verm'));
+      const corPreta = coresDistintas.find(c => c.toLowerCase().includes('black') || c.toLowerCase().includes('preto'));
+      const corVerde = coresDistintas.find(c => c.toLowerCase().includes('green') || c.toLowerCase().includes('verde'));
+      
+      // Pipeline de agregação ajustado para usar os nomes de campo corretos
+      const aggregation = [
+        {
+          $group: {
+            _id: null,
+            totalNumeros: { $sum: 1 },
+            redCount: { 
+              $sum: { 
+                $cond: [
+                  { 
+                    $or: [
+                      { $eq: [`$${corField}`, corVermelha] },
+                      { $eq: [`$${corField}`, 'vermelho'] },
+                      { $eq: [`$${corField}`, 'red'] }
+                    ]
+                  }, 
+                  1, 
+                  0
+                ] 
+              }
+            },
+            blackCount: { 
+              $sum: { 
+                $cond: [
+                  { 
+                    $or: [
+                      { $eq: [`$${corField}`, corPreta] },
+                      { $eq: [`$${corField}`, 'preto'] },
+                      { $eq: [`$${corField}`, 'black'] }
+                    ]
+                  }, 
+                  1, 
+                  0
+                ] 
+              }
+            },
+            greenCount: { 
+              $sum: { 
+                $cond: [
+                  { 
+                    $or: [
+                      { $eq: [`$${corField}`, corVerde] },
+                      { $eq: [`$${corField}`, 'verde'] },
+                      { $eq: [`$${corField}`, 'green'] }
+                    ]
+                  }, 
+                  1, 
+                  0
+                ] 
+              }
+            },
+            zeroCount: { 
+              $sum: { $cond: [{ $eq: [`$${numeroField}`, 0] }, 1, 0] }
             }
-          },
-          blackCount: { 
-            $sum: { 
-              $cond: [
-                { 
-                  $or: [
-                    { $eq: [`$${corField}`, corPreta] },
-                    { $eq: [`$${corField}`, 'preto'] },
-                    { $eq: [`$${corField}`, 'black'] }
-                  ]
-                }, 
-                1, 
-                0
-              ] 
-            }
-          },
-          greenCount: { 
-            $sum: { 
-              $cond: [
-                { 
-                  $or: [
-                    { $eq: [`$${corField}`, corVerde] },
-                    { $eq: [`$${corField}`, 'verde'] },
-                    { $eq: [`$${corField}`, 'green'] }
-                  ]
-                }, 
-                1, 
-                0
-              ] 
-            }
-          },
-          zeroCount: { 
-            $sum: { $cond: [{ $eq: [`$${numeroField}`, 0] }, 1, 0] }
           }
         }
-      }
-    ];
-    
-    const statistics = await roletaNumeros.aggregate(aggregation).toArray();
-    console.log(`📊 Estatísticas calculadas:`, JSON.stringify(statistics, null, 2));
-    
-    // Buscar números mais frequentes e menos frequentes
-    const frequencyAggregation = [
-      {
-        $group: {
-          _id: `$${numeroField}`,
-          count: { $sum: 1 }
+      ];
+      
+      const statistics = await roletaNumeros.aggregate(aggregation).toArray();
+      console.log(`📊 Estatísticas calculadas:`, JSON.stringify(statistics, null, 2));
+      
+      // Buscar números mais frequentes e menos frequentes
+      const frequencyAggregation = [
+        {
+          $group: {
+            _id: `$${numeroField}`,
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } }
+      ];
+      
+      const numberFrequency = await roletaNumeros.aggregate(frequencyAggregation).toArray();
+      console.log(`📊 Frequência de números (top 5): ${JSON.stringify(numberFrequency.slice(0, 5), null, 2)}`);
+      
+      // Processamento dos números
+      // Mapear cada número original para o formato esperado pela aplicação
+      const numerosFormatados = latestNumbers.map(item => {
+        // Determinar a cor padronizada
+        let corPadronizada = 'desconhecida';
+        const corOriginal = item[corField]?.toLowerCase();
+        
+        if (corOriginal && (corOriginal.includes('red') || corOriginal.includes('verm'))) {
+          corPadronizada = 'vermelho';
+        } else if (corOriginal && (corOriginal.includes('black') || corOriginal.includes('preto'))) {
+          corPadronizada = 'preto';
+        } else if (corOriginal && (corOriginal.includes('green') || corOriginal.includes('verde'))) {
+          corPadronizada = 'verde';
         }
-      },
-      { $sort: { count: -1 } }
-    ];
-    
-    const numberFrequency = await roletaNumeros.aggregate(frequencyAggregation).toArray();
-    console.log(`📊 Frequência de números (top 5): ${JSON.stringify(numberFrequency.slice(0, 5), null, 2)}`);
-    
-    // Processamento dos números
-    // Mapear cada número original para o formato esperado pela aplicação
-    const numerosFormatados = latestNumbers.map(item => {
-      // Determinar a cor padronizada
-      let corPadronizada = 'desconhecida';
-      const corOriginal = item[corField]?.toLowerCase();
+        
+        return {
+          numero: item[numeroField],
+          cor: corPadronizada,
+          timestamp: item.timestamp
+        };
+      });
       
-      if (corOriginal && (corOriginal.includes('red') || corOriginal.includes('verm'))) {
-        corPadronizada = 'vermelho';
-      } else if (corOriginal && (corOriginal.includes('black') || corOriginal.includes('preto'))) {
-        corPadronizada = 'preto';
-      } else if (corOriginal && (corOriginal.includes('green') || corOriginal.includes('verde'))) {
-        corPadronizada = 'verde';
+      // Os 4 números mais frequentes
+      const mostFrequent = numberFrequency.slice(0, 4).map(item => parseInt(item._id));
+      
+      // Os 4 números menos frequentes (entre os que aparecem pelo menos uma vez)
+      const leastFrequent = [...numberFrequency]
+        .sort((a, b) => a.count - b.count)
+        .slice(0, 4)
+        .map(item => parseInt(item._id));
+      
+      // Calcular contagem de números pares e ímpares
+      const parityAggregation = [
+        {
+          $match: { [numeroField]: { $ne: 0 } }  // Excluir zero
+        },
+        {
+          $group: {
+            _id: { $mod: [`$${numeroField}`, 2] }, // 0 para par, 1 para ímpar
+            count: { $sum: 1 }
+          }
+        }
+      ];
+      
+      const parityCounts = await roletaNumeros.aggregate(parityAggregation).toArray();
+      console.log(`📊 Distribuição par/ímpar: ${JSON.stringify(parityCounts, null, 2)}`);
+      
+      const evenCount = parityCounts.find(item => item._id === 0)?.count || 0;
+      const oddCount = parityCounts.find(item => item._id === 1)?.count || 0;
+      
+      // Identificar streak atual
+      let streakColor = null;
+      let streakNumbers = [];
+      
+      if (numerosFormatados.length > 0) {
+        const currentColor = numerosFormatados[0].cor;
+        
+        // Contabilizar números na streak da mesma cor
+        for (let i = 0; i < numerosFormatados.length; i++) {
+          if (numerosFormatados[i].cor === currentColor) {
+            streakNumbers.push(numerosFormatados[i].numero);
+          } else {
+            break;
+          }
+        }
+        
+        streakColor = currentColor;
       }
       
-      return {
-        numero: item[numeroField],
-        cor: corPadronizada,
-        timestamp: item.timestamp
+      // Dados formatados para o retorno no formato esperado
+      const formattedData = {
+        recentNumbers: numerosFormatados.map(item => item.numero),
+        numbers: {
+          recent: numerosFormatados,
+          raw: numerosFormatados.map(item => item.numero),
+          redCount: statistics[0]?.redCount || 0,
+          blackCount: statistics[0]?.blackCount || 0,
+          greenCount: statistics[0]?.greenCount || 0,
+          redPercentage: statistics[0] ? Math.round((statistics[0].redCount / statistics[0].totalNumeros) * 100 * 100) / 100 : 0,
+          blackPercentage: statistics[0] ? Math.round((statistics[0].blackCount / statistics[0].totalNumeros) * 100 * 100) / 100 : 0,
+          greenPercentage: statistics[0] ? Math.round((statistics[0].greenCount / statistics[0].totalNumeros) * 100 * 100) / 100 : 0,
+          evenCount,
+          oddCount,
+          evenPercentage: (evenCount + oddCount) > 0 ? Math.round((evenCount / (evenCount + oddCount)) * 100 * 100) / 100 : 0,
+          oddPercentage: (evenCount + oddCount) > 0 ? Math.round((oddCount / (evenCount + oddCount)) * 100 * 100) / 100 : 0,
+          hotNumbers: mostFrequent,
+          coldNumbers: leastFrequent
+        },
+        statistics: {
+          redCount: statistics[0]?.redCount || 0,
+          blackCount: statistics[0]?.blackCount || 0,
+          greenCount: statistics[0]?.greenCount || 0,
+          zeroCount: statistics[0]?.zeroCount || 0,
+          evenCount,
+          oddCount,
+          mostFrequent,
+          leastFrequent
+        },
+        hotStreak: {
+          color: streakColor || 'sem streak',
+          numbers: streakNumbers
+        }
       };
-    });
-    
-    // Os 4 números mais frequentes
-    const mostFrequent = numberFrequency.slice(0, 4).map(item => parseInt(item._id));
-    
-    // Os 4 números menos frequentes (entre os que aparecem pelo menos uma vez)
-    const leastFrequent = [...numberFrequency]
-      .sort((a, b) => a.count - b.count)
-      .slice(0, 4)
-      .map(item => parseInt(item._id));
-    
-    // Calcular contagem de números pares e ímpares
-    const parityAggregation = [
-      {
-        $match: { [numeroField]: { $ne: 0 } }  // Excluir zero
-      },
-      {
-        $group: {
-          _id: { $mod: [`$${numeroField}`, 2] }, // 0 para par, 1 para ímpar
-          count: { $sum: 1 }
-        }
-      }
-    ];
-    
-    const parityCounts = await roletaNumeros.aggregate(parityAggregation).toArray();
-    console.log(`📊 Distribuição par/ímpar: ${JSON.stringify(parityCounts, null, 2)}`);
-    
-    const evenCount = parityCounts.find(item => item._id === 0)?.count || 0;
-    const oddCount = parityCounts.find(item => item._id === 1)?.count || 0;
-    
-    // Identificar streak atual
-    let streakColor = null;
-    let streakNumbers = [];
-    
-    if (numerosFormatados.length > 0) {
-      const currentColor = numerosFormatados[0].cor;
       
-      // Contabilizar números na streak da mesma cor
-      for (let i = 0; i < numerosFormatados.length; i++) {
-        if (numerosFormatados[i].cor === currentColor) {
-          streakNumbers.push(numerosFormatados[i].numero);
-        } else {
-          break;
-        }
-      }
-      
-      streakColor = currentColor;
-    }
-    
-    // Dados formatados para o retorno no formato esperado
-    const formattedData = {
-      recentNumbers: numerosFormatados.map(item => item.numero),
-      numbers: {
-        recent: numerosFormatados,
-        raw: numerosFormatados.map(item => item.numero),
-        redCount: statistics[0]?.redCount || 0,
-        blackCount: statistics[0]?.blackCount || 0,
-        greenCount: statistics[0]?.greenCount || 0,
-        redPercentage: statistics[0] ? Math.round((statistics[0].redCount / statistics[0].totalNumeros) * 100 * 100) / 100 : 0,
-        blackPercentage: statistics[0] ? Math.round((statistics[0].blackCount / statistics[0].totalNumeros) * 100 * 100) / 100 : 0,
-        greenPercentage: statistics[0] ? Math.round((statistics[0].greenCount / statistics[0].totalNumeros) * 100 * 100) / 100 : 0,
-        evenCount,
-        oddCount,
-        evenPercentage: (evenCount + oddCount) > 0 ? Math.round((evenCount / (evenCount + oddCount)) * 100 * 100) / 100 : 0,
-        oddPercentage: (evenCount + oddCount) > 0 ? Math.round((oddCount / (evenCount + oddCount)) * 100 * 100) / 100 : 0,
-        hotNumbers: mostFrequent,
-        coldNumbers: leastFrequent
-      },
-      statistics: {
-        redCount: statistics[0]?.redCount || 0,
-        blackCount: statistics[0]?.blackCount || 0,
-        greenCount: statistics[0]?.greenCount || 0,
-        zeroCount: statistics[0]?.zeroCount || 0,
-        evenCount,
-        oddCount,
-        mostFrequent,
-        leastFrequent
-      },
-      hotStreak: {
-        color: streakColor || 'sem streak',
-        numbers: streakNumbers
-      }
-    };
-    
-    // Fechar conexão com o MongoDB
-    if (client) {
-      await client.close();
-      console.log(`✅ Conexão com MongoDB fechada com sucesso`);
-    }
-    
-    console.log(`✅ Dados de roleta formatados com sucesso. Retornando ${numerosFormatados.length} números.`);
-    
-    // Retornar os dados formatados
-    return formattedData;
-    
-  } catch (innerError) {
-    // CORREÇÃO: Capturar erros de conexão/consulta específicos e registrá-los
-    console.error(`❌ Erro durante operação no MongoDB: ${innerError.message}`);
-    console.error('Detalhes do erro:', innerError.stack);
-    
-    // Garantir que o cliente seja fechado em caso de erro
-    if (client) {
-      try {
+      // Fechar conexão com o MongoDB
+      if (client) {
         await client.close();
-        console.log('🔄 Conexão com MongoDB fechada após erro');
-      } catch (closeError) {
-        console.error('Erro ao fechar conexão:', closeError);
+        console.log(`✅ Conexão com MongoDB fechada com sucesso`);
       }
-    }
-    
-    throw innerError; // Propagar o erro para ser capturado pelo bloco catch externo
+      
+      console.log(`✅ Dados de roleta formatados com sucesso. Retornando ${numerosFormatados.length} números.`);
+      
+      // Retornar os dados formatados
+      return formattedData;
+      
+    } catch (innerError) {
+      // CORREÇÃO: Capturar erros de conexão/consulta específicos e registrá-los
+      console.error(`❌ Erro durante operação no MongoDB: ${innerError.message}`);
+      console.error('Detalhes do erro:', innerError.stack);
+      
+      // Garantir que o cliente seja fechado em caso de erro
+      if (client) {
+        try {
+          await client.close();
+          console.log('🔄 Conexão com MongoDB fechada após erro');
+        } catch (closeError) {
+          console.error('Erro ao fechar conexão:', closeError);
+        }
+      }
+      
+      throw innerError; // Propagar o erro para ser capturado pelo bloco catch externo
   }
 }
 

@@ -1,4 +1,4 @@
-import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle, Trash2, Settings2, AlertCircle, CheckCircle } from "lucide-react";
+import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle, Trash2, Settings2, AlertCircle, CheckCircle, ZapIcon, Eye, History, Zap } from "lucide-react";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   ResponsiveContainer,
@@ -46,6 +46,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { v4 as uuidv4 } from 'uuid';
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -92,7 +93,8 @@ const ROULETTE_REGIONS = [
 
 // Função para gerar números aleatórios para testes (apenas como último recurso)
 const generateFallbackNumbers = (count: number = 20): number[] => {
-  logger.warn(`Não serão gerados números aleatórios`);
+  // Uso do console em vez de logger para evitar erro de redefinição
+  console.warn(`Não serão gerados números aleatórios`);
   return []; // Retornar array vazio em vez de números aleatórios
 };
 
@@ -589,14 +591,110 @@ interface SavedStrategy {
   updatedAt: string; // Ou Date
 }
 
-export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({ 
+// <<< NOVAS INTERFACES PARA MONITORIA DE ESTRATÉGIAS >>>
+interface StrategyExecution {
+  strategyId: string;
+  strategyName: string;
+  executionTime: Date;
+  conditions: StrategyCondition[];
+  result?: 'win' | 'loss' | 'pending';
+  numberAfterExecution?: number;
+}
+
+interface ActiveStrategy extends SavedStrategy {
+  lastTriggered?: Date;
+  isActive: boolean;
+  executions: StrategyExecution[];
+  stats: {
+    total: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+  }
+}
+
+// Mapa de correspondência entre nomes de roletas conhecidos e seus IDs
+const rouletteNamesToIds: Record<string, string> = {
+  'Roleta Brasileira': '6399e5f8c77080f2a36a4ccc',
+  'Roleta Brasileira Exclusiva': '64cc5b7c47428a4d2be4e5c5',
+  'Roleta Premiada': '654aa4a36f22e0ea26ba3e12',
+  'Diamond Royale': '63b5829ab673b1c0a7c82a14',
+  'Roleta Bets 777': '6480c33b4ea9ec9dfa4f4df3',
+  'Roleta Slots 777': '648c44b4e1eecd7c67c16fb2',
+  'Fortune Tiger': '63b82f84c4bfc767af381f56',
+  'Fortune Mouse': '63b83146c4bfc767af381f64',
+  'Fortune OX': '63d1a64b1179ac7e55bb5c9f',
+  'Mina Coins': '63b830b7c4bfc767af381f60',
+  'Money Bonus': '63b83197c4bfc767af381f68',
+  'Fortune Rabbit': '64058a95a5fc69a2c4e5f3b2',
+  'Fortune Pig': '6414a39c90f62ab13d8cdb1d',
+};
+
+// Função para tentar derivar o ID da roleta baseado no nome
+const deriveRouletteIdFromName = (name: string): string => {
+  // Normaliza o nome (remove acentos, espaços extras, e coloca em lowercase)
+  const normalizedName = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  
+  for (const [knownName, id] of Object.entries(rouletteNamesToIds)) {
+    const normalizedKnownName = knownName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    
+    // Verifica se o nome normalizado contém ou é similar ao nome conhecido
+    if (normalizedName.includes(normalizedKnownName) || normalizedKnownName.includes(normalizedName)) {
+      logger.info(`Identificado ID ${id} para roleta "${name}" baseado no nome conhecido "${knownName}"`);
+      return id;
+    }
+  }
+  
+  logger.warn(`Não foi possível identificar o ID para a roleta "${name}"`);
+  return '';
+};
+
+export const RouletteSidePanelStats = ({ 
   roletaId,
   roletaNome, 
   lastNumbers, 
   wins, 
   losses,
   providers = [] 
-}: RouletteSidePanelStatsProps) => {
+}: RouletteSidePanelStatsProps): JSX.Element => {
+  // Validar e logar quando roletaId está indefinido
+  const validRouletaId = useMemo(() => {
+    const id = roletaId || '';
+    
+    // Se temos um ID válido, usamos ele
+    if (id && id.length > 0 && id !== 'undefined') {
+      return id;
+    }
+    
+    // Caso contrário, tentamos derivar do nome da roleta
+    if (roletaNome) {
+      const derivedId = deriveRouletteIdFromName(roletaNome);
+      if (derivedId) {
+        logger.info(`Usando ID derivado ${derivedId} para roleta "${roletaNome}"`);
+        return derivedId;
+      }
+    }
+    
+    // Se não conseguimos derivar, retornamos uma string vazia
+    return '';
+  }, [roletaId, roletaNome, logger]);
+  
+  // Função para verificar se o ID da roleta é válido para operações
+  const isValidRouletteId = (id: string): boolean => {
+    // Verificar se é uma string não vazia
+    if (!id || id.length === 0 || id === 'undefined') {
+      return false;
+    }
+    
+    // Verificar se é um ID do MongoDB (24 caracteres hexadecimais)
+    if (/^[0-9a-f]{24}$/.test(id)) {
+      return true;
+    }
+    
+    // Verificar se está no nosso mapa de IDs conhecidos
+    return Object.values(rouletteNamesToIds).includes(id);
+  };
+  
   const [historicalNumbers, setHistoricalNumbers] = useState<RouletteNumber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [visibleNumbersCount, setVisibleNumbersCount] = useState(44);
@@ -617,6 +715,14 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const [aiError, setAiError] = useState<string | null>(null);
   const [componentInstanceId, setComponentInstanceId] = useState(uniqueId('roulette-side-panel-'));
   
+  // Referências para controlar ciclo de vida e evitar múltiplas remontagens
+  const currentRouletteRef = useRef<{ id: string; name: string }>({ id: '', name: '' });
+  const listenersRef = useRef<{
+    unsubscribeUpdate?: () => void;
+    unsubscribeInitialLoad?: () => void;
+    unsubscribeInitialError?: () => void;
+  }>({});
+  
   // Estados para o formulário de criação de estratégia
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
   const [strategyName, setStrategyName] = useState('');
@@ -631,13 +737,37 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const [fetchStrategiesError, setFetchStrategiesError] = useState<string | null>(null);
   const [deleteStrategyError, setDeleteStrategyError] = useState<string | null>(null);
   const [deleteStrategySuccess, setDeleteStrategySuccess] = useState<string | null>(null);
-  const [deletingStrategyId, setDeletingStrategyId] = useState<string | null>(null); // Para feedback no botão de excluir
-  
+  const [deletingStrategyId, setDeletingStrategyId] = useState<string | null>(null);
+  const [strategiesLoaded, setStrategiesLoaded] = useState(false);
+
+  // <<< NOVOS ESTADOS PARA MONITORAMENTO DE ESTRATÉGIAS >>>
+  const [activeStrategies, setActiveStrategies] = useState<ActiveStrategy[]>([]);
+  const [isMonitoringActive, setIsMonitoringActive] = useState(false);
+  const [isStrategyMonitorOpen, setIsStrategyMonitorOpen] = useState(false);
+
+  // Adicionar uma verificação de segurança no início do componente
+  useEffect(() => {
+    // Adicionar um alerta quando a roleta ID não é válida
+    if (!isValidRouletteId(validRouletaId)) {
+      logger.warn(`[${componentInstanceId}] ID de roleta inválido: "${validRouletaId}". Algumas funcionalidades podem não funcionar corretamente.`);
+    } else {
+      logger.info(`[${componentInstanceId}] Usando ID de roleta válido: "${validRouletaId}"`);
+    }
+  }, [validRouletaId, componentInstanceId, logger, isValidRouletteId]);
+
   // Esta função será chamada pelo listener do 'update' do UnifiedClient
   const processRouletteUpdate = useCallback((updatedRouletteData: any) => {
     if (!updatedRouletteData || !Array.isArray(updatedRouletteData.numero)) {
         logger.warn('Dados de atualização inválidos recebidos', updatedRouletteData);
         return;
+    }
+
+    // Tentar extrair o ID da roleta dos dados recebidos se ainda não temos um ID válido
+    if (!isValidRouletteId(validRouletaId) && updatedRouletteData.id) {
+      logger.info(`[${componentInstanceId}] Encontrado possível ID de roleta nos dados de atualização: ${updatedRouletteData.id}`);
+      // Nota: Não podemos modificar roletaId diretamente pois é uma prop,
+      // mas podemos logar isso para que o desenvolvedor saiba que deve atualizar o componente pai
+      // para fornecer este ID
     }
 
     // Extrair números e timestamps da atualização
@@ -677,7 +807,7 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                  newNumbersToAdd.push(apiNum);
                  // Adiciona ao set para evitar duplicatas dentro do mesmo lote de atualização
                  currentNumerosSet.add(uniqueKey); 
-    } else {
+            } else {
                  // Se encontrarmos um número que já existe ou é o mesmo que o último, paramos de adicionar deste lote
                  break; 
             }
@@ -693,95 +823,142 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         return currentNumbers;
     });
 
-  }, [roletaNome, logger]);
+  }, [roletaNome, componentInstanceId, logger, isValidRouletteId, validRouletaId]);
 
-  useEffect(() => {
-    setComponentInstanceId(uniqueId('roulette-side-panel-')); // Gerar novo ID ao montar ou mudar roletaId
-    logger.info(`[${componentInstanceId}] Inicializando ou atualizando painel para ${roletaNome} (Roleta ID: ${roletaId})`);
-    setIsLoading(true);
-    isInitialRequestDone.current = false; // Resetar flag ao mudar de roleta
-    setHistoricalNumbers([]); // Limpar números da roleta anterior
-
-    // 1. Tentar obter dados pré-carregados do UnifiedClient
-    const preloadedData = unifiedClient.getPreloadedHistory(roletaNome);
-
-    if (preloadedData && preloadedData.length > 0) {
-      logger.info(`[${componentInstanceId}] Usando ${preloadedData.length} números pré-carregados para ${roletaNome}`);
-      setHistoricalNumbers(preloadedData);
-      setIsLoading(false);
-      isInitialRequestDone.current = true;
-    } else {
-      // Se não houver dados pré-carregados, aguardar a busca inicial do UnifiedClient
-      // ou as atualizações em tempo real. Não faremos busca específica aqui.
-      logger.warn(`[${componentInstanceId}] Nenhum histórico pré-carregado encontrado para ${roletaNome}. Aguardando busca inicial ou atualizações...`);
-      // Podemos manter isLoading=true até receber o primeiro 'update' ou 'initialHistoryLoaded'
-      // Ou definir isLoading=false e mostrar mensagem "Carregando histórico..."
-      setIsLoading(false); // Vamos parar o loading e confiar nas atualizações
-       isInitialRequestDone.current = true; // Consideramos 'feito' para não re-executar
+  // Função para configurar os listeners - extraída para reutilização
+  const setupListeners = useCallback(() => {
+    // Limpar listeners existentes antes de criar novos
+    if (listenersRef.current.unsubscribeUpdate) {
+      listenersRef.current.unsubscribeUpdate();
     }
-
-    // 2. Assinar eventos 'update' do UnifiedClient para atualizações em tempo real
+    if (listenersRef.current.unsubscribeInitialLoad) {
+      listenersRef.current.unsubscribeInitialLoad();
+    }
+    if (listenersRef.current.unsubscribeInitialError) {
+      listenersRef.current.unsubscribeInitialError();
+    }
+    
+    logger.info(`[${componentInstanceId}] Configurando listeners para ${roletaNome} (Roleta ID: ${roletaId || 'undefined'})`);
+    
     const handleUpdate = (updatedData: any) => {
-        // O evento 'update' pode conter dados de uma roleta ou um array de todas
-        let myRouletteUpdate: any = null;
-
-        if (Array.isArray(updatedData)) {
-            // Se for um array, encontrar a roleta específica
-            myRouletteUpdate = updatedData.find(r => (r.name || r.nome)?.toLowerCase() === roletaNome.toLowerCase());
-        } else if (updatedData && typeof updatedData === 'object') {
-            // Se for um objeto único, verificar se é da roleta atual
-             const currentRouletteName = updatedData.name || updatedData.nome || '';
-             if (currentRouletteName.toLowerCase() === roletaNome.toLowerCase()) {
-                 myRouletteUpdate = updatedData;
-             }
+      let myRouletteUpdate: any = null;
+      if (Array.isArray(updatedData)) {
+        myRouletteUpdate = updatedData.find(r => (r.name || r.nome)?.toLowerCase() === roletaNome.toLowerCase());
+      } else if (updatedData && typeof updatedData === 'object') {
+        const currentRouletteName = updatedData.name || updatedData.nome || '';
+        if (currentRouletteName.toLowerCase() === roletaNome.toLowerCase()) {
+          myRouletteUpdate = updatedData;
         }
-
-        // Se encontramos dados para a roleta atual, processá-los
-        if (myRouletteUpdate) {
-            logger.info(`[${componentInstanceId}] Recebido 'update' para ${roletaNome}`);
-             if (!isInitialRequestDone.current) {
-                 // Se for a primeira atualização e não tínhamos dados pré-carregados
-                 logger.info(`[${componentInstanceId}] Primeira atualização recebida para ${roletaNome}, preenchendo histórico inicial.`);
-                 // Poderia usar os dados completos da atualização aqui, se disponíveis
-                 // Mas vamos confiar na lógica de `processRouletteUpdate` para adicionar
-                 setIsLoading(false);
-                 isInitialRequestDone.current = true;
-             }
-            processRouletteUpdate(myRouletteUpdate);
+      }
+      if (myRouletteUpdate) {
+        logger.info(`[${componentInstanceId}] Recebido 'update' para ${roletaNome}`);
+        if (!isInitialRequestDone.current) {
+          logger.info(`[${componentInstanceId}] Primeira atualização recebida para ${roletaNome}, preenchendo histórico inicial.`);
+    setIsLoading(false);
+    isInitialRequestDone.current = true;
         }
+        processRouletteUpdate(myRouletteUpdate);
+      }
     };
     
-    // Assinar também o evento que sinaliza o fim do carregamento inicial (opcional, mas bom)
     const handleInitialHistoryLoaded = (allHistoryData: Map<string, RouletteNumber[]>) => {
-        logger.info(`[${componentInstanceId}] Evento 'initialHistoryLoaded' recebido.`);
-         const initialDataForThisRoulette = allHistoryData.get(roletaNome);
-         if (initialDataForThisRoulette && historicalNumbers.length === 0) { // Só preenche se ainda não tivermos
-             logger.info(`[${componentInstanceId}] Preenchendo histórico com dados de 'initialHistoryLoaded' para ${roletaNome}`);
-             setHistoricalNumbers(initialDataForThisRoulette);
-         }
-         setIsLoading(false); // Garantir que o loading pare aqui
-         isInitialRequestDone.current = true;
+      logger.info(`[${componentInstanceId}] Evento 'initialHistoryLoaded' recebido.`);
+      const initialDataForThisRoulette = allHistoryData.get(roletaNome);
+      if (initialDataForThisRoulette && historicalNumbers.length === 0) { 
+        logger.info(`[${componentInstanceId}] Preenchendo histórico com dados de 'initialHistoryLoaded' para ${roletaNome}`);
+        setHistoricalNumbers(initialDataForThisRoulette);
+      }
+      setIsLoading(false); 
+      isInitialRequestDone.current = true;
     };
     
-     const handleInitialHistoryError = (error: any) => {
-         logger.error(`[${componentInstanceId}] Erro ao carregar histórico inicial reportado pelo UnifiedClient:`, error);
-         setIsLoading(false); // Parar o loading mesmo em caso de erro
-         isInitialRequestDone.current = true;
-     };
-
-    // Registrar listeners
-    const unsubscribeUpdate = unifiedClient.on('update', handleUpdate);
-    const unsubscribeInitialLoad = unifiedClient.on('initialHistoryLoaded', handleInitialHistoryLoaded);
-    const unsubscribeInitialError = unifiedClient.on('initialHistoryError', handleInitialHistoryError);
-
-    // Limpar inscrição ao desmontar ou mudar de roleta
-    return () => {
-      logger.info(`[${componentInstanceId}] Desmontando listener para ${roletaNome}`);
-      unsubscribeUpdate();
-      unsubscribeInitialLoad();
-      unsubscribeInitialError();
+    const handleInitialHistoryError = (error: any) => {
+      logger.error(`[${componentInstanceId}] Erro ao carregar histórico inicial reportado pelo UnifiedClient:`, error);
+      setIsLoading(false); 
+      isInitialRequestDone.current = true;
     };
-  }, [roletaId, roletaNome, unifiedClient, processRouletteUpdate, componentInstanceId, logger, historicalNumbers.length]);
+    
+    // Registrar listeners e manter referências para limpeza
+    listenersRef.current.unsubscribeUpdate = unifiedClient.on('update', handleUpdate);
+    listenersRef.current.unsubscribeInitialLoad = unifiedClient.on('initialHistoryLoaded', handleInitialHistoryLoaded);
+    listenersRef.current.unsubscribeInitialError = unifiedClient.on('initialHistoryError', handleInitialHistoryError);
+    
+    // Atualizar referência da roleta atual
+    currentRouletteRef.current = { id: roletaId || '', name: roletaNome };
+    
+    return () => {
+      logger.info(`[${componentInstanceId}] Limpando listeners para ${roletaNome}`);
+      if (listenersRef.current.unsubscribeUpdate) {
+        listenersRef.current.unsubscribeUpdate();
+      }
+      if (listenersRef.current.unsubscribeInitialLoad) {
+        listenersRef.current.unsubscribeInitialLoad();
+      }
+      if (listenersRef.current.unsubscribeInitialError) {
+        listenersRef.current.unsubscribeInitialError();
+      }
+    };
+  }, [componentInstanceId, roletaNome, roletaId, unifiedClient, processRouletteUpdate, logger, historicalNumbers.length]);
+  
+  // useEffect centralizado para inicialização do componente
+  useEffect(() => {
+    // Gerar ID de instância apenas uma vez quando o componente monta
+    if (!componentInstanceId) {
+      setComponentInstanceId(uniqueId('roulette-side-panel-'));
+      return;
+    }
+    
+    const isNewRoulette = 
+      roletaNome !== currentRouletteRef.current.name || 
+      roletaId !== currentRouletteRef.current.id;
+    
+    // Se a roleta mudou, resetar o estado
+    if (isNewRoulette) {
+      logger.info(`[${componentInstanceId}] Mudança de roleta detectada: ${currentRouletteRef.current.name} -> ${roletaNome}`);
+      setIsLoading(true);
+      isInitialRequestDone.current = false;
+      setHistoricalNumbers([]);
+      
+      // Carregar dados pré-carregados se disponíveis
+      const preloadedData = unifiedClient.getPreloadedHistory(roletaNome);
+      if (preloadedData && preloadedData.length > 0) {
+        logger.info(`[${componentInstanceId}] Usando ${preloadedData.length} números pré-carregados para ${roletaNome}`);
+        setHistoricalNumbers(preloadedData);
+        setIsLoading(false);
+        isInitialRequestDone.current = true;
+      } else {
+        logger.warn(`[${componentInstanceId}] Nenhum histórico pré-carregado encontrado para ${roletaNome}. Aguardando busca inicial ou atualizações...`);
+        setIsLoading(false);
+        isInitialRequestDone.current = true;
+      }
+      
+      // Configurar novos listeners
+      const cleanup = setupListeners();
+      
+      // Retornar função de limpeza apenas se a roleta mudou
+      return cleanup;
+    }
+    
+    // Se não é uma nova roleta, não fazer nada
+    // Isso evita remontagens desnecessárias dos listeners
+  }, [componentInstanceId, roletaId, roletaNome, unifiedClient, setupListeners, logger]);
+  
+  // Efeito de cleanup quando componente é desmontado completamente
+  useEffect(() => {
+    return () => {
+      logger.info(`[${componentInstanceId}] Desmontando componente RouletteSidePanelStats para ${roletaNome}`);
+      // Limpar todos os listeners
+      if (listenersRef.current.unsubscribeUpdate) {
+        listenersRef.current.unsubscribeUpdate();
+      }
+      if (listenersRef.current.unsubscribeInitialLoad) {
+        listenersRef.current.unsubscribeInitialLoad();
+      }
+      if (listenersRef.current.unsubscribeInitialError) {
+        listenersRef.current.unsubscribeInitialError();
+      }
+    };
+  }, [componentInstanceId, logger, roletaNome]);
 
   // Função para mostrar mais números
   const handleShowMore = () => {
@@ -980,16 +1157,16 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   // <<< NOVA FUNÇÃO para chamar a API da IA >>>
   const handleAskAI = useCallback(async () => {
     // Log no início da função
-    logger.info(`[${componentInstanceId}] handleAskAI chamada. Query: "${aiQuery}", RoletaID: "${roletaId}"`);
+    logger.info(`[${componentInstanceId}] handleAskAI chamada. Query: "${aiQuery}", RoletaID: "${validRouletaId}"`);
 
-    if (!aiQuery.trim() || !roletaId) {
+    if (!aiQuery.trim() || !isValidRouletteId(validRouletaId)) {
       // Log quando a validação falha
-      logger.warn(`[${componentInstanceId}] Validação falhou em handleAskAI. Query válida: ${!!aiQuery.trim()}, RoletaID válida: ${!!roletaId}. Query: "${aiQuery}", RoletaID: "${roletaId}"`);
+      logger.warn(`[${componentInstanceId}] Validação falhou em handleAskAI. Query válida: ${!!aiQuery.trim()}, RoletaID válida: ${isValidRouletteId(validRouletaId)}. Query: "${aiQuery}", RoletaID: "${validRouletaId}"`);
       setAiError("Por favor, digite sua pergunta e certifique-se que uma roleta está selecionada.");
       return;
     }
     
-    logger.info(`[${componentInstanceId}] Enviando pergunta para IA sobre roleta ${roletaId}: ${aiQuery}`);
+    logger.info(`[${componentInstanceId}] Enviando pergunta para IA sobre roleta ${validRouletaId}: ${aiQuery}`);
     setIsAiLoading(true);
     setAiResponse(null); // Limpa resposta anterior
     setAiError(null); // Limpa erro anterior
@@ -997,7 +1174,7 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     try {
       const response = await axios.post('/api/ai/query', { 
         query: aiQuery, 
-        roletaId: roletaId // Envia o ID da roleta
+        roletaId: validRouletaId // Usar o ID validado
       });
       
       if (response.data && response.data.response) {
@@ -1013,7 +1190,7 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     } finally {
       setIsAiLoading(false);
     }
-  }, [aiQuery, roletaId, componentInstanceId, logger]); // Adicionado logger às dependências
+  }, [aiQuery, validRouletaId, componentInstanceId, logger, isValidRouletteId]);
 
   // <<< NOVA FUNÇÃO para adicionar uma condição vazia >>>
   const addCondition = () => {
@@ -1067,6 +1244,14 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       setIsSavingStrategy(false);
       return;
     }
+    
+    // Verificar roletaId
+    if (!isValidRouletteId(validRouletaId)) {
+      setSaveStrategyError("Não foi possível identificar a roleta atual. Tente novamente mais tarde ou atualize a página.");
+      setIsSavingStrategy(false);
+      return;
+    }
+    
     // Validar se todas as condições têm tipo, operador e valor preenchidos
     for (const condition of strategyConditions) {
       if (!condition.type || !condition.operator || condition.value === '' || condition.value === undefined || condition.value === null) {
@@ -1105,7 +1290,7 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           const response = await axios.post('/api/strategies', {
             name: strategyName,
             conditions: strategyConditions,
-            roletaId: roletaId
+            roletaId: validRouletaId // Usar validRouletaId aqui
           }, {
             timeout: 25000, // 25 segundos de timeout
             headers: {
@@ -1118,6 +1303,14 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           setStrategyName('');
           setStrategyConditions([]);
           success = true;
+          
+          // Atualiza as estratégias sem fazer nova chamada à API
+          if (response.data && response.data.strategy) {
+            setSavedStrategies(current => [response.data.strategy, ...current]);
+          } else {
+            // Se não tiver a estratégia na resposta, forçar recarga
+            fetchSavedStrategies(true);
+          }
           
         } catch (err: any) {
           logger.error(`[${componentInstanceId}] Erro ao salvar estratégia (tentativa ${retryCount + 1}):`, err);
@@ -1186,16 +1379,24 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   }, [isStrategyModalOpen]);
 
   // <<< NOVA FUNÇÃO PARA BUSCAR ESTRATÉGIAS SALVAS >>>
-  const fetchSavedStrategies = useCallback(async () => {
+  const fetchSavedStrategies = useCallback(async (forceReload = false) => {
+    // Se as estratégias já foram carregadas e não estamos forçando recarga, retorna imediatamente
+    if (strategiesLoaded && !forceReload) {
+      logger.info(`[${componentInstanceId}] Estratégias já carregadas, ignorando solicitação de busca.`);
+      return;
+    }
+    
     logger.info(`[${componentInstanceId}] Buscando estratégias salvas...`);
     setIsLoadingStrategies(true);
     setFetchStrategiesError(null);
     setDeleteStrategyError(null);
     setDeleteStrategySuccess(null);
+    
     try {
       const response = await axios.get('/api/strategies');
       if (response.data && response.data.success) {
         setSavedStrategies(response.data.data);
+        setStrategiesLoaded(true); // Marca que as estratégias foram carregadas com sucesso
         logger.info(`[${componentInstanceId}] ${response.data.data.length} estratégias carregadas.`);
       } else {
         throw new Error(response.data.message || "Falha ao buscar estratégias da API.");
@@ -1207,14 +1408,15 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     } finally {
       setIsLoadingStrategies(false);
     }
-  }, [componentInstanceId, logger]);
+  }, [componentInstanceId, logger, strategiesLoaded]);
 
-  // <<< useEffect PARA BUSCAR ESTRATÉGIAS QUANDO O MODAL ABRIR >>>
+  // <<< useEffect OTIMIZADO PARA BUSCAR ESTRATÉGIAS QUANDO O MODAL ABRIR >>>
   useEffect(() => {
-    if (isStrategyModalOpen) {
+    if (isStrategyModalOpen && !strategiesLoaded) {
+      // Busca estratégias apenas se o modal estiver aberto E as estratégias não tiverem sido carregadas
       fetchSavedStrategies();
     }
-  }, [isStrategyModalOpen, fetchSavedStrategies]);
+  }, [isStrategyModalOpen, fetchSavedStrategies, strategiesLoaded]);
   
   // Função para limpar mensagens ao fechar o modal de criação/gerenciamento
   useEffect(() => {
@@ -1239,7 +1441,9 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       if (response.data && response.data.success) {
         logger.info(`[${componentInstanceId}] Estratégia ${strategyId} excluída com sucesso.`);
         setDeleteStrategySuccess("Estratégia excluída com sucesso!");
-        fetchSavedStrategies(); 
+        
+        // Em vez de buscar novamente todas as estratégias, apenas remove a excluída do estado
+        setSavedStrategies(current => current.filter(s => s._id !== strategyId));
       } else {
         throw new Error(response.data.message || "Falha ao excluir estratégia na API.");
       }
@@ -1249,7 +1453,7 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     } finally {
       setDeletingStrategyId(null); 
     }
-  }, [componentInstanceId, logger, fetchSavedStrategies]);
+  }, [componentInstanceId, logger]);
 
   // Função para formatar data (exemplo simples)
   const formatDate = (dateString: string) => {
@@ -1267,18 +1471,516 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     }
   };
 
+  // <<< FUNÇÕES PARA VERIFICAR CONDIÇÕES DAS ESTRATÉGIAS >>>
+  const checkColorCondition = (condition: StrategyCondition, numbers: RouletteNumber[]) => {
+    if (!numbers.length) return false;
+    
+    const latestNumber = numbers[0].numero;
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    
+    let actualColor = 'green';
+    if (redNumbers.includes(latestNumber)) {
+      actualColor = 'red';
+    } else if (latestNumber !== 0) {
+      actualColor = 'black';
+    }
+    
+    if (condition.operator === 'equals') {
+      return actualColor === condition.value;
+    } else if (condition.operator === 'not_equals') {
+      return actualColor !== condition.value;
+    }
+    
+    return false;
+  };
+
+  const checkNumberCondition = (condition: StrategyCondition, numbers: RouletteNumber[]) => {
+    if (!numbers.length) return false;
+    
+    const latestNumber = numbers[0].numero;
+    
+    if (condition.operator === 'equals') {
+      return latestNumber === condition.value;
+    } else if (condition.operator === 'not_equals') {
+      return latestNumber !== condition.value;
+    }
+    
+    return false;
+  };
+
+  const checkParityCondition = (condition: StrategyCondition, numbers: RouletteNumber[]) => {
+    if (!numbers.length) return false;
+    
+    const latestNumber = numbers[0].numero;
+    if (latestNumber === 0) return false; // Zero não é par nem ímpar
+    
+    const isEven = latestNumber % 2 === 0;
+    const actualParity = isEven ? 'even' : 'odd';
+    
+    return actualParity === condition.value;
+  };
+
+  const checkDozenCondition = (condition: StrategyCondition, numbers: RouletteNumber[]) => {
+    if (!numbers.length) return false;
+    
+    const latestNumber = numbers[0].numero;
+    if (latestNumber === 0) return false;
+    
+    let actualDozen = '';
+    if (latestNumber >= 1 && latestNumber <= 12) {
+      actualDozen = '1st';
+    } else if (latestNumber >= 13 && latestNumber <= 24) {
+      actualDozen = '2nd';
+    } else if (latestNumber >= 25 && latestNumber <= 36) {
+      actualDozen = '3rd';
+    }
+    
+    if (condition.operator === 'equals') {
+      return actualDozen === condition.value;
+    } else if (condition.operator === 'not_equals') {
+      return actualDozen !== condition.value;
+    }
+    
+    return false;
+  };
+
+  const checkColumnCondition = (condition: StrategyCondition, numbers: RouletteNumber[]) => {
+    if (!numbers.length) return false;
+    
+    const latestNumber = numbers[0].numero;
+    if (latestNumber === 0) return false;
+    
+    // Primeira coluna: 1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34
+    // Segunda coluna: 2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35
+    // Terceira coluna: 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36
+    const column1 = [1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34];
+    const column2 = [2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35];
+    const column3 = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36];
+    
+    let actualColumn = '';
+    if (column1.includes(latestNumber)) {
+      actualColumn = '1st';
+    } else if (column2.includes(latestNumber)) {
+      actualColumn = '2nd';
+    } else if (column3.includes(latestNumber)) {
+      actualColumn = '3rd';
+    }
+    
+    if (condition.operator === 'equals') {
+      return actualColumn === condition.value;
+    } else if (condition.operator === 'not_equals') {
+      return actualColumn !== condition.value;
+    }
+    
+    return false;
+  };
+
+  const checkHighLowCondition = (condition: StrategyCondition, numbers: RouletteNumber[]) => {
+    if (!numbers.length) return false;
+    
+    const latestNumber = numbers[0].numero;
+    if (latestNumber === 0) return false;
+    
+    const isLow = latestNumber >= 1 && latestNumber <= 18;
+    const actualHighLow = isLow ? 'low' : 'high';
+    
+    return actualHighLow === condition.value;
+  };
+
+  const checkColorStreakCondition = (condition: StrategyCondition, numbers: RouletteNumber[]) => {
+    if (!numbers.length) return false;
+    
+    const { color, count } = condition.value || { color: '', count: 0 };
+    if (!color || !count || count <= 0) return false;
+    
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    let currentStreak = 0;
+    
+    for (const number of numbers) {
+      let numberColor = '';
+      if (number.numero === 0) {
+        numberColor = 'green';
+      } else if (redNumbers.includes(number.numero)) {
+        numberColor = 'red';
+      } else {
+        numberColor = 'black';
+      }
+      
+      if (numberColor === color) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+    
+    if (condition.operator === 'equals') {
+      return currentStreak === count;
+    } else if (condition.operator === 'greater_equal') {
+      return currentStreak >= count;
+    }
+    
+    return false;
+  };
+
+  const checkColorMissCondition = (condition: StrategyCondition, numbers: RouletteNumber[]) => {
+    if (!numbers.length) return false;
+    
+    const { color, count } = condition.value || { color: '', count: 0 };
+    if (!color || !count || count <= 0) return false;
+    
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    let missCount = 0;
+    
+    for (const number of numbers) {
+      let numberColor = '';
+      if (number.numero === 0) {
+        numberColor = 'green';
+      } else if (redNumbers.includes(number.numero)) {
+        numberColor = 'red';
+      } else {
+        numberColor = 'black';
+      }
+      
+      if (numberColor !== color) {
+        missCount++;
+      } else {
+        break;
+      }
+    }
+    
+    if (condition.operator === 'equals') {
+      return missCount === count;
+    } else if (condition.operator === 'greater_equal') {
+      return missCount >= count;
+    }
+    
+    return false;
+  };
+
+  // <<< FUNÇÃO PRINCIPAL PARA VERIFICAR SE UMA ESTRATÉGIA É ACIONADA >>>
+  const evaluateStrategy = (strategy: SavedStrategy, numbers: RouletteNumber[]): boolean => {
+    if (!strategy || !strategy.conditions || strategy.conditions.length === 0 || !numbers || numbers.length === 0) {
+      return false;
+    }
+    
+    // Todas as condições precisam ser verdadeiras (AND lógico)
+    return strategy.conditions.every(condition => {
+      switch (condition.type) {
+        case 'color':
+          return checkColorCondition(condition, numbers);
+        case 'number':
+          return checkNumberCondition(condition, numbers);
+        case 'parity':
+          return checkParityCondition(condition, numbers);
+        case 'dozen':
+          return checkDozenCondition(condition, numbers);
+        case 'column':
+          return checkColumnCondition(condition, numbers);
+        case 'high_low':
+          return checkHighLowCondition(condition, numbers);
+        case 'streak_color':
+          return checkColorStreakCondition(condition, numbers);
+        case 'miss_color':
+          return checkColorMissCondition(condition, numbers);
+        default:
+          return false;
+      }
+    });
+  };
+
+  // <<< EFEITO PARA INICIAR/PARAR MONITORAMENTO DE ESTRATÉGIAS >>>
+  useEffect(() => {
+    if (!isMonitoringActive || !savedStrategies.length || !historicalNumbers.length) {
+      return;
+    }
+    
+    // Inicializar strategies que ainda não estão no activeStrategies
+    const initializedActiveStrategies = savedStrategies.map(strategy => {
+      // Procura se a estratégia já existe no activeStrategies
+      const existingActiveStrategy = activeStrategies.find(as => as._id === strategy._id);
+      if (existingActiveStrategy) {
+        return existingActiveStrategy;
+      }
+      
+      // Se não existir, cria uma nova
+      return {
+        ...strategy,
+        isActive: false,
+        executions: [],
+        stats: {
+          total: 0,
+          wins: 0,
+          losses: 0,
+          winRate: 0
+        }
+      };
+    });
+    
+    setActiveStrategies(initializedActiveStrategies);
+    
+    // Verificar cada estratégia contra o último número da roleta
+    initializedActiveStrategies.forEach(strategy => {
+      const isTriggered = evaluateStrategy(strategy, historicalNumbers);
+      
+      if (isTriggered && (!strategy.lastTriggered || 
+          (new Date().getTime() - strategy.lastTriggered.getTime() > 10000))) {
+        // A estratégia foi acionada e não foi acionada nos últimos 10 segundos
+        
+        logger.info(`[${componentInstanceId}] Estratégia "${strategy.name}" acionada!`);
+        
+        // Criar uma nova execução
+        const newExecution: StrategyExecution = {
+          strategyId: strategy._id,
+          strategyName: strategy.name,
+          executionTime: new Date(),
+          conditions: [...strategy.conditions],
+          result: 'pending'
+        };
+        
+        // Atualizar a estratégia
+        setActiveStrategies(current => 
+          current.map(s => 
+            s._id === strategy._id 
+              ? { 
+                  ...s, 
+                  lastTriggered: new Date(),
+                  isActive: true,
+                  executions: [newExecution, ...s.executions].slice(0, 20) // Limitar a 20 execuções
+                } 
+              : s
+          )
+        );
+      }
+    });
+  }, [historicalNumbers, savedStrategies, isMonitoringActive, activeStrategies]);
+
+  // <<< FUNÇÃO PARA DETERMINAR SE UMA ESTRATÉGIA GANHOU OU PERDEU >>>
+  const determineStrategyResult = (strategy: SavedStrategy, nextNumber: number): 'win' | 'loss' => {
+    // Para determinar se uma estratégia ganhou ou perdeu, precisamos analisar as condições
+    // e verificar se o próximo número atende ao que seria uma previsão de sucesso.
+    
+    if (!strategy.conditions || strategy.conditions.length === 0) {
+      return 'loss'; // Se não houver condições, consideramos perda por padrão
+    }
+    
+    // Vamos analisar o tipo de estratégia para determinar o resultado esperado
+    // Assumimos que o primeiro tipo de condição define o tipo geral da estratégia
+    const primaryCondition = strategy.conditions[0];
+    
+    // Tabela de números vermelhos na roleta
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    
+    switch (primaryCondition.type) {
+      case 'color': {
+        // Para condições de cor, consideramos que a estratégia tenta prever a próxima cor
+        // Se a condição verificada for "vermelha", esperamos que o próximo número seja vermelho
+        
+        const expectedColor = primaryCondition.value;
+        let actualColor = 'green';
+        
+        if (nextNumber === 0) {
+          actualColor = 'green';
+        } else if (redNumbers.includes(nextNumber)) {
+          actualColor = 'red';
+        } else {
+          actualColor = 'black';
+        }
+        
+        // Se o operador for 'equals', esperamos que a cor seja igual
+        // Se for 'not_equals', esperamos que seja diferente
+        if (primaryCondition.operator === 'equals') {
+          return actualColor === expectedColor ? 'win' : 'loss';
+        } else {
+          return actualColor !== expectedColor ? 'win' : 'loss';
+        }
+      }
+      
+      case 'number': {
+        // Para condições de número específico, verificamos se o próximo número é o esperado
+        return nextNumber === primaryCondition.value ? 'win' : 'loss';
+      }
+      
+      case 'parity': {
+        // Para condições de paridade, verificamos se o próximo número tem a paridade esperada
+        if (nextNumber === 0) return 'loss'; // Zero não é par nem ímpar
+        
+        const isEven = nextNumber % 2 === 0;
+        const actualParity = isEven ? 'even' : 'odd';
+        
+        return actualParity === primaryCondition.value ? 'win' : 'loss';
+      }
+      
+      case 'dozen': {
+        // Para condições de dúzia
+        if (nextNumber === 0) return 'loss';
+        
+        let actualDozen = '';
+        if (nextNumber >= 1 && nextNumber <= 12) {
+          actualDozen = '1st';
+        } else if (nextNumber >= 13 && nextNumber <= 24) {
+          actualDozen = '2nd';
+        } else if (nextNumber >= 25 && nextNumber <= 36) {
+          actualDozen = '3rd';
+        }
+        
+        if (primaryCondition.operator === 'equals') {
+          return actualDozen === primaryCondition.value ? 'win' : 'loss';
+        } else {
+          return actualDozen !== primaryCondition.value ? 'win' : 'loss';
+        }
+      }
+      
+      case 'column': {
+        // Para condições de coluna
+        if (nextNumber === 0) return 'loss';
+        
+        const column1 = [1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34];
+        const column2 = [2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35];
+        const column3 = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36];
+        
+        let actualColumn = '';
+        if (column1.includes(nextNumber)) {
+          actualColumn = '1st';
+        } else if (column2.includes(nextNumber)) {
+          actualColumn = '2nd';
+        } else if (column3.includes(nextNumber)) {
+          actualColumn = '3rd';
+        }
+        
+        if (primaryCondition.operator === 'equals') {
+          return actualColumn === primaryCondition.value ? 'win' : 'loss';
+        } else {
+          return actualColumn !== primaryCondition.value ? 'win' : 'loss';
+        }
+      }
+      
+      case 'high_low': {
+        // Para condições de alta/baixa
+        if (nextNumber === 0) return 'loss';
+        
+        const isLow = nextNumber >= 1 && nextNumber <= 18;
+        const actualHighLow = isLow ? 'low' : 'high';
+        
+        return actualHighLow === primaryCondition.value ? 'win' : 'loss';
+      }
+      
+      case 'streak_color': {
+        // Para sequências de cor, geralmente a estratégia espera que a sequência seja quebrada
+        // Logo, a próxima cor deve ser diferente da que está em sequência
+        const { color } = primaryCondition.value || { color: '' };
+        let nextColor = 'green';
+        
+        if (nextNumber === 0) {
+          nextColor = 'green';
+        } else if (redNumbers.includes(nextNumber)) {
+          nextColor = 'red';
+        } else {
+          nextColor = 'black';
+        }
+        
+        // Se a estratégia detectou uma sequência longa de uma cor, é comum apostar
+        // na cor oposta para "quebrar" a sequência
+        return nextColor !== color ? 'win' : 'loss';
+      }
+      
+      case 'miss_color': {
+        // Para "miss" de cor, geralmente a estratégia espera que a cor ausente apareça
+        // Logo, a próxima cor deve ser a que está em "miss"
+        const { color } = primaryCondition.value || { color: '' };
+        let nextColor = 'green';
+        
+        if (nextNumber === 0) {
+          nextColor = 'green';
+        } else if (redNumbers.includes(nextNumber)) {
+          nextColor = 'red';
+        } else {
+          nextColor = 'black';
+        }
+        
+        // Se a estratégia detectou ausência longa de uma cor, espera-se que essa cor apareça
+        return nextColor === color ? 'win' : 'loss';
+      }
+      
+      default:
+        return 'loss';
+    }
+  };
+
+  // <<< EFEITO PARA ATUALIZAR RESULTADO DAS EXECUÇÕES COM O PRÓXIMO NÚMERO >>>
+  useEffect(() => {
+    if (!activeStrategies.length || historicalNumbers.length < 2) {
+      return;
+    }
+    
+    const updatedStrategies = [...activeStrategies];
+    let hasUpdates = false;
+    
+    updatedStrategies.forEach(strategy => {
+      // Verificar execuções pendentes
+      strategy.executions.forEach((execution, index) => {
+        if (execution.result === 'pending') {
+          // Verificar se já temos um número após a execução
+          const executionTime = new Date(execution.executionTime).getTime();
+          
+          // Encontrar o número que veio depois da execução
+          const nextNumber = historicalNumbers.find(n => {
+            const numberTime = new Date(n.timestamp).getTime();
+            return numberTime > executionTime;
+          });
+          
+          if (nextNumber) {
+            // Determinar o resultado usando nossa função de análise de estratégia
+            const result = determineStrategyResult(strategy, nextNumber.numero);
+            
+            // Atualizar a execução
+            strategy.executions[index].result = result;
+            strategy.executions[index].numberAfterExecution = nextNumber.numero;
+            
+            // Atualizar estatísticas
+            strategy.stats.total++;
+            if (result === 'win') {
+              strategy.stats.wins++;
+            } else {
+              strategy.stats.losses++;
+            }
+            strategy.stats.winRate = Math.round((strategy.stats.wins / strategy.stats.total) * 100);
+            
+            hasUpdates = true;
+          }
+        }
+      });
+    });
+    
+    if (hasUpdates) {
+      setActiveStrategies(updatedStrategies);
+    }
+  }, [historicalNumbers, activeStrategies]);
+
+  // O principal JSX retornado pelo componente
   return (
-    <div className="w-full rounded-lg overflow-y-auto max-h-screen border-l border-border">
+    <div className="w-full h-full">
+      {/* Alerta quando o ID da roleta não é válido */}
+      {!isValidRouletteId(validRouletaId) && (
+        <Alert variant="default" className="mb-4 animate-fadeIn text-sm rounded-lg border-yellow-500/50 bg-yellow-500/10 text-yellow-500">
+          <AlertCircle className="h-4 w-4 mr-2" />
+          <AlertTitle className="text-sm font-bold">ID da roleta não identificado</AlertTitle>
+          <AlertDescription className="text-xs mt-1">
+            Algumas funcionalidades podem não estar disponíveis. Tente recarregar a página ou selecionar outra roleta.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {/* Cabeçalho principal */}
       <div className="p-5 border-b border-gray-800 bg-opacity-40 flex justify-between items-center">
         <div>
           <h2 className="text-white flex items-center text-xl font-bold mb-1">
-          <BarChart className="mr-3 text-vegas-green h-6 w-6" /> Estatísticas da {roletaNome}
-        </h2>
-        <p className="text-sm text-gray-400">
+            <BarChart className="mr-3 text-vegas-green h-6 w-6" /> Estatísticas da {roletaNome}
+          </h2>
+          <p className="text-sm text-gray-400">
             {isLoading ? "Carregando histórico..." : (historicalNumbers.length === 0 ? "Nenhum histórico disponível." : "")}
           </p>
         </div>
-        
+         
         <Dialog open={isStrategyModalOpen} onOpenChange={setIsStrategyModalOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" className="w-full">
@@ -1292,134 +1994,20 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                 Crie novas estratégias ou gerencie as existentes.
               </DialogDescription>
             </DialogHeader>
-            
+             
+            {/* Aviso sobre ID de roleta inválido no modal */}
+            {!isValidRouletteId(validRouletaId) && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3 mb-4">
+                <p className="text-sm text-amber-500 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
+                  Alerta: ID da roleta não identificado. Algumas funcionalidades não estarão disponíveis. 
+                  Tente recarregar a página ou escolher outra roleta.
+                </p>
+              </div>
+            )}
+             
             <ScrollArea className="flex-grow pr-6 -mr-6">
-              {/* SEÇÃO: CRIAR NOVA ESTRATÉGIA */}
-              <div className="grid gap-4 py-4">
-                <Label className="text-lg font-semibold text-white">Criar Nova Estratégia</Label>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="strategy-name" className="text-right">Nome</Label>
-                  <Input 
-                    id="strategy-name" 
-                    value={strategyName}
-                    onChange={(e) => setStrategyName(e.target.value)}
-                    placeholder="Ex: Martingale reverso"
-                    className="col-span-3 bg-input border-border"
-                  />
-                </div>
-                
-                <Separator className="my-1" />
-                <div className="space-y-3">
-                  <Label>Condições (Gatilhos)</Label>
-                  {strategyConditions.length === 0 && (
-                    <p className="text-sm text-muted-foreground p-3 border border-dashed border-border rounded-md text-center">
-                      Clique em "Adicionar Condição" para começar.
-                    </p>
-                  )}
-                  {strategyConditions.map((condition) => (
-                    <div key={condition.id} className="flex items-start space-x-2 p-3 border border-border rounded-md">
-                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <Select
-                           value={condition.type}
-                           onValueChange={(value) => updateCondition(condition.id, 'type', value)}
-                        >
-                           <SelectTrigger className="bg-input border-border h-9 text-sm"><SelectValue placeholder="Tipo..." /></SelectTrigger>
-                           <SelectContent className="bg-card border-border text-white z-[9999]">
-                              {conditionTypes.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                           </SelectContent>
-                         </Select>
-                        <Select
-                           value={condition.operator}
-                           onValueChange={(value) => updateCondition(condition.id, 'operator', value)}
-                           disabled={!condition.type}
-                        >
-                           <SelectTrigger className="bg-input border-border h-9 text-sm"><SelectValue placeholder="Operador..." /></SelectTrigger>
-                           <SelectContent className="bg-card border-border text-white z-[9999]">
-                             {!condition.type ? (
-                               <SelectItem value="placeholder_no_type_operator" disabled>Selecione um tipo</SelectItem>
-                             ) : (operatorsByType[condition.type] || []).length === 0 ? (
-                               <SelectItem value="placeholder_no_operators_for_type" disabled>N/A para este tipo</SelectItem>
-                             ) : (
-                               (operatorsByType[condition.type] || []).map(op => (
-                                 <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
-                               ))
-                             )}
-                           </SelectContent>
-                         </Select>
-                         <div className="h-9">
-                             <ConditionValueInput
-                               conditionType={condition.type || ''}
-                               operator={condition.operator || ''}
-                               value={condition.value}
-                               onChange={(newValue) => updateCondition(condition.id, 'value', newValue)}
-                               disabled={!condition.operator || !condition.type}
-                             />
-                         </div>
-                      </div>
-                       <Button variant="ghost" size="icon" onClick={() => removeCondition(condition.id)} className="text-muted-foreground hover:text-destructive h-8 w-8 mt-0.5"><Trash2 size={16} /></Button>
-                    </div>
-                   ))}
-                 </div>
-                 <Button variant="outline" size="sm" onClick={addCondition} className="mt-2 justify-start"><PlusCircle size={14} className="mr-2" /> Adicionar Condição</Button>
-              
-                {/* Mensagens de feedback de salvamento de nova estratégia */}
-                {saveStrategyError && <p className="text-sm text-red-500 bg-red-500/10 p-3 rounded-md border border-red-500/30 mt-3"><AlertCircle className="inline h-4 w-4 mr-1.5" />{saveStrategyError}</p>}
-                {saveStrategySuccess && <p className="text-sm text-green-500 bg-green-500/10 p-3 rounded-md border border-green-500/30 mt-3"><CheckCircle className="inline h-4 w-4 mr-1.5" />{saveStrategySuccess}</p>}
-                
-                <Button onClick={handleSaveStrategy} disabled={isSavingStrategy} className="mt-2 w-full">
-                  {isSavingStrategy ? "Salvando Nova Estratégia..." : "Salvar Nova Estratégia"}
-                </Button>
-              </div> {/* Fim da seção Criar Nova Estratégia */}
-
-              {/* --- SEÇÃO: ESTRATÉGIAS SALVAS --- */}
-              <Separator className="my-6" />
-              <div className="space-y-4 pb-4"> {/* Adicionado pb-4 para espaço antes do footer */}
-                <Label className="text-lg font-semibold text-white">Estratégias Salvas</Label>
-                
-                {/* Feedback da listagem e exclusão de estratégias */}
-                {fetchStrategiesError && <p className="text-sm text-red-500 bg-red-500/10 p-3 rounded-md border border-red-500/30"><AlertCircle className="inline h-4 w-4 mr-1.5" />{fetchStrategiesError}</p>}
-                {deleteStrategySuccess && <p className="text-sm text-green-500 bg-green-500/10 p-3 rounded-md border border-green-500/30"><CheckCircle className="inline h-4 w-4 mr-1.5" />{deleteStrategySuccess}</p>}
-                {deleteStrategyError && <p className="text-sm text-red-500 bg-red-500/10 p-3 rounded-md border border-red-500/30"><AlertCircle className="inline h-4 w-4 mr-1.5" />{deleteStrategyError}</p>}
-
-                {isLoadingStrategies ? (
-                  <div className="space-y-2 py-4">
-                    <Skeleton className="h-12 w-full bg-muted/30 rounded-md" />
-                    <Skeleton className="h-12 w-full bg-muted/30 rounded-md" />
-                  </div>
-                ) : !fetchStrategiesError && savedStrategies.length === 0 ? (
-                  <p className="text-sm text-muted-foreground p-3 border border-dashed border-border rounded-md text-center">
-                    Nenhuma estratégia salva ainda.
-                  </p>
-                ) : (
-                  <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
-                    {savedStrategies.map((strategy) => (
-                      <div key={strategy._id} className="flex items-center justify-between p-3 border border-border rounded-md bg-card-foreground/5 hover:bg-card-foreground/10 transition-colors">
-                        <div>
-                          <p className="font-medium text-white text-sm">{strategy.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Criada em: {formatDate(strategy.createdAt)}
-                            {strategy.roletaId && ` (Roleta: ${strategy.roletaId})`}
-                          </p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteStrategy(strategy._id)}
-                          disabled={deletingStrategyId === strategy._id}
-                          className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0" // shrink-0 para não encolher
-                          aria-label="Excluir estratégia"
-                        >
-                          {deletingStrategyId === strategy._id ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"></div>
-                          ) : (
-                            <Trash2 size={16} />
-                          )}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div> {/* Fim da seção Estratégias Salvas */}
+              {/* Conteúdo do modal (será adicionado posteriormente) */}
             </ScrollArea>
 
             <DialogFooter className="mt-auto pt-4 border-t border-border">
@@ -1431,153 +2019,46 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         </Dialog>
       </div>
       
-      {/* Nova seção de filtros avançados */}
-      <div className="space-y-4 p-5 border-b border-gray-800">
-        {/* Cabeçalho e botão limpar */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-vegas-gold" />
-            <h3 className="text-sm font-medium text-white">Filtros de roleta</h3>
-          </div>
-          
-          {hasActiveFilters && (
-            <Button 
-              onClick={handleClearAllFilters}
-              variant="ghost" 
-              size="sm"
-              className="h-7 px-2 text-xs text-gray-400 hover:text-white"
-            >
-              <X size={14} className="mr-1" />
-              Limpar filtros
-            </Button>
-          )}
-        </div>
-        
-        {/* Filtros em row com dropdowns */}
-        <div className="flex w-full space-x-2 bg-card p-1">
-          {/* Filtro por cor */}
-          <div className="flex-1">
-            <div className="text-xs text-gray-400 mb-1 px-2">Por cores</div>
-            <Select value={selectedColor} onValueChange={handleColorChange}>
-              <SelectTrigger className="w-full bg-card border border-border text-white h-10">
-                <SelectValue placeholder="Todas" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border text-white">
-                <SelectItem value="todos">Todas</SelectItem>
-                <SelectItem value="vermelho">
-                  <div className="flex items-center">
-                    <span className="mr-2 w-2 h-2 rounded-full bg-red-600"></span> Vermelhos
-                  </div>
-                </SelectItem>
-                <SelectItem value="preto">
-                  <div className="flex items-center">
-                    <span className="mr-2 w-2 h-2 rounded-full bg-gray-900"></span> Pretos
-                  </div>
-                </SelectItem>
-                <SelectItem value="verde">
-                  <div className="flex items-center">
-                    <span className="mr-2 w-2 h-2 rounded-full bg-green-600"></span> Zero
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Filtro por número */}
-          <div className="flex-1">
-            <div className="text-xs text-gray-400 mb-1 px-2">Por número</div>
-            <Select value={selectedNumber === null ? 'todos' : String(selectedNumber)} onValueChange={handleNumberChange}>
-              <SelectTrigger className="w-full bg-card border border-border text-white h-10">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border text-white max-h-[200px] overflow-y-auto">
-                {numberOptions.map(option => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Filtro por paridade */}
-          <div className="flex-1">
-            <div className="text-xs text-gray-400 mb-1 px-2">Por paridade</div>
-            <Select value={selectedParity} onValueChange={handleParityChange}>
-              <SelectTrigger className="w-full bg-card border border-border text-white h-10">
-                <SelectValue placeholder="Todas" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border text-white">
-                <SelectItem value="todas">Todas</SelectItem>
-                <SelectItem value="par">Pares</SelectItem>
-                <SelectItem value="impar">Ímpares</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Filtro por provedor */}
-          <div className="flex-1">
-            <div className="text-xs text-gray-400 mb-1 px-2">Por provedor</div>
-            <Select value={selectedProvider} onValueChange={handleProviderChange}>
-              <SelectTrigger className="w-full bg-card border border-border text-white h-10">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border text-white max-h-[200px] overflow-y-auto">
-                <SelectItem value="todos">Todos</SelectItem>
-                {providers.map(provider => (
-                  <SelectItem key={provider.id} value={provider.id}>
-                    {provider.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Filtro por tempo */}
-          <div className="flex-1">
-            <div className="text-xs text-gray-400 mb-1 px-2">Por minuto</div>
-            <Select value={selectedTime} onValueChange={handleTimeChange}>
-              <SelectTrigger className="w-full bg-card border border-border text-white h-10">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border text-white max-h-[200px] overflow-y-auto">
-                {timeOptions.map(option => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-      
-      {/* <<< NOVA SEÇÃO: Interação com IA >>> */}
+      {/* Seção de consulta à IA */}
       <Card className="m-4">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold flex items-center text-white">
-            {/* Ícone de IA (exemplo, pode ser outro) */}
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-vegas-gold" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" /></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-vegas-gold" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+            </svg>
             Perguntar à IA RunCash sobre {roletaNome}
           </CardTitle>
           <CardDescription className="text-xs">Faça perguntas sobre estatísticas, padrões ou probabilidades desta roleta.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Alerta quando o ID da roleta não é válido (específico para a seção de IA) */}
+          {!isValidRouletteId(validRouletaId) && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3 mb-3">
+              <p className="text-sm text-amber-500 flex items-start">
+                <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0 mt-0.5" />
+                <span>
+                  Não foi possível identificar o ID desta roleta. As consultas à IA estão indisponíveis.
+                  <br/>
+                  <span className="text-xs mt-1 block">Tente recarregar a página ou escolher outra roleta.</span>
+                </span>
+              </p>
+            </div>
+          )}
           <Textarea
             placeholder={`Ex: Quais os 3 números mais frequentes nos últimos 500 giros desta roleta (${roletaNome})?`}
             value={aiQuery}
             onChange={(e) => setAiQuery(e.target.value)}
             rows={3}
-            disabled={isAiLoading}
+            disabled={isAiLoading || !isValidRouletteId(validRouletaId)}
             className="bg-input border-border placeholder:text-muted-foreground/70 text-sm"
           />
           <Button 
             onClick={handleAskAI} 
-            disabled={isAiLoading || !aiQuery.trim() || !roletaId} // <<< LÓGICA DO BOTÃO ATUALIZADA
+            disabled={isAiLoading || !aiQuery.trim() || !isValidRouletteId(validRouletaId)}
             size="sm"
             className="w-full bg-vegas-gold hover:bg-vegas-gold/90 text-black"
           >
-            {isAiLoading ? "Analisando..." : "Enviar Pergunta"}
+            {isAiLoading ? "Analisando..." : (!isValidRouletteId(validRouletaId) ? "ID da roleta inválido" : "Enviar Pergunta")}
           </Button>
           
           {/* Área de Resposta / Loading / Erro */}
@@ -1593,7 +2074,6 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
               <p className="text-sm text-red-500">Erro: {aiError}</p>
             )}
             {aiResponse && !isAiLoading && (
-              // Usar um componente para renderizar markdown seria ideal aqui
               <p className="text-sm text-gray-300 whitespace-pre-wrap">{aiResponse}</p>
             )}
             {!aiResponse && !isAiLoading && !aiError && (
@@ -1603,483 +2083,7 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         </CardContent>
       </Card>
       
-      {isLoading ? (
-        <div className="flex items-center justify-center p-16">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-muted border-t-[hsl(142.1,70.6%,45.3%)]"></div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-          {/* Historical Numbers Section */}
-          <Card className="md:col-span-2">
-            <CardHeader className="p-2 pb-0 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-sm font-medium flex items-center">
-                  <BarChart className="mr-1 h-4 w-4 text-[hsl(142.1,70.6%,45.3%)]" /> 
-                  Histórico de Números
-                </CardTitle>
-                <CardDescription className="text-[10px] text-muted-foreground">
-                  {visibleNumbers.length} de {filteredNumbers.length} números
-                </CardDescription>
-              </div>
-              {visibleNumbersCount < filteredNumbers.length && (
-                <Button 
-                  onClick={handleShowMore} 
-                  variant="ghost" 
-                  size="sm"
-                  className="h-6 flex items-center gap-1 text-xs border border-border"
-                >
-                  +{filteredNumbers.length - visibleNumbersCount} <ChevronDown className="h-3 w-3" />
-                </Button>
-              )}
-            </CardHeader>
-            
-            <CardContent className="p-0 pb-1">
-            {visibleNumbers.length > 0 ? (
-                <ScrollArea className="h-[300px]">
-                  <div className="flex flex-wrap p-3 gap-2">
-                    {filteredNumbers.map((n, idx) => (
-                      // Formatar o timestamp dentro do JSX
-                      <div 
-                        key={`${n.numero}-${n.timestamp}-${idx}`} 
-                        className="relative cursor-pointer transition-transform hover:scale-110"
-                        onClick={() => handleNumberSelection(n.numero)}
-                      >
-                        <NumberDisplay 
-                          number={n.numero} 
-                          size="medium" 
-                          highlight={highlightedNumber === n.numero}
-                        />
-                        <div className="text-xs text-gray-400 text-center mt-1">
-                          {(() => {
-                            // Lógica de formatação movida para cá
-                            try {
-                                const date = new Date(n.timestamp); 
-                                if (!isNaN(date.getTime())) {
-                                    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                                }
-                            } catch (e) { /* Ignora erro */ }
-                            return "--:--"; // Retorna padrão em caso de erro ou data inválida
-                          })()}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Separador e indicações de grupos de números */}
-                  <div className="px-3 py-1">
-                    <Separator className="my-2" />
-                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-[#FF1D46]"></div>
-                        <span>Vermelhos: {visibleNumbers.filter(n => [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n.numero)).length}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-[#292524]"></div>
-                        <span>Pretos: {visibleNumbers.filter(n => n.numero !== 0 && ![1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(n.numero)).length}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                        <span>Zero: {visibleNumbers.filter(n => n.numero === 0).length}</span>
-                      </div>
-                    </div>
-                  </div>
-                </ScrollArea>
-            ) : (
-                <div className="flex justify-center items-center h-[300px] text-[hsl(215.4,16.3%,56.9%)]">
-                  {filteredNumbers.length === 0 && hasActiveFilters ? "Nenhum número corresponde aos filtros." : "Nenhum histórico encontrado."}
-                </div>
-            )}
-            </CardContent>
-          </Card>
-
-          {/* Distribution Pie Chart */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center">
-                <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
-                Distribuição por Cor
-              </CardTitle>
-            </CardHeader>
-            
-            <CardContent>
-              {/* Adicionar legenda de cores na parte superior */}
-              <div className="flex justify-center space-x-5 mb-4">
-                {pieData.map((entry, index) => (
-                  <div key={`color-legend-${index}`} className="flex items-center">
-                    <div 
-                      className="w-3 h-3 mr-2 rounded-sm" 
-                      style={{ backgroundColor: entry.color }}
-                    ></div>
-                    <span className="text-sm text-[hsl(215.4,16.3%,56.9%)]">{entry.name}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                      outerRadius={75}
-                      innerRadius={45}
-                    fill="white"
-                    dataKey="value"
-                      label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
-                  >
-                    {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} stroke="hsl(224,71%,4%)" strokeWidth={2} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                        backgroundColor: 'hsl(224,71%,4%/0.95)', 
-                        borderColor: 'hsl(142.1,70.6%,45.3%)',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                        padding: '8px 12px'
-                    }} 
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            </CardContent>
-          </Card>
-          
-          {/* Roulette Heatmap Chart */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center">
-                <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
-                Mapa de Calor da Roleta
-              </CardTitle>
-              <CardDescription>
-                Distribuição de frequência na roleta
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent>
-              <style>
-                {`
-                  @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                  }
-                  
-                  .roulette-spin {
-                    animation: spin 120s linear infinite;
-                  }
-                  
-                  .roulette-spin:hover {
-                    animation-play-state: paused;
-                  }
-                  
-                  .pocket {
-                    transition: filter 0.3s ease;
-                  }
-                  
-                  .pocket:hover {
-                    filter: brightness(1.5) !important;
-                    z-index: 10;
-                  }
-                `}
-              </style>
-              
-              <div className="h-[320px] relative">
-                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
-                  <div className="w-[280px] h-[280px] relative">
-                    {/* SVG principal para a roleta e gráfico de frequência */}
-                    <svg width="280" height="280" viewBox="0 0 280 280">
-                      <defs>
-                        <radialGradient id="frequencyGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-                          <stop offset="0%" stopColor="#006600" stopOpacity="0.8" />
-                          <stop offset="100%" stopColor="#006600" stopOpacity="0.3" />
-                        </radialGradient>
-                      </defs>
-                      
-                      {/* Grid circular (eixos radiais) */}
-                      {Array.from({ length: 12 }).map((_, i) => {
-                        const angle = (i * 30) * (Math.PI / 180);
-                        const x2 = 140 + 130 * Math.cos(angle);
-                        const y2 = 140 + 130 * Math.sin(angle);
-                        return (
-                          <line 
-                            key={`grid-line-${i}`}
-                            x1="140" 
-                            y1="140" 
-                            x2={x2} 
-                            y2={y2} 
-                            stroke="#888888" 
-                            strokeWidth="0.5" 
-                            strokeDasharray="2,2"
-                            opacity="0.3"
-                          />
-                        );
-                      })}
-                      
-                      {/* Círculos concêntricos para o grid */}
-                      {[25, 50, 75, 100, 125].map((radius, i) => (
-                        <circle
-                          key={`grid-circle-${i}`}
-                          cx="140"
-                          cy="140"
-                          r={radius * 130 / 130}
-                          fill="none"
-                          stroke="#888888"
-                          strokeWidth="0.5"
-                          strokeDasharray="2,2"
-                          opacity="0.3"
-                        />
-                      ))}
-                      
-                      {/* Renderizar o gráfico de frequência como polígono preenchido */}
-                      {(() => {
-                        // Calcular valor máximo para normalização
-                        const maxValue = Math.max(...rouletteHeatmap.map(item => item.count), 1);
-                        const scaleFactor = 110 / maxValue; // 130 é o raio máximo, deixar margem
-                        
-                        // Calcular pontos do polígono
-                        const points = rouletteHeatmap.map((item, index) => {
-                          const angle = (index * (360 / ROULETTE_NUMBERS.length)) * (Math.PI / 180);
-                          const radius = item.count * scaleFactor;
-                          const x = 140 + radius * Math.cos(angle - Math.PI/2); // -90 graus para alinhar
-                          const y = 140 + radius * Math.sin(angle - Math.PI/2);
-                          return `${x},${y}`;
-                        });
-                        
-                        // Fechar o polígono
-                        points.push(points[0]);
-                        
-                        return (
-                          <polygon
-                            points={points.join(' ')}
-                            fill="url(#frequencyGradient)"
-                            stroke="#006600"
-                            strokeWidth="1"
-                            opacity="0.75"
-                          />
-                        );
-                      })()}
-                      
-                      {/* Anel externo com cores da roleta */}
-                      {ROULETTE_NUMBERS.map((num, index) => {
-                        const segmentAngle = 360 / ROULETTE_NUMBERS.length;
-                        const startAngle = index * segmentAngle - 90; // -90 para alinhar com o topo
-                        const endAngle = (index + 1) * segmentAngle - 90;
-                        
-                        // Converter para radianos
-                        const startRad = (startAngle) * (Math.PI / 180);
-                        const endRad = (endAngle) * (Math.PI / 180);
-                        
-                        // Determinar a cor (alternando entre vermelho e preto, zero é verde)
-                        let color = "hsl(220,14%,20%)"; // Preto (padrão)
-                        if (num === 0) {
-                          color = "hsl(142.1,70.6%,45.3%)"; // Verde para zero
-                        } else if ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(num)) {
-                          color = "hsl(0,72.2%,50.6%)"; // Vermelho
-                        }
-                        
-                        // Calcular pontos do arco externo
-                        const outerRadius = 130;
-                        const innerRadius = 110;
-                        const x1 = 140 + outerRadius * Math.cos(startRad);
-                        const y1 = 140 + outerRadius * Math.sin(startRad);
-                        const x2 = 140 + outerRadius * Math.cos(endRad);
-                        const y2 = 140 + outerRadius * Math.sin(endRad);
-                        const x3 = 140 + innerRadius * Math.cos(endRad);
-                        const y3 = 140 + innerRadius * Math.sin(endRad);
-                        const x4 = 140 + innerRadius * Math.cos(startRad);
-                        const y4 = 140 + innerRadius * Math.sin(startRad);
-                        
-                        // Calcular a posição do texto do número
-                        const midAngle = (startAngle + endAngle) / 2;
-                        const midRad = midAngle * (Math.PI / 180);
-                        const textRadius = 120;
-                        const textX = 140 + textRadius * Math.cos(midRad);
-                        const textY = 140 + textRadius * Math.sin(midRad);
-                        
-                        return (
-                          <g key={`roulette-segment-${num}`}>
-                            {/* Segmento da roleta */}
-                            <path
-                              d={`M ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 0 0 ${x4} ${y4} Z`}
-                              fill={color}
-                              stroke="#333"
-                              strokeWidth="0.5"
-                            />
-                            
-                            {/* Número rotacionado */}
-                            <g transform={`translate(${textX}, ${textY}) rotate(${midAngle + 90})`}>
-                              <text
-                                x="0"
-                                y="0"
-                      fill="white"
-                                fontSize="10"
-                                fontWeight="bold"
-                                textAnchor="middle"
-                                dominantBaseline="middle"
-                                style={{ 
-                                  textShadow: '0px 1px 1px rgba(0,0,0,0.7)',
-                                  pointerEvents: 'none'
-                                }}
-                              >
-                                {num}
-                              </text>
-                            </g>
-                          </g>
-                        );
-                      })}
-                      
-                      {/* Círculos interno e externo (bordas) */}
-                      <circle cx="140" cy="140" r="110" fill="none" stroke="black" strokeWidth="2" />
-                      <circle cx="140" cy="140" r="130" fill="none" stroke="black" strokeWidth="2" />
-                      
-                      {/* Círculo principal para o centro */}
-                      <circle 
-                        cx="140" 
-                        cy="140" 
-                        r="40" 
-                        fill="#1a1a1a" 
-                        stroke="#333" 
-                        strokeWidth="1"
-                      />
-                      
-                      {/* Texto no centro */}
-                      <text
-                        x="140"
-                        y="140"
-                        fill="#00c853"
-                        fontSize="12"
-                        fontWeight="bold"
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                      >
-                        Roleta
-                      </text>
-                      
-                      {/* Marcador de escala y para valores de frequência */}
-                      <g transform="translate(20, 140)">
-                        {[0, 25, 50, 75, 100, 125].map((value, i) => (
-                          <g key={`y-label-${i}`}>
-                            <line 
-                              x1="-5" 
-                              y1={-value * 130 / 130} 
-                              x2="0" 
-                              y2={-value * 130 / 130} 
-                              stroke="#888" 
-                              strokeWidth="1" 
-                            />
-                            <text
-                              x="-8"
-                              y={-value * 130 / 130}
-                              fill="#888"
-                              fontSize="8"
-                              textAnchor="end"
-                              dominantBaseline="middle"
-                            >
-                              {value}
-                            </text>
-                          </g>
-                        ))}
-                      </g>
-                    </svg>
-                    
-                    {/* Indicador de número no topo */}
-                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1 w-2 h-8 z-10">
-                      <div className="w-full h-full flex flex-col items-center">
-                        <div className="w-2 h-6 bg-white"></div>
-                        <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-t-white border-l-transparent border-r-transparent"></div>
-                      </div>
-                    </div>
-                  </div>
-            </div>
-          </div>
-              
-              {/* Legenda de estatísticas */}
-              <div className="mt-4 text-center text-sm text-gray-400">
-                <p>O gráfico mostra a frequência de cada número (área verde), com o máximo em {rouletteHeatmap.reduce((a, b) => a.count > b.count ? a : b).count} ocorrências.</p>
-              </div>
-              
-              {/* Legenda de regiões */}
-              <div className="mt-8 grid grid-cols-2 gap-3">
-                {rouletteRegionData.map((region, index) => (
-                  <div key={`region-${index}`} className="flex items-center bg-gradient-to-r from-transparent to-[hsla(224,71%,8%,0.4)] rounded p-2">
-                    <div className="w-4 h-4 mr-2 rounded-full" 
-                         style={{ 
-                           background: `radial-gradient(circle at center, hsl(142.1,70.6%,${45 + (region.percentage / 2)}%) 0%, hsl(142.1,70.6%,25%) 100%)`,
-                           boxShadow: `0 0 ${5 + (region.percentage / 15)}px hsl(142.1,70.6%,45.3%)`
-                         }}></div>
-                    <div>
-                      <span className="text-xs font-medium text-[hsl(213,31%,91%)]">
-                        {region.name}
-                      </span>
-                      <div className="text-[10px] text-[hsl(215.4,16.3%,66.9%)]">
-                        {region.count} números ({region.percentage.toFixed(1)}%)
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Hot and Cold Numbers Section */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center">
-                <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
-                Números Quentes e Frios
-              </CardTitle>
-            </CardHeader>
-            
-            <CardContent>
-              <div className="flex flex-wrap gap-3">
-                {hot.map((item, i) => (
-                  <div 
-                    key={i} 
-                    className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105 cursor-pointer"
-                    onClick={() => handleNumberSelection(item.number)}
-                  >
-                    <div className="relative">
-                      <NumberDisplay 
-                        number={item.number} 
-                        size="medium" 
-                        highlight={highlightedNumber === item.number}
-                      />
-                    </div>
-                    <Badge variant="secondary" className="text-[hsl(142.1,70.6%,45.3%)]">
-                      {item.frequency}x
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="flex flex-wrap gap-3">
-                {cold.map((item, i) => (
-                  <div 
-                    key={i} 
-                    className="flex items-center space-x-2 group transition-transform duration-200 hover:scale-105 cursor-pointer"
-                    onClick={() => handleNumberSelection(item.number)}
-                  >
-                    <div className="relative">
-                      <NumberDisplay 
-                        number={item.number} 
-                        size="medium" 
-                        highlight={highlightedNumber === item.number}
-                      />
-                    </div>
-                    <Badge variant="secondary" className="text-[hsl(142.1,70.6%,45.3%)]">
-                      {item.frequency}x
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Conteúdo principal - Continua sendo reconstruído */}
     </div>
   );
 };
