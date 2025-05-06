@@ -1,4 +1,4 @@
-import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle, Trash2 } from "lucide-react";
+import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle, Trash2, Settings2 } from "lucide-react";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   ResponsiveContainer,
@@ -24,6 +24,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -44,6 +45,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import { v4 as uuidv4 } from 'uuid';
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -966,7 +968,12 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
   // <<< NOVA FUNÇÃO para chamar a API da IA >>>
   const handleAskAI = useCallback(async () => {
+    // Log no início da função
+    logger.info(`[${componentInstanceId}] handleAskAI chamada. Query: "${aiQuery}", RoletaID: "${roletaId}"`);
+
     if (!aiQuery.trim() || !roletaId) {
+      // Log quando a validação falha
+      logger.warn(`[${componentInstanceId}] Validação falhou em handleAskAI. Query válida: ${!!aiQuery.trim()}, RoletaID válida: ${!!roletaId}. Query: "${aiQuery}", RoletaID: "${roletaId}"`);
       setAiError("Por favor, digite sua pergunta e certifique-se que uma roleta está selecionada.");
       return;
     }
@@ -995,24 +1002,22 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     } finally {
       setIsAiLoading(false);
     }
-  }, [aiQuery, roletaId, componentInstanceId]); // Adicionar dependências
+  }, [aiQuery, roletaId, componentInstanceId, logger]); // Adicionado logger às dependências
 
   // <<< NOVA FUNÇÃO para adicionar uma condição vazia >>>
   const addCondition = () => {
-    setStrategyConditions(prev => [
-      ...prev,
-      {
-        id: uniqueId('condition-'), // Gera ID único
-        type: '', // Tipo inicial vazio
-        operator: '', // Operador inicial vazio
-        value: '' // Valor inicial vazio
-      }
-    ]);
+    const newCondition: StrategyCondition = {
+      id: uuidv4(),
+      type: undefined,       // <<< ALTERADO para undefined
+      operator: undefined,   // <<< ALTERADO para undefined
+      value: '',             // Pode ser '' ou null. Vamos manter '' por enquanto.
+    };
+    setStrategyConditions(prev => [...prev, newCondition]);
   };
   
   // <<< NOVA FUNÇÃO para remover uma condição >>>
   const removeCondition = (idToRemove: string) => {
-    setStrategyConditions(prev => prev.filter(condition => condition.id !== idToRemove));
+    setStrategyConditions(prev => prev.filter(c => c.id !== idToRemove));
   };
   
   // <<< Função updateCondition ATUALIZADA para resetar >>>
@@ -1021,14 +1026,11 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
       prev.map(condition => {
         if (condition.id === idToUpdate) {
           const updatedCondition = { ...condition, [field]: newValue };
-          // Se o TIPO mudou, resetar operador e valor
           if (field === 'type') {
             console.log(`Tipo mudado para ${newValue}, resetando operador e valor.`);
-            updatedCondition.operator = '';
-            updatedCondition.value = '';
+            updatedCondition.operator = undefined; // <<< ALTERADO para undefined
+            updatedCondition.value = '';         // <<< Reset para '' (ou null)
           }
-          // Se o OPERADOR mudar para um que não precise de valor (raro), resetar valor?
-          // Por enquanto, não fazemos isso.
           return updatedCondition;
         }
         return condition;
@@ -1086,7 +1088,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
             <DialogHeader>
               <DialogTitle>Criar Nova Estratégia</DialogTitle>
               <DialogDescription>
-                Defina um nome e as condições para sua estratégia de roleta.
+                Defina um nome e adicione condições para sua estratégia.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -1099,41 +1101,42 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                   id="strategy-name" 
                   value={strategyName}
                   onChange={(e) => setStrategyName(e.target.value)}
-                  placeholder="Ex: Vizinhos do Zero - Streak 3"
+                  placeholder="Ex: Martingale reverso na cor"
                   className="col-span-3 bg-input border-border"
                 />
               </div>
               
               {/* --- Área das Condições --- */}
-              <Separator className="my-4" />
-              <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2"> {/* Scroll para condições */}
+              <Separator className="my-2" />
+              <div className="space-y-3 max-h-[calc(100vh-350px)] min-h-[150px] overflow-y-auto pr-1">
                 <Label>Condições (Gatilhos)</Label>
                 {strategyConditions.length === 0 && (
-                  <p className="text-sm text-center text-muted-foreground py-4">Clique em "Adicionar Condição" para começar.</p>
+                  <p className="text-sm text-muted-foreground p-3 border border-dashed border-border rounded-md text-center">
+                    Clique em "Adicionar Condição" para começar.
+                  </p>
                 )}
                 
                 {/* Mapear e renderizar cada condição (ATUALIZADO) */}
                 {strategyConditions.map((condition) => (
                   <div key={condition.id} className="flex items-start space-x-2 p-3 border border-border rounded-md">
                     <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                       {/* SELECT TIPO */}
+                       {/* SELECT TIPO - value direto, placeholder no SelectValue */}
                       <Select
-                         value={condition.type}
+                         value={condition.type} // <<< USA undefined DIRETAMENTE
                          onValueChange={(value) => updateCondition(condition.id, 'type', value)}
                       >
                          <SelectTrigger className="bg-input border-border h-9 text-sm">
                            <SelectValue placeholder="Tipo..." />
                          </SelectTrigger>
                          <SelectContent className="bg-card border-border text-white">
-                            {/* <<< ADICIONAR PLACEHOLDER ITEM >>> */} 
-                            <SelectItem value="" disabled>Selecione...</SelectItem>
+                            {/* REMOVIDO SelectItem value="" disabled */}
                             {conditionTypes.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                          </SelectContent>
                        </Select>
 
-                       {/* SELECT OPERADOR (DINÂMICO) */}
+                       {/* SELECT OPERADOR - value direto, placeholder no SelectValue */}
                       <Select
-                         value={condition.operator}
+                         value={condition.operator} // <<< USA undefined DIRETAMENTE
                          onValueChange={(value) => updateCondition(condition.id, 'operator', value)}
                          disabled={!condition.type} // Desabilita se o tipo não foi escolhido
                       >
@@ -1141,14 +1144,19 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                            <SelectValue placeholder="Operador..." />
                          </SelectTrigger>
                          <SelectContent className="bg-card border-border text-white">
-                           {(operatorsByType[condition.type] || []).map(op => (
+                           {!condition.type ? (
+                             <SelectItem value="placeholder_no_type_operator" disabled>
+                               Selecione um tipo primeiro
+                             </SelectItem>
+                           ) : (operatorsByType[condition.type] || []).length === 0 ? (
+                             <SelectItem value="placeholder_no_operators_for_type" disabled>
+                               N/A para este tipo
+                             </SelectItem>
+                           ) : (
+                             (operatorsByType[condition.type] || []).map(op => (
                                <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
-                           ))}
-                           {/* Mensagem se tipo selecionado não tiver operadores definidos */}
-                           {condition.type && (!operatorsByType[condition.type] || operatorsByType[condition.type].length === 0) && 
-                               <SelectItem value="" disabled>N/A para este tipo</SelectItem>}
-                           {/* Mensagem se nenhum tipo selecionado */}
-                            {!condition.type && <SelectItem value="" disabled>Selecione um tipo</SelectItem>}
+                             ))
+                           )}
                          </SelectContent>
                        </Select>
 
@@ -1156,11 +1164,11 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                        {/* Wrapper div para manter altura consistente */}
                        <div className="h-9">
                            <ConditionValueInput
-                             conditionType={condition.type}
-                             operator={condition.operator} // Passa operador, pode ser útil
+                             conditionType={condition.type || ''} // Passa '' se undefined para compatibilidade interna do switch
+                             operator={condition.operator || ''} // Passa '' se undefined
                              value={condition.value}
                              onChange={(newValue) => updateCondition(condition.id, 'value', newValue)}
-                             disabled={!condition.operator || !condition.type} // Desabilita se tipo ou operador não escolhido
+                             disabled={!condition.operator || !condition.type}
                            />
                        </div>
                     </div>
@@ -1333,7 +1341,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           />
           <Button 
             onClick={handleAskAI} 
-            disabled={isAiLoading || !aiQuery.trim()}
+            disabled={isAiLoading || !aiQuery.trim() || !roletaId} // <<< LÓGICA DO BOTÃO ATUALIZADA
             size="sm"
             className="w-full bg-vegas-gold hover:bg-vegas-gold/90 text-black"
           >
