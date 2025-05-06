@@ -1,4 +1,4 @@
-import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle, Trash2, Settings2, AlertCircle, CheckCircle } from "lucide-react";
+import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle, Trash2, Settings2 } from "lucide-react";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   ResponsiveContainer,
@@ -579,17 +579,7 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
   }
 };
 
-// <<< NOVA INTERFACE PARA ESTRATÉGIAS SALVAS >>>
-interface SavedStrategy {
-  _id: string; // MongoDB ID
-  name: string;
-  conditions: StrategyCondition[]; // Reutiliza a interface StrategyCondition
-  roletaId?: string;
-  createdAt: string; // Ou Date, dependendo de como a API retorna
-  updatedAt: string; // Ou Date
-}
-
-export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({ 
+const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({ 
   roletaId,
   roletaNome, 
   lastNumbers, 
@@ -624,23 +614,19 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   
-  const [componentInstanceId] = useState(uniqueId('roulette-side-panel-'));
+  const componentInstanceId = useRef(uniqueId('panel-stats-')).current;
 
-  // Estados para o formulário de criação de estratégia
+  // <<< NOVO ESTADO para o modal de estratégia >>>
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
-  const [strategyName, setStrategyName] = useState("");
+  const [strategyName, setStrategyName] = useState(""); // Estado para o nome da estratégia
+
+  // <<< NOVO ESTADO para as condições da estratégia >>>
   const [strategyConditions, setStrategyConditions] = useState<StrategyCondition[]>([]);
+
+  // <<< NOVOS ESTADOS PARA SALVAMENTO >>>
   const [isSavingStrategy, setIsSavingStrategy] = useState(false);
   const [saveStrategyError, setSaveStrategyError] = useState<string | null>(null);
   const [saveStrategySuccess, setSaveStrategySuccess] = useState<string | null>(null);
-
-  // <<< NOVOS ESTADOS PARA GERENCIAR ESTRATÉGIAS SALVAS >>>
-  const [savedStrategies, setSavedStrategies] = useState<SavedStrategy[]>([]);
-  const [isLoadingStrategies, setIsLoadingStrategies] = useState(false);
-  const [fetchStrategiesError, setFetchStrategiesError] = useState<string | null>(null);
-  const [deleteStrategyError, setDeleteStrategyError] = useState<string | null>(null);
-  const [deleteStrategySuccess, setDeleteStrategySuccess] = useState<string | null>(null);
-  const [deletingStrategyId, setDeletingStrategyId] = useState<string | null>(null); // Para feedback no botão de excluir
 
   // Esta função será chamada pelo listener do 'update' do UnifiedClient
   const processRouletteUpdate = useCallback((updatedRouletteData: any) => {
@@ -1192,77 +1178,6 @@ export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         // A menos que tenha sido um salvamento bem sucedido.
     }
   }, [isStrategyModalOpen]);
-
-  // <<< NOVA FUNÇÃO PARA BUSCAR ESTRATÉGIAS SALVAS >>>
-  const fetchSavedStrategies = useCallback(async () => {
-    logger.info(`[${componentInstanceId}] Buscando estratégias salvas...`);
-    setIsLoadingStrategies(true);
-    setFetchStrategiesError(null);
-    // Limpar mensagens de delete ao recarregar
-    setDeleteStrategyError(null);
-    setDeleteStrategySuccess(null);
-    try {
-      const response = await axios.get('/api/strategies');
-      if (response.data && response.data.success) {
-        setSavedStrategies(response.data.data);
-        logger.info(`[${componentInstanceId}] ${response.data.data.length} estratégias carregadas.`);
-      } else {
-        throw new Error(response.data.message || "Falha ao buscar estratégias da API.");
-      }
-    } catch (error: any) {
-      logger.error(`[${componentInstanceId}] Erro ao buscar estratégias salvas:`, error);
-      setFetchStrategiesError(error.response?.data?.message || error.message || "Ocorreu um erro ao buscar as estratégias.");
-      setSavedStrategies([]); // Limpar estratégias em caso de erro
-    } finally {
-      setIsLoadingStrategies(false);
-    }
-  }, [componentInstanceId, logger]); // Adicionado logger
-
-  // <<< useEffect PARA BUSCAR ESTRATÉGIAS QUANDO O MODAL ABRIR >>>
-  useEffect(() => {
-    if (isStrategyModalOpen) {
-      fetchSavedStrategies();
-    }
-  }, [isStrategyModalOpen, fetchSavedStrategies]);
-  
-  // Função para limpar mensagens ao fechar o modal de criação/gerenciamento
-  useEffect(() => {
-    if (!isStrategyModalOpen) {
-        setSaveStrategyError(null);
-        setSaveStrategySuccess(null);
-        setFetchStrategiesError(null); // Limpar erro de busca ao fechar
-        setDeleteStrategyError(null);  // Limpar erro de deleção ao fechar
-        setDeleteStrategySuccess(null); // Limpar sucesso de deleção ao fechar
-        // Não limpar strategyName e conditions aqui, caso o usuário queira reabrir e continuar editando
-        // A menos que tenha sido um salvamento bem sucedido.
-    }
-  }, [isStrategyModalOpen]);
-
-  // <<< FUNÇÃO PARA EXCLUIR ESTRATÉGIA (ESQUELETO) >>>
-  const handleDeleteStrategy = useCallback(async (strategyId: string) => {
-    if (!strategyId) return;
-    logger.info(`[${componentInstanceId}] Tentando excluir estratégia ID: ${strategyId}`);
-    setDeletingStrategyId(strategyId); // Para feedback visual
-    setDeleteStrategyError(null);
-    setDeleteStrategySuccess(null);
-
-    try {
-      const response = await axios.delete(`/api/strategies?id=${strategyId}`);
-      if (response.data && response.data.success) {
-        logger.info(`[${componentInstanceId}] Estratégia ${strategyId} excluída com sucesso.`);
-        setDeleteStrategySuccess("Estratégia excluída com sucesso!");
-        // Atualizar a lista de estratégias
-        fetchSavedStrategies(); 
-      } else {
-        throw new Error(response.data.message || "Falha ao excluir estratégia na API.");
-      }
-    } catch (error: any) {
-      logger.error(`[${componentInstanceId}] Erro ao excluir estratégia ${strategyId}:`, error);
-      setDeleteStrategyError(error.response?.data?.message || error.message || "Ocorreu um erro ao excluir a estratégia.");
-    } finally {
-      setDeletingStrategyId(null); // Limpar ID de deleção
-    }
-  }, [componentInstanceId, logger, fetchSavedStrategies]); // Adicionado logger e fetchSavedStrategies
 
   return (
     <div className="w-full rounded-lg overflow-y-auto max-h-screen border-l border-border">
