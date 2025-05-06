@@ -1,5 +1,5 @@
-import connectToDatabase from '../../lib/mongodb'; // ATENÇÃO: Ajuste este caminho!
-import Strategy from '../../models/Strategy'; // ATENÇÃO: Ajuste este caminho e crie este modelo!
+import connectToDatabase from '../../lib/mongodb'; // Caminho para o helper de conexão
+import Strategy from '../../models/Strategy';   // Caminho para o modelo Mongoose/DB
 
 export default async function handler(req, res) {
   const { method } = req;
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
 
         res.status(201).json({ success: true, data: strategy, message: "Estratégia salva com sucesso!" });
       } catch (error) {
-        console.error("Erro ao salvar estratégia no backend:", error);
+        console.error("Erro ao salvar estratégia no backend (POST /api/strategies):", error);
         // Verifica se é um erro de validação do Mongoose
         if (error.name === 'ValidationError') {
             const messages = Object.values(error.errors).map(val => val.message);
