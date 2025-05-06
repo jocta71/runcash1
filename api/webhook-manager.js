@@ -37,6 +37,16 @@ module.exports = async (req, res) => {
 
 // Função para lidar com webhooks
 async function handleWebhook(req, res) {
+  // Para requisições GET (verificação do webhook)
+  if (req.method === 'GET') {
+    return res.status(200).json({ 
+      status: 'ok',
+      message: 'Webhook do Asaas está ativo. Use POST para enviar eventos.',
+      timestamp: new Date().toISOString(),
+      environment: process.env.ASAAS_ENVIRONMENT || 'sandbox'
+    });
+  }
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
