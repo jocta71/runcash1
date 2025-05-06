@@ -623,6 +623,11 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   // <<< NOVO ESTADO para as condições da estratégia >>>
   const [strategyConditions, setStrategyConditions] = useState<StrategyCondition[]>([]);
 
+  // <<< NOVOS ESTADOS PARA SALVAMENTO >>>
+  const [isSavingStrategy, setIsSavingStrategy] = useState(false);
+  const [saveStrategyError, setSaveStrategyError] = useState<string | null>(null);
+  const [saveStrategySuccess, setSaveStrategySuccess] = useState<string | null>(null);
+
   // Esta função será chamada pelo listener do 'update' do UnifiedClient
   const processRouletteUpdate = useCallback((updatedRouletteData: any) => {
     if (!updatedRouletteData || !Array.isArray(updatedRouletteData.numero)) {
@@ -1039,30 +1044,79 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   };
   
   // <<< FUNÇÃO para salvar estratégia (atualizada para incluir conditions) >>>
-  const handleSaveStrategy = () => {
-    const newStrategy = {
-      id: uniqueId('strategy-'),
-      name: strategyName,
-      conditions: strategyConditions
-    };
-    console.log("Salvando estratégia:", newStrategy);
-    
-    // Salvar no localStorage (exemplo)
-    try {
-      const savedStrategies = JSON.parse(localStorage.getItem('rouletteStrategies') || '[]');
-      savedStrategies.push(newStrategy);
-      localStorage.setItem('rouletteStrategies', JSON.stringify(savedStrategies));
-      logger.info(`Estratégia '${strategyName}' salva localmente.`);
-    } catch (error) {
-        logger.error("Erro ao salvar estratégia no localStorage:", error);
-        // TODO: Mostrar erro para o usuário?
+  const handleSaveStrategy = async () => {
+    // Limpar mensagens anteriores e definir estado de carregamento
+    setSaveStrategyError(null);
+    setSaveStrategySuccess(null);
+    setIsSavingStrategy(true);
+
+    // Validação básica
+    if (!strategyName.trim()) {
+      setSaveStrategyError("Por favor, dê um nome à sua estratégia.");
+      setIsSavingStrategy(false);
+      return;
+    }
+    if (strategyConditions.length === 0) {
+      setSaveStrategyError("Adicione pelo menos uma condição à sua estratégia.");
+      setIsSavingStrategy(false);
+      return;
+    }
+    // Validar se todas as condições têm tipo, operador e valor preenchidos
+    for (const condition of strategyConditions) {
+      if (!condition.type || !condition.operator || condition.value === '' || condition.value === undefined || condition.value === null) {
+        // Para tipos complexos, value é um objeto
+        if (typeof condition.value === 'object' && condition.value !== null) {
+          const complexValue = condition.value as { color: string; count: number | null };
+          if (!complexValue.color || complexValue.count === null || complexValue.count === undefined) {
+            setSaveStrategyError(`Condição inválida: ${conditionTypes.find(ct => ct.value === condition.type)?.label || 'Tipo desconhecido'} requer cor e contagem.`);
+            setIsSavingStrategy(false);
+            return;
+          }
+        } else if (typeof condition.value !== 'object') { // Para tipos simples
+          setSaveStrategyError(`Preencha todos os campos para cada condição (Tipo, Operador, Valor).`);
+          setIsSavingStrategy(false);
+          return;
+        }
+      }
     }
 
-    // Resetar e fechar modal
-    setIsStrategyModalOpen(false); 
-    setStrategyName(""); 
-    setStrategyConditions([]); // Limpa condições
+    try {
+      logger.info(`[${componentInstanceId}] Salvando estratégia: ${strategyName}`);
+      const response = await axios.post('/api/strategies', {
+        name: strategyName,
+        conditions: strategyConditions,
+        roletaId: roletaId, // Opcional: associar estratégia a uma roleta específica se fizer sentido
+      });
+
+      if (response.status === 201 || response.status === 200) {
+        setSaveStrategySuccess("Estratégia salva com sucesso!");
+        // Limpar campos e fechar modal após um tempo?
+        setStrategyName('');
+        setStrategyConditions([]);
+        // setTimeout(() => {
+        //   setIsStrategyModalOpen(false);
+        //   setSaveStrategySuccess(null); // Limpa a msg de sucesso ao fechar
+        // }, 2000);
+      } else {
+        throw new Error(response.data.message || "Erro ao salvar estratégia.");
+      }
+    } catch (error: any) {
+      logger.error(`[${componentInstanceId}] Erro ao salvar estratégia:`, error);
+      setSaveStrategyError(error.response?.data?.message || error.message || "Ocorreu um erro desconhecido.");
+    } finally {
+      setIsSavingStrategy(false);
+    }
   };
+
+  // Função para limpar mensagens ao fechar o modal
+  useEffect(() => {
+    if (!isStrategyModalOpen) {
+        setSaveStrategyError(null);
+        setSaveStrategySuccess(null);
+        // Não limpar strategyName e conditions aqui, caso o usuário queira reabrir e continuar editando
+        // A menos que tenha sido um salvamento bem sucedido.
+    }
+  }, [isStrategyModalOpen]);
 
   return (
     <div className="w-full rounded-lg overflow-y-auto max-h-screen border-l border-border">
@@ -1189,11 +1243,36 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                  <PlusCircle size={14} className="mr-2" /> Adicionar Condição
                </Button>
             </div>
-            <DialogFooter>
+            
+            {/* <<< MENSAGENS DE FEEDBACK DE SALVAMENTO >>> */}
+            {saveStrategyError && (
+                <p className="text-sm text-red-500 bg-red-500/10 p-3 rounded-md border border-red-500/30 mt-3">
+                    {saveStrategyError}
+                </p>
+            )}
+            {saveStrategySuccess && (
+                <p className="text-sm text-green-500 bg-green-500/10 p-3 rounded-md border border-green-500/30 mt-3">
+                    {saveStrategySuccess}
+                </p>
+            )}
+
+            <DialogFooter className="mt-4">
               <DialogClose asChild>
-                 <Button type="button" variant="secondary">Cancelar</Button>
+                <Button variant="outline" onClick={() => {
+                    // Opcional: Limpar campos se não salvou com sucesso ao fechar manualmente
+                    // if (!saveStrategySuccess) {
+                    //   setStrategyName('');
+                    //   setStrategyConditions([]);
+                    // }
+                }}>Fechar</Button>
               </DialogClose>
-              <Button type="button" onClick={handleSaveStrategy} disabled={!strategyName.trim()}>Salvar Estratégia</Button> { /* Desabilita se não tiver nome */}
+              <Button 
+                onClick={handleSaveStrategy} 
+                disabled={isSavingStrategy}
+              >
+                {/* Simplificando o conteúdo para depuração do erro de tipo */}
+                {isSavingStrategy ? "Salvando..." : "Salvar Estratégia"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
