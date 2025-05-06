@@ -1,4 +1,4 @@
-import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle, Trash2, Settings2 } from "lucide-react";
+import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle, Trash2, Settings2, AlertCircle, CheckCircle } from "lucide-react";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   ResponsiveContainer,
@@ -579,7 +579,17 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
   }
 };
 
-const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({ 
+// <<< NOVA INTERFACE PARA ESTRATÉGIAS SALVAS >>>
+interface SavedStrategy {
+  _id: string; // MongoDB ID
+  name: string;
+  conditions: StrategyCondition[]; // Reutiliza a interface StrategyCondition
+  roletaId?: string;
+  createdAt: string; // Ou Date, dependendo de como a API retorna
+  updatedAt: string; // Ou Date
+}
+
+export const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({ 
   roletaId,
   roletaNome, 
   lastNumbers, 
@@ -592,42 +602,37 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
   const [visibleNumbersCount, setVisibleNumbersCount] = useState(44);
   const [colorFilter, setColorFilter] = useState<ColorFilter>('todos');
   const isInitialRequestDone = useRef(false);
-
-  // Obter instância do UnifiedClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
-  
-  // Estados para os filtros avançados
   const [hasActiveFilters, setHasActiveFilters] = useState(false);
   const [selectedColor, setSelectedColor] = useState('todas');
   const [selectedNumber, setSelectedNumber] = useState<SelectedNumberState>(null);
   const [selectedParity, setSelectedParity] = useState('todas');
-  const [selectedTime, setSelectedTime] = useState('todos');
-  const [selectedProvider, setSelectedProvider] = useState('todos');
+  const [selectedTime, setSelectedTime] = useState('todas');
+  const [selectedProvider, setSelectedProvider] = useState('todas');
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
-  
-  // Novo estado para controlar apenas o destaque visual dos números
   const [highlightedNumber, setHighlightedNumber] = useState<SelectedNumberState>(null);
-
-  // <<< NOVOS ESTADOS para a IA >>>
   const [aiQuery, setAiQuery] = useState("");
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [componentInstanceId, setComponentInstanceId] = useState(uniqueId('roulette-side-panel-'));
   
-  const componentInstanceId = useRef(uniqueId('panel-stats-')).current;
-
-  // <<< NOVO ESTADO para o modal de estratégia >>>
+  // Estados para o formulário de criação de estratégia
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
-  const [strategyName, setStrategyName] = useState(""); // Estado para o nome da estratégia
-
-  // <<< NOVO ESTADO para as condições da estratégia >>>
+  const [strategyName, setStrategyName] = useState('');
   const [strategyConditions, setStrategyConditions] = useState<StrategyCondition[]>([]);
-
-  // <<< NOVOS ESTADOS PARA SALVAMENTO >>>
   const [isSavingStrategy, setIsSavingStrategy] = useState(false);
   const [saveStrategyError, setSaveStrategyError] = useState<string | null>(null);
   const [saveStrategySuccess, setSaveStrategySuccess] = useState<string | null>(null);
 
+  // <<< NOVOS ESTADOS PARA GERENCIAR ESTRATÉGIAS SALVAS >>>
+  const [savedStrategies, setSavedStrategies] = useState<SavedStrategy[]>([]);
+  const [isLoadingStrategies, setIsLoadingStrategies] = useState(false);
+  const [fetchStrategiesError, setFetchStrategiesError] = useState<string | null>(null);
+  const [deleteStrategyError, setDeleteStrategyError] = useState<string | null>(null);
+  const [deleteStrategySuccess, setDeleteStrategySuccess] = useState<string | null>(null);
+  const [deletingStrategyId, setDeletingStrategyId] = useState<string | null>(null); // Para feedback no botão de excluir
+  
   // Esta função será chamada pelo listener do 'update' do UnifiedClient
   const processRouletteUpdate = useCallback((updatedRouletteData: any) => {
     if (!updatedRouletteData || !Array.isArray(updatedRouletteData.numero)) {
@@ -688,10 +693,11 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         return currentNumbers;
     });
 
-  }, [roletaNome]);
+  }, [roletaNome, logger]);
 
   useEffect(() => {
-    logger.info(`Inicializando ou atualizando painel para ${roletaNome}`);
+    setComponentInstanceId(uniqueId('roulette-side-panel-')); // Gerar novo ID ao montar ou mudar roletaId
+    logger.info(`[${componentInstanceId}] Inicializando ou atualizando painel para ${roletaNome} (Roleta ID: ${roletaId})`);
     setIsLoading(true);
     isInitialRequestDone.current = false; // Resetar flag ao mudar de roleta
     setHistoricalNumbers([]); // Limpar números da roleta anterior
@@ -700,14 +706,14 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     const preloadedData = unifiedClient.getPreloadedHistory(roletaNome);
 
     if (preloadedData && preloadedData.length > 0) {
-      logger.info(`Usando ${preloadedData.length} números pré-carregados para ${roletaNome}`);
+      logger.info(`[${componentInstanceId}] Usando ${preloadedData.length} números pré-carregados para ${roletaNome}`);
       setHistoricalNumbers(preloadedData);
       setIsLoading(false);
       isInitialRequestDone.current = true;
     } else {
       // Se não houver dados pré-carregados, aguardar a busca inicial do UnifiedClient
       // ou as atualizações em tempo real. Não faremos busca específica aqui.
-      logger.warn(`Nenhum histórico pré-carregado encontrado para ${roletaNome}. Aguardando busca inicial ou atualizações...`);
+      logger.warn(`[${componentInstanceId}] Nenhum histórico pré-carregado encontrado para ${roletaNome}. Aguardando busca inicial ou atualizações...`);
       // Podemos manter isLoading=true até receber o primeiro 'update' ou 'initialHistoryLoaded'
       // Ou definir isLoading=false e mostrar mensagem "Carregando histórico..."
       setIsLoading(false); // Vamos parar o loading e confiar nas atualizações
@@ -732,10 +738,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
         // Se encontramos dados para a roleta atual, processá-los
         if (myRouletteUpdate) {
-            logger.info(`Recebido 'update' para ${roletaNome}`);
+            logger.info(`[${componentInstanceId}] Recebido 'update' para ${roletaNome}`);
              if (!isInitialRequestDone.current) {
                  // Se for a primeira atualização e não tínhamos dados pré-carregados
-                 logger.info(`Primeira atualização recebida para ${roletaNome}, preenchendo histórico inicial.`);
+                 logger.info(`[${componentInstanceId}] Primeira atualização recebida para ${roletaNome}, preenchendo histórico inicial.`);
                  // Poderia usar os dados completos da atualização aqui, se disponíveis
                  // Mas vamos confiar na lógica de `processRouletteUpdate` para adicionar
                  setIsLoading(false);
@@ -747,10 +753,10 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     
     // Assinar também o evento que sinaliza o fim do carregamento inicial (opcional, mas bom)
     const handleInitialHistoryLoaded = (allHistoryData: Map<string, RouletteNumber[]>) => {
-        logger.info(`Evento 'initialHistoryLoaded' recebido.`);
+        logger.info(`[${componentInstanceId}] Evento 'initialHistoryLoaded' recebido.`);
          const initialDataForThisRoulette = allHistoryData.get(roletaNome);
          if (initialDataForThisRoulette && historicalNumbers.length === 0) { // Só preenche se ainda não tivermos
-             logger.info(`Preenchendo histórico com dados de 'initialHistoryLoaded' para ${roletaNome}`);
+             logger.info(`[${componentInstanceId}] Preenchendo histórico com dados de 'initialHistoryLoaded' para ${roletaNome}`);
              setHistoricalNumbers(initialDataForThisRoulette);
          }
          setIsLoading(false); // Garantir que o loading pare aqui
@@ -758,7 +764,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     };
     
      const handleInitialHistoryError = (error: any) => {
-         logger.error(`Erro ao carregar histórico inicial reportado pelo UnifiedClient:`, error);
+         logger.error(`[${componentInstanceId}] Erro ao carregar histórico inicial reportado pelo UnifiedClient:`, error);
          setIsLoading(false); // Parar o loading mesmo em caso de erro
          isInitialRequestDone.current = true;
      };
@@ -770,12 +776,12 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
 
     // Limpar inscrição ao desmontar ou mudar de roleta
     return () => {
-      logger.info(`Desmontando listener para ${roletaNome}`);
+      logger.info(`[${componentInstanceId}] Desmontando listener para ${roletaNome}`);
       unsubscribeUpdate();
       unsubscribeInitialLoad();
       unsubscribeInitialError();
     };
-  }, [roletaNome, unifiedClient, processRouletteUpdate]);
+  }, [roletaId, roletaNome, unifiedClient, processRouletteUpdate, componentInstanceId, logger, historicalNumbers.length]);
 
   // Função para mostrar mais números
   const handleShowMore = () => {
@@ -1179,6 +1185,88 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
     }
   }, [isStrategyModalOpen]);
 
+  // <<< NOVA FUNÇÃO PARA BUSCAR ESTRATÉGIAS SALVAS >>>
+  const fetchSavedStrategies = useCallback(async () => {
+    logger.info(`[${componentInstanceId}] Buscando estratégias salvas...`);
+    setIsLoadingStrategies(true);
+    setFetchStrategiesError(null);
+    setDeleteStrategyError(null);
+    setDeleteStrategySuccess(null);
+    try {
+      const response = await axios.get('/api/strategies');
+      if (response.data && response.data.success) {
+        setSavedStrategies(response.data.data);
+        logger.info(`[${componentInstanceId}] ${response.data.data.length} estratégias carregadas.`);
+      } else {
+        throw new Error(response.data.message || "Falha ao buscar estratégias da API.");
+      }
+    } catch (error: any) {
+      logger.error(`[${componentInstanceId}] Erro ao buscar estratégias salvas:`, error);
+      setFetchStrategiesError(error.response?.data?.message || error.message || "Ocorreu um erro ao buscar as estratégias.");
+      setSavedStrategies([]);
+    } finally {
+      setIsLoadingStrategies(false);
+    }
+  }, [componentInstanceId, logger]);
+
+  // <<< useEffect PARA BUSCAR ESTRATÉGIAS QUANDO O MODAL ABRIR >>>
+  useEffect(() => {
+    if (isStrategyModalOpen) {
+      fetchSavedStrategies();
+    }
+  }, [isStrategyModalOpen, fetchSavedStrategies]);
+  
+  // Função para limpar mensagens ao fechar o modal de criação/gerenciamento
+  useEffect(() => {
+    if (!isStrategyModalOpen) {
+        setSaveStrategyError(null);
+        setSaveStrategySuccess(null);
+        setFetchStrategiesError(null); 
+        setDeleteStrategyError(null);  
+        setDeleteStrategySuccess(null); 
+    }
+  }, [isStrategyModalOpen]);
+
+  // <<< FUNÇÃO PARA EXCLUIR ESTRATÉGIA >>>
+  const handleDeleteStrategy = useCallback(async (strategyId: string) => {
+    if (!strategyId) return;
+    logger.info(`[${componentInstanceId}] Tentando excluir estratégia ID: ${strategyId}`);
+    setDeletingStrategyId(strategyId); 
+    setDeleteStrategyError(null);
+    setDeleteStrategySuccess(null);
+    try {
+      const response = await axios.delete(`/api/strategies?id=${strategyId}`);
+      if (response.data && response.data.success) {
+        logger.info(`[${componentInstanceId}] Estratégia ${strategyId} excluída com sucesso.`);
+        setDeleteStrategySuccess("Estratégia excluída com sucesso!");
+        fetchSavedStrategies(); 
+      } else {
+        throw new Error(response.data.message || "Falha ao excluir estratégia na API.");
+      }
+    } catch (error: any) {
+      logger.error(`[${componentInstanceId}] Erro ao excluir estratégia ${strategyId}:`, error);
+      setDeleteStrategyError(error.response?.data?.message || error.message || "Ocorreu um erro ao excluir a estratégia.");
+    } finally {
+      setDeletingStrategyId(null); 
+    }
+  }, [componentInstanceId, logger, fetchSavedStrategies]);
+
+  // Função para formatar data (exemplo simples)
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      logger.warn("Erro ao formatar data:", dateString, e);
+      return dateString; 
+    }
+  };
+
   return (
     <div className="w-full rounded-lg overflow-y-auto max-h-screen border-l border-border">
       <div className="p-5 border-b border-gray-800 bg-opacity-40 flex justify-between items-center">
@@ -1191,149 +1279,153 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
           </p>
         </div>
         
-        {/* <<< BOTÃO PARA ABRIR MODAL DE ESTRATÉGIA >>> */}
         <Dialog open={isStrategyModalOpen} onOpenChange={setIsStrategyModalOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" className="w-full">
               <Settings2 className="mr-2 h-4 w-4" /> Gerenciar Estratégias
             </Button>
           </DialogTrigger>
-          {/* REMOVER QUALQUER CLASSE z-index ALTA EXPLÍCITA DAQUI */}
-          <DialogContent className="sm:max-w-[600px] bg-card border-border">
+          <DialogContent className="sm:max-w-[600px] bg-card border-border flex flex-col max-h-[90vh]">
             <DialogHeader>
-              <DialogTitle>Criar Nova Estratégia</DialogTitle>
+              <DialogTitle>Gerenciar Estratégias</DialogTitle>
               <DialogDescription>
-                Defina um nome e adicione condições para sua estratégia.
+                Crie novas estratégias ou gerencie as existentes.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              {/* Input Nome */}
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="strategy-name" className="text-right">
-                  Nome
-                </Label>
-                <Input 
-                  id="strategy-name" 
-                  value={strategyName}
-                  onChange={(e) => setStrategyName(e.target.value)}
-                  placeholder="Ex: Martingale reverso na cor"
-                  className="col-span-3 bg-input border-border"
-                />
-              </div>
-              
-              {/* --- Área das Condições --- */}
-              <Separator className="my-2" />
-              <div className="space-y-3 max-h-[calc(100vh-350px)] min-h-[150px] overflow-y-auto pr-1">
-                <Label>Condições (Gatilhos)</Label>
-                {strategyConditions.length === 0 && (
-                  <p className="text-sm text-muted-foreground p-3 border border-dashed border-border rounded-md text-center">
-                    Clique em "Adicionar Condição" para começar.
-                  </p>
-                )}
-                
-                {/* Mapear e renderizar cada condição (ATUALIZADO) */}
-                {strategyConditions.map((condition) => (
-                  <div key={condition.id} className="flex items-start space-x-2 p-3 border border-border rounded-md">
-                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                       {/* SELECT TIPO - value direto, placeholder no SelectValue */}
-                      <Select
-                         value={condition.type} // <<< USA undefined DIRETAMENTE
-                         onValueChange={(value) => updateCondition(condition.id, 'type', value)}
-                      >
-                         <SelectTrigger className="bg-input border-border h-9 text-sm">
-                           <SelectValue placeholder="Tipo..." />
-                         </SelectTrigger>
-                         <SelectContent className="bg-card border-border text-white z-[9999]">
-                            {/* REMOVIDO SelectItem value="" disabled */}
-                            {conditionTypes.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                         </SelectContent>
-                       </Select>
-
-                       {/* SELECT OPERADOR - value direto, placeholder no SelectValue */}
-                      <Select
-                         value={condition.operator} // <<< USA undefined DIRETAMENTE
-                         onValueChange={(value) => updateCondition(condition.id, 'operator', value)}
-                         disabled={!condition.type} // Desabilita se o tipo não foi escolhido
-                      >
-                         <SelectTrigger className="bg-input border-border h-9 text-sm">
-                           <SelectValue placeholder="Operador..." />
-                         </SelectTrigger>
-                         <SelectContent className="bg-card border-border text-white z-[9999]">
-                           {!condition.type ? (
-                             <SelectItem value="placeholder_no_type_operator" disabled>
-                               Selecione um tipo primeiro
-                             </SelectItem>
-                           ) : (operatorsByType[condition.type] || []).length === 0 ? (
-                             <SelectItem value="placeholder_no_operators_for_type" disabled>
-                               N/A para este tipo
-                             </SelectItem>
-                           ) : (
-                             (operatorsByType[condition.type] || []).map(op => (
-                               <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
-                             ))
-                           )}
-                         </SelectContent>
-                       </Select>
-
-                       {/* INPUT VALOR (DINÂMICO) */}
-                       {/* Wrapper div para manter altura consistente */}
-                       <div className="h-9">
-                           <ConditionValueInput
-                             conditionType={condition.type || ''} // Passa '' se undefined para compatibilidade interna do switch
-                             operator={condition.operator || ''} // Passa '' se undefined
-                             value={condition.value}
-                             onChange={(newValue) => updateCondition(condition.id, 'value', newValue)}
-                             disabled={!condition.operator || !condition.type}
-                           />
-                       </div>
-                    </div>
-                    {/* Botão Remover */}
-                     <Button
-                       variant="ghost"
-                       size="icon"
-                       onClick={() => removeCondition(condition.id)}
-                       className="text-muted-foreground hover:text-destructive h-8 w-8 mt-0.5" // Ajuste margem
-                     >
-                      <Trash2 size={16} />
-                    </Button>
-                  </div>
-                 ))}
-               </div>
-               {/* <<< BOTÃO ADICIONAR CONDIÇÃO RESTAURADO >>> */}
-               <Button variant="outline" size="sm" onClick={addCondition} className="mt-2 justify-start">
-                 <PlusCircle size={14} className="mr-2" /> Adicionar Condição
-               </Button>
-            </div>
             
-            {/* <<< MENSAGENS DE FEEDBACK DE SALVAMENTO >>> */}
-            {saveStrategyError && (
-                <p className="text-sm text-red-500 bg-red-500/10 p-3 rounded-md border border-red-500/30 mt-3">
-                    {saveStrategyError}
-                </p>
-            )}
-            {saveStrategySuccess && (
-                <p className="text-sm text-green-500 bg-green-500/10 p-3 rounded-md border border-green-500/30 mt-3">
-                    {saveStrategySuccess}
-                </p>
-            )}
+            <ScrollArea className="flex-grow pr-6 -mr-6">
+              {/* SEÇÃO: CRIAR NOVA ESTRATÉGIA */}
+              <div className="grid gap-4 py-4">
+                <Label className="text-lg font-semibold text-white">Criar Nova Estratégia</Label>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="strategy-name" className="text-right">Nome</Label>
+                  <Input 
+                    id="strategy-name" 
+                    value={strategyName}
+                    onChange={(e) => setStrategyName(e.target.value)}
+                    placeholder="Ex: Martingale reverso"
+                    className="col-span-3 bg-input border-border"
+                  />
+                </div>
+                
+                <Separator className="my-1" />
+                <div className="space-y-3">
+                  <Label>Condições (Gatilhos)</Label>
+                  {strategyConditions.length === 0 && (
+                    <p className="text-sm text-muted-foreground p-3 border border-dashed border-border rounded-md text-center">
+                      Clique em "Adicionar Condição" para começar.
+                    </p>
+                  )}
+                  {strategyConditions.map((condition) => (
+                    <div key={condition.id} className="flex items-start space-x-2 p-3 border border-border rounded-md">
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <Select
+                           value={condition.type}
+                           onValueChange={(value) => updateCondition(condition.id, 'type', value)}
+                        >
+                           <SelectTrigger className="bg-input border-border h-9 text-sm"><SelectValue placeholder="Tipo..." /></SelectTrigger>
+                           <SelectContent className="bg-card border-border text-white z-[9999]">
+                              {conditionTypes.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                           </SelectContent>
+                         </Select>
+                        <Select
+                           value={condition.operator}
+                           onValueChange={(value) => updateCondition(condition.id, 'operator', value)}
+                           disabled={!condition.type}
+                        >
+                           <SelectTrigger className="bg-input border-border h-9 text-sm"><SelectValue placeholder="Operador..." /></SelectTrigger>
+                           <SelectContent className="bg-card border-border text-white z-[9999]">
+                             {!condition.type ? (
+                               <SelectItem value="placeholder_no_type_operator" disabled>Selecione um tipo</SelectItem>
+                             ) : (operatorsByType[condition.type] || []).length === 0 ? (
+                               <SelectItem value="placeholder_no_operators_for_type" disabled>N/A para este tipo</SelectItem>
+                             ) : (
+                               (operatorsByType[condition.type] || []).map(op => (
+                                 <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                               ))
+                             )}
+                           </SelectContent>
+                         </Select>
+                         <div className="h-9">
+                             <ConditionValueInput
+                               conditionType={condition.type || ''}
+                               operator={condition.operator || ''}
+                               value={condition.value}
+                               onChange={(newValue) => updateCondition(condition.id, 'value', newValue)}
+                               disabled={!condition.operator || !condition.type}
+                             />
+                         </div>
+                      </div>
+                       <Button variant="ghost" size="icon" onClick={() => removeCondition(condition.id)} className="text-muted-foreground hover:text-destructive h-8 w-8 mt-0.5"><Trash2 size={16} /></Button>
+                    </div>
+                   ))}
+                 </div>
+                 <Button variant="outline" size="sm" onClick={addCondition} className="mt-2 justify-start"><PlusCircle size={14} className="mr-2" /> Adicionar Condição</Button>
+              
+                {/* Mensagens de feedback de salvamento de nova estratégia */}
+                {saveStrategyError && <p className="text-sm text-red-500 bg-red-500/10 p-3 rounded-md border border-red-500/30 mt-3"><AlertCircle className="inline h-4 w-4 mr-1.5" />{saveStrategyError}</p>}
+                {saveStrategySuccess && <p className="text-sm text-green-500 bg-green-500/10 p-3 rounded-md border border-green-500/30 mt-3"><CheckCircle className="inline h-4 w-4 mr-1.5" />{saveStrategySuccess}</p>}
+                
+                <Button onClick={handleSaveStrategy} disabled={isSavingStrategy} className="mt-2 w-full">
+                  {isSavingStrategy ? "Salvando Nova Estratégia..." : "Salvar Nova Estratégia"}
+                </Button>
+              </div> {/* Fim da seção Criar Nova Estratégia */}
 
-            <DialogFooter className="mt-4">
+              {/* --- SEÇÃO: ESTRATÉGIAS SALVAS --- */}
+              <Separator className="my-6" />
+              <div className="space-y-4 pb-4"> {/* Adicionado pb-4 para espaço antes do footer */}
+                <Label className="text-lg font-semibold text-white">Estratégias Salvas</Label>
+                
+                {/* Feedback da listagem e exclusão de estratégias */}
+                {fetchStrategiesError && <p className="text-sm text-red-500 bg-red-500/10 p-3 rounded-md border border-red-500/30"><AlertCircle className="inline h-4 w-4 mr-1.5" />{fetchStrategiesError}</p>}
+                {deleteStrategySuccess && <p className="text-sm text-green-500 bg-green-500/10 p-3 rounded-md border border-green-500/30"><CheckCircle className="inline h-4 w-4 mr-1.5" />{deleteStrategySuccess}</p>}
+                {deleteStrategyError && <p className="text-sm text-red-500 bg-red-500/10 p-3 rounded-md border border-red-500/30"><AlertCircle className="inline h-4 w-4 mr-1.5" />{deleteStrategyError}</p>}
+
+                {isLoadingStrategies ? (
+                  <div className="space-y-2 py-4">
+                    <Skeleton className="h-12 w-full bg-muted/30 rounded-md" />
+                    <Skeleton className="h-12 w-full bg-muted/30 rounded-md" />
+                  </div>
+                ) : !fetchStrategiesError && savedStrategies.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-3 border border-dashed border-border rounded-md text-center">
+                    Nenhuma estratégia salva ainda.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
+                    {savedStrategies.map((strategy) => (
+                      <div key={strategy._id} className="flex items-center justify-between p-3 border border-border rounded-md bg-card-foreground/5 hover:bg-card-foreground/10 transition-colors">
+                        <div>
+                          <p className="font-medium text-white text-sm">{strategy.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Criada em: {formatDate(strategy.createdAt)}
+                            {strategy.roletaId && ` (Roleta: ${strategy.roletaId})`}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteStrategy(strategy._id)}
+                          disabled={deletingStrategyId === strategy._id}
+                          className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0" // shrink-0 para não encolher
+                          aria-label="Excluir estratégia"
+                        >
+                          {deletingStrategyId === strategy._id ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"></div>
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div> {/* Fim da seção Estratégias Salvas */}
+            </ScrollArea>
+
+            <DialogFooter className="mt-auto pt-4 border-t border-border">
               <DialogClose asChild>
-                <Button variant="outline" onClick={() => {
-                    // Opcional: Limpar campos se não salvou com sucesso ao fechar manualmente
-                    // if (!saveStrategySuccess) {
-                    //   setStrategyName('');
-                    //   setStrategyConditions([]);
-                    // }
-                }}>Fechar</Button>
+                <Button variant="outline">Fechar</Button>
               </DialogClose>
-              <Button 
-                onClick={handleSaveStrategy} 
-                disabled={isSavingStrategy}
-              >
-                {/* Simplificando o conteúdo para depuração do erro de tipo */}
-                {isSavingStrategy ? "Salvando..." : "Salvar Estratégia"}
-              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
