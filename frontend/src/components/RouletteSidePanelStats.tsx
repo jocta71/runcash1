@@ -433,7 +433,7 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
             disabled={disabled}
         >
           <SelectTrigger className={commonProps.className}><SelectValue placeholder="Cor..." /></SelectTrigger>
-          <SelectContent className="bg-card border-border text-white">
+          <SelectContent className="bg-card border-border text-white z-[9999]">
             {colorOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -474,7 +474,7 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
         return (
          <Select value={value || ''} onValueChange={onChange} disabled={disabled}>
              <SelectTrigger className={commonProps.className}><SelectValue placeholder="Paridade..." /></SelectTrigger>
-             <SelectContent className="bg-card border-border text-white">
+             <SelectContent className="bg-card border-border text-white z-[9999]">
                  {parityOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
              </SelectContent>
          </Select>
@@ -483,7 +483,7 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
         return (
          <Select value={value || ''} onValueChange={onChange} disabled={disabled}>
              <SelectTrigger className={commonProps.className}><SelectValue placeholder="Dúzia..." /></SelectTrigger>
-             <SelectContent className="bg-card border-border text-white">
+             <SelectContent className="bg-card border-border text-white z-[9999]">
                  {dozenOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
              </SelectContent>
          </Select>
@@ -492,7 +492,7 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
          return (
           <Select value={value || ''} onValueChange={onChange} disabled={disabled}>
               <SelectTrigger className={commonProps.className}><SelectValue placeholder="Coluna..." /></SelectTrigger>
-              <SelectContent className="bg-card border-border text-white">
+              <SelectContent className="bg-card border-border text-white z-[9999]">
                   {columnOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
           </Select>
@@ -501,7 +501,7 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
          return (
           <Select value={value || ''} onValueChange={onChange} disabled={disabled}>
               <SelectTrigger className={commonProps.className}><SelectValue placeholder="Metade..." /></SelectTrigger>
-              <SelectContent className="bg-card border-border text-white">
+              <SelectContent className="bg-card border-border text-white z-[9999]">
                   {highLowOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
           </Select>
@@ -548,7 +548,7 @@ const ConditionValueInput: React.FC<ConditionValueInputProps> = ({
                     disabled={disabled}
                 >
                     <SelectTrigger className={commonProps.className}><SelectValue placeholder="Cor..." /></SelectTrigger>
-                    <SelectContent className="bg-card border-border text-white">
+                    <SelectContent className="bg-card border-border text-white z-[9999]">
                          {streakMissColorOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                      </SelectContent>
                 </Select>
@@ -1079,11 +1079,11 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
         {/* <<< BOTÃO PARA ABRIR MODAL DE ESTRATÉGIA >>> */}
         <Dialog open={isStrategyModalOpen} onOpenChange={setIsStrategyModalOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 px-2 text-xs">
-              <PlusCircle size={14} className="mr-1" />
-              Criar Estratégia
+            <Button variant="outline" className="w-full">
+              <Settings2 className="mr-2 h-4 w-4" /> Gerenciar Estratégias
             </Button>
           </DialogTrigger>
+          {/* REMOVER QUALQUER CLASSE z-index ALTA EXPLÍCITA DAQUI */}
           <DialogContent className="sm:max-w-[600px] bg-card border-border">
             <DialogHeader>
               <DialogTitle>Criar Nova Estratégia</DialogTitle>
@@ -1128,7 +1128,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                          <SelectTrigger className="bg-input border-border h-9 text-sm">
                            <SelectValue placeholder="Tipo..." />
                          </SelectTrigger>
-                         <SelectContent className="bg-card border-border text-white">
+                         <SelectContent className="bg-card border-border text-white z-[9999]">
                             {/* REMOVIDO SelectItem value="" disabled */}
                             {conditionTypes.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                          </SelectContent>
@@ -1143,7 +1143,7 @@ const RouletteSidePanelStats: React.FC<RouletteSidePanelStatsProps> = ({
                          <SelectTrigger className="bg-input border-border h-9 text-sm">
                            <SelectValue placeholder="Operador..." />
                          </SelectTrigger>
-                         <SelectContent className="bg-card border-border text-white">
+                         <SelectContent className="bg-card border-border text-white z-[9999]">
                            {!condition.type ? (
                              <SelectItem value="placeholder_no_type_operator" disabled>
                                Selecione um tipo primeiro
