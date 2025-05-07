@@ -44,10 +44,6 @@ class RoletasDataSource:
         self.DB_ORIGINAL = "runcash"     # Banco original para compatibilidade
         self.DB_ROLETAS = "roletas_db"   # Banco otimizado para roletas
         
-        logger.info(f"RoletasDataSource: Tentando conectar a {self.MONGODB_URI}")
-        logger.info(f"RoletasDataSource: Banco de dados principal configurado para operações de roleta: '{self.DB_ROLETAS}'")
-        logger.info(f"RoletasDataSource: Banco de dados original para compatibilidade: '{self.DB_ORIGINAL}'")
-
         try:
             # Conectar ao MongoDB Atlas
             logger.info(f"Conectando ao MongoDB Atlas...")
@@ -81,11 +77,10 @@ class RoletasDataSource:
         dbs = self.client.list_database_names()
         
         if self.DB_ROLETAS not in dbs:
-            logger.error(f"RoletasDataSource CRÍTICO: Banco de dados '{self.DB_ROLETAS}' NÃO encontrado! As operações principais de roleta falharão ou usarão um contexto inesperado. Execute o script de criação do banco primeiro.")
-            # Considerar levantar uma exceção aqui se o banco é estritamente necessário para operar
-            # raise Exception(f"Banco de dados {self.DB_ROLETAS} não encontrado.")
+            logger.warning(f"Banco de dados '{self.DB_ROLETAS}' não encontrado! Execute o script criar_banco_roletas.py primeiro.")
+            # Não levanta exceção, continua com fluxo alternativo
         else:
-            logger.info(f"RoletasDataSource: Banco de dados '{self.DB_ROLETAS}' confirmado e pronto para uso.")
+            logger.info(f"Banco de dados '{self.DB_ROLETAS}' encontrado e pronto para uso.")
     
     def _mapear_colecoes_roletas(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -147,7 +142,6 @@ class RoletasDataSource:
         Returns:
             str: ID da roleta no MongoDB
         """
-        logger.debug(f"RoletasDataSource: Garantindo roleta {roleta_id} ({roleta_nome}) no banco '{self.DB_ROLETAS}'")
         try:
             # Gerar UUID determinístico
             roleta_id_hash = hashlib.md5(str(roleta_id).encode()).hexdigest()
@@ -263,10 +257,10 @@ class RoletasDataSource:
     def inserir_numero(self, roleta_id: str, roleta_nome: str, numero: int, 
                       cor: str = None, timestamp: str = None) -> bool:
         """
-        Insere um novo número na coleção apropriada no banco de roletas.
+        Insere um novo número para uma roleta
         
         Args:
-            roleta_id (str): ID da roleta (deve ser o ID numérico puro)
+            roleta_id (str): ID da roleta
             roleta_nome (str): Nome da roleta
             numero (int): Número sorteado
             cor (str, optional): Cor do número. Defaults to None.
@@ -275,8 +269,6 @@ class RoletasDataSource:
         Returns:
             bool: True se inserido com sucesso, False caso contrário
         """
-        logger.debug(f"RoletasDataSource: Tentando inserir número {numero} para roleta {roleta_id} ({roleta_nome}) no banco '{self.DB_ROLETAS}'")
-        
         try:
             # Garantir que roleta existe
             self.garantir_roleta_existe(roleta_id, roleta_nome)
@@ -379,10 +371,10 @@ class RoletasDataSource:
     def obter_numeros(self, roleta_id: str, limite: int = 100, 
                       data_inicio: datetime = None, data_fim: datetime = None) -> List[Dict[str, Any]]:
         """
-        Obtém os últimos números de uma roleta específica do banco de roletas.
+        Obtém os últimos números de uma roleta
         
         Args:
-            roleta_id (str): ID da roleta (deve ser o ID numérico puro)
+            roleta_id (str): ID da roleta
             limite (int, optional): Limite de registros. Defaults to 100.
             data_inicio (datetime, optional): Data inicial. Defaults to None.
             data_fim (datetime, optional): Data final. Defaults to None.
@@ -390,8 +382,6 @@ class RoletasDataSource:
         Returns:
             List[Dict[str, Any]]: Lista de números
         """
-        logger.debug(f"RoletasDataSource: Obtendo números para roleta {roleta_id} do banco '{self.DB_ROLETAS}', limite {limite}")
-        
         try:
             # Obter informações da coleção
             info_roleta = self.mapeamento_roletas.get(roleta_id)
@@ -436,16 +426,15 @@ class RoletasDataSource:
     
     def atualizar_estatisticas(self, roleta_id: str, roleta_nome: str) -> bool:
         """
-        Atualiza estatísticas para uma roleta no banco de roletas.
+        Atualiza estatísticas para uma roleta
         
         Args:
-            roleta_id (str): ID da roleta (deve ser o ID numérico puro)
+            roleta_id (str): ID da roleta
             roleta_nome (str): Nome da roleta
             
         Returns:
             bool: True se atualizado com sucesso, False caso contrário
         """
-        logger.debug(f"RoletasDataSource: Atualizando estatísticas para roleta {roleta_id} ({roleta_nome}) no banco '{self.DB_ROLETAS}'")
         try:
             # Obter informações da coleção
             info_roleta = self.mapeamento_roletas.get(roleta_id)

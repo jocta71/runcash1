@@ -39,14 +39,20 @@ print("=" * 80 + "\n")
 # Verificar se estamos em ambiente de produção
 IS_PRODUCTION = os.environ.get('PRODUCTION', False)
 
+# Adicionar o diretório pai ao PATH para importar módulos
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
 # Importar os módulos do scraper
 try:
     from scraper_mongodb import scrape_roletas
-    from data_source_mongo import MongoDataSource
-    import mongo_config
+    # Substituir o import de MongoDataSource por ScraperAdapter
+    from adaptar_scraper_roletas_db import ScraperAdapter
     print("[INFO] ✅ Módulos do scraper importados com sucesso")
 except ImportError as e:
     print(f"[ERRO CRÍTICO] ❌ Erro ao importar módulos do scraper: {str(e)}")
+    traceback.print_exc()
     sys.exit(1)
 
 # Flag para controle de início/parada
@@ -76,8 +82,8 @@ def main():
         logger.info(f"📅 Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         # Verificar variáveis de ambiente
-        mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/runcash')
-        db_name = os.environ.get('MONGODB_DB_NAME', 'runcash')
+        mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash')
+        db_name = os.environ.get('MONGODB_DB_NAME', 'roletas_db')  # Alterado para usar roletas_db
         min_cycle_time = int(os.environ.get('MIN_CYCLE_TIME', 10))  # Tempo mínimo entre ciclos
         max_errors = int(os.environ.get('MAX_ERRORS', 5))  # Máximo de erros antes de reiniciar
         
@@ -86,9 +92,8 @@ def main():
         logger.info(f"📊 Nome do banco de dados: {db_name}")
         logger.info(f"⏱️ Tempo mínimo entre ciclos: {min_cycle_time} segundos")
         
-        # Inicializar a fonte de dados - corrigido para não passar argumentos
-        # O MongoDataSource já lê as variáveis de ambiente internamente
-        data_source = MongoDataSource()
+        # Inicializar o ScraperAdapter em vez de MongoDataSource
+        data_source = ScraperAdapter()
         
         # Contador de ciclos e erros
         cycle_count = 0
@@ -150,6 +155,9 @@ def main():
         logger.critical(f"🚨 Erro crítico no scraper: {str(e)}")
         logger.critical(traceback.format_exc())
     finally:
+        # Fechar a conexão com o banco de dados
+        if 'data_source' in locals() and hasattr(data_source, 'fechar'):
+            data_source.fechar()
         logger.info("🛑 Scraper encerrado")
 
 if __name__ == "__main__":
