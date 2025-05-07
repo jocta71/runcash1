@@ -10,6 +10,7 @@ import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
 import globalRouletteDataService from './services/GlobalRouletteDataService'
 import cryptoService from './utils/crypto-service'
+import UnifiedRouletteClient from './services/UnifiedRouletteClient'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -145,6 +146,16 @@ if (!keyFound) {
   console.warn('[App] Nenhuma chave de descriptografia funcionou, ativando modo de desenvolvimento');
   cryptoService.enableDevMode(true);
 }
+
+// Configurar o cliente de roletas
+const rouletteClient = UnifiedRouletteClient.getInstance({
+  streamingEnabled: true,
+  enablePolling: true,
+  enableLogging: true
+});
+
+// Inicializar o cliente para carregar os metadados
+rouletteClient.initialize();
 
 const rootElement = document.getElementById("root");
 if (rootElement) {

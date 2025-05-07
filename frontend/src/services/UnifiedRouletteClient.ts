@@ -103,10 +103,10 @@ class UnifiedRouletteClient {
   private webSocketReconnectAttempts = 0;
   private readonly maxWebSocketReconnectAttempts = 5;
   
-  // Cache local para metadados de roletas
-  private metadataCache: Map<string, string> = new Map();
-  private metadataFetchFailed: boolean = false;
-  private lastMetadataFetchAttempt: number = 0;
+  // Cache para metadados de roletas
+  private rouletteMetadataCache: Map<string, any> = new Map();
+  private isLoadingMetadata = false;
+  private metadataLoadPromise: Promise<void> | null = null;
   
   /**
    * Construtor privado para garantir singleton
@@ -661,110 +661,21 @@ class UnifiedRouletteClient {
    * Atualiza o cache com novos dados
    */
   private updateCache(data: any | any[]): void {
-    // Registrar tempo da atualização
     this.lastUpdateTime = Date.now();
     
     if (Array.isArray(data)) {
-      // Se já tentamos buscar metadados recentemente e falhou, não tentar novamente
-      const now = Date.now();
-      const META_FETCH_COOLDOWN = 60000; // 1 minuto de cooldown entre tentativas
-      
-      if (this.metadataFetchFailed && (now - this.lastMetadataFetchAttempt < META_FETCH_COOLDOWN)) {
-        this.log('Usando cache local para nomes de roletas devido a falha recente na API');
-        // Atualizar usando cache local
-        this.updateRouletteNames(data);
-        return;
-      }
-      
-      // Buscar metadados das roletas para substituir os IDs por nomes
-      this.lastMetadataFetchAttempt = now;
-      this.fetchRoulettesMetadata().then(metadata => {
-        this.metadataFetchFailed = false;
-        
-        // Criar mapa de IDs para nomes e atualizar o cache local
-        if (metadata && Array.isArray(metadata)) {
-          metadata.forEach(item => {
-            if (item.roleta_id && item.roleta_nome) {
-              this.metadataCache.set(item.roleta_id.toString(), item.roleta_nome);
-            }
-          });
+      // Atualizar múltiplas roletas
+      data.forEach(roulette => {
+        if (roulette && roulette.id) {
+          this.rouletteData.set(roulette.id, roulette);
         }
-        
-        // Atualizar dados com nomes de metadados
-        this.updateRouletteNames(data);
-      }).catch(error => {
-        this.error('Erro ao buscar metadados de roletas:', error);
-        this.metadataFetchFailed = true;
-        
-        // Continuar com atualização usando cache local ou nomes genéricos
-        this.updateRouletteNames(data);
       });
+      
+      this.log(`Cache atualizado com ${data.length} roletas`);
     } else if (data && data.id) {
-      // Atualização de roleta individual
-      const rouletteId = data.id.toString();
-      
-      // Aplicar nome do metadata cache se disponível
-      if (this.metadataCache.has(rouletteId)) {
-        data.nome = this.metadataCache.get(rouletteId);
-        data.name = data.nome; // Para compatibilidade
-      }
-      
-      this.rouletteData.set(rouletteId, data);
-      
-      // Emitir evento
-      this.emit('update', Array.from(this.rouletteData.values()));
-    }
-  }
-  
-  /**
-   * Atualiza nomes das roletas usando o cache ou nomes genéricos
-   */
-  private updateRouletteNames(data: any[]): void {
-    // Atualizar dados com nomes de metadados do cache local
-    data.forEach(roulette => {
-      const rouletteId = roulette.id || roulette.roleta_id;
-      if (rouletteId) {
-        const idStr = rouletteId.toString();
-        
-        // Se temos o nome nos metadados, usar ele
-        if (this.metadataCache.has(idStr)) {
-          roulette.nome = this.metadataCache.get(idStr);
-          roulette.name = roulette.nome; // Para compatibilidade
-        }
-        // Caso contrário, manter nome original ou criar um
-        else if (!roulette.nome && !roulette.name) {
-          roulette.nome = `Roleta ${rouletteId}`;
-          roulette.name = roulette.nome; // Para compatibilidade
-        }
-        
-        // Atualizar cache
-        this.rouletteData.set(idStr, roulette);
-      }
-    });
-    
-    // Emitir evento após atualização com metadados
-    this.emit('update', Array.from(this.rouletteData.values()));
-  }
-
-  /**
-   * Busca metadados das roletas da API
-   */
-  private async fetchRoulettesMetadata(): Promise<any[]> {
-    try {
-      // Usar '/metadados-roletas' em vez de '/api/metadados-roletas'
-      // para evitar duplicação do prefixo '/api' 
-      const response = await axios.get(getFullUrl('/metadados-roletas'), {
-        timeout: 5000 // Timeout de 5 segundos para evitar bloqueios longos
-      });
-      
-      if (response.status === 200 && response.data && !response.data.error) {
-        return response.data.data || [];
-      }
-      
-      return [];
-    } catch (error) {
-      this.error('Erro ao buscar metadados de roletas:', error);
-      throw error; // Propagar erro para ser tratado pelo updateCache
+      // Atualizar uma única roleta
+      this.rouletteData.set(data.id, data);
+      this.log(`Cache atualizado para roleta ${data.id}`);
     }
   }
   
@@ -1420,6 +1331,108 @@ class UnifiedRouletteClient {
   //   },
   //   ...
   // };
+
+  /**
+   * Obtém metadados das roletas do servidor
+   */
+  public async fetchRouletteMetadata(): Promise<void> {
+    if (this.isLoadingMetadata && this.metadataLoadPromise) {
+      return this.metadataLoadPromise;
+    }
+    
+    this.isLoadingMetadata = true;
+    
+    this.metadataLoadPromise = new Promise<void>((resolve, reject) => {
+      fetch('/api/roletas/metadados')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Erro ao buscar metadados: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data && Array.isArray(data)) {
+            // Limpar cache atual
+            this.rouletteMetadataCache.clear();
+            
+            // Preencher o cache com os novos dados
+            data.forEach(meta => {
+              if (meta.roleta_id && meta.roleta_nome) {
+                this.rouletteMetadataCache.set(meta.roleta_id, meta);
+              }
+            });
+            
+            this.log(`Metadados carregados: ${this.rouletteMetadataCache.size} roletas`);
+            this.emit('metadataLoaded', Array.from(this.rouletteMetadataCache.values()));
+          }
+          
+          this.isLoadingMetadata = false;
+          resolve();
+        })
+        .catch(error => {
+          this.error('Erro ao carregar metadados:', error);
+          this.isLoadingMetadata = false;
+          reject(error);
+        });
+    });
+    
+    return this.metadataLoadPromise;
+  }
+  
+  /**
+   * Obtém o nome da roleta pelo ID
+   */
+  public getRouletteNameById(id: string): string | null {
+    // Verificar no cache de metadados
+    const metadata = this.rouletteMetadataCache.get(id);
+    if (metadata && metadata.roleta_nome) {
+      return metadata.roleta_nome;
+    }
+    
+    // Se não encontrou nos metadados, tentar nos dados da roleta
+    const roulette = this.getRouletteById(id);
+    if (roulette) {
+      return roulette.nome || roulette.name || roulette.roleta_nome;
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Inicializa o cliente e carrega metadados
+   */
+  public initialize(): void {
+    if (this.isInitialized) {
+      return;
+    }
+    
+    // Inicialização existente
+    this.log('Inicializando UnifiedRouletteClient...');
+    
+    // Registrar event listeners
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.handleVisibilityChange);
+      window.addEventListener('focus', this.handleFocus);
+      window.addEventListener('blur', this.handleBlur);
+    }
+    
+    // Auto-conectar ao stream se habilitado
+    if (this.streamingEnabled) {
+      this.connectStream();
+    }
+    
+    // Iniciar polling se habilitado
+    if (this.pollingEnabled && !this.isStreamConnected) {
+      this.startPolling();
+    }
+    
+    // Carregar metadados
+    this.fetchRouletteMetadata().catch(error => {
+      this.error('Erro ao carregar metadados iniciais:', error);
+    });
+    
+    this.isInitialized = true;
+  }
 }
 
 // Exportar singleton

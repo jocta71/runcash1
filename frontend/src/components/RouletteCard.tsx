@@ -63,7 +63,18 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
   }
 
   const currentId = roulette.id || roulette.roleta_id;
-  const currentName = roulette.nome || roulette.name || roulette.roleta_nome;
+  
+  // Obter o nome da roleta a partir dos metadados ou de outras propriedades disponíveis
+  let currentName = roulette.nome || roulette.name || roulette.roleta_nome;
+  
+  // Se o nome for igual ao ID, provavelmente estamos mostrando o ID em vez do nome real
+  if (currentName === currentId || !currentName || currentName.includes(currentId)) {
+    // Verificar se temos metadados ou um formato específico do nome no formato "Roleta {ID}"
+    if (typeof currentName === 'string' && currentName.startsWith('Roleta ')) {
+      // Manter apenas o ID para substituir depois pelos metadados
+      currentName = currentId;
+    }
+  }
 
   // 1. Identificar a fonte primária dos números
   let potentialSources = [
@@ -229,6 +240,62 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   
   // Obter instância do UnifiedClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
+  
+  // Estado para armazenar o nome da roleta obtido dos metadados
+  const [roletaName, setRoletaName] = useState<string | null>(null);
+  
+  // Efeito para buscar o nome da roleta
+  useEffect(() => {
+    if (rouletteData?.id) {
+      // Tentar obter o nome do cache de metadados
+      const nomeDaRoleta = unifiedClient.getRouletteNameById(rouletteData.id);
+      if (nomeDaRoleta) {
+        setRoletaName(nomeDaRoleta);
+        
+        // Atualizar o nome nos dados da roleta
+        setRouletteData(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            nome: nomeDaRoleta
+          };
+        });
+      }
+    }
+  }, [rouletteData?.id]);
+  
+  // Efeito para ouvir atualizações de metadados
+  useEffect(() => {
+    // Função para atualizar o nome quando os metadados forem carregados
+    const handleMetadataLoaded = () => {
+      if (rouletteData?.id) {
+        const nomeDaRoleta = unifiedClient.getRouletteNameById(rouletteData.id);
+        if (nomeDaRoleta) {
+          setRoletaName(nomeDaRoleta);
+          
+          // Atualizar o nome nos dados da roleta
+          setRouletteData(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              nome: nomeDaRoleta
+            };
+          });
+        }
+      }
+    };
+    
+    // Registrar o listener
+    const unsubscribe = unifiedClient.on('metadataLoaded', handleMetadataLoaded);
+    
+    // Executar a verificação inicial
+    handleMetadataLoaded();
+    
+    // Limpar ao desmontar
+    return () => {
+      unsubscribe();
+    };
+  }, [rouletteData?.id]);
   
   // Efeito para iniciar a busca de dados
   useEffect(() => {
