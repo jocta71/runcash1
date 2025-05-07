@@ -41,7 +41,7 @@ router.use((req, res, next) => {
 });
 
 // ------------------- ENCONTRAR CLIENTE ------------------- //
-router.get('/find-customer', async (req, res) => {
+const findCustomer = async (req, res) => {
   try {
     const { customerId, cpfCnpj, email } = req.query;
 
@@ -151,10 +151,10 @@ router.get('/find-customer', async (req, res) => {
       message: error.message
     });
   }
-});
+};
 
 // ------------------- CRIAR CLIENTE ------------------- //
-router.post('/create-customer', async (req, res) => {
+const createCustomer = async (req, res) => {
   try {
     // Validar campos obrigatórios
     const { name, email, cpfCnpj, mobilePhone } = req.body;
@@ -240,10 +240,10 @@ router.post('/create-customer', async (req, res) => {
       message: error.message
     });
   }
-});
+};
 
 // ------------------- ENCONTRAR PAGAMENTO ------------------- //
-router.get('/find-payment', async (req, res) => {
+const findPayment = async (req, res) => {
   try {
     const { paymentId } = req.query;
 
@@ -301,22 +301,58 @@ router.get('/find-payment', async (req, res) => {
       message: error.message
     });
   }
-});
+};
 
 // ------------------- ENCONTRAR ASSINATURA ------------------- //
-router.get('/find-subscription', async (req, res) => {
+const findSubscription = async (req, res) => {
   try {
-    const { subscriptionId } = req.query;
+    const { subscriptionId, customerId } = req.query;
 
     // Validar campos obrigatórios
-    if (!subscriptionId) {
+    if (!subscriptionId && !customerId) {
       return res.status(400).json({ 
         success: false,
-        error: 'É necessário informar o ID da assinatura' 
+        error: 'É necessário informar o ID da assinatura ou ID do cliente' 
       });
     }
 
     const { apiClient } = getAsaasConfig();
+
+    // Se tiver customerID mas não tiver subscriptionId, buscar assinaturas do cliente
+    if (customerId && !subscriptionId) {
+      console.log(`Buscando assinaturas do cliente: ${customerId}`);
+      try {
+        const subscriptionsResponse = await apiClient.get('/subscriptions', {
+          params: { customer: customerId }
+        });
+        
+        const subscriptions = subscriptionsResponse.data.data || [];
+        
+        // Formatar assinaturas
+        const formattedSubscriptions = subscriptions.map(subscription => ({
+          id: subscription.id,
+          customer: subscription.customer,
+          value: subscription.value,
+          cycle: subscription.cycle,
+          nextDueDate: subscription.nextDueDate,
+          billingType: subscription.billingType,
+          status: subscription.status,
+          description: subscription.description
+        }));
+
+        return res.status(200).json({
+          success: true,
+          subscriptions: formattedSubscriptions
+        });
+      } catch (error) {
+        console.error('Erro ao buscar assinaturas do cliente:', error.message);
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao buscar assinaturas do cliente',
+          message: error.message
+        });
+      }
+    }
 
     // Buscar assinatura por ID
     console.log(`Buscando assinatura por ID: ${subscriptionId}`);
@@ -376,10 +412,10 @@ router.get('/find-subscription', async (req, res) => {
       message: error.message
     });
   }
-});
+};
 
 // ------------------- CRIAR ASSINATURA ------------------- //
-router.post('/create-subscription', async (req, res) => {
+const createSubscription = async (req, res) => {
   try {
     // Validar campos obrigatórios
     const { customerId, value, cycle, billingType, nextDueDate, description } = req.body;
@@ -453,10 +489,10 @@ router.post('/create-subscription', async (req, res) => {
       message: error.message
     });
   }
-});
+};
 
 // ------------------- CANCELAR ASSINATURA ------------------- //
-router.post('/cancel-subscription', async (req, res) => {
+const cancelSubscription = async (req, res) => {
   try {
     // Validar campos obrigatórios
     const { subscriptionId } = req.body;
@@ -496,10 +532,10 @@ router.post('/cancel-subscription', async (req, res) => {
       message: error.message
     });
   }
-});
+};
 
 // ------------------- GERAR QR CODE PIX ------------------- //
-router.post('/pix-qrcode', async (req, res) => {
+const pixQrcode = async (req, res) => {
   try {
     // Validar campos obrigatórios
     const { paymentId } = req.body;
@@ -551,6 +587,82 @@ router.post('/pix-qrcode', async (req, res) => {
       message: error.message
     });
   }
+};
+
+// Roteamento baseado na operação
+router.all('/', (req, res) => {
+  // Obter operação da query
+  const operation = req.query.operation;
+  
+  // Log para debug
+  console.log(`Operação solicitada: ${operation}`);
+  console.log(`Método: ${req.method}`);
+  console.log(`Query params:`, req.query);
+  
+  // Validar operação
+  if (!operation) {
+    return res.status(400).json({
+      success: false,
+      error: 'Operação não especificada',
+      availableOperations: [
+        'find-customer', 'create-customer', 
+        'find-payment', 'find-subscription', 
+        'create-subscription', 'cancel-subscription',
+        'pix-qrcode'
+      ]
+    });
+  }
+
+  // Roteamento baseado na operação e método
+  switch (operation) {
+    case 'find-customer':
+      if (req.method === 'GET') return findCustomer(req, res);
+      break;
+    case 'create-customer':
+      if (req.method === 'POST') return createCustomer(req, res);
+      break;
+    case 'find-payment':
+      if (req.method === 'GET') return findPayment(req, res);
+      break;
+    case 'find-subscription':
+      if (req.method === 'GET') return findSubscription(req, res);
+      break;
+    case 'create-subscription':
+      if (req.method === 'POST') return createSubscription(req, res);
+      break;
+    case 'cancel-subscription':
+      if (req.method === 'POST') return cancelSubscription(req, res);
+      break;
+    case 'pix-qrcode':
+      if (req.method === 'POST') return pixQrcode(req, res);
+      break;
+    default:
+      return res.status(400).json({
+        success: false,
+        error: `Operação inválida: ${operation}`,
+        availableOperations: [
+          'find-customer', 'create-customer', 
+          'find-payment', 'find-subscription', 
+          'create-subscription', 'cancel-subscription',
+          'pix-qrcode'
+        ]
+      });
+  }
+
+  // Se chegou aqui, método não permitido para a operação
+  return res.status(405).json({
+    success: false,
+    error: `Método ${req.method} não permitido para a operação ${operation}`
+  });
 });
+
+// Manter rotas existentes para compatibilidade
+router.get('/find-customer', findCustomer);
+router.post('/create-customer', createCustomer);
+router.get('/find-payment', findPayment);
+router.get('/find-subscription', findSubscription);
+router.post('/create-subscription', createSubscription);
+router.post('/cancel-subscription', cancelSubscription);
+router.post('/pix-qrcode', pixQrcode);
 
 module.exports = router; 
