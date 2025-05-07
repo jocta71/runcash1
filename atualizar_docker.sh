@@ -42,6 +42,7 @@ echo -e "${GREEN}Copiando arquivos modificados para o contêiner...${NC}"
 docker cp backend/scraper/data_source_mongo.py $CONTAINER_ID:/app/backend/scraper/ || { echo -e "${RED}Erro ao copiar data_source_mongo.py${NC}"; exit 1; }
 docker cp backend/scraper/mongo_config.py $CONTAINER_ID:/app/backend/scraper/ || { echo -e "${RED}Erro ao copiar mongo_config.py${NC}"; exit 1; }
 docker cp backend/scraper/run_real_scraper.py $CONTAINER_ID:/app/backend/scraper/ || { echo -e "${RED}Erro ao copiar run_real_scraper.py${NC}"; exit 1; }
+docker cp remover_colecoes_antigas.py $CONTAINER_ID:/app/ || { echo -e "${RED}Erro ao copiar remover_colecoes_antigas.py${NC}"; exit 1; }
 echo -e "${GREEN}✓ Arquivos modificados copiados com sucesso!${NC}\n"
 
 # Configurar variável de ambiente
@@ -53,7 +54,22 @@ echo -e "${GREEN}✓ Variável de ambiente configurada!${NC}\n"
 # Verificar permissões dos arquivos
 echo -e "${GREEN}Verificando permissões dos arquivos...${NC}"
 docker exec $CONTAINER_ID chmod +x /app/backend/scraper/run_real_scraper.py || echo -e "${YELLOW}⚠️ Não foi possível alterar permissões de run_real_scraper.py${NC}"
+docker exec $CONTAINER_ID chmod +x /app/remover_colecoes_antigas.py || echo -e "${YELLOW}⚠️ Não foi possível alterar permissões de remover_colecoes_antigas.py${NC}"
 echo -e "${GREEN}✓ Permissões verificadas!${NC}\n"
+
+# Remover coleções antigas?
+echo -e "${GREEN}Deseja remover as coleções antigas (roletas, roleta_numeros, etc.)?${NC}"
+echo -e "${YELLOW}ATENÇÃO: Esta operação é IRREVERSÍVEL e remove as coleções comuns!${NC}"
+read -p "Remover coleções antigas? (s/n): " remover_colecoes
+
+if [[ "$remover_colecoes" == "s" || "$remover_colecoes" == "S" ]]; then
+    echo -e "${GREEN}Executando script para remover coleções antigas...${NC}"
+    docker exec -it $CONTAINER_ID python /app/remover_colecoes_antigas.py
+else
+    echo -e "${YELLOW}As coleções antigas serão mantidas.${NC}"
+    echo -e "Você pode removê-las manualmente depois executando:"
+    echo -e "${GREEN}docker exec -it $CONTAINER_ID python /app/remover_colecoes_antigas.py${NC}"
+fi
 
 # Reiniciar o contêiner
 echo -e "${GREEN}Reiniciando o contêiner...${NC}"
