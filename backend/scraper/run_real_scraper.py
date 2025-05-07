@@ -30,6 +30,7 @@ logging.basicConfig(
 logger = logging.getLogger('runcash_scraper')
 logger.setLevel(logging.INFO)
 
+
 # Banner inicial
 print("\n\n" + "=" * 80)
 print(" SCRAPER RunCash - Extração de Números (Versão Simplificada) ".center(80, "="))
