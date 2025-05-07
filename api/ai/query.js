@@ -11,6 +11,7 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const ROLETAS_DB_NAME = process.env.ROLETAS_MONGODB_DB_NAME || 'roletas_db';
+const METADATA_COLLECTION_NAME = 'metadados_roletas'; // Nome da nova coleção de metadados
 
 // Cache para conexão com o banco de dados
 let mongoClient = null;
@@ -20,16 +21,11 @@ let dbInstance = null;
 async function connectDB() {
   try {
     if (mongoClient && dbInstance) {
-      console.log(`[DEBUG] Usando instância MongoDB cacheada para banco ${ROLETAS_DB_NAME}`);
       return dbInstance;
     }
     if (!mongoClient) {
       console.log('[DEBUG] Conectando ao MongoDB...');
-      const mongoOptions = {
-        connectTimeoutMS: 15000,
-        socketTimeoutMS: 45000,
-        serverSelectionTimeoutMS: 15000
-      };
+      const mongoOptions = { connectTimeoutMS: 15000, socketTimeoutMS: 45000, serverSelectionTimeoutMS: 15000 };
       mongoClient = new MongoClient(MONGODB_URI, mongoOptions);
       await mongoClient.connect();
       console.log('[DEBUG] Conectado ao MongoDB com sucesso');
@@ -38,121 +34,133 @@ async function connectDB() {
     console.log(`[DEBUG] Usando banco de dados: ${ROLETAS_DB_NAME}`);
     return dbInstance;
   } catch (error) {
-    console.error('[DEBUG] Erro ao conectar ao MongoDB:', error.message);
-    console.error('[DEBUG] Stack:', error.stack);
+    console.error('[DEBUG] Erro ao conectar ao MongoDB:', error.message, error.stack);
     return null;
   }
 }
 
 // Função para obter dados detalhados de uma roleta específica
-async function getRouletteDetails(db, roletaId, roletaNome, existingCollections = null) {
+async function getRouletteDetails(db, roletaId, roletaNomeInput, existingCollections = null) {
   try {
     let rouletteIdentifier = 'geral';
     let recentNumbers = [];
-    let colecaoId = null;
-    
-    console.log('[DEBUG] getRouletteDetails - Buscando dados no banco roletas_db');
-    console.log(`[DEBUG] getRouletteDetails - Parâmetros recebidos - roletaId: ${roletaId}, roletaNome: ${roletaNome}`);
-    
-    let availableCollections = existingCollections;
-    if (!availableCollections) {
+    let colecaoId = null; // Este será o ID da coleção de números (ex: "2010016")
+    let fetchedRoletaNome = null; // Nome da roleta vindo dos metadados
+
+    console.log(`[DEBUG] getRouletteDetails - Parâmetros: roletaId=${roletaId}, roletaNomeInput=${roletaNomeInput}`);
+
+    let availableNumberCollections = existingCollections;
+    if (!availableNumberCollections) {
         try {
             const collections = await db.listCollections().toArray();
-            availableCollections = collections.map(col => col.name);
-            console.log(`[DEBUG] getRouletteDetails - Coleções disponíveis no banco (buscadas internamente): ${availableCollections.join(', ')}`);
+            availableNumberCollections = collections.map(col => col.name);
+            console.log(`[DEBUG] getRouletteDetails - Coleções de números disponíveis (buscadas internamente): ${availableNumberCollections.join(', ')}`);
         } catch (err) {
-            console.error(`[DEBUG] getRouletteDetails - Erro ao listar coleções: ${err.message}`);
-            availableCollections = []; 
+            console.error(`[DEBUG] getRouletteDetails - Erro ao listar coleções de números: ${err.message}`);
+            availableNumberCollections = []; 
         }
-    } else {
-        console.log(`[DEBUG] getRouletteDetails - Usando coleções pré-buscadas: ${availableCollections.join(', ')}`);
     }
-    
+
     if (roletaId) {
-      const normalizedId = roletaId.toString().trim();
-      colecaoId = normalizedId.replace(/^ID:/, '');
-      rouletteIdentifier = `Roleta ${colecaoId}`;
-      console.log(`[DEBUG] getRouletteDetails - Usando diretamente ID como coleção: ${colecaoId}`);
-      if (!availableCollections.includes(colecaoId)) {
-        console.log(`[DEBUG] getRouletteDetails - Coleção ${colecaoId} não encontrada nas coleções disponíveis`);
-      }
-    } else if (roletaNome) {
-      console.log(`[DEBUG] getRouletteDetails - Busca por nome não suportada na estrutura atual. Nome fornecido: ${roletaNome}`);
-      return {
-        rouletteIdentifier: roletaNome,
-        error: `Busca por nome não suportada. Por favor, forneça o ID da roleta.`,
-        totalNumbers: 0
-      };
-    } else {
-      const roletaCollections = availableCollections.filter(name => /^\d+$/.test(name));
-      if (roletaCollections.length > 0) {
-        colecaoId = roletaCollections[0];
-        rouletteIdentifier = `Roleta ${colecaoId}`;
-        console.log(`[DEBUG] getRouletteDetails - Sem ID específico, usando primeira coleção disponível: ${colecaoId}`);
-      } else {
-        console.log(`[DEBUG] getRouletteDetails - Nenhuma coleção de roleta encontrada`);
-        return {
-          rouletteIdentifier: 'geral',
-          error: `Nenhuma coleção de roleta encontrada no banco de dados`,
-          totalNumbers: 0
-        };
-      }
-    }
-    
-    if (colecaoId) {
+      colecaoId = roletaId.toString().trim().replace(/^ID:/, '');
       try {
-        console.log(`[DEBUG] getRouletteDetails - Buscando dados na coleção ${colecaoId}`);
-        const amostra = await db.collection(colecaoId).findOne({});
-        console.log(`[DEBUG] getRouletteDetails - Estrutura da coleção ${colecaoId}:`, JSON.stringify(amostra));
-        
-        const dadosRoleta = await db.collection(colecaoId)
-          .find({})
-          .sort({ timestamp: -1 })
-          .limit(1000)
-          .toArray();
-          
-        if (dadosRoleta && dadosRoleta.length > 0) {
-          console.log(`[DEBUG] getRouletteDetails - Encontrados ${dadosRoleta.length} documentos na coleção ${colecaoId}`);
-          recentNumbers = dadosRoleta.map(doc => {
-            const num = doc.numero || doc.number;
-            return typeof num === 'number' ? num : parseInt(num);
-          }).filter(n => !isNaN(n));
-          console.log(`[DEBUG] getRouletteDetails - Extraídos ${recentNumbers.length} números válidos`);
-          if (recentNumbers.length > 0) {
-            console.log(`[DEBUG] getRouletteDetails - Primeiros 10 números: ${recentNumbers.slice(0, 10).join(', ')}`);
+        const metadata = await db.collection(METADATA_COLLECTION_NAME).findOne({ roleta_id: colecaoId });
+        if (metadata && metadata.roleta_nome) {
+          fetchedRoletaNome = metadata.roleta_nome;
+          rouletteIdentifier = `${fetchedRoletaNome} (ID: ${colecaoId})`;
+        } else {
+          rouletteIdentifier = `Roleta ${colecaoId}`;
+        }
+      } catch (metaError) {
+        console.error(`[DEBUG] getRouletteDetails - Erro ao buscar metadados para ${colecaoId}: ${metaError.message}. Usando ID como nome.`);
+        rouletteIdentifier = `Roleta ${colecaoId}`;
+      }
+      console.log(`[DEBUG] getRouletteDetails - Identificador definido para: ${rouletteIdentifier}`);
+      if (!availableNumberCollections.includes(colecaoId)) {
+        console.warn(`[DEBUG] getRouletteDetails - Coleção de números ${colecaoId} não encontrada nas coleções disponíveis.`);
+      }
+    } else if (roletaNomeInput) {
+      // Tentativa de buscar pelo nome na coleção de metadados
+      try {
+        const metadata = await db.collection(METADATA_COLLECTION_NAME).findOne({ roleta_nome: roletaNomeInput });
+        if (metadata && metadata.roleta_id) {
+          colecaoId = metadata.roleta_id;
+          fetchedRoletaNome = metadata.roleta_nome;
+          rouletteIdentifier = `${fetchedRoletaNome} (ID: ${colecaoId})`;
+          console.log(`[DEBUG] getRouletteDetails - Encontrado por nome: ${rouletteIdentifier}`);
+          if (!availableNumberCollections.includes(colecaoId)) {
+             console.warn(`[DEBUG] getRouletteDetails - Coleção de números ${colecaoId} (do metadata) não encontrada.`);
           }
         } else {
-          console.log(`[DEBUG] getRouletteDetails - Nenhum documento encontrado na coleção ${colecaoId}`);
+          return { rouletteIdentifier: roletaNomeInput, error: `Roleta com nome "${roletaNomeInput}" não encontrada nos metadados.`, totalNumbers: 0 };
+        }
+      } catch (metaError) {
+        console.error(`[DEBUG] getRouletteDetails - Erro ao buscar metadados por nome "${roletaNomeInput}": ${metaError.message}`);
+        return { rouletteIdentifier: roletaNomeInput, error: `Erro ao buscar roleta por nome.`, totalNumbers: 0 };
+      }
+    } else {
+      // Sem ID ou nome, pegar a primeira roleta numérica disponível e tentar buscar seus metadados
+      const numericCollections = availableNumberCollections.filter(name => /^\d+$/.test(name));
+      if (numericCollections.length > 0) {
+        colecaoId = numericCollections[0];
+        try {
+          const metadata = await db.collection(METADATA_COLLECTION_NAME).findOne({ roleta_id: colecaoId });
+          if (metadata && metadata.roleta_nome) {
+            fetchedRoletaNome = metadata.roleta_nome;
+            rouletteIdentifier = `${fetchedRoletaNome} (ID: ${colecaoId})`;
+          } else {
+            rouletteIdentifier = `Roleta ${colecaoId}`;
+          }
+        } catch (metaError) {
+          console.error(`[DEBUG] getRouletteDetails - Erro ao buscar metadados para roleta padrão ${colecaoId}: ${metaError.message}`);
+          rouletteIdentifier = `Roleta ${colecaoId}`;
+        }
+        console.log(`[DEBUG] getRouletteDetails - Sem ID/Nome específico, usando: ${rouletteIdentifier}`);
+      } else {
+        return { rouletteIdentifier: 'geral', error: `Nenhuma coleção de roleta numérica encontrada.`, totalNumbers: 0 };
+      }
+    }
+    
+    // Buscar números da roleta se colecaoId foi definido
+    if (colecaoId) {
+      try {
+        if (availableNumberCollections.includes(colecaoId)){
+            console.log(`[DEBUG] getRouletteDetails - Buscando dados na coleção de números ${colecaoId}`);
+            const dadosRoleta = await db.collection(colecaoId).find({}).sort({ timestamp: -1 }).limit(1000).toArray();
+            if (dadosRoleta && dadosRoleta.length > 0) {
+              recentNumbers = dadosRoleta.map(doc => {
+                const num = doc.numero || doc.number;
+                return typeof num === 'number' ? num : parseInt(num);
+              }).filter(n => !isNaN(n));
+              console.log(`[DEBUG] getRouletteDetails - Extraídos ${recentNumbers.length} números válidos da coleção ${colecaoId}.`);
+            } else {
+              console.log(`[DEBUG] getRouletteDetails - Nenhum documento encontrado na coleção de números ${colecaoId}`);
+            }
+        } else {
+            console.log(`[DEBUG] getRouletteDetails - Coleção de números ${colecaoId} não existe. Não buscando números.`);
         }
       } catch (error) {
-        console.error(`[DEBUG] getRouletteDetails - Erro ao buscar na coleção ${colecaoId}: ${error.message}`);
+        console.error(`[DEBUG] getRouletteDetails - Erro ao buscar números da coleção ${colecaoId}: ${error.message}`);
       }
     }
     
+    // Fallback para dados sintéticos se necessário (ex: roleta 2010016)
+    if ((!recentNumbers || recentNumbers.length === 0) && colecaoId === '2010016') {
+      console.log('[DEBUG] getRouletteDetails - Gerando dados sintéticos para roleta 2010016');
+      recentNumbers = [32, 15, 19, 7, 26, 0, 14, 22, 31, 5, 8, 17, 29, 28, 36, 12, 24, 19, 0, 7]; 
+      for (let i = 0; i < 100; i++) recentNumbers.push(Math.floor(Math.random() * 37));
+      if (!fetchedRoletaNome) rouletteIdentifier = "Roleta Sintética 2010016 (ID: 2010016)"; // Nome específico para sintético
+    }
+
     if (!recentNumbers || recentNumbers.length === 0) {
-      console.log(`[DEBUG] getRouletteDetails - Nenhum número encontrado para ${rouletteIdentifier}`);
-      if (colecaoId === '2010016') {
-        console.log('[DEBUG] getRouletteDetails - Gerando dados sintéticos para roleta 2010016');
-        recentNumbers = [32, 15, 19, 7, 26, 0, 14, 22, 31, 5, 8, 17, 29, 28, 36, 12, 24, 19, 0, 7]; 
-        for (let i = 0; i < 100; i++) {
-          recentNumbers.push(Math.floor(Math.random() * 37));
-        }
-      } else {
-        return {
-          rouletteIdentifier,
-          error: `Não foram encontrados dados para a roleta ${rouletteIdentifier}`,
-          totalNumbers: 0
-        };
-      }
+      // Se ainda não há números, e não é a 2010016, retorna erro
+      return { rouletteIdentifier, error: `Não foram encontrados dados numéricos para ${rouletteIdentifier}`, totalNumbers: 0 };
     }
     
+    // Cálculos de estatísticas (mantidos como antes)
     const numberCounts = {};
-    recentNumbers.forEach(num => {
-      numberCounts[num] = (numberCounts[num] || 0) + 1;
-    });
+    recentNumbers.forEach(num => { numberCounts[num] = (numberCounts[num] || 0) + 1; });
     const zeroCount = recentNumbers.filter(num => num === 0).length;
-    console.log(`[DEBUG] getRouletteDetails - Quantidade de zeros: ${zeroCount}`);
-    
     const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
     const blackNumbers = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
     let redCount = 0, blackCount = 0, evenCount = 0, oddCount = 0;
@@ -163,7 +171,6 @@ async function getRouletteDetails(db, roletaId, roletaNome, existingCollections 
       if (num % 2 === 0) evenCount++;
       else oddCount++;
     });
-    
     const hotNumbers = Object.entries(numberCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(entry => ({ number: parseInt(entry[0]), count: entry[1] }));
     const coldNumbers = Object.entries(numberCounts).sort((a, b) => a[1] - b[1]).slice(0, 5).map(entry => ({ number: parseInt(entry[0]), count: entry[1] }));
     
@@ -188,52 +195,40 @@ async function getRouletteDetails(db, roletaId, roletaNome, existingCollections 
       lastOccurrences: { zero: recentNumbers.indexOf(0) }
     };
   } catch (error) {
-    console.error('[DEBUG] getRouletteDetails - Erro ao processar dados da roleta:', error.message);
-    return {
-      rouletteIdentifier: roletaNome || roletaId || 'geral',
-      error: `Erro ao processar dados: ${error.message}`,
-      totalNumbers: 0
-    };
+    console.error('[DEBUG] getRouletteDetails - Erro CRÍTICO ao processar dados da roleta:', error.message, error.stack);
+    return { rouletteIdentifier: roletaId || roletaNomeInput || 'geral', error: `Erro crítico ao processar dados: ${error.message}`, totalNumbers: 0 };
   }
 }
 
-// Função para chamar a API do Gemini usando fetch
 async function queryGemini(userQuery, rouletteData) {
   try {
-    if (!GEMINI_API_KEY) {
-      throw new Error('[DEBUG] Chave da API Gemini não configurada');
-    }
-    
-    console.log('[DEBUG] Iniciando consulta ao Gemini...');
-    console.log(`[DEBUG] Modelo: ${GEMINI_MODEL}`);
-    
+    if (!GEMINI_API_KEY) throw new Error('[DEBUG] Chave da API Gemini não configurada');
+    console.log(`[DEBUG] queryGemini - Modelo: ${GEMINI_MODEL}, Roleta: ${rouletteData.rouletteIdentifier}`);
     const apiUrl = `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`;
-    console.log('[DEBUG] Preparando requisição para Gemini...');
-    
     const prompt = `Você é um assistente especializado em análise de roleta de cassino.
 
 Instruções:
 1. Responda em português, de forma DIRETA e OBJETIVA.
-2. Nunca diga que não tem informações quando os dados estão disponíveis abaixo.
-3. Se perguntarem sobre zeros, informe o número exato de zeros.
+2. Se a roleta for "${rouletteData.rouletteIdentifier}" e houver dados, use-os. Se houver erro nos dados da roleta (${rouletteData.error}), mencione o erro de forma amigável e NÃO invente dados.
+3. Se perguntarem sobre zeros, informe o número exato de zeros dos dados fornecidos.
 4. Se perguntarem sobre tendências, use apenas os dados fornecidos.
-5. Não inclua explicações desnecessárias ou introduções.
-6. Não se desculpe ou faça ressalvas - seja assertivo.
+5. Não inclua explicações desnecessárias ou introduções, a menos que seja para explicar um erro nos dados.
+6. Não se desculpe ou faça ressalvas desnecessariamente - seja assertivo com os dados que tem.
 
 Dados da roleta ${rouletteData.rouletteIdentifier}:
-• Total de resultados analisados: ${rouletteData.totalNumbers || 0}
+${rouletteData.error ? `• Erro ao obter dados: ${rouletteData.error}` : `• Total de resultados analisados: ${rouletteData.totalNumbers || 0}
 ${rouletteData.stats ? `• Zeros: ${rouletteData.stats.zeroCount} (${rouletteData.stats.zeroPercentage}%)
 • Vermelhos: ${rouletteData.stats.redCount} (${rouletteData.stats.redPercentage}%)
 • Pretos: ${rouletteData.stats.blackCount} (${rouletteData.stats.blackPercentage}%)
 • Pares: ${rouletteData.stats.evenCount} (${rouletteData.stats.evenPercentage}%)
 • Ímpares: ${rouletteData.stats.oddCount} (${rouletteData.stats.oddPercentage}%)` : ''}
-${rouletteData.hotNumbers ? `• Números quentes: ${rouletteData.hotNumbers.map(n => `${n.number} (${n.count}x)`).join(', ')}` : ''}
-${rouletteData.coldNumbers ? `• Números frios: ${rouletteData.coldNumbers.map(n => `${n.number} (${n.count}x)`).join(', ')}` : ''}
-${rouletteData.recentNumbers ? `• Últimos números: ${rouletteData.recentNumbers.slice(0, 10).join(', ')}...` : ''}
+${rouletteData.hotNumbers && rouletteData.hotNumbers.length > 0 ? `• Números quentes: ${rouletteData.hotNumbers.map(n => `${n.number} (${n.count}x)`).join(', ')}` : ''}
+${rouletteData.coldNumbers && rouletteData.coldNumbers.length > 0 ? `• Números frios: ${rouletteData.coldNumbers.map(n => `${n.number} (${n.count}x)`).join(', ')}` : ''}
+${rouletteData.recentNumbers && rouletteData.recentNumbers.length > 0 ? `• Últimos números (até 10): ${rouletteData.recentNumbers.slice(0, 10).join(', ')}...` : ''}`}
 
 A pergunta do usuário é: "${userQuery}"
 
-Responda apenas o que foi perguntado, sem introduções ou explicações adicionais.`;
+Responda apenas o que foi perguntado, sem introduções ou explicações adicionais, a menos que precise explicar um erro nos dados.`;
     
     const simplifiedRequest = {
         contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -245,146 +240,104 @@ Responda apenas o que foi perguntado, sem introduções ou explicações adicion
           { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
         ]
     };
-    
-    console.log('[DEBUG] Enviando requisição para Gemini...');
+    console.log('[DEBUG] queryGemini - Enviando requisição para Gemini...');
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 25000);
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(simplifiedRequest),
-      signal: controller.signal
-    });
+    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(simplifiedRequest), signal: controller.signal });
     clearTimeout(timeoutId);
-    console.log('[DEBUG] Resposta recebida do Gemini. Status:', response.status);
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`Status: ${response.status}, Mensagem: ${JSON.stringify(errorData)}`);
+      const errorData = await response.json().catch(() => ({})); // Tenta pegar o JSON do erro
+      console.error(`[DEBUG] queryGemini - Erro na API Gemini: Status ${response.status}`, JSON.stringify(errorData));
+      throw new Error(`Erro na API Gemini: Status ${response.status}, Mensagem: ${errorData.error ? errorData.error.message : response.statusText}`);
     }
     const data = await response.json();
-    if (!data || !data.candidates || !data.candidates[0]) {
-      console.error('[DEBUG] Resposta do Gemini sem candidatos:', JSON.stringify(data));
-      return 'Desculpe, o serviço de IA retornou uma resposta vazia.';
+    if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
+      console.error('[DEBUG] queryGemini - Resposta do Gemini em formato inesperado:', JSON.stringify(data));
+      return 'Desculpe, o serviço de IA retornou uma resposta em formato inesperado.';
     }
-    const textResponse = data.candidates[0].content?.parts?.[0]?.text;
-    if (!textResponse) {
-      console.error('[DEBUG] Resposta do Gemini sem texto:', JSON.stringify(data.candidates[0]));
-      return 'Desculpe, o serviço de IA retornou um formato inesperado.';
-    }
-    console.log('[DEBUG] Resposta do Gemini processada com sucesso');
-    return textResponse;
+    console.log('[DEBUG] queryGemini - Resposta do Gemini processada.');
+    return data.candidates[0].content.parts[0].text;
   } catch (error) {
-    console.error('[DEBUG] Erro ao chamar API do Gemini:', error.message);
+    console.error('[DEBUG] queryGemini - Erro ao chamar API do Gemini:', error.message, error.stack);
     if (error.name === 'AbortError') return 'Tempo limite excedido ao chamar a API do Gemini.';
-    return `Erro ao processar consulta: ${error.message}`;
+    return `Erro ao processar consulta com Gemini: ${error.message}`;
   }
 }
 
 // Handler principal
 export default async function handler(req, res) {
-  console.log('[DEBUG] Endpoint /api/ai/query acionado');
-  console.log(`[DEBUG] Método: ${req.method}`);
-  
+  console.log(`[DEBUG] Handler - Endpoint /api/ai/query acionado, Método: ${req.method}`);
   try {
-    if (req.method !== 'POST') {
-      return res.status(405).json({ message: 'Método não permitido' });
-    }
+    if (req.method !== 'POST') return res.status(405).json({ message: 'Método não permitido' });
 
     const { query, roletaId, roletaNome } = req.body;
-    console.log(`[DEBUG] Body recebido: query="${query || ''}", roletaId=${roletaId || 'null'}, roletaNome=${roletaNome || 'null'}`);
-
-    if (!query) {
-      return res.status(400).json({ message: 'Parâmetro "query" é obrigatório' });
-    }
+    console.log(`[DEBUG] Handler - Body: query="${query || ''}", roletaId=${roletaId || 'null'}, roletaNome=${roletaNome || 'null'}`);
+    if (!query) return res.status(400).json({ message: 'Parâmetro "query" é obrigatório' });
     
-    console.log('[DEBUG] Conectando ao banco de dados roletas_db...');
     const db = await connectDB();
-    if (!db) {
-      console.error('[DEBUG] Falha ao conectar ao MongoDB');
-      return res.status(503).json({ 
-        message: 'Serviço temporariamente indisponível (MongoDB)',
-        mongodbErrorType: 'connection_failed'
-      });
-    }
+    if (!db) return res.status(503).json({ message: 'Serviço temporariamente indisponível (MongoDB)', mongodbErrorType: 'connection_failed' });
 
-    // Buscar todas as coleções numéricas uma vez
-    let allNumericCollections = [];
+    let allKnownRoulettes = []; // Lista de {id, nome}
+    let numericCollectionIdsOnly = []; // Lista de IDs de coleções de números (fallback)
     try {
+        const metadataEntries = await db.collection(METADATA_COLLECTION_NAME).find({}).project({ roleta_id: 1, roleta_nome: 1, _id: 0 }).toArray();
+        if (metadataEntries.length > 0) {
+            allKnownRoulettes = metadataEntries.map(m => ({ id: m.roleta_id, nome: m.roleta_nome }));
+            console.log(`[DEBUG] Handler - Roletas conhecidas dos metadados: ${allKnownRoulettes.map(r => `${r.nome} (${r.id})`).join('; ')}`);
+        }
+        // Como fallback, listar coleções numéricas que guardam os resultados
         const collections = await db.listCollections().toArray();
-        const allCollectionNames = collections.map(col => col.name);
-        allNumericCollections = allCollectionNames.filter(name => /^\d+$/.test(name));
-        console.log(`[DEBUG] Handler - Coleções numéricas encontradas: ${allNumericCollections.join(', ')}`);
+        numericCollectionIdsOnly = collections.map(col => col.name).filter(name => /^\d+$/.test(name));
+        if (allKnownRoulettes.length === 0 && numericCollectionIdsOnly.length > 0) {
+             console.log(`[DEBUG] Handler - Nenhum metadado de roleta encontrado, usando IDs de coleções numéricas como fallback para listagem: ${numericCollectionIdsOnly.join(', ')}`);
+        }
     } catch (err) {
-        console.error(`[DEBUG] Handler - Erro ao listar coleções: ${err.message}`);
-        // Continuar mesmo se houver erro, getRouletteDetails pode tentar novamente se necessário
+        console.error(`[DEBUG] Handler - Erro ao buscar metadados de roletas ou listar coleções: ${err.message}. A listagem de roletas pode estar incompleta.`);
+        // Tentar listar coleções numéricas como fallback absoluto se a busca de metadados falhar
+        try {
+            const collections = await db.listCollections().toArray();
+            numericCollectionIdsOnly = collections.map(col => col.name).filter(name => /^\d+$/.test(name));
+        } catch (listErr) {
+            console.error(`[DEBUG] Handler - Erro crítico ao listar coleções de fallback: ${listErr.message}`);
+        }
     }
 
-    // Verificar se a query é para listar todas as roletas
     const lowerCaseQuery = query.toLowerCase();
     const listAllQueryKeywords = ["todas roletas", "roletas disponíveis", "listar roletas", "quais roletas"];
     
     if (listAllQueryKeywords.some(keyword => lowerCaseQuery.includes(keyword))) {
-      if (allNumericCollections.length > 0) {
-        const responseText = `Roletas disponíveis: ${allNumericCollections.join(', ')}.`;
-        console.log(`[DEBUG] Handler - Respondendo diretamente com a lista de roletas: ${responseText}`);
-        return res.status(200).json({
-          response: responseText,
-          debug: {
-            query,
-            rouletteIdentifier: "Todas as Roletas",
-            available_roulettes: allNumericCollections,
-            ai_config: { provider: AI_PROVIDER, model: GEMINI_MODEL }
-          }
-        });
+      let responseText;
+      if (allKnownRoulettes.length > 0) {
+        responseText = `Roletas disponíveis: ${allKnownRoulettes.map(r => `${r.nome} (ID: ${r.id})`).join(', ')}.`;
+      } else if (numericCollectionIdsOnly.length > 0) {
+        responseText = `Roletas disponíveis (IDs): ${numericCollectionIdsOnly.join(', ')}. (Nomes não encontrados nos metadados).`;
       } else {
-        const responseText = "Nenhuma roleta numérica encontrada no banco de dados.";
-        console.log(`[DEBUG] Handler - Nenhuma roleta numérica encontrada para listar.`);
-        return res.status(200).json({
-          response: responseText,
-          debug: {
-            query,
-            rouletteIdentifier: "Nenhuma Roleta",
-            ai_config: { provider: AI_PROVIDER, model: GEMINI_MODEL }
-          }
-        });
+        responseText = "Nenhuma roleta encontrada no banco de dados.";
       }
+      console.log(`[DEBUG] Handler - Respondendo diretamente com a lista de roletas: ${responseText}`);
+      return res.status(200).json({
+        response: responseText,
+        debug: { query, rouletteIdentifier: "Todas as Roletas", available_roulettes: allKnownRoulettes.length > 0 ? allKnownRoulettes : numericCollectionIdsOnly }
+      });
     }
     
     console.log('[DEBUG] Handler - Buscando dados detalhados da roleta...');
-    // Passar allNumericCollections para getRouletteDetails para evitar refetch, se disponíveis
-    const rouletteData = await getRouletteDetails(db, roletaId, roletaNome, allNumericCollections.length > 0 ? allNumericCollections : null);
+    const rouletteData = await getRouletteDetails(db, roletaId, roletaNome, numericCollectionIdsOnly);
     
-    if (rouletteData.error && !rouletteData.totalNumbers) {
-        // Se houve um erro em getRouletteDetails e não temos dados, podemos querer retornar o erro diretamente
-        // ou tentar o Gemini com a mensagem de erro (comportamento atual implícito).
-        // Por enquanto, vamos deixar o Gemini tentar responder, ele pode lidar com a mensagem de erro.
-        console.log(`[DEBUG] Handler - Erro em getRouletteDetails: ${rouletteData.error}. Procedendo para Gemini.`);
-    }
-
-    console.log('[DEBUG] Handler - Chamando API do Gemini com dados processados...');
+    console.log('[DEBUG] Handler - Chamando API do Gemini...');
     const aiResponse = await queryGemini(query, rouletteData);
-    console.log('[DEBUG] Handler - Resposta da API Gemini recebida');
     
     return res.status(200).json({
       response: aiResponse,
       debug: {
         query,
         rouletteIdentifier: rouletteData.rouletteIdentifier,
-        stats: {
-          zeroCount: rouletteData.stats?.zeroCount || 0,
-          totalNumbers: rouletteData.totalNumbers || 0
-        },
+        stats: { zeroCount: rouletteData.stats?.zeroCount || 0, totalNumbers: rouletteData.totalNumbers || 0 },
         ai_config: { provider: AI_PROVIDER, model: GEMINI_MODEL }
       }
     });
-    
   } catch (error) {
-    console.error('[DEBUG] Erro geral no handler:', error.message);
-    console.error('[DEBUG] Stack:', error.stack);
-    return res.status(500).json({ 
-      message: 'Erro interno no servidor',
-      error: error.message,
-      stackFirstLine: error.stack ? error.stack.split('\n')[0] : 'No stack available'
-    });
+    console.error('[DEBUG] Handler - Erro GERAL:', error.message, error.stack);
+    return res.status(500).json({ message: 'Erro interno no servidor', error: error.message });
   }
 } 
