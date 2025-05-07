@@ -193,6 +193,16 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
   return result;
 };
 
+// Renomear o componente para evitar o conflito
+const RouletteCardTitle = ({ data }: { data: ProcessedRouletteData }) => (
+  <div className="flex items-center gap-2">
+    <span className="text-lg font-semibold truncate">{data.nome}</span>
+    <Badge variant={data.status === 'online' ? 'default' : 'destructive'} className={`ml-auto ${data.status === 'online' ? 'bg-green-500 hover:bg-green-600' : ''}`}>
+      {data.status === 'online' ? 'Online' : 'Offline'}
+    </Badge>
+  </div>
+);
+
 const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetailView = false, onSelect, isSelected }) => {
   // Estados
   const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(() => {
@@ -442,31 +452,37 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   return (
     <Card 
       ref={cardRef}
-      className={cn(
-        "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ", 
-        "hover:border-vegas-green/50",
-        isNewNumber ? "border-vegas-green animate-pulse" : "",
-        isDetailView ? "w-full" : "w-full",
-        !isOnline ? "opacity-60 grayscale" : ""
-      )}
       onClick={handleCardClick}
+      className={cn(
+        "relative h-full w-full transition-all group",
+        {
+          'border-primary border-2': isSelected,
+          'cursor-pointer hover:border-primary hover:shadow-md': !isDetailView,
+          'shadow-inner bg-muted/40': isDetailView,
+          'animate-shake': isNewNumber
+        }
+      )}
     >
-      {/* Logo de fundo com baixa opacidade e saturação 0 */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-lg">
-        <img 
-          src="/assets/icon-rabbit.svg" 
-          alt="Icon Rabbit" 
-          className="w-[95%] h-auto opacity-[0.025] grayscale filter select-none"
-          style={{ 
-            objectFit: "contain",
-            transformOrigin: "center"
-          }} 
-        />
-      </div>
-      
-      {/* Reprodutor de áudio (invisível) */}
-      <audio ref={audioRef} src="/sounds/coin.mp3" preload="auto" />
-      
+      {loadingTimeout && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2 text-sm font-medium">Carregando dados...</span>
+        </div>
+      )}
+
+      <CardHeader className="p-3 pb-0">
+        {/* Exibe o NOME da roleta ao invés do ID */}
+        {rouletteData && <RouletteCardTitle data={rouletteData} />}
+        <CardDescription className="text-xs flex justify-between items-center mt-1">
+          <span className="opacity-70">{rouletteData?.provider || 'Provedor desconhecido'}</span>
+          <span className="text-xs flex items-center gap-1">
+            {rouletteData && (
+              <span>{getTimeAgo()}</span>
+            )}
+          </span>
+        </CardDescription>
+      </CardHeader>
+
       <CardContent className="p-4 relative z-10">
         {/* Cabeçalho */}
         <div className="flex justify-between items-center mb-3">

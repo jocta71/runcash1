@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChartBar, ArrowLeft, TrendingUp, BarChart, ArrowDown, ArrowUp, PercentIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,20 @@ import {
   Legend,
 } from "recharts";
 import { useAuth } from '@/context/AuthContext';
+
+// Função para obter dados da roleta, incluindo nome
+const fetchRouletteDetails = async (rouletteId: string) => {
+  try {
+    const response = await fetch(`/api/roulette?id=${rouletteId}`);
+    if (!response.ok) {
+      throw new Error('Erro ao buscar detalhes da roleta');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Erro ao buscar detalhes da roleta:', error);
+    return null;
+  }
+};
 
 // Função para obter dados históricos - retorna array vazio
 const getHistoricalNumbers = () => {
@@ -93,8 +107,29 @@ const RouletteDetailsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   
+  // Estado para armazenar detalhes da roleta
+  const [rouletteDetails, setRouletteDetails] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Buscar detalhes da roleta quando o componente for montado
+  useEffect(() => {
+    if (rouletteId) {
+      setLoading(true);
+      fetchRouletteDetails(rouletteId)
+        .then(data => {
+          setRouletteDetails(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error('Erro ao buscar detalhes:', err);
+          setLoading(false);
+        });
+    }
+  }, [rouletteId]);
+  
   // Mock data - would be fetched from API in real app
-  const name = rouletteId || "Roleta";
+  // Usar o nome real da roleta se disponível, ou um fallback
+  const name = rouletteDetails?.nome || rouletteDetails?.name || "Roleta " + rouletteId;
   const wins = 65;
   const losses = 35;
   const trend = Array.from({ length: 10 }, (_, i) => ({ value: Math.random() * 10 }));
@@ -118,7 +153,7 @@ const RouletteDetailsPage = () => {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-2xl md:text-3xl font-bold text-[#00ff00] flex items-center">
-            <BarChart className="mr-2" /> Estatísticas da {name}
+            <BarChart className="mr-2" /> Estatísticas: {loading ? "Carregando..." : name}
           </h1>
         </div>
         
