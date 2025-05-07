@@ -122,11 +122,109 @@ class RouletteAiStrategy:
         # Configurações padrão
         MONGODB_URI = uri or os.environ.get("MONGODB_URI") or "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash"
         MONGODB_DB_NAME = db_name or os.environ.get("MONGODB_DB_NAME") or "runcash"
+        ROLETAS_DB_NAME = os.environ.get("ROLETAS_MONGODB_DB_NAME") or "roletas_db"
         
         try:
             # Conectar ao MongoDB
             print("Conectando ao MongoDB...")
             client = pymongo.MongoClient(MONGODB_URI)
+            
+            # Tentar usar o banco de roletas_db primeiro
+            use_roletas_db = input("Usar o banco de dados otimizado roletas_db? (S/n): ").lower() != 'n'
+            
+            if use_roletas_db:
+                # Verificar se o banco roletas_db existe
+                if ROLETAS_DB_NAME in client.list_database_names():
+                    db_roletas = client[ROLETAS_DB_NAME]
+                    print(f"Conectado ao banco de dados: {ROLETAS_DB_NAME}")
+                    
+                    # Obter lista de roletas disponíveis
+                    roletas_disponiveis = []
+                    
+                    # Verificar se existe a coleção de metadados
+                    if "metadados" in db_roletas.list_collection_names():
+                        # Buscar informações das roletas da coleção metadados
+                        print("Buscando roletas na coleção metadados...")
+                        roletas_docs = list(db_roletas.metadados.find({"ativa": True}))
+                        
+                        for roleta in roletas_docs:
+                            roletas_disponiveis.append({
+                                "id": roleta.get("roleta_id") or roleta.get("colecao"),
+                                "nome": roleta.get("roleta_nome")
+                            })
+                    
+                    # Se não encontrou na coleção metadados, listar coleções disponíveis
+                    if not roletas_disponiveis:
+                        print("Coleção metadados não encontrada. Listando coleções disponíveis...")
+                        collections = db_roletas.list_collection_names()
+                        
+                        # Filtrar apenas coleções que representam roletas (excluir metadados, sistema, etc)
+                        roleta_collections = [col for col in collections 
+                                             if not col.startswith("system.") 
+                                             and col not in ["metadados", "estatisticas"]]
+                        
+                        # Criar lista de roletas a partir das coleções
+                        for collection_name in roleta_collections:
+                            roletas_disponiveis.append({
+                                "id": collection_name,
+                                "nome": f"Roleta {collection_name}"
+                            })
+                    
+                    # Verificar se encontrou roletas
+                    if not roletas_disponiveis:
+                        print("Nenhuma roleta encontrada no banco roletas_db. Usando banco principal como fallback.")
+                    else:
+                        # Mostrar roletas disponíveis
+                        print("\nRoletas disponíveis:")
+                        for i, roleta in enumerate(roletas_disponiveis):
+                            print(f"{i+1}. {roleta['nome']} (ID: {roleta['id']})")
+                        
+                        # Solicitar escolha da roleta
+                        escolha = input("\nEscolha o número da roleta (ou 0 para usar banco principal): ")
+                        
+                        try:
+                            escolha_num = int(escolha)
+                            if 1 <= escolha_num <= len(roletas_disponiveis):
+                                roleta_escolhida = roletas_disponiveis[escolha_num-1]
+                                print(f"Roleta escolhida: {roleta_escolhida['nome']}")
+                                
+                                # Buscar coleção específica da roleta
+                                collection_id = roleta_escolhida['id']
+                                
+                                # Verificar se a coleção existe
+                                if collection_id in db_roletas.list_collection_names():
+                                    dias_atras = int(input("Quantos dias de dados buscar (padrão: 7): ") or "7")
+                                    
+                                    # Buscar dados diretamente da coleção da roleta
+                                    data_limite = datetime.now() - timedelta(days=dias_atras)
+                                    resultados = list(db_roletas[collection_id]
+                                                    .find({"timestamp": {"$gte": data_limite}})
+                                                    .sort("timestamp", 1))  # Ordem cronológica
+                                    
+                                    print(f"Encontrados {len(resultados)} resultados na coleção {collection_id}")
+                                    
+                                    if len(resultados) < 20:
+                                        print("Poucos dados para análise. É necessário pelo menos 20 registros.")
+                                        return False
+                                    
+                                    # Extrair apenas os números para o treinamento
+                                    numeros = [doc.get("numero") for doc in resultados if doc.get("numero") is not None]
+                                    
+                                    # Adicionar números ao histórico
+                                    self.add_numbers(numeros)
+                                    print(f"Dados carregados com sucesso: {len(numeros)} números")
+                                    self.table_name = roleta_escolhida['nome']  # Definir nome da tabela
+                                    return True
+                                else:
+                                    print(f"Coleção {collection_id} não encontrada. Usando banco principal como fallback.")
+                            elif escolha_num != 0:
+                                print("Opção inválida. Usando banco principal como fallback.")
+                        except ValueError:
+                            print("Opção inválida. Usando banco principal como fallback.")
+                else:
+                    print(f"Banco de dados {ROLETAS_DB_NAME} não encontrado. Usando banco principal.")
+            
+            # Se chegou aqui, usar o banco principal
             db = client[MONGODB_DB_NAME]
             collection = db[collection_name]
             
@@ -156,9 +254,10 @@ class RouletteAiStrategy:
             print(f"Buscando dados dos últimos {dias_atras} dias...")
             if roleta_nome:
                 print(f"Roleta: {roleta_nome}")
+                self.table_name = roleta_nome  # Definir nome da tabela
             else:
                 print("Todas as roletas")
-                
+            
             # Campo que contém o número da roleta
             campo_numero = "numero" if "numero" in sample_doc else "number"
             
