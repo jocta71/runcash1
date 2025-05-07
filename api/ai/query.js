@@ -305,6 +305,14 @@ async function queryGemini(userQuery, rouletteData) {
   try {
     if (!GEMINI_API_KEY) throw new Error('[DEBUG] Chave da API Gemini não configurada');
     console.log(`[DEBUG] queryGemini - Modelo: ${GEMINI_MODEL}, Roleta: ${rouletteData.rouletteIdentifier}`);
+    
+    // Se houver erro nos dados da roleta e for uma consulta específica (erro de "não encontrada")
+    if (rouletteData.error) {
+      console.log(`[DEBUG] queryGemini - Detectado erro nos dados da roleta: ${rouletteData.error}`);
+      // Retornar erro diretamente para consultas específicas sobre roletas não disponíveis
+      return `${rouletteData.error}`;
+    }
+    
     const apiUrl = `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`;
     const prompt = `Você é um assistente especializado em análise de roleta de cassino.
 
