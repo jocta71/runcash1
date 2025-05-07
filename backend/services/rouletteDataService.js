@@ -247,6 +247,16 @@ class RouletteDataService {
       const colecaoComumExiste = await db.listCollections({name: 'roleta_numeros'}).toArray();
       const temColecaoComum = colecaoComumExiste.length > 0;
       
+      // Obter lista de todas as coleções numéricas disponíveis
+      const todasColecoes = await db.listCollections().toArray();
+      const colecoesNumericas = todasColecoes
+        .filter(col => /^\d+$/.test(col.name))
+        .map(col => col.name);
+      
+      if (colecoesNumericas.length > 0) {
+        console.log(`[RouletteData] Encontradas ${colecoesNumericas.length} coleções numéricas no banco de dados`);
+      }
+      
       // 2. Para cada roleta, buscar seus últimos 5 números
       const allRouletteData = [];
       for (const roletaMetadata of roletasMetadados) {
@@ -254,41 +264,51 @@ class RouletteDataService {
         const roleta_nome = roletaMetadata.roleta_nome;
         
         try {
-          // Obter ID numérico mapeado para esta roleta
-          const id_numerico = this.getIdNumericoPorUUID(roleta_id, roleta_nome);
+          // Verificar se a roleta já tem ID numérico
+          const roleta_id_eh_numerico = /^\d+$/.test(roleta_id);
+          let id_numerico = null;
           let colecao_id = null;
           let numerosEncontrados = null;
           
-          // Usar mapeamento direto em vez de tentar extrair ID da string
-          if (id_numerico) {
-            console.log(`[RouletteData] Usando mapeamento: ${roleta_nome} (${roleta_id}) -> ID numérico: ${id_numerico}`);
-          } else {
-            console.log(`[RouletteData] Nenhum mapeamento encontrado para: ${roleta_nome} (${roleta_id})`);
-          }
-          
-          // Estratégia 1: Tentar coleção com nome igual ao ID numérico mapeado
-          if (id_numerico) {
-            const collections = await db.listCollections({name: id_numerico}).toArray();
+          // CASO 1: Roleta já tem ID numérico
+          if (roleta_id_eh_numerico) {
+            id_numerico = roleta_id;
+            console.log(`[RouletteData] Roleta ${roleta_nome} já tem ID numérico: ${id_numerico}`);
+          } 
+          // CASO 2: Roleta tem UUID e precisamos do mapeamento
+          else {
+            // Obter ID numérico mapeado para esta roleta
+            id_numerico = this.getIdNumericoPorUUID(roleta_id, roleta_nome);
             
-            if (collections.length > 0) {
-              colecao_id = id_numerico;
-              console.log(`[RouletteData] Usando coleção numérica mapeada ${colecao_id} para roleta ${roleta_nome}`);
-              
-              // Buscar números na coleção específica
-              numerosEncontrados = await db.collection(colecao_id)
-                .find({})
-                .sort({ timestamp: -1 })
-                .limit(5)
-                .toArray();
-                
-              if (numerosEncontrados && numerosEncontrados.length > 0) {
-                console.log(`[RouletteData] Encontrados ${numerosEncontrados.length} números na coleção ${colecao_id} para roleta ${roleta_nome}`);
-              }
+            // Usar mapeamento direto em vez de tentar extrair ID da string
+            if (id_numerico) {
+              console.log(`[RouletteData] Usando mapeamento: ${roleta_nome} (${roleta_id}) -> ID numérico: ${id_numerico}`);
+            } else {
+              console.log(`[RouletteData] Nenhum mapeamento encontrado para: ${roleta_nome} (${roleta_id})`);
             }
           }
           
-          // Estratégia 2: Tentar coleção com nome igual ao ID original (mantido para compatibilidade)
-          if (!numerosEncontrados || numerosEncontrados.length === 0) {
+          // Estratégia 1: Verificar se existe a coleção com ID numérico (mapeado ou direto)
+          if (id_numerico && colecoesNumericas.includes(id_numerico)) {
+            colecao_id = id_numerico;
+            console.log(`[RouletteData] Usando coleção numérica ${colecao_id} para roleta ${roleta_nome}`);
+            
+            // Buscar números na coleção específica
+            numerosEncontrados = await db.collection(colecao_id)
+              .find({})
+              .sort({ timestamp: -1 })
+              .limit(5)
+              .toArray();
+              
+            if (numerosEncontrados && numerosEncontrados.length > 0) {
+              console.log(`[RouletteData] Encontrados ${numerosEncontrados.length} números na coleção ${colecao_id} para roleta ${roleta_nome}`);
+            } else {
+              console.log(`[RouletteData] Coleção ${colecao_id} existe, mas não contém números para roleta ${roleta_nome}`);
+            }
+          }
+          // Estratégia 2: Se roleta não tiver ID numérico ou não encontrar coleção, tentar UUID original
+          else if (!roleta_id_eh_numerico) {
+            // Verificar se a coleção UUID existe
             const collections = await db.listCollections({name: roleta_id}).toArray();
             
             if (collections.length > 0) {
@@ -304,42 +324,50 @@ class RouletteDataService {
                 
               if (numerosEncontrados && numerosEncontrados.length > 0) {
                 console.log(`[RouletteData] Encontrados ${numerosEncontrados.length} números na coleção UUID para roleta ${roleta_nome}`);
+              } else {
+                console.log(`[RouletteData] Coleção UUID existe, mas não contém números para roleta ${roleta_nome}`);
               }
             }
           }
           
           // Estratégia 3: Tentar na coleção comum 'roleta_numeros' usando o ID como filtro
           if ((!numerosEncontrados || numerosEncontrados.length === 0) && temColecaoComum) {
-            console.log(`[RouletteData] Tentando buscar na coleção comum para roleta ${roleta_nome} (ID: ${roleta_id})`);
+            console.log(`[RouletteData] Tentando buscar na coleção comum para roleta ${roleta_nome}`);
             
-            // Tentar buscar usando o UUID original
-            let numerosUUID = await db.collection('roleta_numeros')
-              .find({ roleta_id: roleta_id })
-              .sort({ timestamp: -1 })
-              .limit(5)
-              .toArray();
+            // Queries a serem tentadas, em ordem de prioridade
+            const queries = [];
+            
+            // 1. Tentar com ID numérico (se disponível)
+            if (id_numerico) {
+              queries.push({ roleta_id: id_numerico });
+            }
+            
+            // 2. Tentar com UUID original (se não for numérico)
+            if (!roleta_id_eh_numerico) {
+              queries.push({ roleta_id: roleta_id });
+            }
+            
+            // 3. Tentar com nome da roleta
+            queries.push({ roleta_nome: roleta_nome });
+            
+            // Tentar cada query em sequência
+            for (let i = 0; i < queries.length; i++) {
+              const query = queries[i];
+              const queryDesc = JSON.stringify(query);
               
-            // Se não encontrar, tentar com o ID numérico
-            if ((!numerosUUID || numerosUUID.length === 0) && id_numerico) {
-              numerosUUID = await db.collection('roleta_numeros')
-                .find({ roleta_id: id_numerico })
+              console.log(`[RouletteData] Tentando query ${i+1}/${queries.length}: ${queryDesc}`);
+              
+              const numerosQuery = await db.collection('roleta_numeros')
+                .find(query)
                 .sort({ timestamp: -1 })
                 .limit(5)
                 .toArray();
-            }
-            
-            // Se ainda não encontrar, tentar buscar pelo nome da roleta
-            if (!numerosUUID || numerosUUID.length === 0) {
-              numerosUUID = await db.collection('roleta_numeros')
-                .find({ roleta_nome: roleta_nome })
-                .sort({ timestamp: -1 })
-                .limit(5)
-                .toArray();
-            }
-            
-            if (numerosUUID && numerosUUID.length > 0) {
-              numerosEncontrados = numerosUUID;
-              console.log(`[RouletteData] Encontrados ${numerosEncontrados.length} números na coleção comum para roleta ${roleta_nome}`);
+                
+              if (numerosQuery && numerosQuery.length > 0) {
+                numerosEncontrados = numerosQuery;
+                console.log(`[RouletteData] Encontrados ${numerosEncontrados.length} números na coleção comum com query ${queryDesc}`);
+                break; // Sair do loop se encontrou
+              }
             }
           }
           
@@ -360,6 +388,12 @@ class RouletteDataService {
             }
           } else {
             console.log(`[RouletteData] Nenhum número encontrado para roleta ${roleta_nome} (ID: ${roleta_id}).`);
+            
+            // Para depuração: verificar se a roleta com ID numérico existe mas está vazia
+            if (id_numerico && colecoesNumericas.includes(id_numerico)) {
+              const contagem = await db.collection(id_numerico).countDocuments();
+              console.log(`[RouletteData] A coleção numérica ${id_numerico} existe mas contém apenas ${contagem} documentos`);
+            }
           }
         } catch (err) {
           console.error(`[RouletteData] Erro ao processar roleta ${roleta_id}:`, err);
