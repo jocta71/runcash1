@@ -1,6 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const rouletteRouter = require('./roulette');
+const asaasRouter = require('./asaas');
+const webhookRouter = require('./webhook');
+const userRouter = require('./user');
+const strategyRouter = require('./strategy');
 
 const app = express();
 
@@ -9,7 +13,11 @@ app.use(cors());
 app.use(express.json());
 
 // Rotas
-app.use('/api', rouletteRouter);
+app.use('/api/roulette', rouletteRouter);
+app.use('/api/asaas', asaasRouter);
+app.use('/api/webhook', webhookRouter);
+app.use('/api/user', userRouter);
+app.use('/api/strategy', strategyRouter);
 
 // Rota padrão
 app.get('/', (req, res) => {
