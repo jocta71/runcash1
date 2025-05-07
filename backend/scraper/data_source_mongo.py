@@ -33,7 +33,7 @@ class MongoDataSource(DataSourceInterface):
         mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/runcash')
         
         # Usar ROLETAS_MONGODB_DB_NAME se disponível, caso contrário usar MONGODB_DB_NAME
-        db_name = os.environ.get('ROLETAS_MONGODB_DB_NAME')
+        db_name = os.environ.get('ROLETAS_MONGODB_DB_NAME','runcash_db')
         logger.info(f"Usando banco de dados: {db_name}")
         
         # Conectar ao MongoDB sem configuração de pool
