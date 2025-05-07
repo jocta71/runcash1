@@ -348,8 +348,11 @@ async function queryGemini(userQuery, rouletteData) {
     
     console.log('[DEBUG] Preparando requisição para Gemini...');
     
-    // Prompt melhorado para incluir mais detalhes dos dados da roleta
-    const prompt = `Você é um assistente especializado em análise de roleta de cassino.
+    // Verificar se a consulta é sobre roletas disponíveis
+    const isRoletasQuery = /roletas dispon[ií]veis|quais roletas|listar? roletas/i.test(userQuery);
+    
+    // Prompt base
+    let promptBase = `Você é um assistente especializado em análise de roleta de cassino.
 
 Instruções:
 1. Responda em português, de forma DIRETA e OBJETIVA.
@@ -358,7 +361,22 @@ Instruções:
 4. Se perguntarem sobre tendências, use apenas os dados fornecidos.
 5. Não inclua explicações desnecessárias ou introduções.
 6. Não se desculpe ou faça ressalvas - seja assertivo.
+`;
 
+    // Adicionar dados específicos da roleta
+    let dadosRoleta = '';
+    
+    if (rouletteData.roletasDisponiveis) {
+      dadosRoleta = `
+Informação: O usuário está perguntando sobre roletas disponíveis. Informe que estão disponíveis diversas roletas como:
+- Immersive Roulette (2010016)
+- Speed Roulette (2380010)
+- American Roulette (2010012)
+- VIP Roulette (2010097)
+- Lightning Roulette (2010143)
+`;
+    } else {
+      dadosRoleta = `
 Dados da roleta ${rouletteData.rouletteIdentifier}:
 • Total de resultados analisados: ${rouletteData.totalNumbers || 0}
 ${rouletteData.stats ? `• Zeros: ${rouletteData.stats.zeroCount} (${rouletteData.stats.zeroPercentage}%)
@@ -368,7 +386,11 @@ ${rouletteData.stats ? `• Zeros: ${rouletteData.stats.zeroCount} (${rouletteDa
 • Ímpares: ${rouletteData.stats.oddCount} (${rouletteData.stats.oddPercentage}%)` : ''}
 ${rouletteData.hotNumbers ? `• Números quentes: ${rouletteData.hotNumbers.map(n => `${n.number} (${n.count}x)`).join(', ')}` : ''}
 ${rouletteData.coldNumbers ? `• Números frios: ${rouletteData.coldNumbers.map(n => `${n.number} (${n.count}x)`).join(', ')}` : ''}
-${rouletteData.recentNumbers ? `• Últimos números: ${rouletteData.recentNumbers.slice(0, 10).join(', ')}...` : ''}
+${rouletteData.recentNumbers ? `• Últimos números: ${rouletteData.recentNumbers.slice(0, 10).join(', ')}...` : ''}`;
+    }
+    
+    // Prompt completo
+    const prompt = promptBase + dadosRoleta + `
 
 A pergunta do usuário é: "${userQuery}"
 
