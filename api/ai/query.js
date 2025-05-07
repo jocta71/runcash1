@@ -379,9 +379,41 @@ export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return res.status(405).json({ message: 'Método não permitido' });
 
-    const { query, roletaId, roletaNome } = req.body;
-    console.log(`[DEBUG] Handler - Body: query="${query || ''}", roletaId=${roletaId || 'null'}, roletaNome=${roletaNome || 'null'}`);
+    let { query, roletaId, roletaNome } = req.body;
+    console.log(`[DEBUG] Handler - Body original: query="${query || ''}", roletaId=${roletaId || 'null'}, roletaNome=${roletaNome || 'null'}`);
+    
     if (!query) return res.status(400).json({ message: 'Parâmetro "query" é obrigatório' });
+    
+    // Tentar extrair ID da roleta do texto da consulta se não for fornecido explicitamente
+    if (!roletaId && !roletaNome) {
+      // Procurar padrões comuns para IDs de roleta (7 dígitos)
+      const padroes = [
+        /roleta\s+(\d{7})/i,              // "roleta 2010011"
+        /roulette\s+(\d{7})/i,            // "roulette 2010011"
+        /rulet\s+(\d{7})/i,               // "rulet 2010011"
+        /\s(\d{7})(?![0-9])/,             // " 2010011" (com espaço antes)
+        /^(\d{7})(?![0-9])/,              // "2010011" (início da string)
+        /da\s+(\d{7})(?![0-9])/i,         // "da 2010011"
+        /id[:\s]+(\d{7})(?![0-9])/i,      // "id: 2010011" ou "ID 2010011"
+        /id[=\s]+(\d{7})(?![0-9])/i       // "id=2010011"
+      ];
+      
+      let matchEncontrado = null;
+      for (const padrao of padroes) {
+        const match = query.match(padrao);
+        if (match && match[1]) {
+          matchEncontrado = match[1];
+          break;
+        }
+      }
+      
+      if (matchEncontrado) {
+        roletaId = matchEncontrado;
+        console.log(`[DEBUG] Handler - ID da roleta extraído do texto da consulta: ${roletaId}`);
+      }
+    }
+    
+    console.log(`[DEBUG] Handler - Parâmetros processados: query="${query || ''}", roletaId=${roletaId || 'null'}, roletaNome=${roletaNome || 'null'}`);
     
     const db = await connectDB();
     if (!db) return res.status(503).json({ message: 'Serviço temporariamente indisponível (MongoDB)', mongodbErrorType: 'connection_failed' });
