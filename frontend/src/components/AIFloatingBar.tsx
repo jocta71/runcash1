@@ -50,20 +50,16 @@ const AIFloatingBar: React.FC = () => {
       
       // Usar o endpoint do backend para evitar problemas de CORS
       const apiUrl = '/api/ai/query';
-      
-      const response = await axios.post(
-        apiUrl,
-        {
-          query: query + " IMPORTANTE: Resposta curta e direta. Sem explicações. Máximo 1-2 linhas.",
-          rouletteData: roletaData
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        { 
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 30000 // Timeout de 30 segundos
-        }
-      );
+        body: JSON.stringify({ query, roletaData }),
+      });
       
-      return response.data.response;
+      const data = await response.json();
+      return data.response;
     } catch (error) {
       console.error('Erro ao consultar API de IA:', error);
       return 'Erro ao processar consulta. Tente novamente.';
