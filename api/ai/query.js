@@ -498,6 +498,81 @@ export default async function handler(req, res) {
       });
     }
     
+    // Verificar se a consulta é sobre roletas disponíveis
+    const isRoletasQuery = /roletas dispon[ií]veis|quais roletas|listar? roletas/i.test(query);
+    
+    if (isRoletasQuery) {
+      console.log('[DEBUG] Consulta sobre roletas disponíveis detectada');
+      
+      try {
+        // Listar todas as coleções disponíveis
+        const collections = await db.listCollections().toArray();
+        const numericCollections = collections
+          .map(col => col.name)
+          .filter(name => /^\d+$/.test(name));
+        
+        console.log(`[DEBUG] Coleções numéricas encontradas: ${numericCollections.join(', ')}`);
+        
+        // Buscar nomes de roletas para cada coleção
+        const roletasInfo = [];
+        
+        // Limitar a 20 roletas para não sobrecarregar
+        const collectionsToCheck = numericCollections.slice(0, 20);
+        
+        for (const colName of collectionsToCheck) {
+          try {
+            // Buscar primeiro documento para obter nome da roleta
+            const doc = await db.collection(colName)
+              .findOne({roleta_nome: {$exists: true}});
+            
+            if (doc && doc.roleta_nome) {
+              roletasInfo.push({
+                id: colName,
+                nome: doc.roleta_nome
+              });
+            } else {
+              roletasInfo.push({
+                id: colName,
+                nome: `Roleta ${colName}`
+              });
+            }
+          } catch (err) {
+            console.error(`[DEBUG] Erro ao buscar nome da roleta ${colName}: ${err.message}`);
+            roletasInfo.push({
+              id: colName,
+              nome: `Roleta ${colName}`
+            });
+          }
+        }
+        
+        console.log(`[DEBUG] Informações de roletas coletadas: ${JSON.stringify(roletasInfo)}`);
+        
+        // Construir resposta direta
+        const roletasResponse = roletasInfo
+          .map(r => `${r.nome} (${r.id})`)
+          .join(', ');
+        
+        // Responder diretamente sem chamar Gemini
+        return res.status(200).json({
+          response: `Roletas disponíveis: ${roletasResponse}`,
+          debug: {
+            query,
+            rouletteIdentifier: "Todas as roletas",
+            stats: {
+              totalRoletas: roletasInfo.length,
+              totalCollections: numericCollections.length
+            },
+            ai_config: {
+              provider: AI_PROVIDER,
+              model: "resposta_direta"
+            }
+          }
+        });
+      } catch (listError) {
+        console.error('[DEBUG] Erro ao listar roletas:', listError.message);
+      }
+    }
+    
     // Obter dados detalhados da roleta específica
     console.log('[DEBUG] Buscando dados detalhados da roleta...');
     const rouletteData = await getRouletteDetails(db, roletaId, roletaNome);
@@ -541,6 +616,12 @@ export default async function handler(req, res) {
       
       // Alguns números recentes fictícios
       rouletteData.recentNumbers = [32, 15, 19, 7, 26, 0, 14, 22, 31, 5, 8, 17, 29, 28, 36, 12];
+    }
+    
+    // Modificar o prompt para casos especiais
+    if (isRoletasQuery && rouletteData.recentNumbers) {
+      // Adicionar informação sobre consulta de roletas disponíveis
+      rouletteData.roletasDisponiveis = true;
     }
     
     // Agora, vamos chamar a API do Gemini com os dados de roleta processados
