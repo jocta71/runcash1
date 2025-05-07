@@ -22,6 +22,57 @@ const HEARTBEAT_INTERVAL = 30000; // 30 segundos
 // Remover URL do Scraper - Leremos apenas do MongoDB
 // const SCRAPER_URL = process.env.SCRAPER_URL || "https://backendscraper-production-ccda.up.railway.app/api/roulettes";
 
+// Mapeamento de UUIDs para IDs numéricos conhecidos
+const UUID_PARA_ID_NUMERICO = {
+  // Mapeamento principal baseado nos logs e arquivos existentes
+  "a8a1f746-6002-eabf-b14d-d78d13877599": "2010097", // VIP Roulette
+  "ab0ab995-bb00-9b42-57fe-856838109c3d": "2010440", // XXXtreme Lightning Roulette
+  "0b8fdb47-e536-6f43-bf53-96b9a34af3b7": "2010099", // Football Studio Roulette
+  "a11fd7c4-3ce0-9115-fe95-e761637969ad": "2010012", // American Roulette
+  "1fa13bd8-47f4-eaeb-1540-f203da568290": "2010165", // Roulette
+  "ec79f914-5261-e90b-45cc-ebe65b0c96a2": "2330057", // Ruleta Relámpago en Vivo
+  "eabd279d-90cf-74f7-c080-a2240dca6517": "2010186", // Gold Vault Roulette
+  "c4b2e581-2699-3705-490d-9b89fe85c16a": "2330057", // Ruleta en Vivo
+  "18bdc4ea-d884-c47a-d33f-27a268a4eead": "2010096", // Speed Auto Roulette
+  "a0f21bd0-6156-1c4e-b05c-b630ce563fbb": "2330053", // Roulette Macao
+  "1dfb0fcd-76dd-2fe9-27fe-fe35c87cd4a4": "2330049", // Bucharest Roulette
+  "e3345af9-e387-9412-209c-e793fe73e520": "2330049", // Bucharest Auto-Roulette
+  "4cf27e48-2b9d-b58e-7dcc-48264c51d639": "2330047", // Immersive Roulette
+  "1c34d1e0-6d96-6f5b-3c53-bc6852bf9fd8": "2010201", // Lightning Roulette Italia
+  "96a31ffc-7c6e-3980-395c-aa163c6d5759": "2010179", // Russian Roulette
+  "419aa56c-bcff-67d2-f424-a6501bac4a36": "2330051", // Auto-Roulette VIP
+  "278b90ba-c190-f5ac-e214-c40b1474e9f7": "2010118", // Lightning Roulette
+  "a92e8f3b-665f-aec7-5e07-a8ef91818cda": "2010097", // VIP Auto Roulette
+  "bc007d81-eb92-96a5-573c-2a2ee28c2fd7": "2010141", // Roulette 1
+  "1b4131a6-307a-6a64-974d-d03b2d107002": "2010178", // Fortune Roulette
+  "206f0db9-84b9-888a-8b4c-f3b1b2b5c4da": "2010091", // Mega Roulette
+  "fe79694c-6212-6ae6-47ad-0593c35ded71": "2010202", // Roulette Italia Tricolore
+  "1920129d-760a-1755-c393-03d05c9de118": "2010200", // Türkçe Lightning Rulet
+  "8663c411-e6af-e341-3854-b163e3d349a3": "2010176", // Turkish Roulette
+  "afc07eb8-a37c-48af-c6ff-5de999e1871b": "2010177", // Romanian Roulette
+  "14f70979-2311-5460-1fec-b722322d353e": "2330054", // Speed Roulette 1
+  "2cc41e23-fb04-2926-77d5-d55831e97bab": "2010180", // Dansk Roulette
+  "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2330048", // Brazilian Mega Roulette
+  "f27dd03e-5282-fc78-961c-6375cef91565": "2010183", // Ruleta Automática
+  "5403e259-2f6c-cd2d-324c-63f0a00dee05": "2010184", // Jawhara Roulette
+};
+
+// Mapeamento de nomes para IDs numéricos (backup)
+const NOME_PARA_ID_NUMERICO = {
+  "Speed Roulette": "2330046",
+  "Immersive Roulette": "2330047",
+  "Brazilian Mega Roulette": "2330048",
+  "Bucharest Auto-Roulette": "2330049",
+  "Auto-Roulette": "2330050",
+  "Auto-Roulette VIP": "2330051",
+  "VIP Roulette": "2330052",
+  "Roulette Macao": "2330053",
+  "Speed Roulette 1": "2330054",
+  "Hippodrome Grand Casino": "2330055",
+  "Ruleta Bola Rapida en Vivo": "2330056",
+  "Ruleta en Vivo": "2330057"
+};
+
 class RouletteDataService {
   constructor() {
     this.isRunning = false;
@@ -128,18 +179,39 @@ class RouletteDataService {
     rouletteStreamService.broadcastUpdate(heartbeatData);
   }
 
-  // Remover função de busca do scraper e seus dependentes
-  /* 
-  scheduleScraperFetch() {
-    // ... removido ... 
+  /**
+   * Obtém o ID numérico conhecido para um UUID de roleta
+   * @param {string} uuid - UUID da roleta
+   * @param {string} nome - Nome da roleta (caso não encontre pelo UUID)
+   * @returns {string|null} - ID numérico ou null se não encontrado
+   */
+  getIdNumericoPorUUID(uuid, nome) {
+    // Verificar diretamente no mapeamento
+    if (UUID_PARA_ID_NUMERICO[uuid]) {
+      return UUID_PARA_ID_NUMERICO[uuid];
+    }
+    
+    // Se não encontrar pelo UUID, procurar pelo nome
+    if (nome && NOME_PARA_ID_NUMERICO[nome]) {
+      return NOME_PARA_ID_NUMERICO[nome];
+    }
+    
+    // Tentar extrair dígitos do UUID
+    if (uuid && uuid.includes('-')) {
+      const digits = uuid.replace(/\D/g, '');
+      if (digits && digits.length > 0) {
+        // Limitar tamanho para evitar problemas
+        return digits.substring(0, 10);
+      }
+    }
+    
+    // Se o UUID já for numérico, retornar ele mesmo
+    if (uuid && /^\d+$/.test(uuid)) {
+      return uuid;
+    }
+    
+    return null;
   }
-  */
-  
-  /* 
-  processScraperData(data) {
-    // ... removido ...
-  }
-  */
 
   /**
    * Busca dados de TODAS as roletas do banco de dados e envia UM ÚNICO evento para o stream
@@ -182,51 +254,25 @@ class RouletteDataService {
         const roleta_nome = roletaMetadata.roleta_nome;
         
         try {
-          // Extrair ID numérico do UUID, se possível
+          // Obter ID numérico mapeado para esta roleta
+          const id_numerico = this.getIdNumericoPorUUID(roleta_id, roleta_nome);
           let colecao_id = null;
-          let id_numerico = null;
           let numerosEncontrados = null;
           
-          // Verificar se o ID já é numérico
-          if (roleta_id && /^\d+$/.test(roleta_id)) {
-            // O ID já é numérico
-            id_numerico = roleta_id;
-          } 
-          // Se for UUID, extrair dígitos
-          else if (roleta_id && roleta_id.includes('-')) {
-            // Tentar extrair apenas os dígitos da string
-            const digits = roleta_id.replace(/\D/g, '');
-            if (digits && digits.length > 0) {
-              id_numerico = digits;
-              
-              // Limitar tamanho
-              if (id_numerico.length > 10) {
-                id_numerico = id_numerico.substring(0, 10);
-              }
-            }
+          // Usar mapeamento direto em vez de tentar extrair ID da string
+          if (id_numerico) {
+            console.log(`[RouletteData] Usando mapeamento: ${roleta_nome} (${roleta_id}) -> ID numérico: ${id_numerico}`);
+          } else {
+            console.log(`[RouletteData] Nenhum mapeamento encontrado para: ${roleta_nome} (${roleta_id})`);
           }
           
-          // Estratégia 1: Tentar coleção com nome igual ao ID original
-          let collections = await db.listCollections({name: roleta_id}).toArray();
-          if (collections.length > 0) {
-            colecao_id = roleta_id;
-            console.log(`[RouletteData] Usando coleção UUID original ${colecao_id} para roleta ${roleta_nome}`);
-            
-            // Buscar números na coleção específica
-            numerosEncontrados = await db.collection(colecao_id)
-              .find({})
-              .sort({ timestamp: -1 })
-              .limit(5)
-              .toArray();
-          }
-          
-          // Estratégia 2: Tentar coleção com nome igual ao ID numérico extraído
-          if ((!numerosEncontrados || numerosEncontrados.length === 0) && id_numerico) {
-            collections = await db.listCollections({name: id_numerico}).toArray();
+          // Estratégia 1: Tentar coleção com nome igual ao ID numérico mapeado
+          if (id_numerico) {
+            const collections = await db.listCollections({name: id_numerico}).toArray();
             
             if (collections.length > 0) {
               colecao_id = id_numerico;
-              console.log(`[RouletteData] Usando coleção numérica ${colecao_id} para roleta ${roleta_nome}`);
+              console.log(`[RouletteData] Usando coleção numérica mapeada ${colecao_id} para roleta ${roleta_nome}`);
               
               // Buscar números na coleção específica
               numerosEncontrados = await db.collection(colecao_id)
@@ -234,6 +280,31 @@ class RouletteDataService {
                 .sort({ timestamp: -1 })
                 .limit(5)
                 .toArray();
+                
+              if (numerosEncontrados && numerosEncontrados.length > 0) {
+                console.log(`[RouletteData] Encontrados ${numerosEncontrados.length} números na coleção ${colecao_id} para roleta ${roleta_nome}`);
+              }
+            }
+          }
+          
+          // Estratégia 2: Tentar coleção com nome igual ao ID original (mantido para compatibilidade)
+          if (!numerosEncontrados || numerosEncontrados.length === 0) {
+            const collections = await db.listCollections({name: roleta_id}).toArray();
+            
+            if (collections.length > 0) {
+              colecao_id = roleta_id;
+              console.log(`[RouletteData] Usando coleção UUID original ${colecao_id} para roleta ${roleta_nome}`);
+              
+              // Buscar números na coleção específica
+              numerosEncontrados = await db.collection(colecao_id)
+                .find({})
+                .sort({ timestamp: -1 })
+                .limit(5)
+                .toArray();
+                
+              if (numerosEncontrados && numerosEncontrados.length > 0) {
+                console.log(`[RouletteData] Encontrados ${numerosEncontrados.length} números na coleção UUID para roleta ${roleta_nome}`);
+              }
             }
           }
           
@@ -241,14 +312,33 @@ class RouletteDataService {
           if ((!numerosEncontrados || numerosEncontrados.length === 0) && temColecaoComum) {
             console.log(`[RouletteData] Tentando buscar na coleção comum para roleta ${roleta_nome} (ID: ${roleta_id})`);
             
-            // Buscar números na coleção comum usando o ID como filtro
-            numerosEncontrados = await db.collection('roleta_numeros')
+            // Tentar buscar usando o UUID original
+            let numerosUUID = await db.collection('roleta_numeros')
               .find({ roleta_id: roleta_id })
               .sort({ timestamp: -1 })
               .limit(5)
               .toArray();
+              
+            // Se não encontrar, tentar com o ID numérico
+            if ((!numerosUUID || numerosUUID.length === 0) && id_numerico) {
+              numerosUUID = await db.collection('roleta_numeros')
+                .find({ roleta_id: id_numerico })
+                .sort({ timestamp: -1 })
+                .limit(5)
+                .toArray();
+            }
             
-            if (numerosEncontrados && numerosEncontrados.length > 0) {
+            // Se ainda não encontrar, tentar buscar pelo nome da roleta
+            if (!numerosUUID || numerosUUID.length === 0) {
+              numerosUUID = await db.collection('roleta_numeros')
+                .find({ roleta_nome: roleta_nome })
+                .sort({ timestamp: -1 })
+                .limit(5)
+                .toArray();
+            }
+            
+            if (numerosUUID && numerosUUID.length > 0) {
+              numerosEncontrados = numerosUUID;
               console.log(`[RouletteData] Encontrados ${numerosEncontrados.length} números na coleção comum para roleta ${roleta_nome}`);
             }
           }
