@@ -296,48 +296,37 @@ try {
   console.error('Erro ao carregar serviços adicionais:', err);
 }
 
-// Iniciar servidor
-const server = app.listen(PORT, () => {
-  console.log(`=== RunCash Unified Server ===`);
-  console.log(`PORT: ${PORT}`);
-  console.log(`MONGODB_URI: ${MONGODB_URI.replace(/mongodb\+srv:\/\/([^:]+):[^@]+@/, 'mongodb+srv:****@')}`);
-  console.log(`Diretório atual: ${process.cwd()}`);
-  
-  // Listar todas as rotas registradas para depuração
+// Após registrar todas as rotas, antes de iniciar o servidor
+// Listar todas as rotas registradas para depuração
+function printRegisteredRoutes(app) {
   console.log('\n=== ROTAS REGISTRADAS ===');
   
-  function print(path, layer) {
-    if (layer.route) {
-      layer.route.stack.forEach(print.bind(null, path.concat(split(layer.route.path))));
-    } else if (layer.name === 'router' && layer.handle.stack) {
-      layer.handle.stack.forEach(print.bind(null, path.concat(split(layer.regexp))));
-    } else if (layer.method) {
-      console.log('%s /%s',
-        layer.method.toUpperCase(),
-        path.concat(split(layer.regexp)).filter(Boolean).join('/'));
-    }
-  }
+  const printRoutes = (stack, basePath = '') => {
+    stack.forEach(layer => {
+      if (layer.route) {
+        const methods = Object.keys(layer.route.methods)
+          .filter(method => layer.route.methods[method])
+          .map(method => method.toUpperCase())
+          .join(', ');
+        
+        console.log(`${methods} ${basePath}${layer.route.path}`);
+      } else if (layer.name === 'router' && layer.handle.stack) {
+        const newBasePath = basePath + (layer.regexp.toString().indexOf('\\/(?=\\/|$)') >= 0 ? '' : layer.regexp.toString().replace(/\\|\^|\$|\?|\*|\+/g, '').replace('/(?=\\/|$)', ''));
+        printRoutes(layer.handle.stack, newBasePath);
+      }
+    });
+  };
   
-  function split(thing) {
-    if (typeof thing === 'string') {
-      return thing.split('/');
-    } else if (thing.fast_slash) {
-      return '';
-    } else {
-      var match = thing.toString()
-        .replace('\\/?', '')
-        .replace('(?=\\/|$)', '$')
-        .match(/^\/\^((?:\\[.*+?^${}()|[\]\\\/]|[^.*+?^${}()|[\]\\\/])*)\$\//);
-      return match
-        ? match[1].replace(/\\(.)/g, '$1').split('/')
-        : '<complex>';
-    }
-  }
-  
-  app._router.stack.forEach(print.bind(null, []));
+  printRoutes(app._router.stack);
   console.log('========================\n');
-  
-  console.log('[Server] Servidor unificado iniciado na porta ${PORT}');
+}
+
+// Chamar essa função antes de iniciar o servidor
+printRegisteredRoutes(app);
+
+// Iniciar servidor
+server.listen(PORT, () => {
+  console.log(`[Server] Servidor unificado iniciado na porta ${PORT}`);
   console.log('[Server] Endpoints disponíveis:');
   console.log('- / (status do servidor)');
   console.log('- /api (rotas da API principal)');
