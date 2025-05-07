@@ -114,20 +114,6 @@ export const createAsaasSubscription = async (
   try {
     console.log(`Criando assinatura: planId=${planId}, userId=${userId}, customerId=${customerId}`);
     
-    // Definir os preços oficiais dos planos
-    const PLAN_PRICES: { [key: string]: number } = {
-      'basic': 19.90,
-      'basico': 19.90,
-      'pro': 49.90,
-      'premium': 99.90,
-      'professional': 49.90,
-      'profissional': 49.90,
-      'vip': 99.90
-    };
-    
-    // Obter o valor correto do plano
-    const planPrice = PLAN_PRICES[planId.toLowerCase()] || 0;
-    
     // Montar payload com todos os dados necessários
     const payload: any = {
       planId,
@@ -135,7 +121,7 @@ export const createAsaasSubscription = async (
       customerId,
       billingType: paymentMethod, // CREDIT_CARD, PIX, etc
       cycle: 'MONTHLY',
-      value: planPrice, // Usar o preço do plano em vez do valor do cartão
+      value: creditCard?.value || 0,
       description: `Assinatura RunCash - Plano ${planId}`
     };
 

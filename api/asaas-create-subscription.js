@@ -148,10 +148,10 @@ module.exports = async (req, res) => {
       nextDueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Amanhã
       description: description || `Assinatura RunCash - Plano ${planId}`,
       callback: {
-        activated: `${FRONTEND_URL}/api/asaas-webhook`,
-        invoiceCreated: `${FRONTEND_URL}/api/asaas-webhook`,
-        payment: `${FRONTEND_URL}/api/asaas-webhook`,
-        successUrl: `${FRONTEND_URL}/success` // URL para redirecionamento após pagamento bem-sucedido
+        activated: `https://backendapi-production-36b5.up.railway.app/api/asaas-webhook`,
+        invoiceCreated: `https://backendapi-production-36b5.up.railway.app/api/asaas-webhook`,
+        payment: `https://backendapi-production-36b5.up.railway.app/api/asaas-webhook`,
+        successUrl: `https://backendapi-production-36b5.up.railway.app/success` // URL para redirecionamento após pagamento bem-sucedido
       },
       notifyPaymentCreatedImmediately: true
     };
