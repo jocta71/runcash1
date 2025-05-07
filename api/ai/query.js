@@ -46,6 +46,7 @@ async function getRouletteDetails(db, roletaId, roletaNomeInput, existingCollect
     let recentNumbers = [];
     let colecaoId = null; // Este será o ID da coleção de números (ex: "2010016")
     let fetchedRoletaNome = null; // Nome da roleta vindo dos metadados
+    let isSpecificRoletaRequest = roletaId || roletaNomeInput; // Flag indicando se estamos buscando uma roleta específica
 
     console.log(`[DEBUG] getRouletteDetails - Parâmetros: roletaId=${roletaId}, roletaNomeInput=${roletaNomeInput}`);
 
@@ -76,8 +77,16 @@ async function getRouletteDetails(db, roletaId, roletaNomeInput, existingCollect
         rouletteIdentifier = `Roleta ${colecaoId}`;
       }
       console.log(`[DEBUG] getRouletteDetails - Identificador definido para: ${rouletteIdentifier}`);
+      
+      // Verificar se a coleção existe
       if (!availableNumberCollections.includes(colecaoId)) {
         console.warn(`[DEBUG] getRouletteDetails - Coleção de números ${colecaoId} não encontrada nas coleções disponíveis.`);
+        // Se a roleta foi explicitamente solicitada mas não existe, retornar erro
+        return {
+          rouletteIdentifier,
+          error: `Coleção de dados para ${rouletteIdentifier} não encontrada.`,
+          totalNumbers: 0
+        };
       }
     } else if (roletaNomeInput) {
       // Tentativa de buscar pelo nome na coleção de metadados
@@ -88,8 +97,15 @@ async function getRouletteDetails(db, roletaId, roletaNomeInput, existingCollect
           fetchedRoletaNome = metadata.roleta_nome;
           rouletteIdentifier = `${fetchedRoletaNome} (ID: ${colecaoId})`;
           console.log(`[DEBUG] getRouletteDetails - Encontrado por nome: ${rouletteIdentifier}`);
+          
+          // Verificar se a coleção existe
           if (!availableNumberCollections.includes(colecaoId)) {
              console.warn(`[DEBUG] getRouletteDetails - Coleção de números ${colecaoId} (do metadata) não encontrada.`);
+             return {
+               rouletteIdentifier,
+               error: `Coleção de dados para ${rouletteIdentifier} não encontrada.`,
+               totalNumbers: 0
+             };
           }
         } else {
           return { rouletteIdentifier: roletaNomeInput, error: `Roleta com nome "${roletaNomeInput}" não encontrada nos metadados.`, totalNumbers: 0 };
@@ -99,7 +115,7 @@ async function getRouletteDetails(db, roletaId, roletaNomeInput, existingCollect
         return { rouletteIdentifier: roletaNomeInput, error: `Erro ao buscar roleta por nome.`, totalNumbers: 0 };
       }
     } else {
-      // Sem ID ou nome, pegar a primeira roleta numérica disponível e tentar buscar seus metadados
+      // Sem ID ou nome específico, pegar a primeira roleta numérica disponível
       const numericCollections = availableNumberCollections.filter(name => /^\d+$/.test(name));
       if (numericCollections.length > 0) {
         colecaoId = numericCollections[0];
@@ -135,28 +151,113 @@ async function getRouletteDetails(db, roletaId, roletaNomeInput, existingCollect
               console.log(`[DEBUG] getRouletteDetails - Extraídos ${recentNumbers.length} números válidos da coleção ${colecaoId}.`);
             } else {
               console.log(`[DEBUG] getRouletteDetails - Nenhum documento encontrado na coleção de números ${colecaoId}`);
+              // Se foi solicitada uma roleta específica e a coleção existe mas está vazia, retornar erro
+              if (isSpecificRoletaRequest) {
+                return {
+                  rouletteIdentifier,
+                  error: `A coleção ${colecaoId} existe, mas não contém números.`,
+                  totalNumbers: 0
+                };
+              }
             }
         } else {
             console.log(`[DEBUG] getRouletteDetails - Coleção de números ${colecaoId} não existe. Não buscando números.`);
+            // Se foi solicitada uma roleta específica mas a coleção não existe, retornar erro
+            if (isSpecificRoletaRequest) {
+              return {
+                rouletteIdentifier,
+                error: `Coleção de dados para ${rouletteIdentifier} não encontrada.`,
+                totalNumbers: 0
+              };
+            }
         }
       } catch (error) {
         console.error(`[DEBUG] getRouletteDetails - Erro ao buscar números da coleção ${colecaoId}: ${error.message}`);
+        // Se foi solicitada uma roleta específica e ocorreu erro, retornar o erro
+        if (isSpecificRoletaRequest) {
+          return {
+            rouletteIdentifier,
+            error: `Erro ao buscar dados da roleta: ${error.message}`,
+            totalNumbers: 0
+          };
+        }
       }
     }
     
-    // Fallback para dados sintéticos se necessário (ex: roleta 2010016)
-    if ((!recentNumbers || recentNumbers.length === 0) && colecaoId === '2010016') {
+    // Fallback para dados sintéticos (apenas para 2010016 e somente quando especificamente solicitado)
+    if ((!recentNumbers || recentNumbers.length === 0) && colecaoId === '2010016' && isSpecificRoletaRequest) {
       console.log('[DEBUG] getRouletteDetails - Gerando dados sintéticos para roleta 2010016');
       recentNumbers = [32, 15, 19, 7, 26, 0, 14, 22, 31, 5, 8, 17, 29, 28, 36, 12, 24, 19, 0, 7]; 
       for (let i = 0; i < 100; i++) recentNumbers.push(Math.floor(Math.random() * 37));
-      if (!fetchedRoletaNome) rouletteIdentifier = "Roleta Sintética 2010016 (ID: 2010016)"; // Nome específico para sintético
+      if (!fetchedRoletaNome) rouletteIdentifier = "Immersive Roulette (ID: 2010016)"; // Nome específico para sintético
     }
 
-    if (!recentNumbers || recentNumbers.length === 0) {
-      // Se ainda não há números, e não é a 2010016, retorna erro
-      return { rouletteIdentifier, error: `Não foram encontrados dados numéricos para ${rouletteIdentifier}`, totalNumbers: 0 };
+    // Se não encontramos números para uma roleta específica, retornar erro
+    if ((!recentNumbers || recentNumbers.length === 0) && isSpecificRoletaRequest) {
+      return { 
+        rouletteIdentifier, 
+        error: `Não foram encontrados dados numéricos para ${rouletteIdentifier}`, 
+        totalNumbers: 0 
+      };
     }
     
+    // Se não temos números e não é uma consulta específica, tentar qualquer roleta com dados
+    if (!recentNumbers || recentNumbers.length === 0) {
+      // Tentar encontrar qualquer roleta com dados
+      console.log(`[DEBUG] getRouletteDetails - Nenhum número encontrado. Tentando buscar outra roleta com dados disponíveis.`);
+      
+      // Iterar sobre as coleções numéricas até encontrar uma com dados
+      const numericCollections = availableNumberCollections.filter(name => /^\d+$/.test(name));
+      
+      for (const altColecaoId of numericCollections) {
+        if (altColecaoId === colecaoId) continue; // Pular a que já tentamos
+        
+        try {
+          console.log(`[DEBUG] getRouletteDetails - Tentando coleção alternativa: ${altColecaoId}`);
+          const altDadosRoleta = await db.collection(altColecaoId).find({}).sort({ timestamp: -1 }).limit(1000).toArray();
+          
+          if (altDadosRoleta && altDadosRoleta.length > 0) {
+            // Se encontramos dados, mudar para esta roleta
+            colecaoId = altColecaoId;
+            
+            // Atualizar o nome da roleta
+            try {
+              const metadata = await db.collection(METADATA_COLLECTION_NAME).findOne({ roleta_id: colecaoId });
+              if (metadata && metadata.roleta_nome) {
+                fetchedRoletaNome = metadata.roleta_nome;
+                rouletteIdentifier = `${fetchedRoletaNome} (ID: ${colecaoId})`;
+              } else {
+                rouletteIdentifier = `Roleta ${colecaoId}`;
+              }
+            } catch (metaError) {
+              rouletteIdentifier = `Roleta ${colecaoId}`;
+            }
+            
+            // Extrair números
+            recentNumbers = altDadosRoleta.map(doc => {
+              const num = doc.numero || doc.number;
+              return typeof num === 'number' ? num : parseInt(num);
+            }).filter(n => !isNaN(n));
+            
+            console.log(`[DEBUG] getRouletteDetails - Usando roleta alternativa: ${rouletteIdentifier} com ${recentNumbers.length} números.`);
+            break; // Sair do loop se encontramos dados
+          }
+        } catch (error) {
+          console.error(`[DEBUG] getRouletteDetails - Erro ao buscar dados da roleta alternativa ${altColecaoId}: ${error.message}`);
+          continue; // Tentar próxima roleta
+        }
+      }
+    }
+    
+    // Se ainda não temos números, mesmo após tentar outras roletas, retornar erro
+    if (!recentNumbers || recentNumbers.length === 0) {
+      return { 
+        rouletteIdentifier, 
+        error: `Não foram encontrados dados numéricos para nenhuma roleta.`, 
+        totalNumbers: 0 
+      };
+    }
+
     // Cálculos de estatísticas (mantidos como antes)
     const numberCounts = {};
     recentNumbers.forEach(num => { numberCounts[num] = (numberCounts[num] || 0) + 1; });
