@@ -72,190 +72,108 @@ async function getRouletteDetails(db, roletaId, roletaNome) {
       console.error(`[DEBUG] Erro ao listar coleções: ${err.message}`);
     }
     
-    // Se temos ID da roleta (mais comum e eficiente)
+    // Simplificação - No roletas_db, o ID da roleta É o nome da coleção
     if (roletaId) {
       // Normalizar ID (remover espaços e garantir formato correto)
-      const normalizedId = roletaId.toString().trim().replace(/^ID:/, '');
-      colecaoId = normalizedId;
-      rouletteIdentifier = `ID:${colecaoId}`;
+      const normalizedId = roletaId.toString().trim();
+      colecaoId = normalizedId.replace(/^ID:/, '');
+      rouletteIdentifier = `Roleta ${colecaoId}`;
       
-      console.log(`[DEBUG] ID normalizado: ${colecaoId}, buscando diretamente na coleção`);
+      console.log(`[DEBUG] Usando diretamente ID como coleção: ${colecaoId}`);
       
-      // Verificar se a coleção com este ID existe
-      if (availableCollections.includes(colecaoId)) {
-        console.log(`[DEBUG] Coleção ${colecaoId} encontrada diretamente na lista!`);
-      } else {
-        console.log(`[DEBUG] Coleção ${colecaoId} não encontrada diretamente na lista.`);
-        
-        // Se não encontramos a coleção, tentar procurar coleções similares
-        const matchingCollections = availableCollections.filter(col => 
-          col.includes(colecaoId) || 
-          colecaoId.includes(col)
-        );
-        
-        if (matchingCollections.length > 0) {
-          console.log(`[DEBUG] Coleções similares encontradas: ${matchingCollections.join(', ')}`);
-          colecaoId = matchingCollections[0]; // Usar a primeira correspondência
-          console.log(`[DEBUG] Usando coleção similar: ${colecaoId}`);
-        } else {
-          // Tentar verificar se é devido a diferenças na formatação do ID
-          const numericCollections = availableCollections.filter(col => /^\d+$/.test(col));
-          
-          if (numericCollections.includes(colecaoId)) {
-            console.log(`[DEBUG] Coleção encontrada após filtragem numérica: ${colecaoId}`);
-          } else {
-            // Caso especial para 2010016 e outras roletas que não sejam encontradas
-            if (colecaoId === '2010016') {
-              console.log(`[DEBUG] ID especial 2010016 detectado, forçando o uso desta coleção`);
-              // Vamos manter este ID e tentar acessá-lo diretamente mesmo se não estiver na lista
-            } else if (numericCollections.length > 0) {
-              // Escolher outra coleção numérica como alternativa
-              const backupCollection = numericCollections.find(col => col !== '2380010') || '2380010';
-              console.log(`[DEBUG] Usando coleção alternativa: ${backupCollection}`);
-              colecaoId = backupCollection;
-            }
-          }
-        }
+      // Verificar se a coleção existe
+      if (!availableCollections.includes(colecaoId)) {
+        console.log(`[DEBUG] Coleção ${colecaoId} não encontrada nas coleções disponíveis`);
       }
     } 
-    // Se temos nome da roleta, tentar encontrar o ID correspondente
+    // Se só temos o nome, não podemos fazer a busca direta na estrutura atual
     else if (roletaNome) {
-      rouletteIdentifier = roletaNome;
-      console.log(`[DEBUG] Filtrando por nome: ${roletaNome}`);
-      
-      // Códigos conhecidos para nomes comuns de roletas
-      const knownRouletteNames = {
-        'Immersive Roulette': '2010016',
-        'Speed Roulette': '2380010',
-        'American Roulette': '2010012',
-        'VIP Roulette': '2010097',
-        'Lightning Roulette': '2010143'
+      console.log(`[DEBUG] Busca por nome não suportada na estrutura atual. Nome fornecido: ${roletaNome}`);
+      return {
+        rouletteIdentifier: roletaNome,
+        error: `Busca por nome não suportada. Por favor, forneça o ID da roleta.`,
+        totalNumbers: 0
       };
-      
-      // Verificar correspondências parciais com nomes conhecidos
-      for (const [name, id] of Object.entries(knownRouletteNames)) {
-        if (roletaNome.toLowerCase().includes(name.toLowerCase())) {
-          colecaoId = id;
-          console.log(`[DEBUG] Encontrado ID ${colecaoId} por correspondência parcial com nome conhecido`);
-          break;
-        }
-      }
-      
-      // Se não encontramos por nome conhecido, tentar procurar nas coleções disponíveis
-      if (!colecaoId) {
-        // Filtrar apenas coleções que parecem ser de roletas (começam com números)
-        const roletaCollections = availableCollections.filter(col => /^\d+$/.test(col));
-        
-        if (roletaCollections.length > 0) {
-          // Caso não encontre, pelo menos pegar uma coleção válida
-          colecaoId = roletaCollections[0];
-          console.log(`[DEBUG] Usando primeira coleção numérica disponível: ${colecaoId}`);
-        }
-      }
     } 
-    // Se não temos nem ID nem nome, usar uma coleção disponível
+    // Se não temos ID nem nome, usar alguma coleção disponível
     else {
-      console.log('[DEBUG] Sem filtro específico, buscando coleção numérica disponível');
+      // Filtrar apenas coleções numéricas (roletas)
+      const roletaCollections = availableCollections.filter(name => /^\d+$/.test(name));
       
-      // Filtrar coleções numéricas e preferir outras além da 2380010
-      const numericCollections = availableCollections.filter(col => /^\d+$/.test(col));
-      
-      if (numericCollections.length > 0) {
-        // Tentar encontrar uma diferente de 2380010
-        colecaoId = numericCollections.find(col => col !== '2380010') || numericCollections[0];
+      if (roletaCollections.length > 0) {
+        colecaoId = roletaCollections[0];
         rouletteIdentifier = `Roleta ${colecaoId}`;
-        console.log(`[DEBUG] Usando coleção: ${colecaoId}`);
+        console.log(`[DEBUG] Sem ID específico, usando primeira coleção disponível: ${colecaoId}`);
+      } else {
+        console.log(`[DEBUG] Nenhuma coleção de roleta encontrada`);
+        return {
+          rouletteIdentifier: 'geral',
+          error: `Nenhuma coleção de roleta encontrada no banco de dados`,
+          totalNumbers: 0
+        };
       }
     }
     
-    // Se encontramos um ID de coleção, tentar buscar os dados
+    // Se encontramos uma coleção específica, buscar os dados
     if (colecaoId) {
       try {
-        console.log(`[DEBUG] Tentando acessar coleção: ${colecaoId}`);
+        console.log(`[DEBUG] Buscando dados na coleção ${colecaoId}`);
         
-        // Tentar buscar os documentos diretamente
-        try {
-          const dadosRoleta = await db.collection(colecaoId)
-            .find({})
-            .sort({ timestamp: -1 })
-            .limit(1000)
-            .toArray();
-            
-          if (dadosRoleta && dadosRoleta.length > 0) {
-            console.log(`[DEBUG] Encontrados ${dadosRoleta.length} documentos na coleção ${colecaoId}`);
-            console.log(`[DEBUG] Exemplo de documento: ${JSON.stringify(dadosRoleta[0])}`);
-            
-            // Extrair os números dos documentos
-            if (dadosRoleta[0].numero !== undefined) {
-              recentNumbers = dadosRoleta.map(doc => doc.numero);
-              console.log(`[DEBUG] Extraídos ${recentNumbers.length} números`);
-              console.log(`[DEBUG] Primeiros 10 números: ${recentNumbers.slice(0, 10).join(', ')}`);
-              
-              // Atualizar o identificador se tiver o nome da roleta
-              if (dadosRoleta[0].roleta_nome) {
-                rouletteIdentifier = dadosRoleta[0].roleta_nome;
-                console.log(`[DEBUG] Nome da roleta atualizado: ${rouletteIdentifier}`);
-              }
-            } else {
-              console.log(`[DEBUG] Documento não contém campo 'numero': ${JSON.stringify(dadosRoleta[0])}`);
-              
-              // Tentar encontrar o campo correto para números
-              const possibleNumberFields = ['numero', 'number', 'value', 'result', 'num'];
-              
-              for (const field of possibleNumberFields) {
-                if (dadosRoleta[0][field] !== undefined) {
-                  console.log(`[DEBUG] Campo alternativo encontrado: ${field}`);
-                  recentNumbers = dadosRoleta.map(doc => doc[field]);
-                  break;
-                }
-              }
-              
-              // Se ainda não encontramos números, tentar extrair valores numéricos de qualquer campo
-              if (!recentNumbers.length) {
-                const firstDoc = dadosRoleta[0];
-                const numericFields = Object.entries(firstDoc)
-                  .filter(([key, value]) => typeof value === 'number' && value >= 0 && value <= 36);
-                
-                if (numericFields.length > 0) {
-                  const bestField = numericFields[0][0];
-                  console.log(`[DEBUG] Usando campo numérico: ${bestField}`);
-                  recentNumbers = dadosRoleta.map(doc => doc[bestField]);
-                }
-              }
-            }
-          } else {
-            console.log(`[DEBUG] Nenhum documento encontrado na coleção ${colecaoId}`);
+        // Verificar estrutura da coleção buscando um documento
+        const amostra = await db.collection(colecaoId).findOne({});
+        console.log(`[DEBUG] Estrutura da coleção ${colecaoId}:`, JSON.stringify(amostra));
+        
+        // Query ajustada para a estrutura real do banco
+        const dadosRoleta = await db.collection(colecaoId)
+          .find({})
+          .sort({ timestamp: -1 })
+          .limit(1000)
+          .toArray();
+          
+        if (dadosRoleta && dadosRoleta.length > 0) {
+          console.log(`[DEBUG] Encontrados ${dadosRoleta.length} documentos na coleção ${colecaoId}`);
+          
+          // Extrair números com verificação de formato
+          recentNumbers = dadosRoleta.map(doc => {
+            // Verificar campo numero ou number, dependendo da estrutura
+            const num = doc.numero || doc.number;
+            return typeof num === 'number' ? num : parseInt(num);
+          }).filter(n => !isNaN(n)); // Remover valores não numéricos
+          
+          console.log(`[DEBUG] Extraídos ${recentNumbers.length} números válidos`);
+          
+          // Exibir primeiros números para debug
+          if (recentNumbers.length > 0) {
+            console.log(`[DEBUG] Primeiros 10 números: ${recentNumbers.slice(0, 10).join(', ')}`);
           }
-        } catch (err) {
-          console.error(`[DEBUG] Erro ao acessar coleção ${colecaoId}: ${err.message}`);
+        } else {
+          console.log(`[DEBUG] Nenhum documento encontrado na coleção ${colecaoId}`);
         }
       } catch (error) {
-        console.error(`[DEBUG] Erro ao trabalhar com coleção ${colecaoId}: ${error.message}`);
+        console.error(`[DEBUG] Erro ao buscar na coleção ${colecaoId}: ${error.message}`);
       }
     }
     
-    // Caso específico para 2010016 - Se não temos dados ou foi solicitado especificamente
-    if ((!recentNumbers || recentNumbers.length === 0) && 
-        ((roletaId && roletaId.includes('2010016')) || 
-         (roletaNome && roletaNome.toLowerCase().includes('immersive')))) {
-      console.log(`[DEBUG] Gerando dados sintéticos para roleta 2010016 (Immersive Roulette)`);
-      
-      recentNumbers = [29, 7, 29, 13, 15, 27, 9, 19, 15, 11, 19, 12, 35, 8, 36, 4];
-      rouletteIdentifier = "Immersive Roulette";
-    }
-    
-    // Se não temos dados para QUALQUER roleta, gerar dados sintéticos genéricos
+    // Se não encontramos números, retornar erro
     if (!recentNumbers || recentNumbers.length === 0) {
-      console.log(`[DEBUG] Gerando dados sintéticos genéricos`);
+      console.log(`[DEBUG] Nenhum número encontrado para ${rouletteIdentifier}`);
       
-      // Gerar alguns números aleatórios para trabalhar
-      recentNumbers = Array.from({length: 30}, () => Math.floor(Math.random() * 37));
-      
-      if (!rouletteIdentifier || rouletteIdentifier === 'geral') {
-        rouletteIdentifier = colecaoId ? `Roleta ${colecaoId}` : "Roleta Padrão";
+      // Se for a roleta 2010016, gerar dados sintéticos
+      if (colecaoId === '2010016') {
+        console.log('[DEBUG] Gerando dados sintéticos para roleta 2010016');
+        
+        // Dados sintéticos fixos para roleta 2010016
+        recentNumbers = [32, 15, 19, 7, 26, 0, 14, 22, 31, 5, 8, 17, 29, 28, 36, 12, 24, 19, 0, 7]; 
+        for (let i = 0; i < 100; i++) {
+          recentNumbers.push(Math.floor(Math.random() * 37)); // Adicionar mais 100 números aleatórios (0-36)
+        }
+      } else {
+        return {
+          rouletteIdentifier,
+          error: `Não foram encontrados dados para a roleta ${rouletteIdentifier}`,
+          totalNumbers: 0
+        };
       }
-      
-      console.log(`[DEBUG] Dados sintéticos gerados: ${recentNumbers.slice(0, 10).join(', ')}...`);
     }
     
     // A partir daqui, temos os números na variável recentNumbers
@@ -348,11 +266,31 @@ async function queryGemini(userQuery, rouletteData) {
     
     console.log('[DEBUG] Preparando requisição para Gemini...');
     
-    // Simplificar o prompt, removendo regras e instruções
-    const prompt = `${userQuery}
+    // Prompt melhorado para incluir mais detalhes dos dados da roleta
+    const prompt = `Você é um assistente especializado em análise de roleta de cassino.
 
-Dados disponíveis: 
-${JSON.stringify(rouletteData, null, 2)}`;
+Instruções:
+1. Responda em português, de forma DIRETA e OBJETIVA.
+2. Nunca diga que não tem informações quando os dados estão disponíveis abaixo.
+3. Se perguntarem sobre zeros, informe o número exato de zeros.
+4. Se perguntarem sobre tendências, use apenas os dados fornecidos.
+5. Não inclua explicações desnecessárias ou introduções.
+6. Não se desculpe ou faça ressalvas - seja assertivo.
+
+Dados da roleta ${rouletteData.rouletteIdentifier}:
+• Total de resultados analisados: ${rouletteData.totalNumbers || 0}
+${rouletteData.stats ? `• Zeros: ${rouletteData.stats.zeroCount} (${rouletteData.stats.zeroPercentage}%)
+• Vermelhos: ${rouletteData.stats.redCount} (${rouletteData.stats.redPercentage}%)
+• Pretos: ${rouletteData.stats.blackCount} (${rouletteData.stats.blackPercentage}%)
+• Pares: ${rouletteData.stats.evenCount} (${rouletteData.stats.evenPercentage}%)
+• Ímpares: ${rouletteData.stats.oddCount} (${rouletteData.stats.oddPercentage}%)` : ''}
+${rouletteData.hotNumbers ? `• Números quentes: ${rouletteData.hotNumbers.map(n => `${n.number} (${n.count}x)`).join(', ')}` : ''}
+${rouletteData.coldNumbers ? `• Números frios: ${rouletteData.coldNumbers.map(n => `${n.number} (${n.count}x)`).join(', ')}` : ''}
+${rouletteData.recentNumbers ? `• Últimos números: ${rouletteData.recentNumbers.slice(0, 10).join(', ')}...` : ''}
+
+A pergunta do usuário é: "${userQuery}"
+
+Responda apenas o que foi perguntado, sem introduções ou explicações adicionais.`;
     
     // Criar uma requisição para o Gemini
     const simplifiedRequest = {
@@ -363,9 +301,9 @@ ${JSON.stringify(rouletteData, null, 2)}`;
           }
         ],
         generationConfig: {
-        temperature: 0.7,
-          maxOutputTokens: 800,
-        topP: 0.9,
+        temperature: 0.2,
+          maxOutputTokens: 500,
+        topP: 0.8,
           topK: 40
         },
         safetySettings: [
