@@ -230,14 +230,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   // Obter instância do UnifiedClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
   
-  // Efeito para buscar metadados das roletas quando o componente montar
-  useEffect(() => {
-    // Buscar metadados das roletas para obter nomes reais
-    unifiedClient.updateRouletteNames().catch(err => {
-      console.error(`[${componentId}] Erro ao buscar metadados das roletas:`, err);
-    });
-  }, [componentId, unifiedClient]);
-  
   // Efeito para iniciar a busca de dados
   useEffect(() => {
     const componentId = `roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`; 

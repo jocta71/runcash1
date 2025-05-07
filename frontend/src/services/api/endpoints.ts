@@ -15,11 +15,6 @@ export const ENDPOINTS = {
   // Endpoints para dados históricos
   HISTORICAL: {
     ALL_ROULETTES: '/historical/all-roulettes', // Endpoint para buscar histórico inicial de todas as roletas
-  },
-  
-  // Endpoint para metadados das roletas
-  METADATA: {
-    ROULETTES: '/api/metadados/roletas', // Endpoint para buscar metadados das roletas
   }
 };
 
