@@ -411,6 +411,66 @@ export default async function handler(req, res) {
         }
     }
 
+    // Verificar explicitamente se a roleta solicitada existe antes de prosseguir
+    if (roletaId) {
+        const roletaIdFormatado = roletaId.toString().trim().replace(/^ID:/, '');
+        
+        // Verificar se a coleção existe no banco
+        if (!numericCollectionIdsOnly.includes(roletaIdFormatado)) {
+            console.log(`[DEBUG] Handler - Roleta ${roletaIdFormatado} não encontrada nas coleções disponíveis.`);
+            
+            // Buscar o nome da roleta nos metadados, se disponível
+            let nomeRoleta = `Roleta ${roletaIdFormatado}`;
+            const metadataRoleta = allKnownRoulettes.find(r => r.id === roletaIdFormatado);
+            if (metadataRoleta) {
+                nomeRoleta = `${metadataRoleta.nome} (ID: ${roletaIdFormatado})`;
+            }
+            
+            // Retornar resposta de erro específica, sem processar com o Gemini
+            return res.status(200).json({
+                response: `Coleção de dados para ${nomeRoleta} não encontrada.`,
+                debug: {
+                    query,
+                    rouletteIdentifier: nomeRoleta,
+                    error: `Coleção não encontrada: ${roletaIdFormatado}`,
+                    stats: { zeroCount: 0, totalNumbers: 0 },
+                    ai_config: { provider: AI_PROVIDER, model: GEMINI_MODEL }
+                }
+            });
+        }
+    } else if (roletaNome) {
+        // Verificar se o nome da roleta existe nos metadados
+        const metadataRoleta = allKnownRoulettes.find(r => r.nome.toLowerCase() === roletaNome.toLowerCase());
+        if (!metadataRoleta) {
+            console.log(`[DEBUG] Handler - Roleta com nome "${roletaNome}" não encontrada nos metadados.`);
+            return res.status(200).json({
+                response: `Roleta com nome "${roletaNome}" não encontrada nos metadados.`,
+                debug: {
+                    query,
+                    rouletteIdentifier: roletaNome,
+                    error: `Roleta não encontrada: ${roletaNome}`,
+                    stats: { zeroCount: 0, totalNumbers: 0 },
+                    ai_config: { provider: AI_PROVIDER, model: GEMINI_MODEL }
+                }
+            });
+        }
+        
+        // Verificar se a coleção com o ID correspondente existe
+        if (!numericCollectionIdsOnly.includes(metadataRoleta.id)) {
+            console.log(`[DEBUG] Handler - Coleção ${metadataRoleta.id} para roleta "${roletaNome}" não encontrada.`);
+            return res.status(200).json({
+                response: `Coleção de dados para ${roletaNome} (ID: ${metadataRoleta.id}) não encontrada.`,
+                debug: {
+                    query,
+                    rouletteIdentifier: `${roletaNome} (ID: ${metadataRoleta.id})`,
+                    error: `Coleção não encontrada: ${metadataRoleta.id}`,
+                    stats: { zeroCount: 0, totalNumbers: 0 },
+                    ai_config: { provider: AI_PROVIDER, model: GEMINI_MODEL }
+                }
+            });
+        }
+    }
+
     const lowerCaseQuery = query.toLowerCase();
     const listAllQueryKeywords = ["todas roletas", "roletas disponíveis", "listar roletas", "quais roletas"];
     
@@ -432,6 +492,21 @@ export default async function handler(req, res) {
     
     console.log('[DEBUG] Handler - Buscando dados detalhados da roleta...');
     const rouletteData = await getRouletteDetails(db, roletaId, roletaNome, numericCollectionIdsOnly);
+    
+    // Se houver erro nos dados da roleta, retornar diretamente sem processar com Gemini
+    if (rouletteData.error && (roletaId || roletaNome)) {
+        console.log(`[DEBUG] Handler - Erro nos dados da roleta específica: ${rouletteData.error}`);
+        return res.status(200).json({
+            response: rouletteData.error,
+            debug: {
+                query,
+                rouletteIdentifier: rouletteData.rouletteIdentifier,
+                error: rouletteData.error,
+                stats: { zeroCount: 0, totalNumbers: 0 },
+                ai_config: { provider: AI_PROVIDER, model: GEMINI_MODEL }
+            }
+        });
+    }
     
     console.log('[DEBUG] Handler - Chamando API do Gemini...');
     const aiResponse = await queryGemini(query, rouletteData);
