@@ -365,10 +365,10 @@ const AIFloatingBar: React.FC = () => {
               </p>
               <div className="grid grid-cols-2 gap-2 w-full max-w-md">
                 <button 
-                  onClick={() => setInput("Quais são os números quentes agora?")}
+                  onClick={() => setInput("Todas roletas disponíveis")}
                   className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-green-300 hover:text-white text-left text-xs transition-all border border-white/5"
                 >
-                  Quais são os números quentes?
+                  Todas roletas disponíveis?
                 </button>
                 <button 
                   onClick={() => setInput("Detectou algum padrão de cor nas últimas jogadas?")}
