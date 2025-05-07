@@ -86,7 +86,7 @@ const getIdNumericoPorUUID = (uuid, nome) => {
 };
 
 // Função auxiliar para buscar histórico de uma roleta
-const fetchHistoryForRoulette = async (db, rouletteId, limit = 200) => {
+const fetchHistoryForRoulette = async (db, roletasDb, rouletteId, limit = 200) => {
     try {
         console.log(`[Histórico] Buscando histórico para roleta ${rouletteId} (limite: ${limit})`);
         
@@ -117,15 +117,48 @@ const fetchHistoryForRoulette = async (db, rouletteId, limit = 200) => {
             }
         }
         
+        // ESTRATÉGIA 1: Buscar diretamente na coleção específica da roleta no roletas_db
+        if (roletasDb) {
+            console.log(`[Histórico] Conectado ao banco de dados roletas_db`);
+            
+            let colecaoId = id_numerico || rouletteId;
+            
+            try {
+                // Verificar se a coleção existe
+                const collections = await roletasDb.listCollections({name: colecaoId}).toArray();
+                
+                if (collections.length > 0) {
+                    console.log(`[Histórico] Buscando na coleção específica ${colecaoId} no roletas_db`);
+                    
+                    numerosEncontrados = await roletasDb.collection(colecaoId)
+                        .find({})
+                        .sort({ timestamp: -1 })
+                        .limit(limit)
+                        .project({ _id: 0, numero: 1, timestamp: 1 })
+                        .toArray();
+                        
+                    if (numerosEncontrados && numerosEncontrados.length > 0) {
+                        console.log(`[Histórico] Encontrados ${numerosEncontrados.length} números na coleção específica no roletas_db`);
+                        return numerosEncontrados;
+                    }
+                }
+            } catch (error) {
+                console.error(`[Histórico] Erro ao buscar na coleção específica do roletas_db:`, error);
+            }
+        } else {
+            console.log(`[Histórico] Não foi possível conectar ao banco de dados roletas_db, usando estratégias alternativas`);
+        }
+        
+        // Se não encontrou no roletas_db, continuar com as estratégias originais
         // Obter lista de todas as coleções numéricas disponíveis
         const todasColecoes = await db.listCollections().toArray();
         const colecoesNumericas = todasColecoes
           .filter(col => /^\d+$/.test(col.name))
           .map(col => col.name);
         
-        // Estratégia 1: Verificar se existe a coleção com ID numérico
+        // Estratégia 2: Verificar se existe a coleção com ID numérico no banco principal
         if (id_numerico && colecoesNumericas.includes(id_numerico)) {
-            console.log(`[Histórico] Buscando na coleção numérica ${id_numerico}`);
+            console.log(`[Histórico] Buscando na coleção numérica ${id_numerico} do banco principal`);
             
             numerosEncontrados = await db.collection(id_numerico)
                 .find({})
@@ -140,7 +173,7 @@ const fetchHistoryForRoulette = async (db, rouletteId, limit = 200) => {
             }
         }
         
-        // Estratégia 2: Se roleta não tiver ID numérico ou coleção numérica vazia, tentar UUID original
+        // Estratégia 3: Se roleta não tiver ID numérico ou coleção numérica vazia, tentar UUID original
         if (!roleta_id_eh_numerico) {
             // Verificar se a coleção UUID existe
             const collections = await db.listCollections({name: rouletteId}).toArray();
@@ -162,7 +195,7 @@ const fetchHistoryForRoulette = async (db, rouletteId, limit = 200) => {
             }
         }
         
-        // Estratégia 3: Buscar na coleção comum 'roleta_numeros'
+        // Estratégia 4: Buscar na coleção comum 'roleta_numeros'
         console.log(`[Histórico] Buscando na coleção comum 'roleta_numeros' para roleta ${rouletteId}`);
         
         // Queries a serem tentadas, em ordem de prioridade
@@ -222,23 +255,63 @@ const getAllRoulettesInitialHistory = async (req, res) => {
     const HISTORY_LIMIT = 200; // Definir o limite mínimo de números por roleta
 
     try {
-        const db = await getDb();
+        // Tentar obter conexão com o banco de dados de roletas primeiro
+        let roletasDb = await getDb('roletas_db');
+        let db = await getDb(); // Banco principal como fallback
+        
+        let usandoRoletasDb = !!roletasDb;
+        
+        if (usandoRoletasDb) {
+            console.log('[Histórico] Usando banco de dados roletas_db');
+        } else {
+            console.log('[Histórico] Banco roletas_db não disponível, usando apenas o banco principal');
+        }
+
         console.log('[Histórico] Conexão DB obtida:', db ? `Database: ${db.databaseName}` : 'DB NULO/Inválido');
 
         if (!db) {
              throw new Error('Falha ao obter conexão com o banco de dados a partir de getDb()');
         }
 
-        // 1. Buscar todas as roletas ativas a partir da coleção metadados
-        const roletasMetadados = await db.collection('metadados').find({
-            ativa: true
-        }).toArray();
+        // Lista para armazenar as roletas encontradas
+        let roletasEncontradas = [];
         
-        console.log(`[Histórico] Encontradas ${roletasMetadados?.length || 0} roletas ativas na coleção metadados`);
+        if (usandoRoletasDb) {
+            // 1. Buscar metadados de roletas no roletas_db
+            if (await roletasDb.collection('metadados').countDocuments({}) > 0) {
+                console.log('[Histórico] Buscando roletas na coleção metadados do roletas_db');
+                roletasEncontradas = await roletasDb.collection('metadados').find({
+                    ativa: true
+                }).toArray();
+            } else {
+                // 2. Se não há metadados, listar todas as coleções exceto as de sistema
+                console.log('[Histórico] Metadados não encontrados, listando coleções do roletas_db');
+                const collections = await roletasDb.listCollections().toArray();
+                
+                // Filtrar coleções de sistema e metadados
+                const roletaCollections = collections.filter(col => 
+                    !col.name.startsWith('system.') && 
+                    !['metadados', 'estatisticas'].includes(col.name));
+                
+                roletasEncontradas = roletaCollections.map(col => ({
+                    roleta_id: col.name,
+                    roleta_nome: `Roleta ${col.name}`,
+                    colecao: col.name,
+                    ativa: true
+                }));
+            }
+        } else {
+            // Fallback para banco principal: Buscar roletas na coleção metadados
+            roletasEncontradas = await db.collection('metadados').find({
+                ativa: true
+            }).toArray();
+        }
         
-        if (!roletasMetadados || roletasMetadados.length === 0) {
-            // Fallback: Buscar todas as roletas distintas na coleção 'roleta_numeros'
-            console.log(`[Histórico] Nenhuma roleta na coleção metadados. Buscando roletas distintas na coleção 'roleta_numeros'...`);
+        console.log(`[Histórico] Encontradas ${roletasEncontradas?.length || 0} roletas ativas`);
+        
+        if (!roletasEncontradas || roletasEncontradas.length === 0) {
+            // Fallback final: Buscar todas as roletas distintas na coleção 'roleta_numeros'
+            console.log(`[Histórico] Nenhuma roleta encontrada. Buscando roletas distintas na coleção 'roleta_numeros'...`);
             
             const allRoulettes = await db.collection('roleta_numeros').aggregate([
                 { $sort: { timestamp: -1 } }, 
@@ -264,7 +337,7 @@ const getAllRoulettesInitialHistory = async (req, res) => {
             
             // 2. Para cada roleta encontrada, buscar seu histórico em paralelo
             const historyPromises = allRoulettes.map(roulette =>
-                fetchHistoryForRoulette(db, roulette._id, HISTORY_LIMIT)
+                fetchHistoryForRoulette(db, roletasDb, roulette._id, HISTORY_LIMIT)
                     .then(history => ({
                         name: roulette.name,
                         history: history
@@ -291,11 +364,11 @@ const getAllRoulettesInitialHistory = async (req, res) => {
             });
         }
         
-        // 2. Para cada roleta da coleção metadados, buscar seu histórico em paralelo
-        const historyPromises = roletasMetadados.map(roleta =>
-            fetchHistoryForRoulette(db, roleta.roleta_id, HISTORY_LIMIT)
+        // 2. Para cada roleta encontrada, buscar seu histórico em paralelo
+        const historyPromises = roletasEncontradas.map(roleta =>
+            fetchHistoryForRoulette(db, roletasDb, roleta.roleta_id || roleta.colecao, HISTORY_LIMIT)
                 .then(history => ({
-                    name: roleta.roleta_nome,
+                    name: roleta.roleta_nome || roleta.nome || `Roleta ${roleta.roleta_id || roleta.colecao}`,
                     history: history
                 }))
         );
