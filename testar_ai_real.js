@@ -1,38 +1,14 @@
-/**
- * Versão completa com processamento de dados específicos de roleta
- */
-
-// Carregar variáveis de ambiente
-require('dotenv').config();
-
 const { MongoClient } = require('mongodb');
-const fs = require('fs');
-const path = require('path');
-
-// Configurar logs
-function logToFile(message) {
-  const logDir = path.join(process.cwd(), 'logs');
-  const logFile = path.join(logDir, `query_log_${new Date().toISOString().split('T')[0]}.log`);
-  
-  // Verificar se o diretório existe, senão criar
-  if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir, { recursive: true });
-  }
-  
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] ${message}\n`;
-  
-  fs.appendFileSync(logFile, logMessage);
-  console.log(message);
-}
+const fetch = require('node-fetch');
 
 // Configurações
-const AI_PROVIDER = process.env.AI_PROVIDER || 'gemini';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-pro';
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const ROLETAS_DB_NAME = process.env.ROLETAS_MONGODB_DB_NAME || 'roletas_db';
+
+// Configurações da API Gemini
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyApOWLB6zyfyvG8dHQNVFu_FmAu0Vj5bso"; // Substitua pela sua chave real
+const GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
 
 // Cache para conexão com o banco de dados
 let mongoClient = null;
@@ -273,20 +249,18 @@ async function getRouletteDetails(db, roletaId, roletaNome) {
   }
 }
 
-// Função para chamar a API do Gemini usando fetch
+// Função para chamar a API do Gemini com dados reais
 async function queryGemini(userQuery, rouletteData) {
   try {
     if (!GEMINI_API_KEY) {
       throw new Error('[DEBUG] Chave da API Gemini não configurada');
     }
     
-    console.log('[DEBUG] Iniciando consulta ao Gemini...');
+    console.log('[DEBUG] Iniciando consulta REAL ao Gemini...');
     console.log(`[DEBUG] Modelo: ${GEMINI_MODEL}`);
     
     // URL completa com a chave API
     const apiUrl = `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`;
-    
-    console.log('[DEBUG] Preparando requisição para Gemini...');
     
     // Prompt melhorado e mais direto
     const prompt = `Você é um assistente especializado em análise de roleta de cassino.
@@ -301,24 +275,34 @@ Instruções:
 
 Dados da roleta ${rouletteData.rouletteIdentifier}:
 • Total de resultados analisados: ${rouletteData.totalNumbers || 0}
-
+• Total de ZEROS: ${rouletteData.stats?.zeroCount || 0} (${rouletteData.stats?.zeroPercentage || "0"}%)
+• Últimos números: ${(rouletteData.recentNumbers || []).slice(0,20).join(', ')}
+• Números mais frequentes: ${(rouletteData.hotNumbers || []).map(n => n.number).join(', ')}
+• Números menos frequentes: ${(rouletteData.coldNumbers || []).map(n => n.number).join(', ')}
+• Proporção vermelho/preto: ${rouletteData.stats?.redCount || 0}/${rouletteData.stats?.blackCount || 0}
+• Proporção par/ímpar: ${rouletteData.stats?.evenCount || 0}/${rouletteData.stats?.oddCount || 0}
 
 A pergunta do usuário é: "${userQuery}"
 
 Responda apenas o que foi perguntado, sem introduções ou explicações adicionais.`;
+    
+    console.log("\n[PROMPT ENVIADO AO GEMINI]:");
+    console.log("------------------------------------------");
+    console.log(prompt);
+    console.log("------------------------------------------\n");
     
     // Criar uma requisição para o Gemini
     const simplifiedRequest = {
         contents: [
           {
             role: "user",
-          parts: [{ text: prompt }]
+            parts: [{ text: prompt }]
           }
         ],
         generationConfig: {
-        temperature: 0.2,
+          temperature: 0.2,
           maxOutputTokens: 500,
-        topP: 0.8,
+          topP: 0.8,
           topK: 40
         },
         safetySettings: [
@@ -344,7 +328,7 @@ Responda apenas o que foi perguntado, sem introduções ou explicações adicion
     // Log para debug
     console.log('[DEBUG] Enviando requisição para Gemini...');
     
-    // Fazer a requisição usando fetch nativo
+    // Fazer a requisição usando fetch
     console.log('[DEBUG] Aguardando resposta do Gemini...');
     
     const controller = new AbortController();
@@ -400,83 +384,59 @@ Responda apenas o que foi perguntado, sem introduções ou explicações adicion
   }
 }
 
-// Handler principal
-export default async function handler(req, res) {
-  console.log('[DEBUG] Endpoint /api/ai/query acionado');
-  console.log(`[DEBUG] Método: ${req.method}`);
-  
+// Função principal para testar a IA
+async function testarIA() {
   try {
-    // Verificar método HTTP
-    if (req.method !== 'POST') {
-      return res.status(405).json({ message: 'Método não permitido' });
-    }
-
-    // Extrair dados do body
-    const { query, roletaId, roletaNome } = req.body;
-    console.log(`[DEBUG] Body recebido: query="${query || ''}", roletaId=${roletaId || 'null'}, roletaNome=${roletaNome || 'null'}`);
-
-    if (!query) {
-      return res.status(400).json({ message: 'Parâmetro "query" é obrigatório' });
-    }
+    console.log("Iniciando teste da IA com banco roletas_db e chamadas REAIS à API Gemini...");
     
-    // Conectar ao MongoDB - apenas banco roletas_db
-    console.log('[DEBUG] Conectando ao banco de dados roletas_db...');
+    // Conectar ao banco de dados
     const db = await connectDB();
-    
     if (!db) {
-      console.error('[DEBUG] Falha ao conectar ao MongoDB');
-      return res.status(503).json({ 
-        message: 'Serviço temporariamente indisponível (MongoDB)',
-        mongodbErrorType: 'connection_failed'
-      });
+      throw new Error("Falha ao conectar ao banco de dados");
     }
     
-    // Obter dados detalhados da roleta específica
-    console.log('[DEBUG] Buscando dados detalhados da roleta...');
-    const rouletteData = await getRouletteDetails(db, roletaId, roletaNome);
+    // Testes com diferentes roletas e consultas
+    const testes = [
+      { roletaId: "2010097", query: "Quais são os números mais quentes?" },
+      { roletaId: "2010165", query: "Qual a frequência de zeros?" },
+      { query: "Qual o número que menos aparece?" } // Sem especificar roleta
+    ];
     
-    // Agora, vamos chamar a API do Gemini com os dados de roleta processados
-    console.log('[DEBUG] Chamando API do Gemini com dados processados...');
-    
-    try {
-      const aiResponse = await queryGemini(query, rouletteData);
-      console.log('[DEBUG] Resposta da API recebida');
+    // Executar cada teste
+    for (const teste of testes) {
+      console.log("\n======================================================");
+      console.log(`TESTE REAL: ${JSON.stringify(teste)}`);
       
-      // Retornar resposta bem-sucedida
-      return res.status(200).json({
-        response: aiResponse,
-        debug: {
-          query,
-          rouletteIdentifier: rouletteData.rouletteIdentifier,
-          stats: {
-            zeroCount: rouletteData.stats?.zeroCount || 0,
-            totalNumbers: rouletteData.totalNumbers || 0
-          },
-          ai_config: {
-            provider: AI_PROVIDER,
-            model: GEMINI_MODEL
-          }
-        }
-      });
+      // Obter dados da roleta
+      const rouletteData = await getRouletteDetails(db, teste.roletaId, teste.roletaNome);
       
-    } catch (aiError) {
-      console.error('[DEBUG] Erro ao processar consulta de IA:', aiError);
-      return res.status(502).json({
-        message: 'Erro ao processar consulta com o provedor de IA',
-        error: aiError.message
-      });
+      if (rouletteData.error) {
+        console.log(`[ERRO] ${rouletteData.error}`);
+        continue;
+      }
+      
+      // Chamar a API real do Gemini
+      console.log("\n*** FAZENDO CHAMADA REAL À API GEMINI ***");
+      const response = await queryGemini(teste.query, rouletteData);
+      
+      console.log("\n[RESPOSTA REAL DA IA]:");
+      console.log("------------------------------------------");
+      console.log(response);
+      console.log("------------------------------------------");
     }
+    
+    // Fechar conexão
+    if (mongoClient) {
+      await mongoClient.close();
+      console.log("\nConexão com o MongoDB fechada");
+    }
+    
+    console.log("\nTestes reais da IA concluídos com sucesso!");
     
   } catch (error) {
-    // Registrar erro detalhado
-    console.error('[DEBUG] Erro geral no handler:', error.message);
-    console.error('[DEBUG] Stack:', error.stack);
-    
-    // Responder com erro detalhado
-    return res.status(500).json({ 
-      message: 'Erro interno no servidor',
-      error: error.message,
-      stackFirstLine: error.stack ? error.stack.split('\n')[0] : 'No stack available'
-    });
+    console.error("Erro durante teste da IA:", error);
   }
-} 
+}
+
+// Executar teste
+testarIA(); 

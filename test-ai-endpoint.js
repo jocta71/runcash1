@@ -3,55 +3,52 @@
  * 
  * Este script testa o endpoint da API de IA da aplicação diretamente
  */
-require('dotenv').config();
-const axios = require('axios');
-
-// URL da aplicação - ajuste conforme necessário
-const BASE_URL = 'https://runcashh111.vercel.app';
-// URL local para desenvolvimento
-// const BASE_URL = 'http://localhost:3000';
+const fetch = require('node-fetch');
 
 async function testarEndpointAI() {
-  console.log('===== TESTE DO ENDPOINT DA API DE IA =====');
-  console.log(`URL Base: ${BASE_URL}`);
-  console.log('Endpoint: /api/ai/query');
-  
   try {
-    console.log('\n🔄 Enviando consulta para o endpoint da API...');
+    console.log('Testando API de consulta da IA...');
     
-    const requestBody = {
-      query: 'Analise os últimos números da roleta',
-      roletaId: null,
-      roletaNome: null
+    // Substitua pela URL do seu endpoint
+    const apiUrl = 'http://localhost:3000/api/ai/query';
+    
+    // Parâmetros da requisição
+    const requestData = {
+      query: 'Quais são os números mais quentes da roleta?',
+      roletaId: '1' // Substitua pelo ID válido de uma roleta
     };
     
-    console.log('\nCorpo da requisição:');
-    console.log(JSON.stringify(requestBody, null, 2));
+    console.log('Enviando requisição:', JSON.stringify(requestData));
     
-    const response = await axios.post(
-      `${BASE_URL}/api/ai/query`,
-      requestBody,
-      { 
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 60000 // 60 segundos para permitir tempo de processamento
-      }
-    );
+    // Fazer a requisição ao endpoint
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestData)
+    });
     
-    console.log('\n✅ Resposta recebida com sucesso!');
-    console.log('Status:', response.status);
-    console.log('\nResposta da API:');
-    console.log(JSON.stringify(response.data, null, 2));
+    // Verificar status da resposta
+    console.log('Status da resposta:', response.status);
+    
+    // Obter corpo da resposta
+    const responseData = await response.json();
+    console.log('Resposta recebida:');
+    console.log(JSON.stringify(responseData, null, 2));
     
   } catch (error) {
-    console.error('\n❌ ERRO ao chamar o endpoint da API:');
-    console.error(error.message);
-    
+    console.error('Erro ao testar endpoint:', error);
     if (error.response) {
-      console.error('\nDetalhes do erro:');
-      console.error('Status:', error.response.status);
-      console.error('Data:', JSON.stringify(error.response.data, null, 2));
+      try {
+        const errorBody = await error.response.json();
+        console.error('Detalhes do erro:', errorBody);
+      } catch {
+        console.error('Status:', error.response.status);
+      }
     }
   }
 }
 
+// Executar o teste
 testarEndpointAI(); 
