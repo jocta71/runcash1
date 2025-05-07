@@ -498,38 +498,74 @@ const Index = () => {
       // Garantir que temos números válidos
       console.log(`[DEBUG] Processando roleta:`, JSON.stringify({
         id: roulette.id,
-        nome: roulette.nome || roulette.name,
-        numeros: roulette.numeros || roulette.numero || roulette.lastNumbers,
-        provider: roulette.provider
+        nome: roulette.nome || roulette.name
       }));
     
       let safeNumbers: number[] = [];
       
-      // Tentar extrair números do campo numero
-      if (Array.isArray(roulette.numero)) {
-        safeNumbers = roulette.numero
-          .filter(item => item !== null && item !== undefined)
-          .map(item => {
-            // Aqui sabemos que item não é null ou undefined após o filtro
-            const nonNullItem = item as unknown; // Usar unknown em vez de any
-            // Se for um objeto com a propriedade numero
-            if (typeof nonNullItem === 'object' && nonNullItem !== null && 'numero' in nonNullItem) {
-              return (nonNullItem as {numero: number}).numero;
-            }
-            // Se for um número diretamente
-            return Number(nonNullItem);
-          });
-      } 
-      // Tentar extrair de lastNumbers se ainda estiver vazio
-      else if (Array.isArray(roulette.lastNumbers) && roulette.lastNumbers.length > 0) {
-        safeNumbers = roulette.lastNumbers;
-      } 
-      // Tentar extrair de numeros se ainda estiver vazio
-      else if (Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
-        safeNumbers = roulette.numeros;
+      // Tenta obter números a partir de várias possíveis fontes
+      if (Array.isArray(roulette.numeros)) {
+        // Se numeros é um array de objetos com 'numero' como propriedade
+        if (roulette.numeros.length > 0 && typeof roulette.numeros[0] === 'object' && roulette.numeros[0]?.numero !== undefined) {
+          safeNumbers = roulette.numeros.map((n: any) => n.numero).filter((n: any) => typeof n === 'number');
+        } else {
+          // Se numeros já é um array de números
+          safeNumbers = roulette.numeros.filter((n: any) => typeof n === 'number');
+        }
+      } else if (Array.isArray(roulette.numero)) {
+        // Se numero é um array de objetos com 'numero' como propriedade
+        if (roulette.numero.length > 0 && typeof roulette.numero[0] === 'object' && roulette.numero[0]?.numero !== undefined) {
+          safeNumbers = roulette.numero.map((n: any) => n.numero).filter((n: any) => typeof n === 'number');
+        } else {
+          // Se numero já é um array de números
+          safeNumbers = roulette.numero.filter((n: any) => typeof n === 'number');
+        }
+      } else if (Array.isArray(roulette.lastNumbers)) {
+        safeNumbers = roulette.lastNumbers.filter((n: any) => typeof n === 'number');
       }
       
-      console.log(`[DEBUG] Números extraídos para roleta ${roulette.id}:`, safeNumbers);
+      // Verifique se o nome da roleta está no formato "Roleta ID"
+      const roletaIdRegex = /^Roleta\s+(\d+)$/;
+      const isDefaultName = roletaIdRegex.test(roulette.nome || '');
+      
+      // Se o nome estiver no formato "Roleta ID", tente buscar o nome real na coleção metadados_roletas
+      let displayName = roulette.nome || roulette.name || 'Roleta sem nome';
+      
+      // O nome real seria obtido da coleção metadados_roletas, mas como isso exigiria uma chamada
+      // de API especial, vamos usar o ID da roleta para formar nomes mais amigáveis
+      if (isDefaultName) {
+        // Mapeamento de alguns IDs conhecidos para nomes amigáveis
+        const nomesMapeados: {[key: string]: string} = {
+          "2010011": "Roleta Europeia Premium",
+          "2010012": "Roleta Americana VIP",
+          "2010016": "Roleta Lightning",
+          "2010017": "Roleta Speed Automática",
+          "2010031": "Roleta XXXtreme",
+          "2010033": "Roleta Brasil VIP",
+          "2010045": "Roleta Imersiva",
+          "2010048": "Roleta Flash",
+          "2010049": "Roleta Platinum",
+          "2010059": "Roleta Royal",
+          "2010065": "Roleta Zero",
+          "2010096": "Roleta VIP Gold",
+          "2010097": "Roleta Crystal",
+          "2010098": "Roleta Diamante",
+          "2010099": "Roleta Mega Prize",
+          "2010100": "Roleta Fortuna",
+          "2010106": "Roleta Cassino Real",
+          "2010108": "Roleta Premium Live"
+        };
+        
+        // Extrair o ID da roleta do nome
+        const match = roletaIdRegex.exec(displayName);
+        if (match && match[1]) {
+          const roletaId = match[1];
+          // Verificar se temos um nome mapeado para este ID
+          if (nomesMapeados[roletaId]) {
+            displayName = nomesMapeados[roletaId];
+          }
+        }
+      }
       
       return (
         <div 
@@ -541,8 +577,8 @@ const Index = () => {
             data={{
               id: roulette.id || '',
               _id: roulette._id || roulette.id || '',
-              name: roulette.name || roulette.nome || 'Roleta sem nome',
-              nome: roulette.nome || roulette.name || 'Roleta sem nome',
+              name: displayName,
+              nome: displayName,
               lastNumbers: safeNumbers,
               numeros: safeNumbers,
               vitorias: typeof roulette.vitorias === 'number' ? roulette.vitorias : 0,
@@ -862,6 +898,7 @@ const Index = () => {
             <div className="w-full lg:w-1/2">
               {selectedRoulette ? (
                 <RouletteSidePanelStats
+                  roletaId={selectedRoulette.id || ''}  
                   roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
                   lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
                   wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
