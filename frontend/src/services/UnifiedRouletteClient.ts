@@ -656,21 +656,82 @@ class UnifiedRouletteClient {
    * Atualiza o cache com novos dados
    */
   private updateCache(data: any | any[]): void {
+    // Registrar tempo da atualização
     this.lastUpdateTime = Date.now();
     
     if (Array.isArray(data)) {
-      // Atualizar múltiplas roletas
-      data.forEach(roulette => {
-        if (roulette && roulette.id) {
-          this.rouletteData.set(roulette.id, roulette);
+      // Buscar metadados das roletas para substituir os IDs por nomes
+      this.fetchRoulettesMetadata().then(metadata => {
+        // Criar mapa de IDs para nomes
+        const metadataMap = new Map();
+        if (metadata && Array.isArray(metadata)) {
+          metadata.forEach(item => {
+            if (item.roleta_id && item.roleta_nome) {
+              metadataMap.set(item.roleta_id.toString(), item.roleta_nome);
+            }
+          });
         }
+        
+        // Atualizar dados com nomes de metadados
+        data.forEach(roulette => {
+          const rouletteId = roulette.id || roulette.roleta_id;
+          if (rouletteId) {
+            // Se temos o nome nos metadados, usar ele
+            if (metadataMap.has(rouletteId.toString())) {
+              roulette.nome = metadataMap.get(rouletteId.toString());
+              roulette.name = roulette.nome; // Para compatibilidade
+            }
+            // Caso contrário, manter nome original ou criar um
+            else if (!roulette.nome && !roulette.name) {
+              roulette.nome = `Roleta ${rouletteId}`;
+              roulette.name = roulette.nome; // Para compatibilidade
+            }
+            
+            // Atualizar cache
+            this.rouletteData.set(rouletteId.toString(), roulette);
+          }
+        });
+        
+        // Emitir evento após atualização com metadados
+        this.emit('update', Array.from(this.rouletteData.values()));
+      }).catch(error => {
+        this.error('Erro ao buscar metadados de roletas:', error);
+        
+        // Continuar com atualização normal mesmo sem metadados
+        data.forEach(roulette => {
+          const rouletteId = roulette.id || roulette.roleta_id;
+          if (rouletteId) {
+            this.rouletteData.set(rouletteId.toString(), roulette);
+          }
+        });
+        
+        // Emitir evento de atualização
+        this.emit('update', Array.from(this.rouletteData.values()));
       });
-      
-      this.log(`Cache atualizado com ${data.length} roletas`);
     } else if (data && data.id) {
-      // Atualizar uma única roleta
+      // Atualização de roleta individual
       this.rouletteData.set(data.id, data);
-      this.log(`Cache atualizado para roleta ${data.id}`);
+      
+      // Emitir evento
+      this.emit('update', Array.from(this.rouletteData.values()));
+    }
+  }
+  
+  /**
+   * Busca metadados das roletas da API
+   */
+  private async fetchRoulettesMetadata(): Promise<any[]> {
+    try {
+      const response = await axios.get(getFullUrl('/api/metadados-roletas'));
+      
+      if (response.status === 200 && response.data && !response.data.error) {
+        return response.data.data || [];
+      }
+      
+      return [];
+    } catch (error) {
+      this.error('Erro ao buscar metadados de roletas:', error);
+      return [];
     }
   }
   
