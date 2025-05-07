@@ -8,7 +8,7 @@ Módulo de configuração e utilitários para MongoDB
 import os
 import logging
 from datetime import datetime
-from typing import Dict, Any, Tuple, Dict
+from typing import Dict, Any, Tuple, Dict, List
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.collection import Collection
 from pymongo.database import Database
@@ -17,6 +17,9 @@ from pymongo.database import Database
 from config import MONGODB_URI, logger
 # Usar variável de ambiente ROLETAS_MONGODB_DB_NAME se disponível, caso contrário usar MONGODB_DB_NAME
 MONGODB_DB_NAME = os.environ.get('ROLETAS_MONGODB_DB_NAME') or os.environ.get('MONGODB_DB_NAME', 'runcash')
+
+# Flag para identificar se estamos usando o banco otimizado de roletas
+USANDO_BANCO_ROLETAS_DB = 'roletas_db' in MONGODB_DB_NAME
 
 def conectar_mongodb() -> Tuple[MongoClient, Database]:
     """
@@ -35,12 +38,125 @@ def conectar_mongodb() -> Tuple[MongoClient, Database]:
         logger.info(f"Conexão MongoDB estabelecida com sucesso: {MONGODB_URI}")
         logger.info(f"Usando banco de dados: {MONGODB_DB_NAME}")
         
+        if USANDO_BANCO_ROLETAS_DB:
+            logger.info("🔹 Usando modelo otimizado com coleções específicas por roleta")
+        else:
+            logger.info("🔸 Usando modelo tradicional com coleções comuns")
+        
         return client, db
     except Exception as e:
         logger.error(f"Erro ao conectar ao MongoDB: {str(e)}")
         raise
 
-def inicializar_colecoes() -> Dict[str, Collection]:
+def criar_colecao_roleta(db: Database, roleta_id: str) -> Collection:
+    """
+    Cria uma coleção específica para uma roleta
+    
+    Args:
+        db (Database): Banco de dados MongoDB
+        roleta_id (str): ID da roleta
+        
+    Returns:
+        Collection: Coleção criada
+    """
+    # Nome da coleção = ID da roleta
+    colecao_nome = roleta_id
+    
+    # Verificar se a coleção já existe
+    if colecao_nome not in db.list_collection_names():
+        # Criar coleção
+        db.create_collection(colecao_nome)
+        
+        # Criar índices
+        db[colecao_nome].create_index([("timestamp", DESCENDING)])
+        db[colecao_nome].create_index([("numero", ASCENDING)])
+        db[colecao_nome].create_index([("cor", ASCENDING)])
+        
+        logger.info(f"Coleção específica '{colecao_nome}' criada com índices")
+    else:
+        logger.info(f"Coleção específica '{colecao_nome}' já existe")
+    
+    return db[colecao_nome]
+
+def inicializar_colecoes_especificas(db: Database) -> Dict[str, Collection]:
+    """
+    Inicializa coleções específicas para roletas existentes
+    
+    Args:
+        db (Database): Banco de dados MongoDB
+        
+    Returns:
+        Dict[str, Collection]: Dicionário com as coleções por roleta
+    """
+    colecoes_por_roleta = {}
+    
+    try:
+        # Coleção de metadados
+        if "metadados" not in db.list_collection_names():
+            db.create_collection("metadados")
+            db.metadados.create_index([("roleta_id", ASCENDING)], unique=True)
+            logger.info("Coleção 'metadados' criada")
+        
+        # Verificar se já existem roletas cadastradas no banco
+        # Primeiro verificar na coleção de roletas (modelo tradicional)
+        if "roletas" in db.list_collection_names():
+            roletas = list(db.roletas.find({"ativa": True}))
+            logger.info(f"Encontradas {len(roletas)} roletas na coleção 'roletas'")
+            
+            # Criar coleções específicas para cada roleta
+            for roleta in roletas:
+                roleta_id = str(roleta.get("_id"))
+                roleta_nome = roleta.get("nome")
+                
+                # Criar coleção para esta roleta
+                colecao = criar_colecao_roleta(db, roleta_id)
+                colecoes_por_roleta[roleta_id] = colecao
+                
+                # Registrar na coleção de metadados
+                db.metadados.update_one(
+                    {"roleta_id": roleta_id},
+                    {"$set": {
+                        "roleta_id": roleta_id,
+                        "roleta_nome": roleta_nome,
+                        "colecao": roleta_id,
+                        "ativa": True,
+                        "atualizado_em": datetime.now()
+                    }},
+                    upsert=True
+                )
+        
+        # Também verificar coleções existentes que podem ser de roletas
+        for colecao_nome in db.list_collection_names():
+            # Ignorar coleções de sistema e metadados
+            if colecao_nome.startswith("system.") or colecao_nome in ["metadados", "estatisticas", "roletas"]:
+                continue
+                
+            # Assumir que a coleção é uma roleta
+            roleta_id = colecao_nome
+            colecoes_por_roleta[roleta_id] = db[colecao_nome]
+            
+            # Verificar se está nos metadados
+            if not db.metadados.find_one({"roleta_id": roleta_id}):
+                # Adicionar aos metadados
+                db.metadados.update_one(
+                    {"roleta_id": roleta_id},
+                    {"$set": {
+                        "roleta_id": roleta_id,
+                        "roleta_nome": f"Roleta {roleta_id}",
+                        "colecao": roleta_id,
+                        "ativa": True,
+                        "atualizado_em": datetime.now()
+                    }},
+                    upsert=True
+                )
+        
+        logger.info(f"Inicializadas {len(colecoes_por_roleta)} coleções específicas para roletas")
+        return colecoes_por_roleta
+    except Exception as e:
+        logger.error(f"Erro ao inicializar coleções específicas: {str(e)}")
+        return {}
+
+def inicializar_colecoes() -> Dict[str, Any]:
     """
     Inicializa as coleções do MongoDB e configura índices
     
@@ -54,6 +170,11 @@ def inicializar_colecoes() -> Dict[str, Collection]:
         # Inicializar dicionário de coleções
         colecoes = {}
         
+        # Se estiver usando o banco de roletas_db, criar coleções específicas
+        colecoes_por_roleta = {}
+        if USANDO_BANCO_ROLETAS_DB:
+            colecoes_por_roleta = inicializar_colecoes_especificas(db)
+        
         # Colecão "roletas"
         colecoes['roletas'] = db['roletas']
         
@@ -62,7 +183,7 @@ def inicializar_colecoes() -> Dict[str, Collection]:
             colecoes['roletas'].create_index([('nome', ASCENDING)])
             logger.info("Índice 'nome' criado para coleção 'roletas'")
         
-        # Coleção "roleta_numeros"
+        # Coleção "roleta_numeros" (usando apenas no modo tradicional)
         colecoes['roleta_numeros'] = db['roleta_numeros']
         
         # Criar índices para coleção "roleta_numeros" se não existirem
@@ -110,8 +231,19 @@ def inicializar_colecoes() -> Dict[str, Collection]:
             ])
             logger.info("Índice 'roleta_id_tipo_comprimento' criado para coleção 'roleta_sequencias'")
         
+        # Adicionar informações extras no resultado
+        recursos = {
+            "client": client,
+            "db": db,
+            "colecoes": colecoes,
+            "colecoes_por_roleta": colecoes_por_roleta,
+            "config": {
+                "usa_colecoes_separadas": USANDO_BANCO_ROLETAS_DB
+            }
+        }
+        
         logger.info("Todas as coleções inicializadas com sucesso")
-        return colecoes
+        return recursos
     except Exception as e:
         logger.error(f"Erro ao inicializar coleções MongoDB: {str(e)}")
         raise
@@ -175,14 +307,21 @@ def numero_para_documento(
         from scraper_core import determinar_cor_numero
         cor = determinar_cor_numero(numero)
     
-    return {
-        "roleta_id": roleta_id,
-        "roleta_nome": roleta_nome,
+    # Documento base
+    documento = {
         "numero": numero,
         "cor": cor,
         "timestamp": ts,
         "criado_em": datetime.now()
     }
+    
+    # Adicionar roleta_id e roleta_nome apenas se não estiver usando coleções específicas
+    # (quando usar coleções específicas, o roleta_id já está implícito na coleção)
+    if not USANDO_BANCO_ROLETAS_DB:
+        documento["roleta_id"] = roleta_id
+        documento["roleta_nome"] = roleta_nome
+    
+    return documento
 
 def estatistica_diaria_para_documento(roleta_id: str, data: datetime, dados_estatisticos: dict) -> dict:
     """

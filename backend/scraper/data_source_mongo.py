@@ -33,27 +33,18 @@ class MongoDataSource(DataSourceInterface):
         mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/runcash')
         
         # Usar ROLETAS_MONGODB_DB_NAME se disponível, caso contrário usar MONGODB_DB_NAME
-        db_name = os.environ.get('ROLETAS_MONGODB_DB_NAME','runcash_db')
+        db_name = os.environ.get('ROLETAS_MONGODB_DB_NAME') or os.environ.get('MONGODB_DB_NAME', 'runcash')
         logger.info(f"Usando banco de dados: {db_name}")
         
-        # Conectar ao MongoDB sem configuração de pool
-        self.client = pymongo.MongoClient(
-            mongodb_uri, 
-            serverSelectionTimeoutMS=5000
-        )
-        self.db = self.client[db_name]
-        
-        # Verificar conexão sem logs
         try:
-            self.client.server_info()
-            # Sem logging aqui
-        except Exception as e:
-            # Erro crítico, exibir apenas se for fatal
-            raise Exception(f"Falha na conexão com MongoDB: {str(e)}")
-        
-        try:
-            # Conectar ao MongoDB e inicializar coleções
-            self.colecoes = inicializar_colecoes()
+            # Inicializar com recursos atualizados
+            self.recursos = inicializar_colecoes()
+            self.client = self.recursos["client"]
+            self.db = self.recursos["db"]
+            self.colecoes = self.recursos["colecoes"]
+            self.colecoes_por_roleta = self.recursos.get("colecoes_por_roleta", {})
+            self.config = self.recursos.get("config", {"usa_colecoes_separadas": False})
+            
             logger.info("Fonte de dados MongoDB inicializada com sucesso")
         except Exception as e:
             logger.error(f"Erro ao inicializar fonte de dados MongoDB: {str(e)}")
@@ -81,6 +72,31 @@ class MongoDataSource(DataSourceInterface):
                 documento = roleta_para_documento(roleta_uuid, roleta_nome)
                 self.colecoes['roletas'].insert_one(documento)
                 logger.info(f"Roleta {roleta_nome} (ID: {roleta_uuid}) criada no MongoDB")
+            
+            # Se estiver usando coleções específicas, verificar se a roleta tem coleção
+            if self.config.get("usa_colecoes_separadas", False):
+                # Verificar/criar coleção específica para esta roleta
+                if roleta_id not in self.colecoes_por_roleta:
+                    # Criar coleção específica
+                    from mongo_config import criar_colecao_roleta
+                    colecao = criar_colecao_roleta(self.db, roleta_id)
+                    self.colecoes_por_roleta[roleta_id] = colecao
+                    
+                    # Atualizar metadados
+                    if "metadados" in self.db.list_collection_names():
+                        self.db.metadados.update_one(
+                            {"roleta_id": roleta_id},
+                            {"$set": {
+                                "roleta_id": roleta_id,
+                                "roleta_nome": roleta_nome,
+                                "colecao": roleta_id,
+                                "ativa": True,
+                                "atualizado_em": datetime.now()
+                            }},
+                            upsert=True
+                        )
+                    
+                logger.info(f"Garantida coleção específica para roleta {roleta_nome} (ID: {roleta_id})")
             
             return roleta_uuid
         except Exception as e:
@@ -119,15 +135,30 @@ class MongoDataSource(DataSourceInterface):
             List[int]: Lista dos últimos números
         """
         try:
-            # Remover completamente a conversão UUID
-            # Usar o ID exatamente como foi passado
             print(f"[DATA] Buscando números para roleta ID: {roleta_id}")
             
-            # Consultar os últimos números da roleta
-            numeros_docs = list(self.colecoes['roleta_numeros']
-                .find({"roleta_id": roleta_id})
-                .sort("timestamp", -1)
-                .limit(limite))
+            # Determinar qual coleção usar
+            if self.config.get("usa_colecoes_separadas", False):
+                # Verificar se a roleta tem uma coleção específica
+                if roleta_id in self.colecoes_por_roleta:
+                    # Usar a coleção específica da roleta
+                    colecao = self.colecoes_por_roleta[roleta_id]
+                    
+                    # Consultar os últimos números da roleta (sem filtro de roleta_id, pois a coleção já é específica)
+                    numeros_docs = list(colecao
+                        .find({})
+                        .sort("timestamp", -1)
+                        .limit(limite))
+                else:
+                    print(f"[DATA] Roleta ID {roleta_id} não tem coleção específica, usando vazio")
+                    return []
+            else:
+                # Usar a coleção comum
+                # Consultar os últimos números da roleta
+                numeros_docs = list(self.colecoes['roleta_numeros']
+                    .find({"roleta_id": roleta_id})
+                    .sort("timestamp", -1)
+                    .limit(limite))
             
             # Extrair apenas os números
             numeros = [doc['numero'] for doc in numeros_docs]
@@ -162,15 +193,32 @@ class MongoDataSource(DataSourceInterface):
             str: Timestamp em formato ISO
         """
         try:
-            # Remover a conversão UUID e usar o ID original
             print(f"[DATA] Buscando timestamp para roleta ID: {roleta_id}, número: {numero}")
             
-            # Tentar obter o timestamp do número
-            numero_doc = self.colecoes['roleta_numeros'].find_one(
-                {"roleta_id": roleta_id, "numero": numero},
-                sort=[("timestamp", -1)],
-                skip=indice
-            )
+            # Determinar qual coleção usar
+            if self.config.get("usa_colecoes_separadas", False):
+                # Verificar se a roleta tem uma coleção específica
+                if roleta_id in self.colecoes_por_roleta:
+                    # Usar a coleção específica da roleta
+                    colecao = self.colecoes_por_roleta[roleta_id]
+                    
+                    # Tentar obter o timestamp do número (sem filtro de roleta_id)
+                    numero_doc = colecao.find_one(
+                        {"numero": numero},
+                        sort=[("timestamp", -1)],
+                        skip=indice
+                    )
+                else:
+                    print(f"[DATA] Roleta ID {roleta_id} não tem coleção específica, usando timestamp atual")
+                    return datetime.now().isoformat()
+            else:
+                # Usar a coleção comum
+                # Tentar obter o timestamp do número
+                numero_doc = self.colecoes['roleta_numeros'].find_one(
+                    {"roleta_id": roleta_id, "numero": numero},
+                    sort=[("timestamp", -1)],
+                    skip=indice
+                )
             
             if numero_doc and 'timestamp' in numero_doc:
                 # Converter para string ISO
@@ -201,6 +249,36 @@ class MongoDataSource(DataSourceInterface):
             bool: True se inserido com sucesso, False caso contrário
         """
         try:
+            # Determinar qual coleção usar
+            if self.config.get("usa_colecoes_separadas", False):
+                # Verificar se a roleta já tem uma coleção específica
+                if roleta_id not in self.colecoes_por_roleta:
+                    # Criar coleção específica para esta roleta
+                    from mongo_config import criar_colecao_roleta
+                    colecao = criar_colecao_roleta(self.db, roleta_id)
+                    self.colecoes_por_roleta[roleta_id] = colecao
+                    
+                    # Atualizar metadados
+                    if "metadados" in self.db.list_collection_names():
+                        self.db.metadados.update_one(
+                            {"roleta_id": roleta_id},
+                            {"$set": {
+                                "roleta_id": roleta_id,
+                                "roleta_nome": roleta_nome,
+                                "colecao": roleta_id,
+                                "ativa": True,
+                                "atualizado_em": datetime.now()
+                            }},
+                            upsert=True
+                        )
+                
+                # Usar a coleção específica da roleta
+                colecao = self.colecoes_por_roleta[roleta_id]
+                logger.info(f"[ROLETA_DB] Usando coleção específica para roleta {roleta_nome} (ID: {roleta_id})")
+            else:
+                # Usar a coleção comum
+                colecao = self.colecoes['roleta_numeros']
+            
             # Criar documento
             documento = numero_para_documento(
                 roleta_id=roleta_id,
@@ -211,10 +289,13 @@ class MongoDataSource(DataSourceInterface):
             )
             
             # Inserir no MongoDB
-            result = self.colecoes['roleta_numeros'].insert_one(documento)
+            result = colecao.insert_one(documento)
             
             if result.inserted_id:
-                logger.info(f"Número {numero} inserido para roleta {roleta_nome}")
+                if self.config.get("usa_colecoes_separadas", False):
+                    logger.info(f"Número {numero} inserido para roleta {roleta_nome} (DB ID: {roleta_id})")
+                else:
+                    logger.info(f"Número {numero} inserido para roleta {roleta_nome}")
                 
                 # Atualizar estatísticas (em thread separada para não bloquear)
                 try:
@@ -410,4 +491,13 @@ class MongoDataSource(DataSourceInterface):
         
         except Exception as e:
             logger.error(f"Erro ao atualizar dados de estratégia: {str(e)}")
-            return False 
+            return False
+    
+    def fechar(self):
+        """Fecha a conexão com o banco de dados"""
+        try:
+            if hasattr(self, 'client') and self.client:
+                self.client.close()
+                logger.info("Conexão com MongoDB fechada")
+        except Exception as e:
+            logger.error(f"Erro ao fechar conexão com MongoDB: {str(e)}") 
