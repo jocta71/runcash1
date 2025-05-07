@@ -202,9 +202,9 @@ async function getRouletteDetails(db, roletaId, roletaNomeInput, existingCollect
     }
     
     // Se não temos números e não é uma consulta específica, tentar qualquer roleta com dados
-    if (!recentNumbers || recentNumbers.length === 0) {
+    if ((!recentNumbers || recentNumbers.length === 0) && !isSpecificRoletaRequest) {
       // Tentar encontrar qualquer roleta com dados
-      console.log(`[DEBUG] getRouletteDetails - Nenhum número encontrado. Tentando buscar outra roleta com dados disponíveis.`);
+      console.log(`[DEBUG] getRouletteDetails - Nenhum número encontrado e NÃO é uma roleta específica. Tentando buscar outra roleta com dados disponíveis.`);
       
       // Iterar sobre as coleções numéricas até encontrar uma com dados
       const numericCollections = availableNumberCollections.filter(name => /^\d+$/.test(name));
