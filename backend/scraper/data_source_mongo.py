@@ -6,8 +6,6 @@ Implementação de fonte de dados MongoDB para o sistema
 """
 
 import logging
-import hashlib
-import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import os
@@ -61,6 +59,10 @@ class MongoDataSource(DataSourceInterface):
             str: ID da roleta no MongoDB
         """
         try:
+            # Verificar se o ID da roleta é numérico
+            if not isinstance(roleta_id, str) or not roleta_id.isdigit():
+                logger.warning(f"ID da roleta deve ser numérico: {roleta_id}. Pode causar problemas de compatibilidade.")
+                
             # Verificar/criar coleção específica para esta roleta
             if roleta_id not in self.colecoes_por_roleta:
                 # Criar coleção específica
@@ -176,7 +178,7 @@ class MongoDataSource(DataSourceInterface):
             str: Timestamp em formato ISO
         """
         try:
-            print(f"[DATA] Buscando timestamp para roleta ID: {roleta_id}, número: {numero}")
+            print(f"[DATA] Buscando timestamp para roleta ID: {roleta_id}")
             
             # Verificar se a roleta tem uma coleção específica
             if roleta_id in self.colecoes_por_roleta:
@@ -221,6 +223,10 @@ class MongoDataSource(DataSourceInterface):
             bool: True se inserido com sucesso, False caso contrário
         """
         try:
+            # Verificar se o ID da roleta é numérico
+            if not isinstance(roleta_id, str) or not roleta_id.isdigit():
+                logger.warning(f"ID da roleta deve ser numérico: {roleta_id}. Pode causar criação de coleção UUID.")
+                
             # Verificar se a roleta já tem uma coleção específica
             if roleta_id not in self.colecoes_por_roleta:
                 # Criar coleção específica para esta roleta

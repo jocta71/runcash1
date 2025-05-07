@@ -10,7 +10,6 @@ import random
 import re
 import os
 import logging
-import hashlib
 from datetime import datetime
 import threading
 import queue
@@ -18,7 +17,6 @@ import sys
 import tempfile
 import traceback
 import json
-import uuid
 import requests
 from urllib.parse import quote
 
@@ -118,8 +116,8 @@ class Casino888API:
     def get_roulette_tables(self, regulation_id=2):
         """Obtém as mesas de roleta para um determinado regulation_id"""
         try:
-            # Gerar UUID para o clientRequestId
-            client_request_id = str(uuid.uuid4())
+            # Gerar ID único para o clientRequestId
+            client_request_id = str(random.randint(10000000, 99999999))
             
             # Codificar os client_properties para URL
             client_properties_encoded = quote(json.dumps(self.client_properties))
@@ -207,6 +205,17 @@ def cor_numero(num):
 def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
     """Registra um novo número"""
     try:
+        # Garantir que id_roleta_para_db seja um ID numérico
+        if not isinstance(id_roleta_para_db, str) or not id_roleta_para_db.isdigit():
+            logger.warning(f"ID da roleta deve ser numérico: {id_roleta_para_db}. Verificar formato.")
+            # Tente converter se possível, ou continue com o valor original
+            if isinstance(id_roleta_para_db, str) and '_' in id_roleta_para_db:
+                parts = id_roleta_para_db.split('_', 1)
+                if len(parts) > 1 and parts[1].isdigit():
+                    id_roleta_para_db = parts[1]
+                    logger.info(f"ID convertido para formato numérico: {id_roleta_para_db}")
+            
+        # Converter o número para inteiro
         if isinstance(numero, str):
             num_int = int(re.sub(r'[^\d]', '', numero))
         else:
@@ -218,7 +227,7 @@ def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
         cor = cor_numero(num_int)
         ts = datetime.now().isoformat()
         
-        # Interação com o banco de dados usando o ID numérico da roleta
+        # Interação com o banco de dados usando o ID da roleta
         if hasattr(db, 'garantir_roleta_existe'):
             db.garantir_roleta_existe(id_roleta_para_db, roleta_nome)
         if hasattr(db, 'inserir_numero'):
@@ -230,7 +239,7 @@ def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
         # Notificação de eventos
         event_data = {
             "type": "new_number",
-            "roleta_id": id_roleta_para_db, # Usar o ID numérico para eventos também
+            "roleta_id": id_roleta_para_db,
             "roleta_nome": roleta_nome, 
             "numero": num_int,
             "timestamp": ts
@@ -270,6 +279,10 @@ def processar_numeros(db, api_table_id, roleta_nome, numeros_novos, numero_hook=
             # O db_roulette_id pode não ser reconhecido pelo RoletasDataSource.
             logger.warning(f"Formato de api_table_id inesperado: {api_table_id}. Usando como db_roulette_id.")
             db_roulette_id = api_table_id # Mantém o original se não puder extrair parte numérica
+
+    # Verificar se db_roulette_id é numérico
+    if not db_roulette_id.isdigit():
+        logger.warning(f"ATENÇÃO: ID da roleta não é numérico: {db_roulette_id}. Pode causar criação de coleção UUID.")
 
     # Obter números recentes para validação (usando db_roulette_id)
     existentes = []

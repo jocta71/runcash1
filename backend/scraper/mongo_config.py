@@ -7,6 +7,7 @@ Módulo de configuração e utilitários para MongoDB
 
 import os
 import logging
+import re
 from datetime import datetime
 from typing import Dict, Any, Tuple, Dict, List
 from pymongo import MongoClient, ASCENDING, DESCENDING
@@ -20,6 +21,9 @@ MONGODB_DB_NAME = os.environ.get('ROLETAS_MONGODB_DB_NAME') or os.environ.get('M
 
 # Flag para identificar se estamos usando o banco otimizado de roletas - sempre TRUE agora
 USANDO_BANCO_ROLETAS_DB = True
+
+# Padrão para verificar se o ID é numérico
+NUMERIC_ID_PATTERN = re.compile(r'^[0-9]+$')
 
 def conectar_mongodb() -> Tuple[MongoClient, Database]:
     """
@@ -55,6 +59,11 @@ def criar_colecao_roleta(db: Database, roleta_id: str) -> Collection:
     Returns:
         Collection: Coleção criada
     """
+    # Verificar se o ID da roleta é numérico
+    if not NUMERIC_ID_PATTERN.match(roleta_id):
+        logger.warning(f"ALERTA: Criando coleção com ID não numérico: {roleta_id}")
+        logger.warning("IDs não numéricos podem causar problemas de compatibilidade")
+    
     # Nome da coleção = ID da roleta
     colecao_nome = roleta_id
     
@@ -100,11 +109,19 @@ def inicializar_colecoes_especificas(db: Database) -> Dict[str, Collection]:
             
             for roleta in roletas_meta:
                 roleta_id = roleta.get("roleta_id")
+                
+                # Verificar se o ID é numérico
+                if not NUMERIC_ID_PATTERN.match(str(roleta_id)):
+                    logger.warning(f"ID não numérico encontrado: {roleta_id}")
+                
                 # Adicionar a coleção ao dicionário
                 colecao = criar_colecao_roleta(db, roleta_id)
                 colecoes_por_roleta[roleta_id] = colecao
         
         # Também verificar coleções existentes que podem ser de roletas
+        colecoes_numericas = []
+        colecoes_nao_numericas = []
+        
         for colecao_nome in db.list_collection_names():
             # Ignorar coleções de sistema e metadados
             if colecao_nome.startswith("system.") or colecao_nome in ["metadados"]:
@@ -114,29 +131,41 @@ def inicializar_colecoes_especificas(db: Database) -> Dict[str, Collection]:
             if colecao_nome in ["roletas", "roleta_numeros", "roleta_estatisticas_diarias", "roleta_sequencias"]:
                 continue
                 
-            # Assumir que a coleção é uma roleta
-            roleta_id = colecao_nome
-            
-            # Só adicionar se ainda não estiver no dicionário
-            if roleta_id not in colecoes_por_roleta:
-                colecoes_por_roleta[roleta_id] = db[colecao_nome]
-            
-            # Verificar se está nos metadados
-            if not db.metadados.find_one({"roleta_id": roleta_id}):
-                # Adicionar aos metadados
-                db.metadados.update_one(
-                    {"roleta_id": roleta_id},
-                    {"$set": {
-                        "roleta_id": roleta_id,
-                        "roleta_nome": f"Roleta {roleta_id}",
-                        "colecao": roleta_id,
-                        "ativa": True,
-                        "atualizado_em": datetime.now()
-                    }},
-                    upsert=True
-                )
+            # Verificar se o nome da coleção é um ID numérico
+            if NUMERIC_ID_PATTERN.match(colecao_nome):
+                colecoes_numericas.append(colecao_nome)
+                
+                # Assumir que a coleção é uma roleta
+                roleta_id = colecao_nome
+                
+                # Só adicionar se ainda não estiver no dicionário
+                if roleta_id not in colecoes_por_roleta:
+                    colecoes_por_roleta[roleta_id] = db[colecao_nome]
+                
+                # Verificar se está nos metadados
+                if not db.metadados.find_one({"roleta_id": roleta_id}):
+                    # Adicionar aos metadados
+                    db.metadados.update_one(
+                        {"roleta_id": roleta_id},
+                        {"$set": {
+                            "roleta_id": roleta_id,
+                            "roleta_nome": f"Roleta {roleta_id}",
+                            "colecao": roleta_id,
+                            "ativa": True,
+                            "atualizado_em": datetime.now()
+                        }},
+                        upsert=True
+                    )
+            else:
+                # Manter um registro de coleções não numéricas para log
+                colecoes_nao_numericas.append(colecao_nome)
         
         logger.info(f"Inicializadas {len(colecoes_por_roleta)} coleções específicas para roletas")
+        
+        # Informar sobre as coleções não numéricas
+        if colecoes_nao_numericas:
+            logger.warning(f"Encontradas {len(colecoes_nao_numericas)} coleções com IDs não numéricos: {', '.join(colecoes_nao_numericas)}")
+            logger.warning("Essas coleções podem ser problemáticas para a compatibilidade")
         
         # Informar sobre as coleções que serão ignoradas
         for colecao_antiga in ["roletas", "roleta_numeros", "roleta_estatisticas_diarias", "roleta_sequencias"]:

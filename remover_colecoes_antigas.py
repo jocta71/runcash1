@@ -26,7 +26,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Padrão regex para identificar UUIDs
+# Padrão regex para identificar UUIDs (formato padrão)
 UUID_PATTERN = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+
+# Padrão para identificar UUIDs no formato usado no banco (com hífens)
+UUID_DASH_PATTERN = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+
+# Padrão para identificar UUIDs no formato hexadecimal sem hífens
+UUID_HEX_PATTERN = re.compile(r'^[0-9a-f]{32}$', re.IGNORECASE)
+
+# Padrão para identificar nomes de coleção com formato de hash (como mostrado na imagem)
+HASH_PATTERN = re.compile(r'^[0-9a-f]{8,}-?[0-9a-f]{4,}-?[0-9a-f]{4,}-?[0-9a-f]{4,}-?[0-9a-f]{4,}', re.IGNORECASE)
 # Padrão para identificar IDs numéricos
 NUMERIC_ID_PATTERN = re.compile(r'^[0-9]+$')
 
@@ -46,11 +56,10 @@ def remover_colecoes_antigas():
     carregar_variaveis_ambiente()
     
     # Obter URI do MongoDB
-    mongodb_uri = os.environ.get('MONGODB_URI')
+    mongodb_uri = 'mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=roletas_db'
     if not mongodb_uri:
         logger.error("MONGODB_URI não encontrado nas variáveis de ambiente")
         return False
-    
     # Obter nome do banco de dados
     db_name = os.environ.get('ROLETAS_MONGODB_DB_NAME') or os.environ.get('MONGODB_DB_NAME')
     if not db_name:
