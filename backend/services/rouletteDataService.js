@@ -8,7 +8,8 @@ const rouletteStreamService = require('./rouletteStreamService');
 
 // Configuração do banco de dados
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
-const DB_NAME = "runcash";
+// Usar o novo banco de dados roletas_db
+const DB_NAME = process.env.ROLETAS_MONGODB_DB_NAME || "roletas_db";
 
 // Cliente MongoDB
 let client;
@@ -101,7 +102,7 @@ class RouletteDataService {
       client = new MongoClient(MONGODB_URI);
       await client.connect();
       db = client.db(DB_NAME);
-      console.log('[RouletteData] Conectado ao MongoDB');
+      console.log(`[RouletteData] Conectado ao MongoDB (Banco: ${DB_NAME})`);
     }
     return { client, db };
   }
@@ -158,60 +159,71 @@ class RouletteDataService {
       
       const { db } = await this.connectToDatabase();
       
-      // 1. Obter roletas distintas
-      const distinctRoulettes = await db.collection('roleta_numeros').aggregate([
-        { $sort: { timestamp: -1 } }, 
-        { $group: { 
-            _id: '$roleta_id', 
-            nome: { $first: '$roleta_nome' },
-            provider: { $first: '$provider'}, // Adicionar provider se existir
-            status: { $first: '$status'} // Adicionar status se existir
-        }},
-        { $project: { 
-            _id: 0,
-            id: '$_id',
-            nome: 1,
-            provider: 1, 
-            status: 1 
-        }}
-      ]).toArray();
+      // 1. Obter roletas da coleção metadados
+      const roletasMetadados = await db.collection('metadados').find({
+        ativa: true
+      }).toArray();
       
-      if (!distinctRoulettes || distinctRoulettes.length === 0) {
-        console.log('[RouletteData] Nenhuma roleta encontrada na coleção roleta_numeros.');
+      if (!roletasMetadados || roletasMetadados.length === 0) {
+        console.log('[RouletteData] Nenhuma roleta encontrada na coleção metadados.');
         return;
       }
       
-      // 2. Para cada roleta, buscar seus últimos 5 números e formatar
+      console.log(`[RouletteData] Encontradas ${roletasMetadados.length} roletas ativas.`);
+      
+      // 2. Para cada roleta, buscar seus últimos 5 números de sua coleção específica
       const allRouletteData = [];
-      for (const roletaInfo of distinctRoulettes) {
-          const numeros = await db.collection('roleta_numeros') 
-            .find({ roleta_id: roletaInfo.id })
+      for (const roletaMetadata of roletasMetadados) {
+        const roleta_id = roletaMetadata.roleta_id;
+        const roleta_nome = roletaMetadata.roleta_nome;
+        
+        try {
+          // Verificar se a coleção existe
+          const collections = await db.listCollections({name: roleta_id}).toArray();
+          
+          if (collections.length === 0) {
+            console.log(`[RouletteData] Coleção para roleta ${roleta_id} não encontrada.`);
+            continue;
+          }
+          
+          // Buscar os números da coleção específica da roleta
+          const numeros = await db.collection(roleta_id) 
+            .find({})
             .sort({ timestamp: -1 })
             .limit(5)
             .toArray();
           
           if (numeros && numeros.length > 0) {
-              // Usar a função formatRouletteEvent, mas pegar apenas o objeto 'data' interno
-              const formattedEvent = this.formatRouletteEvent(roletaInfo, numeros);
-              if (formattedEvent && formattedEvent.data) {
-                 allRouletteData.push(formattedEvent.data);
-              }
+            // Criar objeto da roleta
+            const roletaInfo = {
+              id: roleta_id,
+              nome: roleta_nome,
+              provider: roletaMetadata.provider || 'Desconhecido',
+              status: roletaMetadata.status || 'online'
+            };
+            
+            // Formatar dados da roleta
+            const formattedEvent = this.formatRouletteEvent(roletaInfo, numeros);
+            if (formattedEvent && formattedEvent.data) {
+               allRouletteData.push(formattedEvent.data);
+            }
           } else {
-              // Opcional: incluir roleta mesmo sem números?
-              // allRouletteData.push({ id: roletaInfo.id, nome: roletaInfo.nome, numeros: [] });
-              console.log(`[DEBUG ${roletaInfo.nome}] Nenhum número encontrado.`);
+            console.log(`[RouletteData] Nenhum número encontrado para roleta ${roleta_nome} (ID: ${roleta_id}).`);
           }
+        } catch (err) {
+          console.error(`[RouletteData] Erro ao processar roleta ${roleta_id}:`, err);
+        }
       }
 
       // 3. Enviar o array completo em um único evento SSE
       if (allRouletteData.length > 0) {
-          console.log(`[RouletteData] Enviando dados de ${allRouletteData.length} roletas em um único evento.`);
-          rouletteStreamService.broadcastUpdate({
-              type: 'all_roulettes_update', // Novo tipo de evento
-              data: allRouletteData // Array com dados de todas as roletas
-          });
+        console.log(`[RouletteData] Enviando dados de ${allRouletteData.length} roletas em um único evento.`);
+        rouletteStreamService.broadcastUpdate({
+          type: 'all_roulettes_update',
+          data: allRouletteData
+        });
       } else {
-          console.log('[RouletteData] Nenhum dado de roleta para enviar.');
+        console.log('[RouletteData] Nenhum dado de roleta para enviar.');
       }
       
       const endTime = Date.now();
@@ -224,7 +236,6 @@ class RouletteDataService {
 
   /**
    * Formata os dados da roleta e seus números para o evento SSE
-   * (Mantido para formatar dados de UMA roleta, chamado pelo loop em fetchAndBroadcastAllRouletteData)
    * @param {Object} roleta - Objeto da roleta (com id=string_numerica, nome, provider?, status?)
    * @param {Array} numeros - Array dos últimos 5 números
    * @returns {Object} - Objeto formatado para o evento SSE (incluindo type)
@@ -251,16 +262,12 @@ class RouletteDataService {
   }
 
   /**
-   * Determina a cor do número da roleta
-   * @param {number} numero 
-   * @returns {string} - 'vermelho', 'preto', ou 'verde'
+   * Determina a cor de um número da roleta
    */
-  // A função determinarCor ainda pode ser útil se o frontend precisar dela no futuro,
-  // mas não é mais usada diretamente no formatRouletteEvent
   determinarCor(numero) {
     if (numero === 0) return 'verde';
-    const vermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    return vermelhos.includes(numero) ? 'vermelho' : 'preto';
+    const pretos = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
+    return pretos.includes(numero) ? 'preto' : 'vermelho';
   }
 
   /**

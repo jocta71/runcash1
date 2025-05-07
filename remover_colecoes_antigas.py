@@ -4,13 +4,14 @@
 """
 Script para remover as coleções antigas que não são mais usadas no modelo otimizado.
 Este script remove as coleções comuns como 'roletas', 'roleta_numeros', etc.
-e mantém apenas as coleções específicas por roleta.
+e as coleções com formato UUID, mantendo apenas as coleções com IDs numéricos.
 """
 
 import os
 import sys
 import logging
 import pymongo
+import re
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -24,6 +25,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Padrão regex para identificar UUIDs
+UUID_PATTERN = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+# Padrão para identificar IDs numéricos
+NUMERIC_ID_PATTERN = re.compile(r'^[0-9]+$')
+
 def carregar_variaveis_ambiente():
     """Carrega variáveis de ambiente do arquivo .env"""
     try:
@@ -35,7 +41,7 @@ def carregar_variaveis_ambiente():
         return False
 
 def remover_colecoes_antigas():
-    """Remove as coleções antigas que não são mais usadas no modelo otimizado"""
+    """Remove as coleções antigas e coleções UUID que não são mais usadas no modelo otimizado"""
     # Carregar variáveis de ambiente
     carregar_variaveis_ambiente()
     
@@ -84,17 +90,36 @@ def remover_colecoes_antigas():
             "estrategia_historico"
         ]
         
+        # Identificar coleções UUID e coleções com IDs numéricos
+        colecoes_uuid = []
+        colecoes_numericas = []
+        colecoes_sistema = ["metadados", "system.views"]
+        
+        for colecao in colecoes:
+            if colecao in colecoes_antigas or colecao in colecoes_sistema:
+                continue
+                
+            if UUID_PATTERN.match(colecao):
+                colecoes_uuid.append(colecao)
+            elif NUMERIC_ID_PATTERN.match(colecao):
+                colecoes_numericas.append(colecao)
+        
         # Verificar quais coleções antigas existem
         colecoes_para_remover = [col for col in colecoes_antigas if col in colecoes]
         
+        # Adicionar coleções UUID à lista de remoção
+        colecoes_para_remover.extend(colecoes_uuid)
+        
         if not colecoes_para_remover:
-            logger.info("Nenhuma coleção antiga encontrada. O banco já está otimizado!")
+            logger.info("Nenhuma coleção para remover encontrada. O banco já está otimizado!")
             return True
         
-        logger.info(f"Coleções antigas encontradas: {colecoes_para_remover}")
+        logger.info(f"Coleções comuns para remover: {[c for c in colecoes_para_remover if c in colecoes_antigas]}")
+        logger.info(f"Coleções UUID para remover: {colecoes_uuid}")
+        logger.info(f"Coleções numéricas que serão mantidas: {colecoes_numericas}")
         
         # Confirmação do usuário
-        logger.info(f"As seguintes coleções serão removidas permanentemente: {colecoes_para_remover}")
+        logger.info(f"Total de {len(colecoes_para_remover)} coleções serão removidas permanentemente")
         logger.info(f"ATENÇÃO: Esta operação é IRREVERSÍVEL!")
         resposta = input("Deseja continuar com a remoção? (s/n): ")
         
@@ -129,7 +154,7 @@ def remover_colecoes_antigas():
             db[colecao].drop()
             logger.info(f"Coleção '{colecao}' removida ({num_documentos} documentos)")
         
-        logger.info(f"Todas as coleções antigas foram removidas com sucesso!")
+        logger.info(f"Todas as coleções selecionadas foram removidas com sucesso!")
         
         # Mostrar coleções restantes
         colecoes_restantes = db.list_collection_names()
@@ -138,7 +163,7 @@ def remover_colecoes_antigas():
         
         return True
     except Exception as e:
-        logger.error(f"Erro ao remover coleções antigas: {str(e)}")
+        logger.error(f"Erro ao remover coleções: {str(e)}")
         return False
     finally:
         # Fechar conexão
@@ -147,10 +172,13 @@ def remover_colecoes_antigas():
             logger.info("Conexão com MongoDB fechada")
 
 if __name__ == "__main__":
-    logger.info("=== Remoção de Coleções Antigas ===")
+    logger.info("=== Remoção de Coleções Antigas e UUIDs ===")
     
     # Avisos importantes
-    logger.info("ATENÇÃO: Este script removerá permanentemente coleções antigas do banco de dados.")
+    logger.info("ATENÇÃO: Este script removerá permanentemente:")
+    logger.info("1. Coleções antigas comuns (roletas, roleta_numeros, etc.)")
+    logger.info("2. Coleções com formato UUID (ex: 8663c411-e6af-e341-3854-b163e3d349a3)")
+    logger.info("Apenas coleções com IDs numéricos serão mantidas.")
     logger.info("Recomendamos fazer um backup completo do banco antes de prosseguir.")
     
     # Confirmação inicial
