@@ -12,6 +12,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Healthcheck route
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    message: 'API RunCash funcionando!',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Rotas
 app.use('/api/roulette', rouletteRouter);
 app.use('/api/asaas', asaasRouter);

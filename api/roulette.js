@@ -1,9 +1,14 @@
 const express = require('express');
 const router = express.Router();
+const cors = require('cors');
 const { MongoClient } = require('mongodb');
 
-// Endpoint para obter metadados das roletas
-router.get('/metadados/roletas', async (req, res) => {
+// Middleware para CORS
+router.use(cors());
+router.use(express.json());
+
+// Handler para metadados das roletas
+const getRouletteMetadata = async (req, res) => {
   try {
     // Conectar ao MongoDB
     const client = new MongoClient(process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash");
@@ -32,6 +37,24 @@ router.get('/metadados/roletas', async (req, res) => {
       details: error.message
     });
   }
+};
+
+// Endpoint com suporte para parâmetro de operação
+router.get('/', (req, res) => {
+  const operation = req.query.operation;
+  
+  switch (operation) {
+    case 'metadados':
+      return getRouletteMetadata(req, res);
+    default:
+      return res.status(400).json({
+        error: true,
+        message: "Operação inválida ou não especificada"
+      });
+  }
 });
+
+// Mantém o endpoint original também para compatibilidade
+router.get('/metadados/roletas', getRouletteMetadata);
 
 module.exports = router; 
