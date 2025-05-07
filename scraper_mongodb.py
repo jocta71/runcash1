@@ -222,7 +222,17 @@ def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
         if hasattr(db, 'garantir_roleta_existe'):
             db.garantir_roleta_existe(id_roleta_para_db, roleta_nome)
         if hasattr(db, 'inserir_numero'):
-            db.inserir_numero(id_roleta_para_db, roleta_nome, num_int, cor, ts)
+            # Verificar a assinatura do método inserir_numero para compatibilidade
+            import inspect
+            sig = inspect.signature(db.inserir_numero)
+            params = list(sig.parameters.keys())
+            
+            # Adaptador espera apenas (roleta_id, roleta_nome, numero, timestamp)
+            if len(params) == 4 or len(params) == 5:
+                db.inserir_numero(id_roleta_para_db, roleta_nome, num_int, ts)
+            # Se tiver parâmetro para cor, enviar também
+            elif len(params) > 5:
+                db.inserir_numero(id_roleta_para_db, roleta_nome, num_int, cor, ts)
         
         # Log
         print(f"{roleta_nome}:{num_int}:{cor}")

@@ -39,11 +39,25 @@ print("=" * 80 + "\n")
 # Verificar se estamos em ambiente de produção
 IS_PRODUCTION = os.environ.get('PRODUCTION', False)
 
+# Configurar variável de ambiente para o banco de dados roletas_db
+os.environ['ROLETAS_MONGODB_DB_NAME'] = 'roletas_db'
+logger.info(f"🔧 Configurando banco de dados: {os.environ['ROLETAS_MONGODB_DB_NAME']}")
+
 # Importar os módulos do scraper
 try:
     from scraper_mongodb import scrape_roletas
-    from data_source_mongo import MongoDataSource
-    import mongo_config
+    
+    # Tentar importar o adaptador para o novo banco de dados
+    try:
+        from adaptar_scraper_roletas_db import ScraperAdapter
+        ADAPTADOR_DISPONIVEL = True
+        logger.info("✅ Adaptador para banco de dados otimizado importado com sucesso")
+    except ImportError as e:
+        logger.warning(f"⚠️ Adaptador para banco otimizado não disponível: {str(e)}")
+        logger.warning("⚠️ Usando fonte de dados MongoDB tradicional")
+        ADAPTADOR_DISPONIVEL = False
+        from data_source_mongo import MongoDataSource
+    
     print("[INFO] ✅ Módulos do scraper importados com sucesso")
 except ImportError as e:
     print(f"[ERRO CRÍTICO] ❌ Erro ao importar módulos do scraper: {str(e)}")
@@ -77,18 +91,23 @@ def main():
         
         # Verificar variáveis de ambiente
         mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/runcash')
-        db_name = os.environ.get('MONGODB_DB_NAME', 'runcash')
         min_cycle_time = int(os.environ.get('MIN_CYCLE_TIME', 10))  # Tempo mínimo entre ciclos
         max_errors = int(os.environ.get('MAX_ERRORS', 5))  # Máximo de erros antes de reiniciar
         
         # Log das configurações
         logger.info(f"🔌 Conectando a MongoDB: {mongodb_uri.split('@')[-1]}")
-        logger.info(f"📊 Nome do banco de dados: {db_name}")
+        logger.info(f"📊 Nome do banco de dados: {os.environ['ROLETAS_MONGODB_DB_NAME']}")
         logger.info(f"⏱️ Tempo mínimo entre ciclos: {min_cycle_time} segundos")
         
-        # Inicializar a fonte de dados - corrigido para não passar argumentos
-        # O MongoDataSource já lê as variáveis de ambiente internamente
-        data_source = MongoDataSource()
+        # Inicializar a fonte de dados
+        if ADAPTADOR_DISPONIVEL:
+            logger.info("🔄 Inicializando adaptador para banco otimizado...")
+            data_source = ScraperAdapter()
+            logger.info("✅ Adaptador inicializado com sucesso")
+        else:
+            logger.info("🔄 Inicializando fonte de dados MongoDB tradicional...")
+            data_source = MongoDataSource()
+            logger.info("✅ Fonte de dados inicializada com sucesso")
         
         # Contador de ciclos e erros
         cycle_count = 0
@@ -150,6 +169,15 @@ def main():
         logger.critical(f"🚨 Erro crítico no scraper: {str(e)}")
         logger.critical(traceback.format_exc())
     finally:
+        # Fechar conexões
+        if 'data_source' in locals():
+            try:
+                if hasattr(data_source, 'fechar'):
+                    data_source.fechar()
+                    logger.info("✅ Conexões com banco de dados fechadas")
+            except Exception as e:
+                logger.error(f"❌ Erro ao fechar conexões: {str(e)}")
+                
         logger.info("🛑 Scraper encerrado")
 
 if __name__ == "__main__":

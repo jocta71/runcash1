@@ -81,7 +81,7 @@ class ScraperAdapter:
         } for r in roletas]
     
     def inserir_numero(self, roleta_id: str, roleta_nome: str, numero: int, 
-                      timestamp: Optional[datetime] = None) -> bool:
+                      cor: str = None, timestamp: Optional[datetime] = None) -> bool:
         """
         Insere um novo número para uma roleta
         
@@ -89,19 +89,20 @@ class ScraperAdapter:
             roleta_id (str): ID da roleta
             roleta_nome (str): Nome da roleta
             numero (int): Número sorteado
+            cor (str, optional): Cor do número. Defaults to None.
             timestamp (datetime, optional): Timestamp do evento. Defaults to None.
         
         Returns:
             bool: True se inserido com sucesso, False caso contrário
         """
-        # Determinar cor baseado no número
-        cor = None
-        if numero == 0:
-            cor = "verde"
-        elif numero % 2 == 0:
-            cor = "preto"
-        else:
-            cor = "vermelho"
+        # Determinar cor baseado no número se não foi fornecida
+        if cor is None:
+            if numero == 0:
+                cor = "verde"
+            elif numero % 2 == 0:
+                cor = "preto"
+            else:
+                cor = "vermelho"
         
         return self.data_source.inserir_numero(
             roleta_id=roleta_id,
