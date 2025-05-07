@@ -722,7 +722,9 @@ class UnifiedRouletteClient {
    */
   private async fetchRoulettesMetadata(): Promise<any[]> {
     try {
-      const response = await axios.get(getFullUrl('/api/metadados-roletas'));
+      // Usar '/metadados-roletas' em vez de '/api/metadados-roletas'
+      // para evitar duplicação do prefixo '/api' 
+      const response = await axios.get(getFullUrl('/metadados-roletas'));
       
       if (response.status === 200 && response.data && !response.data.error) {
         return response.data.data || [];
