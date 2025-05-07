@@ -10,23 +10,19 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
-const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'runcash';
 const ROLETAS_DB_NAME = process.env.ROLETAS_MONGODB_DB_NAME || 'roletas_db';
 
-// Cache para conexões com diferentes bancos de dados
+// Cache para conexão com o banco de dados
 let mongoClient = null;
-let dbInstances = {};
+let dbInstance = null;
 
 // Função para conectar ao MongoDB
-async function connectDB(dbName) {
+async function connectDB() {
   try {
-    // Determinar qual banco de dados usar
-    const targetDbName = dbName || MONGODB_DB_NAME;
-    
     // Verificar se já existe conexão para este banco
-    if (mongoClient && dbInstances[targetDbName]) {
-      console.log(`[DEBUG] Usando instância MongoDB cacheada para banco ${targetDbName}`);
-      return dbInstances[targetDbName];
+    if (mongoClient && dbInstance) {
+      console.log(`[DEBUG] Usando instância MongoDB cacheada para banco ${ROLETAS_DB_NAME}`);
+      return dbInstance;
     }
 
     // Se ainda não temos cliente MongoDB, criar um novo
@@ -45,13 +41,10 @@ async function connectDB(dbName) {
     }
     
     // Obter instância do banco específico
-    const db = mongoClient.db(targetDbName);
+    dbInstance = mongoClient.db(ROLETAS_DB_NAME);
     
-    // Armazenar no cache
-    dbInstances[targetDbName] = db;
-    
-    console.log(`[DEBUG] Usando banco de dados: ${targetDbName}`);
-    return db;
+    console.log(`[DEBUG] Usando banco de dados: ${ROLETAS_DB_NAME}`);
+    return dbInstance;
   } catch (error) {
     console.error('[DEBUG] Erro ao conectar ao MongoDB:', error.message);
     console.error('[DEBUG] Stack:', error.stack);
@@ -60,111 +53,128 @@ async function connectDB(dbName) {
 }
 
 // Função para obter dados detalhados de uma roleta específica
-async function getRouletteDetails(db, roletasDb, roletaId, roletaNome) {
+async function getRouletteDetails(db, roletaId, roletaNome) {
   try {
-    let filter = {};
     let rouletteIdentifier = 'geral';
     let recentNumbers = [];
+    let colecaoId = null;
     
-    // Determinar o campo correto para filtrar por nome da roleta
-    const sampleDoc = await db.collection('roleta_numeros').findOne();
-    const roletaNomeField = sampleDoc?.roleta_nome ? 'roleta_nome' : 
-                           (sampleDoc?.rouletteName ? 'rouletteName' : 'nome');
-    const roletaIdField = sampleDoc?.roleta_id ? 'roleta_id' : 'roletaId';
-    const numeroField = sampleDoc?.numero ? 'numero' : 'number';
+    console.log('[DEBUG] Buscando dados no banco roletas_db');
     
-    console.log(`[DEBUG] Campos identificados: ${roletaNomeField}, ${roletaIdField}, ${numeroField}`);
-    
-    // Aplicar filtro baseado em ID ou nome da roleta
+    // Se temos ID da roleta, verificar se é numérico
     if (roletaId) {
-      filter[roletaIdField] = roletaId;
-      rouletteIdentifier = `ID:${roletaId}`;
-      console.log(`[DEBUG] Filtrando por ID: ${roletaId}`);
-    } else if (roletaNome) {
-      filter[roletaNomeField] = roletaNome;
-      rouletteIdentifier = roletaNome;
-      console.log(`[DEBUG] Filtrando por nome: ${roletaNome}`);
-    } else {
-      console.log('[DEBUG] Sem filtro específico, analisando todas as roletas');
-    }
-    
-    // ESTRATÉGIA 1: Tentar buscar no banco de dados roletas_db primeiro (se disponível)
-    if (roletasDb) {
-      console.log('[DEBUG] Tentando buscar dados no banco roletas_db');
-      
-      let colecaoId = null;
-      
-      // Se temos ID da roleta, verificar se é numérico
-      if (roletaId && /^\d+$/.test(roletaId)) {
+      if (/^\d+$/.test(roletaId)) {
         colecaoId = roletaId;
-      } 
-      // Se temos nome, verificar se podemos encontrar o ID correspondente
-      else if (roletaNome) {
+        rouletteIdentifier = `ID:${roletaId}`;
+      } else {
+        // Tentar buscar na coleção de metadados
         try {
-          // Verificar se existe um mapeamento na coleção metadados
-          const metadata = await roletasDb.collection('metadados').findOne({
-            roleta_nome: roletaNome
+          const metadata = await db.collection('metadados').findOne({
+            roleta_id: roletaId
           });
           
           if (metadata && metadata.colecao) {
             colecaoId = metadata.colecao;
-            console.log(`[DEBUG] Encontrado ID ${colecaoId} para roleta ${roletaNome} via metadados`);
+            rouletteIdentifier = metadata.roleta_nome || `ID:${roletaId}`;
           }
         } catch (error) {
-          console.error(`[DEBUG] Erro ao buscar metadados: ${error.message}`);
+          console.error(`[DEBUG] Erro ao buscar metadados por ID: ${error.message}`);
         }
       }
+      console.log(`[DEBUG] Filtrando por ID: ${roletaId}, coleção identificada: ${colecaoId || "nenhuma"}`);
+    } 
+    // Se temos nome, verificar se podemos encontrar o ID correspondente
+    else if (roletaNome) {
+      rouletteIdentifier = roletaNome;
+      console.log(`[DEBUG] Filtrando por nome: ${roletaNome}`);
       
-      // Se encontramos uma coleção específica, buscar os dados
-      if (colecaoId) {
-        try {
-          // Verificar se a coleção existe
-          const collections = await roletasDb.listCollections({name: colecaoId}).toArray();
-          
-          if (collections.length > 0) {
-            console.log(`[DEBUG] Buscando na coleção específica ${colecaoId} no roletas_db`);
-            
-            recentNumbers = await roletasDb.collection(colecaoId)
-              .find({})
-              .sort({ timestamp: -1 })
-              .limit(1000)
-              .project({ _id: 0, numero: 1, timestamp: 1 })
-              .toArray();
-              
-            if (recentNumbers && recentNumbers.length > 0) {
-              console.log(`[DEBUG] Encontrados ${recentNumbers.length} números na coleção específica no roletas_db`);
-              // Extrair apenas os números
-              recentNumbers = recentNumbers.map(doc => doc.numero);
-            }
-          }
-        } catch (error) {
-          console.error(`[DEBUG] Erro ao buscar na coleção específica do roletas_db: ${error.message}`);
+      try {
+        // Verificar se existe um mapeamento na coleção metadados
+        const metadata = await db.collection('metadados').findOne({
+          roleta_nome: roletaNome
+        });
+        
+        if (metadata && metadata.colecao) {
+          colecaoId = metadata.colecao;
+          console.log(`[DEBUG] Encontrado ID ${colecaoId} para roleta ${roletaNome} via metadados`);
         }
+      } catch (error) {
+        console.error(`[DEBUG] Erro ao buscar metadados por nome: ${error.message}`);
+      }
+    } else {
+      console.log('[DEBUG] Sem filtro específico, tentando listar coleções disponíveis');
+      
+      // Se não temos ID nem nome, tentar listar todas as coleções disponíveis
+      try {
+        // Listar coleções que não são de sistema ou metadados
+        const collections = await db.listCollections().toArray();
+        const roletaCollections = collections.filter(col => 
+          !col.name.startsWith('system.') && 
+          !['metadados', 'estatisticas'].includes(col.name));
+          
+        if (roletaCollections.length > 0) {
+          // Usar a primeira coleção como exemplo
+          colecaoId = roletaCollections[0].name;
+          console.log(`[DEBUG] Sem filtro específico, usando primeira coleção disponível: ${colecaoId}`);
+          
+          // Tentar obter nome da roleta da coleção de metadados
+          try {
+            const metadata = await db.collection('metadados').findOne({
+              colecao: colecaoId
+            });
+            
+            if (metadata && metadata.roleta_nome) {
+              rouletteIdentifier = metadata.roleta_nome;
+            } else {
+              rouletteIdentifier = `Roleta ${colecaoId}`;
+            }
+          } catch (error) {
+            rouletteIdentifier = `Roleta ${colecaoId}`;
+          }
+        }
+      } catch (error) {
+        console.error(`[DEBUG] Erro ao listar coleções: ${error.message}`);
       }
     }
     
-    // ESTRATÉGIA 2: Usar a coleção roleta_numeros do banco principal se não encontrou dados no roletas_db
-    if (!recentNumbers || recentNumbers.length === 0) {
-      console.log('[DEBUG] Tentando buscar dados na coleção roleta_numeros do banco principal');
-      
-      // Buscar os últimos 1000 números da roleta
-      const resultados = await db.collection('roleta_numeros')
-        .find(filter)
-        .sort({ timestamp: -1 })
-        .limit(1000)
-        .toArray();
-      
-      console.log(`[DEBUG] Encontrados ${resultados.length} resultados recentes para ${rouletteIdentifier}`);
-      
-      if (resultados.length === 0) {
-        return {
-          rouletteIdentifier,
-          error: `Não foram encontrados dados para a roleta ${rouletteIdentifier}`
-        };
+    // Se encontramos uma coleção específica, buscar os dados
+    if (colecaoId) {
+      try {
+        // Verificar se a coleção existe
+        const collections = await db.listCollections({name: colecaoId}).toArray();
+        
+        if (collections.length > 0) {
+          console.log(`[DEBUG] Buscando na coleção específica ${colecaoId}`);
+          
+          const dadosRoleta = await db.collection(colecaoId)
+            .find({})
+            .sort({ timestamp: -1 })
+            .limit(1000)
+            .project({ _id: 0, numero: 1, timestamp: 1 })
+            .toArray();
+            
+          if (dadosRoleta && dadosRoleta.length > 0) {
+            console.log(`[DEBUG] Encontrados ${dadosRoleta.length} números na coleção ${colecaoId}`);
+            // Extrair apenas os números
+            recentNumbers = dadosRoleta.map(doc => doc.numero);
+          } else {
+            console.log(`[DEBUG] Nenhum número encontrado na coleção ${colecaoId}`);
+          }
+        } else {
+          console.log(`[DEBUG] Coleção ${colecaoId} não encontrada no banco de dados`);
+        }
+      } catch (error) {
+        console.error(`[DEBUG] Erro ao buscar na coleção específica: ${error.message}`);
       }
-      
-      // Processar os números para análise
-      recentNumbers = resultados.map(doc => doc[numeroField]);
+    }
+    
+    // Se não encontramos números, retornar erro
+    if (!recentNumbers || recentNumbers.length === 0) {
+      console.log(`[DEBUG] Nenhum número encontrado para ${rouletteIdentifier}`);
+      return {
+        rouletteIdentifier,
+        error: `Não foram encontrados dados para a roleta ${rouletteIdentifier}`
+      };
     }
     
     // A partir daqui, temos os números na variável recentNumbers
@@ -392,9 +402,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ message: 'Parâmetro "query" é obrigatório' });
     }
     
-    // Conectar ao MongoDB - banco principal e roletas_db
-    console.log('[DEBUG] Conectando aos bancos de dados...');
-    const roletasDb = await connectDB(ROLETAS_DB_NAME);
+    // Conectar ao MongoDB - apenas banco roletas_db
+    console.log('[DEBUG] Conectando ao banco de dados roletas_db...');
     const db = await connectDB();
     
     if (!db) {
@@ -407,7 +416,7 @@ export default async function handler(req, res) {
     
     // Obter dados detalhados da roleta específica
     console.log('[DEBUG] Buscando dados detalhados da roleta...');
-    const rouletteData = await getRouletteDetails(db, roletasDb, roletaId, roletaNome);
+    const rouletteData = await getRouletteDetails(db, roletaId, roletaNome);
     
     // Agora, vamos chamar a API do Gemini com os dados de roleta processados
     console.log('[DEBUG] Chamando API do Gemini com dados processados...');
