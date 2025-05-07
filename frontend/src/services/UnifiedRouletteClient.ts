@@ -1326,6 +1326,78 @@ class UnifiedRouletteClient {
   //   },
   //   ...
   // };
+
+  /**
+   * Obtém metadados das roletas do backend
+   * @returns Promise com metadados das roletas
+   */
+  public async fetchRouletteMetadata(): Promise<any[]> {
+    try {
+      this.log('Buscando metadados das roletas');
+      
+      // Construir URL
+      const url = getFullUrl(ENDPOINTS.METADATA.ROULETTES);
+      
+      // Adicionar access_key se disponível
+      const params: Record<string, string> = {};
+      if (cryptoService.hasAccessKey()) {
+        params.key = cryptoService.getAccessKey() || '';
+      }
+      
+      // Fazer requisição
+      const response = await axios.get<ApiResponse<any[]>>(url, { params });
+      
+      if (response.data && !response.data.error && Array.isArray(response.data.data)) {
+        this.log(`Metadados de ${response.data.data.length} roletas obtidos com sucesso`);
+        return response.data.data;
+      }
+      
+      this.error('Erro ao buscar metadados das roletas:', response.data.message || 'Resposta inválida');
+      return [];
+    } catch (error) {
+      this.error('Erro ao buscar metadados das roletas:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Atualiza os nomes das roletas usando metadados
+   * @returns Promise 
+   */
+  public async updateRouletteNames(): Promise<void> {
+    try {
+      // Buscar metadados
+      const metadata = await this.fetchRouletteMetadata();
+      
+      if (!metadata || metadata.length === 0) {
+        this.log('Nenhum metadado disponível para atualizar nomes das roletas');
+        return;
+      }
+      
+      // Para cada roleta no cache, atualizar o nome
+      for (const [id, roulette] of this.rouletteData.entries()) {
+        // Encontrar metadado correspondente
+        const meta = metadata.find(m => m.roleta_id === id);
+        
+        if (meta && meta.roleta_nome) {
+          // Atualizar o nome da roleta
+          roulette.nome = meta.roleta_nome;
+          this.rouletteData.set(id, roulette);
+        }
+      }
+      
+      // Emitir evento de atualização
+      this.emit('update', Array.from(this.rouletteData.values()));
+      EventBus.emit('roulette:names-updated', {
+        timestamp: new Date().toISOString(),
+        source: 'metadata'
+      });
+      
+      this.log('Nomes das roletas atualizados com sucesso usando metadados');
+    } catch (error) {
+      this.error('Erro ao atualizar nomes das roletas:', error);
+    }
+  }
 }
 
 // Exportar singleton

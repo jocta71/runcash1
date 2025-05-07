@@ -63,7 +63,7 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
   }
 
   const currentId = roulette.id || roulette.roleta_id;
-  const currentName = roulette.nome || roulette.name || roulette.roleta_nome || currentId;
+  const currentName = roulette.nome || roulette.name || roulette.roleta_nome;
 
   // 1. Identificar a fonte primária dos números
   let potentialSources = [
@@ -193,15 +193,6 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
   return result;
 };
 
-// Função auxiliar para formatação do nome da roleta
-const formatRouletteNameFromId = (id: string): string => {
-  // Se o ID parecer ser um ID numérico de roleta (como "2010011")
-  if (/^[0-9]{7}$/.test(id)) {
-    return `Roleta ${id.slice(-3)}`;  // Exibe apenas os últimos 3 dígitos para melhor legibilidade
-  }
-  return id;
-};
-
 const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetailView = false, onSelect, isSelected }) => {
   // Estados
   const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(() => {
@@ -230,7 +221,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   // Dados iniciais seguros
   const safeData = useMemo(() => ({
     id: initialData?.id || initialData?._id || 'unknown',
-    name: initialData?.name || initialData?.nome || formatRouletteNameFromId(initialData?.id || 'Roleta sem nome'),
+    name: initialData?.name || initialData?.nome || 'Roleta sem nome',
   }), [initialData]);
   
   // ID único para este componente
@@ -238,6 +229,14 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   
   // Obter instância do UnifiedClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
+  
+  // Efeito para buscar metadados das roletas quando o componente montar
+  useEffect(() => {
+    // Buscar metadados das roletas para obter nomes reais
+    unifiedClient.updateRouletteNames().catch(err => {
+      console.error(`[${componentId}] Erro ao buscar metadados das roletas:`, err);
+    });
+  }, [componentId, unifiedClient]);
   
   // Efeito para iniciar a busca de dados
   useEffect(() => {
@@ -449,36 +448,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   const lastNumbersToDisplay = numeros.map(n => n.numero);
 
   return (
-    <Card
+    <Card 
       ref={cardRef}
       className={cn(
-        'relative overflow-hidden hover:shadow-md transition-all duration-200 group',
-        {
-          'bg-gray-900 shadow-gray-950': true,
-          'border-gray-800': !isSelected,
-          'border-emerald-500 shadow-emerald-900/30': isSelected,
-          'custom-alert-animation': isNewNumber
-        }
+        "relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border ", 
+        "hover:border-vegas-green/50",
+        isNewNumber ? "border-vegas-green animate-pulse" : "",
+        isDetailView ? "w-full" : "w-full",
+        !isOnline ? "opacity-60 grayscale" : ""
       )}
+      onClick={handleCardClick}
     >
-      <CardHeader className="p-4 pb-3">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center">
-            <div className="inline-flex gap-2 items-center">
-              {rouletteData?.status === 'online' && (
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                </span>
-              )}
-              <CardTitle className="text-base text-white truncate">
-                {rouletteData?.nome || formatRouletteNameFromId(rouletteData?.id || "") || "Carregando..."}
-              </CardTitle>
-            </div>
-          </div>
-        </div>
-      </CardHeader>
-      
       {/* Logo de fundo com baixa opacidade e saturação 0 */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden rounded-lg">
         <img 
@@ -496,6 +476,22 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
       <audio ref={audioRef} src="/sounds/coin.mp3" preload="auto" />
       
       <CardContent className="p-4 relative z-10">
+        {/* Cabeçalho */}
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-semibold truncate text-white flex items-center">
+            <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
+            {safeData.name}
+          </h3>
+          <div className="flex gap-1 items-center">
+            <Badge 
+              variant={rouletteData ? "secondary" : "default"} 
+              className={`text-xs ${rouletteData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
+            >
+              {rouletteData ? "Online" : "Sem dados"}
+            </Badge>
+          </div>
+        </div>
+        
         {/* Números recentes */}
         <div className="flex justify-center items-center space-x-1 min-h-[40px]">
           {lastNumbersToDisplay.slice(0, 5).map((num, index) => (

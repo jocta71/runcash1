@@ -19,15 +19,6 @@ const addDropdownStyles = () => {
   document.head.appendChild(styleTag);
 };
 
-// Função auxiliar para formatação do nome da roleta
-const formatRouletteNameFromId = (id: string): string => {
-  // Se o ID parecer ser um ID numérico de roleta (como "2010011")
-  if (/^[0-9]{7}$/.test(id)) {
-    return `Roleta ${id.slice(-3)}`;  // Exibe apenas os últimos 3 dígitos para melhor legibilidade
-  }
-  return id;
-};
-
 // Interface para as props do componente
 interface RouletteCardProps {
   rouletteId: string;
@@ -64,7 +55,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
       
       // Encontrar a roleta específica pelo ID
       const apiData = allRoulettes.find((roulette: any) => {
-        const rouletteIdentifier = roulette.id || roulette.roleta_id || '';
+        const rouletteIdentifier = roulette.id || roulette.name || '';
         return rouletteIdentifier.toLowerCase() === rouletteId.toLowerCase();
       });
       
@@ -78,7 +69,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
       
       // Adaptar formato de dados do serviço global para o formato esperado pelo componente
       const processedData = {
-        name: apiData.nome || apiData.name || formatRouletteNameFromId(rouletteId),
+        name: apiData.nome || apiData.name || rouletteId,
         numbers: Array.isArray(apiData.numero) 
           ? apiData.numero.map((n: any) => ({
               value: n.numero,
