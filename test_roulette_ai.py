@@ -17,195 +17,41 @@ print("============================================================")
 # Configurações MongoDB
 MONGODB_URI = os.environ.get("MONGODB_URI") or "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash"
 MONGODB_DB_NAME = os.environ.get("MONGODB_DB_NAME") or "runcash"
-ROLETAS_DB_NAME = os.environ.get("ROLETAS_MONGODB_DB_NAME") or "roletas_db"
 
 # Conectar ao MongoDB
 print("Conectando ao MongoDB...")
 client = pymongo.MongoClient(MONGODB_URI)
+db = client[MONGODB_DB_NAME]
+collection = db["roleta_numeros"]
 
-# Verificar se queremos usar o banco de dados otimizado
-use_roletas_db = input("Usar o banco de dados otimizado roletas_db? (S/n): ").lower() != 'n'
+# Parâmetros para busca
+roleta_nome = input("Nome da roleta (deixe em branco para todas): ").strip() or None
+dias_atras = int(input("Quantos dias de dados buscar (padrão: 7): ") or "7")
 
-if use_roletas_db and ROLETAS_DB_NAME in client.list_database_names():
-    db_roletas = client[ROLETAS_DB_NAME]
-    print(f"Conectado ao banco de dados: {ROLETAS_DB_NAME}")
-    
-    # Obter lista de roletas disponíveis
-    roletas_disponiveis = []
-    
-    # Verificar se existe a coleção de metadados
-    if "metadados" in db_roletas.list_collection_names():
-        # Buscar informações das roletas da coleção metadados
-        print("Buscando roletas na coleção metadados...")
-        roletas_docs = list(db_roletas.metadados.find({"ativa": True}))
-        
-        for roleta in roletas_docs:
-            roletas_disponiveis.append({
-                "id": roleta.get("roleta_id") or roleta.get("colecao"),
-                "nome": roleta.get("roleta_nome")
-            })
-    
-    # Se não encontrou na coleção metadados, listar coleções disponíveis
-    if not roletas_disponiveis:
-        print("Coleção metadados não encontrada. Listando coleções disponíveis...")
-        collections = db_roletas.list_collection_names()
-        
-        # Filtrar apenas coleções que representam roletas (excluir metadados, sistema, etc)
-        roleta_collections = [col for col in collections 
-                            if not col.startswith("system.") 
-                            and col not in ["metadados", "estatisticas"]]
-        
-        # Criar lista de roletas a partir das coleções
-        for collection_name in roleta_collections:
-            roletas_disponiveis.append({
-                "id": collection_name,
-                "nome": f"Roleta {collection_name}"
-            })
-    
-    # Verificar se encontrou roletas
-    if not roletas_disponiveis:
-        print("Nenhuma roleta encontrada no banco roletas_db. Usando banco principal como fallback.")
-        db = client[MONGODB_DB_NAME]
-        collection = db["roleta_numeros"]
-        
-        # Continuar com o fluxo original para o banco principal
-        roleta_nome = input("Nome da roleta (deixe em branco para todas): ").strip() or None
-        dias_atras = int(input("Quantos dias de dados buscar (padrão: 7): ") or "7")
-        
-        # Filtrar por nome da roleta e período
-        query = {}
-        sample_doc = collection.find_one()
-        
-        if roleta_nome:
-            # Verificar o nome do campo (pode ser roleta_nome ou rouletteName)
-            roleta_nome_field = "roleta_nome" if "roleta_nome" in sample_doc else "rouletteName"
-            query[roleta_nome_field] = roleta_nome
-        
-        # Filtrar por data
-        data_limite = datetime.now() - timedelta(days=dias_atras)
-        campo_data = "timestamp" if "timestamp" in sample_doc else "createdAt"
-        query[campo_data] = {"$gte": data_limite}
-        
-        # Campo que contém o número da roleta
-        campo_numero = "numero" if "numero" in sample_doc else "number"
-        
-        # Buscar dados
-        print(f"Buscando dados dos últimos {dias_atras} dias...")
-        if roleta_nome:
-            print(f"Roleta: {roleta_nome}")
-        else:
-            print("Todas as roletas")
-            
-        resultados = list(collection.find(query).sort(campo_data, -1))
-    else:
-        # Mostrar roletas disponíveis
-        print("\nRoletas disponíveis:")
-        for i, roleta in enumerate(roletas_disponiveis):
-            print(f"{i+1}. {roleta['nome']} (ID: {roleta['id']})")
-        
-        # Solicitar escolha da roleta
-        escolha = input("\nEscolha o número da roleta (ou 0 para usar banco principal): ")
-        
-        try:
-            escolha_num = int(escolha)
-            if 1 <= escolha_num <= len(roletas_disponiveis):
-                roleta_escolhida = roletas_disponiveis[escolha_num-1]
-                print(f"Roleta escolhida: {roleta_escolhida['nome']}")
-                
-                # Buscar coleção específica da roleta
-                collection_id = roleta_escolhida['id']
-                
-                # Verificar se a coleção existe
-                if collection_id in db_roletas.list_collection_names():
-                    dias_atras = int(input("Quantos dias de dados buscar (padrão: 7): ") or "7")
-                    
-                    # Buscar dados diretamente da coleção da roleta
-                    data_limite = datetime.now() - timedelta(days=dias_atras)
-                    resultados = list(db_roletas[collection_id]
-                                    .find({"timestamp": {"$gte": data_limite}})
-                                    .sort("timestamp", -1))  # Ordem inversa
-                    
-                    print(f"Encontrados {len(resultados)} resultados na coleção {collection_id}")
-                    
-                    # Definir campo_numero para extração consistente
-                    campo_numero = "numero"
-                else:
-                    print(f"Coleção {collection_id} não encontrada. Usando banco principal como fallback.")
-                    raise ValueError("Coleção não encontrada")
-            else:
-                # Usar banco principal
-                raise ValueError("Opção inválida")
-        except ValueError:
-            # Usar banco principal como fallback
-            print("Usando banco principal...")
-            db = client[MONGODB_DB_NAME]
-            collection = db["roleta_numeros"]
-            
-            # Continuar com o fluxo original para o banco principal
-            roleta_nome = input("Nome da roleta (deixe em branco para todas): ").strip() or None
-            dias_atras = int(input("Quantos dias de dados buscar (padrão: 7): ") or "7")
-            
-            # Filtrar por nome da roleta e período
-            query = {}
-            sample_doc = collection.find_one()
-            
-            if roleta_nome:
-                # Verificar o nome do campo (pode ser roleta_nome ou rouletteName)
-                roleta_nome_field = "roleta_nome" if "roleta_nome" in sample_doc else "rouletteName"
-                query[roleta_nome_field] = roleta_nome
-            
-            # Filtrar por data
-            data_limite = datetime.now() - timedelta(days=dias_atras)
-            campo_data = "timestamp" if "timestamp" in sample_doc else "createdAt"
-            query[campo_data] = {"$gte": data_limite}
-            
-            # Campo que contém o número da roleta
-            campo_numero = "numero" if "numero" in sample_doc else "number"
-            
-            # Buscar dados
-            print(f"Buscando dados dos últimos {dias_atras} dias...")
-            if roleta_nome:
-                print(f"Roleta: {roleta_nome}")
-            else:
-                print("Todas as roletas")
-                
-            resultados = list(collection.find(query).sort(campo_data, -1))
-else:
-    # Usar banco principal
-    print("Usando banco principal padrão...")
-    db = client[MONGODB_DB_NAME]
-    collection = db["roleta_numeros"]
-    
-    # Parâmetros para busca
-    roleta_nome = input("Nome da roleta (deixe em branco para todas): ").strip() or None
-    dias_atras = int(input("Quantos dias de dados buscar (padrão: 7): ") or "7")
-    
-    # Filtrar por nome da roleta e período
-    query = {}
+# Filtrar por nome da roleta e período
+query = {}
+if roleta_nome:
+    # Verificar o nome do campo (pode ser roleta_nome ou rouletteName)
     sample_doc = collection.find_one()
-    
-    if roleta_nome:
-        # Verificar o nome do campo (pode ser roleta_nome ou rouletteName)
-        roleta_nome_field = "roleta_nome" if "roleta_nome" in sample_doc else "rouletteName"
-        query[roleta_nome_field] = roleta_nome
-    
-    # Filtrar por data
-    data_limite = datetime.now() - timedelta(days=dias_atras)
-    campo_data = "timestamp" if "timestamp" in sample_doc else "createdAt"
-    query[campo_data] = {"$gte": data_limite}
-    
-    # Campo que contém o número da roleta
-    campo_numero = "numero" if "numero" in sample_doc else "number"
-    
-    # Buscar dados
-    print(f"Buscando dados dos últimos {dias_atras} dias...")
-    if roleta_nome:
-        print(f"Roleta: {roleta_nome}")
-    else:
-        print("Todas as roletas")
-        
-    resultados = list(collection.find(query).sort(campo_data, -1))
+    roleta_nome_field = "roleta_nome" if "roleta_nome" in sample_doc else "rouletteName"
+    query[roleta_nome_field] = roleta_nome
 
+# Filtrar por data
+data_limite = datetime.now() - timedelta(days=dias_atras)
+campo_data = "timestamp" if "timestamp" in sample_doc else "createdAt"
+query[campo_data] = {"$gte": data_limite}
+
+# Buscar dados
+print(f"Buscando dados dos últimos {dias_atras} dias...")
+if roleta_nome:
+    print(f"Roleta: {roleta_nome}")
+else:
+    print("Todas as roletas")
+
+# Campo que contém o número da roleta
+campo_numero = "numero" if "numero" in sample_doc else "number"
+
+resultados = list(collection.find(query).sort(campo_data, -1))
 print(f"Encontrados {len(resultados)} resultados")
 
 if len(resultados) < 50:
@@ -213,7 +59,7 @@ if len(resultados) < 50:
     sys.exit(1)
 
 # Extrair apenas os números para o treinamento
-numeros = [doc[campo_numero] for doc in resultados if campo_numero in doc]
+numeros = [doc[campo_numero] for doc in resultados]
 numeros.reverse()  # Organizar em ordem cronológica
 
 # Salvar os números em um arquivo para compatibilidade com o script original

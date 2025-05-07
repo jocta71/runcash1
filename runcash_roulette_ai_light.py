@@ -36,7 +36,6 @@ print("Roulette prediction artificial intelligence")
 # Configurações MongoDB
 MONGODB_URI = os.environ.get("MONGODB_URI") or "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash"
 MONGODB_DB_NAME = os.environ.get("MONGODB_DB_NAME") or "runcash"
-ROLETAS_DB_NAME = os.environ.get("ROLETAS_MONGODB_DB_NAME") or "roletas_db"
 
 # Perguntar por modo leve
 modo_leve = input("Usar modo leve? (recomendado para computadores com menos recursos) [S/n]: ").lower() != 'n'
@@ -44,198 +43,42 @@ modo_leve = input("Usar modo leve? (recomendado para computadores com menos recu
 # Conectar ao MongoDB
 print("Conectando ao MongoDB...")
 client = pymongo.MongoClient(MONGODB_URI)
+db = client[MONGODB_DB_NAME]
+collection = db["roleta_numeros"]
 
-# Verificar se queremos usar o banco de dados otimizado
-use_roletas_db = input("Usar o banco de dados otimizado roletas_db? (S/n): ").lower() != 'n'
+# Parâmetros para busca
+roleta_nome = input("Nome da roleta (deixe em branco para todas): ").strip() or None
+dias_atras = int(input("Quantos dias de dados buscar (padrão: 7): ") or "7")
 
-resultados = []
-campo_numero = "numero"  # Valor padrão
+# Obter um documento de amostra para identificar os campos
+sample_doc = collection.find_one()
+if not sample_doc:
+    print("Erro: Não foi possível encontrar nenhum documento na coleção.")
+    sys.exit(1)
 
-if use_roletas_db and ROLETAS_DB_NAME in client.list_database_names():
-    db_roletas = client[ROLETAS_DB_NAME]
-    print(f"Conectado ao banco de dados: {ROLETAS_DB_NAME}")
-    
-    # Obter lista de roletas disponíveis
-    roletas_disponiveis = []
-    
-    # Verificar se existe a coleção de metadados
-    if "metadados" in db_roletas.list_collection_names():
-        # Buscar informações das roletas da coleção metadados
-        print("Buscando roletas na coleção metadados...")
-        roletas_docs = list(db_roletas.metadados.find({"ativa": True}))
-        
-        for roleta in roletas_docs:
-            roletas_disponiveis.append({
-                "id": roleta.get("roleta_id") or roleta.get("colecao"),
-                "nome": roleta.get("roleta_nome")
-            })
-    
-    # Se não encontrou na coleção metadados, listar coleções disponíveis
-    if not roletas_disponiveis:
-        print("Coleção metadados não encontrada. Listando coleções disponíveis...")
-        collections = db_roletas.list_collection_names()
-        
-        # Filtrar apenas coleções que representam roletas (excluir metadados, sistema, etc)
-        roleta_collections = [col for col in collections 
-                           if not col.startswith("system.") 
-                           and col not in ["metadados", "estatisticas"]]
-        
-        # Criar lista de roletas a partir das coleções
-        for collection_name in roleta_collections:
-            roletas_disponiveis.append({
-                "id": collection_name,
-                "nome": f"Roleta {collection_name}"
-            })
-    
-    # Verificar se encontrou roletas
-    if not roletas_disponiveis:
-        print("Nenhuma roleta encontrada no banco roletas_db. Usando banco principal como fallback.")
-        db = client[MONGODB_DB_NAME]
-        collection = db["roleta_numeros"]
-        
-        # Continuar com o fluxo original para o banco principal
-        roleta_nome = input("Nome da roleta (deixe em branco para todas): ").strip() or None
-        dias_atras = int(input("Quantos dias de dados buscar (padrão: 7): ") or "7")
-        
-        # Filtrar por nome da roleta e período
-        query = {}
-        sample_doc = collection.find_one()
-        
-        if roleta_nome:
-            # Verificar o nome do campo (pode ser roleta_nome ou rouletteName)
-            roleta_nome_field = "roleta_nome" if "roleta_nome" in sample_doc else "rouletteName"
-            query[roleta_nome_field] = roleta_nome
-        
-        # Filtrar por data
-        data_limite = datetime.now() - timedelta(days=dias_atras)
-        campo_data = "timestamp" if "timestamp" in sample_doc else "createdAt"
-        query[campo_data] = {"$gte": data_limite}
-        
-        # Campo que contém o número da roleta
-        campo_numero = "numero" if "numero" in sample_doc else "number"
-        
-        # Buscar dados
-        print(f"Buscando dados dos últimos {dias_atras} dias...")
-        if roleta_nome:
-            print(f"Roleta: {roleta_nome}")
-        else:
-            print("Todas as roletas")
-            
-        resultados = list(collection.find(query).sort(campo_data, 1))  # Ordem cronológica
-    else:
-        # Mostrar roletas disponíveis
-        print("\nRoletas disponíveis:")
-        for i, roleta in enumerate(roletas_disponiveis):
-            print(f"{i+1}. {roleta['nome']} (ID: {roleta['id']})")
-        
-        # Solicitar escolha da roleta
-        escolha = input("\nEscolha o número da roleta (ou 0 para usar banco principal): ")
-        
-        try:
-            escolha_num = int(escolha)
-            if 1 <= escolha_num <= len(roletas_disponiveis):
-                roleta_escolhida = roletas_disponiveis[escolha_num-1]
-                print(f"Roleta escolhida: {roleta_escolhida['nome']}")
-                
-                # Buscar coleção específica da roleta
-                collection_id = roleta_escolhida['id']
-                
-                # Verificar se a coleção existe
-                if collection_id in db_roletas.list_collection_names():
-                    dias_atras = int(input("Quantos dias de dados buscar (padrão: 7): ") or "7")
-                    
-                    # Buscar dados diretamente da coleção da roleta
-                    data_limite = datetime.now() - timedelta(days=dias_atras)
-                    resultados = list(db_roletas[collection_id]
-                                   .find({"timestamp": {"$gte": data_limite}})
-                                   .sort("timestamp", 1))  # Ordem cronológica
-                    
-                    print(f"Encontrados {len(resultados)} resultados na coleção {collection_id}")
-                    
-                    # Definir campo_numero para extração consistente
-                    campo_numero = "numero"
-                else:
-                    print(f"Coleção {collection_id} não encontrada. Usando banco principal como fallback.")
-                    raise ValueError("Coleção não encontrada")
-            else:
-                # Usar banco principal
-                raise ValueError("Opção inválida")
-        except ValueError:
-            # Usar banco principal como fallback
-            print("Usando banco principal...")
-            db = client[MONGODB_DB_NAME]
-            collection = db["roleta_numeros"]
-            
-            # Continuar com o fluxo original para o banco principal
-            roleta_nome = input("Nome da roleta (deixe em branco para todas): ").strip() or None
-            dias_atras = int(input("Quantos dias de dados buscar (padrão: 7): ") or "7")
-            
-            # Filtrar por nome da roleta e período
-            query = {}
-            sample_doc = collection.find_one()
-            
-            if roleta_nome:
-                # Verificar o nome do campo (pode ser roleta_nome ou rouletteName)
-                roleta_nome_field = "roleta_nome" if "roleta_nome" in sample_doc else "rouletteName"
-                query[roleta_nome_field] = roleta_nome
-            
-            # Filtrar por data
-            data_limite = datetime.now() - timedelta(days=dias_atras)
-            campo_data = "timestamp" if "timestamp" in sample_doc else "createdAt"
-            query[campo_data] = {"$gte": data_limite}
-            
-            # Campo que contém o número da roleta
-            campo_numero = "numero" if "numero" in sample_doc else "number"
-            
-            # Buscar dados
-            print(f"Buscando dados dos últimos {dias_atras} dias...")
-            if roleta_nome:
-                print(f"Roleta: {roleta_nome}")
-            else:
-                print("Todas as roletas")
-                
-            resultados = list(collection.find(query).sort(campo_data, 1))  # Ordem cronológica
+# Filtrar por nome da roleta e período
+query = {}
+if roleta_nome:
+    # Verificar o nome do campo (pode ser roleta_nome ou rouletteName)
+    roleta_nome_field = "roleta_nome" if "roleta_nome" in sample_doc else "rouletteName"
+    query[roleta_nome_field] = roleta_nome
+
+# Filtrar por data
+data_limite = datetime.now() - timedelta(days=dias_atras)
+campo_data = "timestamp" if "timestamp" in sample_doc else "createdAt"
+query[campo_data] = {"$gte": data_limite}
+
+# Buscar dados
+print(f"Buscando dados dos últimos {dias_atras} dias...")
+if roleta_nome:
+    print(f"Roleta: {roleta_nome}")
 else:
-    # Usar banco principal
-    print("Usando banco principal padrão...")
-    db = client[MONGODB_DB_NAME]
-    collection = db["roleta_numeros"]
-    
-    # Parâmetros para busca
-    roleta_nome = input("Nome da roleta (deixe em branco para todas): ").strip() or None
-    dias_atras = int(input("Quantos dias de dados buscar (padrão: 7): ") or "7")
-    
-    # Filtrar por nome da roleta e período
-    query = {}
-    
-    # Obter um documento de amostra para identificar os campos
-    sample_doc = collection.find_one()
-    if not sample_doc:
-        print("Erro: Não foi possível encontrar nenhum documento na coleção.")
-        sys.exit(1)
-    
-    if roleta_nome:
-        # Verificar o nome do campo (pode ser roleta_nome ou rouletteName)
-        roleta_nome_field = "roleta_nome" if "roleta_nome" in sample_doc else "rouletteName"
-        query[roleta_nome_field] = roleta_nome
-    
-    # Filtrar por data
-    data_limite = datetime.now() - timedelta(days=dias_atras)
-    campo_data = "timestamp" if "timestamp" in sample_doc else "createdAt"
-    query[campo_data] = {"$gte": data_limite}
-    
-    # Campo que contém o número da roleta
-    campo_numero = "numero" if "numero" in sample_doc else "number"
-    
-    # Buscar dados
-    print(f"Buscando dados dos últimos {dias_atras} dias...")
-    if roleta_nome:
-        print(f"Roleta: {roleta_nome}")
-    else:
-        print("Todas as roletas")
-    
-    resultados = list(collection.find(query).sort(campo_data, 1))  # Ordem cronológica
+    print("Todas as roletas")
 
+# Campo que contém o número da roleta
+campo_numero = "numero" if "numero" in sample_doc else "number"
+
+resultados = list(collection.find(query).sort(campo_data, 1))  # Ordem cronológica
 print(f"Encontrados {len(resultados)} resultados")
 
 min_registros = 20 if modo_leve else 50
@@ -244,7 +87,7 @@ if len(resultados) < min_registros:
     sys.exit(1)
 
 # Extrair apenas os números para o treinamento
-numeros = [doc.get(campo_numero) for doc in resultados if doc.get(campo_numero) is not None]
+numeros = [doc[campo_numero] for doc in resultados]
 
 # Carregar dados como um array numpy
 data = np.array(numeros)
@@ -355,87 +198,72 @@ if TENSORFLOW_AVAILABLE:
         print(f"#{i+1}: Número {idx} (Probabilidade: {prob*100:.2f}%)")
 
     # Avaliar o modelo
-    print("\nAvaliando o modelo...")
     loss, accuracy = model.evaluate(val_data, val_targets)
-    print(f"Perda: {loss:.4f}, Acurácia: {accuracy:.4f}")
+    print(f"Perda: {loss:.4f}, Acurácia: {accuracy*100:.2f}%")
 
-    # Salvar o modelo para uso futuro
-    model_name = f"model_roulette_light_{datetime.now().strftime('%Y%m%d_%H%M%S')}.keras"
-    model.save(model_name)
-    print(f"Modelo salvo como: {model_name}")
-
-    # Análise da acurácia nas previsões de validação
-    print("\nAnálise da acurácia:")
-
-    val_predictions = model.predict(val_data)
-    val_predicted_classes = np.argmax(val_predictions, axis=1)
-
-    # Calcular acurácia
-    correct_predictions = np.sum(val_predicted_classes == val_targets)
-    total_predictions = len(val_targets)
-    accuracy = correct_predictions / total_predictions
-    print(f"Acurácia das previsões: {accuracy*100:.2f}%")
-
-    # Acurácia esperada para uma previsão aleatória
-    random_accuracy = 1/37  # Probabilidade de acertar aleatoriamente entre 0-36
-    print(f"Acurácia esperada para previsão aleatória: {random_accuracy*100:.2f}%")
-
-    if accuracy > random_accuracy:
-        improvement = (accuracy / random_accuracy) - 1
-        print(f"O modelo é {improvement*100:.2f}% melhor que previsão aleatória")
-    else:
-        print("O modelo não supera a previsão aleatória significativamente")
-
+    # Salvar o modelo (opcional)
+    if input("Deseja salvar o modelo? (s/N): ").lower() == 's':
+        model_name = f"model_roulette_ai_{datetime.now().strftime('%Y%m%d_%H%M%S')}.keras"
+        model.save(model_name)
+        print(f"Modelo salvo como: {model_name}")
 else:
-    # Modo estatístico - Análise de frequência
-    print("\nUsando modelo estatístico (análise de frequência)...")
+    # Método alternativo baseado em estatística quando TensorFlow não está disponível
+    print("\nUsando método estatístico para previsão...")
     
-    # Análise simples de frequência
-    frequencias = np.zeros(max_value + 1, dtype=int)
-    for num in data:
-        frequencias[num] += 1
+    # Contagem de ocorrências
+    ocorrencias = {}
+    for i in range(37):  # 0-36
+        ocorrencias[i] = np.count_nonzero(data == i)
+
+    # Calcular frequências
+    frequencias = {num: count / len(data) for num, count in ocorrencias.items()}
     
-    # Obter números mais frequentes
-    top_indices = np.argsort(frequencias)[::-1][:5]
+    # Análise de padrões após sequências específicas
+    padroes_sequencia = {}
     
-    print("\nNúmeros mais frequentes:")
-    for i, idx in enumerate(top_indices):
-        freq = frequencias[idx]
-        prob = freq / len(data) * 100
-        print(f"#{i+1}: Número {idx} (Frequência: {freq}, {prob:.2f}%)")
+    # Para cada sequência no conjunto de treinamento, verificar o que vem depois
+    for i in range(len(sequences)):
+        seq_tuple = tuple(sequences[i])
+        if seq_tuple not in padroes_sequencia:
+            padroes_sequencia[seq_tuple] = []
+        padroes_sequencia[seq_tuple].append(targets[i])
     
-    # Análise de sequências
-    print("\nAnálise de sequências:")
+    # Previsão baseada na sequência mais recente
+    ultima_sequencia = tuple(data[-sequence_length:])
+    print(f"Última sequência: {ultima_sequencia}")
     
-    # Último número da sequência
-    ultimo_numero = data[-1]
-    print(f"Último número: {ultimo_numero}")
-    
-    # Encontrar padrões após esse número
-    padroes = []
-    for i in range(len(data) - 1):
-        if data[i] == ultimo_numero:
-            if i + 1 < len(data):
-                padroes.append(data[i + 1])
-    
-    if padroes:
-        # Contar frequências dos padrões
-        freq_padroes = {}
-        for num in padroes:
-            if num in freq_padroes:
-                freq_padroes[num] += 1
-            else:
-                freq_padroes[num] = 1
+    # Verificar se a sequência já foi vista antes
+    if ultima_sequencia in padroes_sequencia:
+        proximos_numeros = padroes_sequencia[ultima_sequencia]
+        contagem_proximos = {}
         
-        # Ordenar por frequência
-        padroes_ordenados = sorted(freq_padroes.items(), key=lambda x: x[1], reverse=True)
+        for num in proximos_numeros:
+            contagem_proximos[num] = contagem_proximos.get(num, 0) + 1
         
-        print("\nPróximos números mais prováveis após", ultimo_numero, ":")
-        for i, (num, freq) in enumerate(padroes_ordenados[:5]):
-            prob = freq / len(padroes) * 100
-            print(f"#{i+1}: Número {num} (Frequência: {freq}, {prob:.2f}%)")
+        probabilidades = {num: count / len(proximos_numeros) for num, count in contagem_proximos.items()}
+        top_previsoes = sorted(probabilidades.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        print("\nTop 5 previsões baseadas em padrões anteriores:")
+        for i, (num, prob) in enumerate(top_previsoes):
+            print(f"#{i+1}: Número {num} (Probabilidade: {prob*100:.2f}%)")
     else:
-        print(f"Nenhum padrão encontrado após o número {ultimo_numero}")
+        # Se a sequência nunca foi vista, usar frequência geral
+        top_frequentes = sorted(frequencias.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        print("\nTop 5 previsões baseadas em frequência geral (sequência não encontrada no histórico):")
+        for i, (num, freq) in enumerate(top_frequentes):
+            print(f"#{i+1}: Número {num} (Frequência: {freq*100:.2f}%)")
+
+    # Calcular estatísticas adicionais
+    # Estatísticas por categoria
+    zeros = np.count_nonzero(data == 0)
+    vermelhos = sum(1 for n in data if n in [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36])
+    pretos = sum(1 for n in data if n in [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35])
+    
+    print("\nEstatísticas gerais:")
+    print(f"Zeros: {zeros} ({zeros/len(data)*100:.2f}%)")
+    print(f"Vermelhos: {vermelhos} ({vermelhos/len(data)*100:.2f}%)")
+    print(f"Pretos: {pretos} ({pretos/len(data)*100:.2f}%)")
 
 print("\n============================================================")
 print("Análise concluída!")

@@ -11,32 +11,46 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent`;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'runcash';
+const ROLETAS_DB_NAME = process.env.ROLETAS_MONGODB_DB_NAME || 'roletas_db';
 
-// Variável global para cache da conexão do MongoDB
-let dbInstance = null;
+// Cache para conexões com diferentes bancos de dados
+let mongoClient = null;
+let dbInstances = {};
 
 // Função para conectar ao MongoDB
-async function connectDB() {
+async function connectDB(dbName) {
   try {
-    if (dbInstance) {
-      console.log('[DEBUG] Usando instância MongoDB cacheada');
-      return dbInstance;
+    // Determinar qual banco de dados usar
+    const targetDbName = dbName || MONGODB_DB_NAME;
+    
+    // Verificar se já existe conexão para este banco
+    if (mongoClient && dbInstances[targetDbName]) {
+      console.log(`[DEBUG] Usando instância MongoDB cacheada para banco ${targetDbName}`);
+      return dbInstances[targetDbName];
     }
 
-    console.log('[DEBUG] Conectando ao MongoDB...');
+    // Se ainda não temos cliente MongoDB, criar um novo
+    if (!mongoClient) {
+      console.log('[DEBUG] Conectando ao MongoDB...');
+      
+      const mongoOptions = {
+        connectTimeoutMS: 15000,
+        socketTimeoutMS: 45000,
+        serverSelectionTimeoutMS: 15000
+      };
+      
+      mongoClient = new MongoClient(MONGODB_URI, mongoOptions);
+      await mongoClient.connect();
+      console.log('[DEBUG] Conectado ao MongoDB com sucesso');
+    }
     
-    const mongoOptions = {
-      connectTimeoutMS: 15000,
-      socketTimeoutMS: 45000,
-      serverSelectionTimeoutMS: 15000
-    };
+    // Obter instância do banco específico
+    const db = mongoClient.db(targetDbName);
     
-    const client = new MongoClient(MONGODB_URI, mongoOptions);
-    await client.connect();
+    // Armazenar no cache
+    dbInstances[targetDbName] = db;
     
-    console.log('[DEBUG] Conectado ao MongoDB com sucesso');
-    const db = client.db(MONGODB_DB_NAME);
-    dbInstance = db;
+    console.log(`[DEBUG] Usando banco de dados: ${targetDbName}`);
     return db;
   } catch (error) {
     console.error('[DEBUG] Erro ao conectar ao MongoDB:', error.message);
@@ -46,10 +60,11 @@ async function connectDB() {
 }
 
 // Função para obter dados detalhados de uma roleta específica
-async function getRouletteDetails(db, roletaId, roletaNome) {
+async function getRouletteDetails(db, roletasDb, roletaId, roletaNome) {
   try {
     let filter = {};
     let rouletteIdentifier = 'geral';
+    let recentNumbers = [];
     
     // Determinar o campo correto para filtrar por nome da roleta
     const sampleDoc = await db.collection('roleta_numeros').findOne();
@@ -73,34 +88,94 @@ async function getRouletteDetails(db, roletaId, roletaNome) {
       console.log('[DEBUG] Sem filtro específico, analisando todas as roletas');
     }
     
-    // Buscar os últimos 1000 números da roleta
-    const roletaNumeros = db.collection('roleta_numeros');
-    const recentNumbers = await roletaNumeros
-      .find(filter)
-      .sort({ timestamp: -1 })
-      .limit(1000)
-      .toArray();
-    
-    console.log(`[DEBUG] Encontrados ${recentNumbers.length} resultados recentes para ${rouletteIdentifier}`);
-    
-    if (recentNumbers.length === 0) {
-      return {
-        rouletteIdentifier,
-        error: `Não foram encontrados dados para a roleta ${rouletteIdentifier}`
-      };
+    // ESTRATÉGIA 1: Tentar buscar no banco de dados roletas_db primeiro (se disponível)
+    if (roletasDb) {
+      console.log('[DEBUG] Tentando buscar dados no banco roletas_db');
+      
+      let colecaoId = null;
+      
+      // Se temos ID da roleta, verificar se é numérico
+      if (roletaId && /^\d+$/.test(roletaId)) {
+        colecaoId = roletaId;
+      } 
+      // Se temos nome, verificar se podemos encontrar o ID correspondente
+      else if (roletaNome) {
+        try {
+          // Verificar se existe um mapeamento na coleção metadados
+          const metadata = await roletasDb.collection('metadados').findOne({
+            roleta_nome: roletaNome
+          });
+          
+          if (metadata && metadata.colecao) {
+            colecaoId = metadata.colecao;
+            console.log(`[DEBUG] Encontrado ID ${colecaoId} para roleta ${roletaNome} via metadados`);
+          }
+        } catch (error) {
+          console.error(`[DEBUG] Erro ao buscar metadados: ${error.message}`);
+        }
+      }
+      
+      // Se encontramos uma coleção específica, buscar os dados
+      if (colecaoId) {
+        try {
+          // Verificar se a coleção existe
+          const collections = await roletasDb.listCollections({name: colecaoId}).toArray();
+          
+          if (collections.length > 0) {
+            console.log(`[DEBUG] Buscando na coleção específica ${colecaoId} no roletas_db`);
+            
+            recentNumbers = await roletasDb.collection(colecaoId)
+              .find({})
+              .sort({ timestamp: -1 })
+              .limit(1000)
+              .project({ _id: 0, numero: 1, timestamp: 1 })
+              .toArray();
+              
+            if (recentNumbers && recentNumbers.length > 0) {
+              console.log(`[DEBUG] Encontrados ${recentNumbers.length} números na coleção específica no roletas_db`);
+              // Extrair apenas os números
+              recentNumbers = recentNumbers.map(doc => doc.numero);
+            }
+          }
+        } catch (error) {
+          console.error(`[DEBUG] Erro ao buscar na coleção específica do roletas_db: ${error.message}`);
+        }
+      }
     }
     
-    // Processar os números para análise
-    const numbers = recentNumbers.map(doc => doc[numeroField]);
+    // ESTRATÉGIA 2: Usar a coleção roleta_numeros do banco principal se não encontrou dados no roletas_db
+    if (!recentNumbers || recentNumbers.length === 0) {
+      console.log('[DEBUG] Tentando buscar dados na coleção roleta_numeros do banco principal');
+      
+      // Buscar os últimos 1000 números da roleta
+      const resultados = await db.collection('roleta_numeros')
+        .find(filter)
+        .sort({ timestamp: -1 })
+        .limit(1000)
+        .toArray();
+      
+      console.log(`[DEBUG] Encontrados ${resultados.length} resultados recentes para ${rouletteIdentifier}`);
+      
+      if (resultados.length === 0) {
+        return {
+          rouletteIdentifier,
+          error: `Não foram encontrados dados para a roleta ${rouletteIdentifier}`
+        };
+      }
+      
+      // Processar os números para análise
+      recentNumbers = resultados.map(doc => doc[numeroField]);
+    }
     
+    // A partir daqui, temos os números na variável recentNumbers
     // Contar ocorrências de cada número
     const numberCounts = {};
-    numbers.forEach(num => {
+    recentNumbers.forEach(num => {
       numberCounts[num] = (numberCounts[num] || 0) + 1;
     });
     
     // Contar zeros especificamente
-    const zeroCount = numbers.filter(num => num === 0).length;
+    const zeroCount = recentNumbers.filter(num => num === 0).length;
     console.log(`[DEBUG] Quantidade de zeros: ${zeroCount}`);
     
     // Categorizar por cores (para roletas padrão)
@@ -112,7 +187,7 @@ async function getRouletteDetails(db, roletaId, roletaNome) {
     let evenCount = 0;
     let oddCount = 0;
     
-    numbers.forEach(num => {
+    recentNumbers.forEach(num => {
       if (num === 0) return; // Zero não conta para estas estatísticas
       
       if (redNumbers.includes(num)) redCount++;
@@ -136,24 +211,24 @@ async function getRouletteDetails(db, roletaId, roletaNome) {
     // Estruturar os dados de retorno
     return {
       rouletteIdentifier,
-      totalNumbers: numbers.length,
-      recentNumbers: numbers.slice(0, 50), // Apenas os 50 mais recentes
+      totalNumbers: recentNumbers.length,
+      recentNumbers: recentNumbers.slice(0, 50), // Apenas os 50 mais recentes
       stats: {
         zeroCount,
         redCount,
         blackCount,
         evenCount,
         oddCount,
-        redPercentage: ((redCount / (numbers.length - zeroCount)) * 100).toFixed(2),
-        blackPercentage: ((blackCount / (numbers.length - zeroCount)) * 100).toFixed(2),
-        zeroPercentage: ((zeroCount / numbers.length) * 100).toFixed(2),
-        evenPercentage: ((evenCount / (numbers.length - zeroCount)) * 100).toFixed(2),
-        oddPercentage: ((oddCount / (numbers.length - zeroCount)) * 100).toFixed(2)
+        redPercentage: ((redCount / (recentNumbers.length - zeroCount)) * 100).toFixed(2),
+        blackPercentage: ((blackCount / (recentNumbers.length - zeroCount)) * 100).toFixed(2),
+        zeroPercentage: ((zeroCount / recentNumbers.length) * 100).toFixed(2),
+        evenPercentage: ((evenCount / (recentNumbers.length - zeroCount)) * 100).toFixed(2),
+        oddPercentage: ((oddCount / (recentNumbers.length - zeroCount)) * 100).toFixed(2)
       },
       hotNumbers,
       coldNumbers,
       lastOccurrences: {
-        zero: numbers.indexOf(0) // Posição do último zero (-1 se não houver)
+        zero: recentNumbers.indexOf(0) // Posição do último zero (-1 se não houver)
       }
     };
     
@@ -305,20 +380,23 @@ export default async function handler(req, res) {
   
   try {
     // Verificar método HTTP
-  if (req.method !== 'POST') {
+    if (req.method !== 'POST') {
       return res.status(405).json({ message: 'Método não permitido' });
-  }
+    }
 
     // Extrair dados do body
-  const { query, roletaId, roletaNome } = req.body;
+    const { query, roletaId, roletaNome } = req.body;
     console.log(`[DEBUG] Body recebido: query="${query || ''}", roletaId=${roletaId || 'null'}, roletaNome=${roletaNome || 'null'}`);
 
-  if (!query) {
+    if (!query) {
       return res.status(400).json({ message: 'Parâmetro "query" é obrigatório' });
     }
     
-    // Conectar ao MongoDB
+    // Conectar ao MongoDB - banco principal e roletas_db
+    console.log('[DEBUG] Conectando aos bancos de dados...');
+    const roletasDb = await connectDB(ROLETAS_DB_NAME);
     const db = await connectDB();
+    
     if (!db) {
       console.error('[DEBUG] Falha ao conectar ao MongoDB');
       return res.status(503).json({ 
@@ -329,7 +407,7 @@ export default async function handler(req, res) {
     
     // Obter dados detalhados da roleta específica
     console.log('[DEBUG] Buscando dados detalhados da roleta...');
-    const rouletteData = await getRouletteDetails(db, roletaId, roletaNome);
+    const rouletteData = await getRouletteDetails(db, roletasDb, roletaId, roletaNome);
     
     // Agora, vamos chamar a API do Gemini com os dados de roleta processados
     console.log('[DEBUG] Chamando API do Gemini com dados processados...');
