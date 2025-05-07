@@ -348,53 +348,11 @@ async function queryGemini(userQuery, rouletteData) {
     
     console.log('[DEBUG] Preparando requisição para Gemini...');
     
-    // Verificar se a consulta é sobre roletas disponíveis
-    const isRoletasQuery = /roletas dispon[ií]veis|quais roletas|listar? roletas/i.test(userQuery);
-    
-    // Prompt base
-    let promptBase = `Você é um assistente especializado em análise de roleta de cassino.
+    // Simplificar o prompt, removendo regras e instruções
+    const prompt = `${userQuery}
 
-Instruções:
-1. Responda em português, de forma DIRETA e OBJETIVA.
-2. Nunca diga que não tem informações quando os dados estão disponíveis abaixo.
-3. Se perguntarem sobre zeros, informe o número exato de zeros.
-4. Se perguntarem sobre tendências, use apenas os dados fornecidos.
-5. Não inclua explicações desnecessárias ou introduções.
-6. Não se desculpe ou faça ressalvas - seja assertivo.
-`;
-
-    // Adicionar dados específicos da roleta
-    let dadosRoleta = '';
-    
-    if (rouletteData.roletasDisponiveis) {
-      dadosRoleta = `
-Informação: O usuário está perguntando sobre roletas disponíveis. Informe que estão disponíveis diversas roletas como:
-- Immersive Roulette (2010016)
-- Speed Roulette (2380010)
-- American Roulette (2010012)
-- VIP Roulette (2010097)
-- Lightning Roulette (2010143)
-`;
-    } else {
-      dadosRoleta = `
-Dados da roleta ${rouletteData.rouletteIdentifier}:
-• Total de resultados analisados: ${rouletteData.totalNumbers || 0}
-${rouletteData.stats ? `• Zeros: ${rouletteData.stats.zeroCount} (${rouletteData.stats.zeroPercentage}%)
-• Vermelhos: ${rouletteData.stats.redCount} (${rouletteData.stats.redPercentage}%)
-• Pretos: ${rouletteData.stats.blackCount} (${rouletteData.stats.blackPercentage}%)
-• Pares: ${rouletteData.stats.evenCount} (${rouletteData.stats.evenPercentage}%)
-• Ímpares: ${rouletteData.stats.oddCount} (${rouletteData.stats.oddPercentage}%)` : ''}
-${rouletteData.hotNumbers ? `• Números quentes: ${rouletteData.hotNumbers.map(n => `${n.number} (${n.count}x)`).join(', ')}` : ''}
-${rouletteData.coldNumbers ? `• Números frios: ${rouletteData.coldNumbers.map(n => `${n.number} (${n.count}x)`).join(', ')}` : ''}
-${rouletteData.recentNumbers ? `• Últimos números: ${rouletteData.recentNumbers.slice(0, 10).join(', ')}...` : ''}`;
-    }
-    
-    // Prompt completo
-    const prompt = promptBase + dadosRoleta + `
-
-A pergunta do usuário é: "${userQuery}"
-
-Responda apenas o que foi perguntado, sem introduções ou explicações adicionais.`;
+Dados disponíveis: 
+${JSON.stringify(rouletteData, null, 2)}`;
     
     // Criar uma requisição para o Gemini
     const simplifiedRequest = {
@@ -405,9 +363,9 @@ Responda apenas o que foi perguntado, sem introduções ou explicações adicion
           }
         ],
         generationConfig: {
-        temperature: 0.2,
-          maxOutputTokens: 500,
-        topP: 0.8,
+        temperature: 0.7,
+          maxOutputTokens: 800,
+        topP: 0.9,
           topK: 40
         },
         safetySettings: [
@@ -520,131 +478,9 @@ export default async function handler(req, res) {
       });
     }
     
-    // Verificar se a consulta é sobre roletas disponíveis
-    const isRoletasQuery = /roletas dispon[ií]veis|quais roletas|listar? roletas/i.test(query);
-    
-    if (isRoletasQuery) {
-      console.log('[DEBUG] Consulta sobre roletas disponíveis detectada');
-      
-      try {
-        // Listar todas as coleções disponíveis
-        const collections = await db.listCollections().toArray();
-        const numericCollections = collections
-          .map(col => col.name)
-          .filter(name => /^\d+$/.test(name));
-        
-        console.log(`[DEBUG] Coleções numéricas encontradas: ${numericCollections.join(', ')}`);
-        
-        // Buscar nomes de roletas para cada coleção
-        const roletasInfo = [];
-        
-        // Limitar a 20 roletas para não sobrecarregar
-        const collectionsToCheck = numericCollections.slice(0, 20);
-        
-        for (const colName of collectionsToCheck) {
-          try {
-            // Buscar primeiro documento para obter nome da roleta
-            const doc = await db.collection(colName)
-              .findOne({roleta_nome: {$exists: true}});
-            
-            if (doc && doc.roleta_nome) {
-              roletasInfo.push({
-                id: colName,
-                nome: doc.roleta_nome
-              });
-            } else {
-              roletasInfo.push({
-                id: colName,
-                nome: `Roleta ${colName}`
-              });
-            }
-          } catch (err) {
-            console.error(`[DEBUG] Erro ao buscar nome da roleta ${colName}: ${err.message}`);
-            roletasInfo.push({
-              id: colName,
-              nome: `Roleta ${colName}`
-            });
-          }
-        }
-        
-        console.log(`[DEBUG] Informações de roletas coletadas: ${JSON.stringify(roletasInfo)}`);
-        
-        // Construir resposta direta
-        const roletasResponse = roletasInfo
-          .map(r => `${r.nome} (${r.id})`)
-          .join(', ');
-        
-        // Responder diretamente sem chamar Gemini
-        return res.status(200).json({
-          response: `Roletas disponíveis: ${roletasResponse}`,
-          debug: {
-            query,
-            rouletteIdentifier: "Todas as roletas",
-            stats: {
-              totalRoletas: roletasInfo.length,
-              totalCollections: numericCollections.length
-            },
-            ai_config: {
-              provider: AI_PROVIDER,
-              model: "resposta_direta"
-            }
-          }
-        });
-      } catch (listError) {
-        console.error('[DEBUG] Erro ao listar roletas:', listError.message);
-      }
-    }
-    
     // Obter dados detalhados da roleta específica
     console.log('[DEBUG] Buscando dados detalhados da roleta...');
     const rouletteData = await getRouletteDetails(db, roletaId, roletaNome);
-    
-    // Se há erro e temos uma requisição específica para 2010016, tentar gerar dados sintéticos
-    if (rouletteData.error && (roletaId === '2010016' || roletaNome?.includes('2010016'))) {
-      console.log('[DEBUG] Gerando dados sintéticos para roleta 2010016');
-      rouletteData.rouletteIdentifier = 'ID:2010016';
-      rouletteData.totalNumbers = 500;
-      rouletteData.error = undefined;
-      
-      // Outros campos necessários
-      rouletteData.stats = {
-        zeroCount: 15,
-        redCount: 240,
-        blackCount: 245,
-        evenCount: 242,
-        oddCount: 243,
-        redPercentage: "49.48",
-        blackPercentage: "50.52",
-        zeroPercentage: "3.00",
-        evenPercentage: "49.90",
-        oddPercentage: "50.10"
-      };
-      
-      rouletteData.hotNumbers = [
-        {number: 19, count: 20},
-        {number: 7, count: 18},
-        {number: 32, count: 17},
-        {number: 15, count: 16},
-        {number: 26, count: 16}
-      ];
-      
-      rouletteData.coldNumbers = [
-        {number: 6, count: 5},
-        {number: 13, count: 6},
-        {number: 27, count: 6},
-        {number: 35, count: 7},
-        {number: 11, count: 7}
-      ];
-      
-      // Alguns números recentes fictícios
-      rouletteData.recentNumbers = [32, 15, 19, 7, 26, 0, 14, 22, 31, 5, 8, 17, 29, 28, 36, 12];
-    }
-    
-    // Modificar o prompt para casos especiais
-    if (isRoletasQuery && rouletteData.recentNumbers) {
-      // Adicionar informação sobre consulta de roletas disponíveis
-      rouletteData.roletasDisponiveis = true;
-    }
     
     // Agora, vamos chamar a API do Gemini com os dados de roleta processados
     console.log('[DEBUG] Chamando API do Gemini com dados processados...');
