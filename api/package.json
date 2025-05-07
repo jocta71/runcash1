@@ -4,9 +4,12 @@
   "private": true,
   "dependencies": {
     "@vercel/node": "^2.5.10",
-    "axios": "^1.6.2",
+    "axios": "1.6.0",
     "express-async-handler": "^1.2.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.3.0"
+  },
+  "scripts": {
+    "postinstall": "echo 'Instalação completa das dependências da API'"
   }
 }

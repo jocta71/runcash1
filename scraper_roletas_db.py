@@ -195,6 +195,24 @@ class Casino888API:
 # Instância global da API
 casino_api = Casino888API()
 
+# Função para inicializar o adaptador do novo banco de roletas
+def inicializar_adaptador_roletas():
+    """Inicializa o adaptador para o novo banco de roletas"""
+    if not ADAPTADOR_ROLETAS_DISPONÍVEL:
+        print("Adaptador para novo banco de roletas não disponível!")
+        return None
+    
+    try:
+        print("Inicializando adaptador para novo banco de roletas...")
+        adaptador = ScraperAdapter()
+        return adaptador
+    except Exception as e:
+        print(f"Erro ao inicializar adaptador: {str(e)}")
+        return None
+
+# Variável global para o adaptador
+adaptador_roletas = inicializar_adaptador_roletas()
+
 # Funções principais
 def cor_numero(num):
     """Determina a cor de um número na roleta"""
@@ -204,7 +222,7 @@ def cor_numero(num):
     vermelhos = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
     return 'vermelho' if num in vermelhos else 'preto'
 
-def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
+def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
     """Registra um novo número"""
     try:
         if isinstance(numero, str):
@@ -218,19 +236,19 @@ def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
         cor = cor_numero(num_int)
         ts = datetime.now().isoformat()
         
-        # Interação com o banco de dados usando o ID numérico da roleta
+        # Interação com o banco de dados
         if hasattr(db, 'garantir_roleta_existe'):
-            db.garantir_roleta_existe(id_roleta_para_db, roleta_nome)
+            db.garantir_roleta_existe(id_roleta, roleta_nome)
         if hasattr(db, 'inserir_numero'):
-            db.inserir_numero(id_roleta_para_db, roleta_nome, num_int, cor, ts)
+            db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
         
         # Log
-        print(f"{roleta_nome}:{num_int}:{cor} (DB ID: {id_roleta_para_db})")
+        print(f"{roleta_nome}:{num_int}:{cor}")
         
         # Notificação de eventos
         event_data = {
             "type": "new_number",
-            "roleta_id": id_roleta_para_db, # Usar o ID numérico para eventos também
+            "roleta_id": id_roleta,
             "roleta_nome": roleta_nome, 
             "numero": num_int,
             "timestamp": ts
@@ -241,55 +259,42 @@ def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
         # Hook personalizado
         if numero_hook:
             try:
-                numero_hook(id_roleta_para_db, roleta_nome, num_int)
+                numero_hook(id_roleta, roleta_nome, num_int)
             except Exception as e:
                 print(f"Erro ao executar hook: {str(e)}")
         
         return True
     except Exception as e:
-        print(f"Erro ao processar novo número para {roleta_nome} (DB ID: {id_roleta_para_db}): {str(e)}")
+        print(f"Erro ao processar novo número: {str(e)}")
         return False
 
-def processar_numeros(db, api_table_id, roleta_nome, numeros_novos, numero_hook=None):
+def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=None):
     """Processa números com validação para evitar duplicações falsas, mas permitindo números repetidos reais"""
     global ultimo_numero_por_roleta, ultimo_timestamp_por_roleta, assinaturas_roletas
     global historico_numeros_por_roleta, sequencias_por_roleta
     
     if not numeros_novos or len(numeros_novos) == 0:
         return False
-
-    # Derivar o ID numérico puro (ex: "2010165") a partir do api_table_id (ex: "2_2010165")
-    # Este db_roulette_id é usado para interações com RoletasDataSource via ScraperAdapter
-    db_roulette_id = api_table_id
-    if '_' in api_table_id:
-        parts = api_table_id.split('_', 1)
-        if len(parts) > 1 and parts[1].isdigit():
-            db_roulette_id = parts[1]
-        else:
-            # Se o formato não for o esperado, logar um aviso. 
-            # O db_roulette_id pode não ser reconhecido pelo RoletasDataSource.
-            logger.warning(f"Formato de api_table_id inesperado: {api_table_id}. Usando como db_roulette_id.")
-            db_roulette_id = api_table_id # Mantém o original se não puder extrair parte numérica
-
-    # Obter números recentes para validação (usando db_roulette_id)
+    
+    # Obter números recentes para validação
     existentes = []
     try:
         if hasattr(db, 'obter_numeros_recentes'):
-            nums = db.obter_numeros_recentes(db_roulette_id, limite=10) # Usar db_roulette_id
+            nums = db.obter_numeros_recentes(id_roleta, limite=10)
             existentes = [n.get('numero') for n in nums]
     except Exception as e:
-        print(f"Erro ao obter números recentes para roleta {roleta_nome} (DB ID: {db_roulette_id}): {str(e)}")
+        print(f"Erro ao obter números recentes: {str(e)}")
     
     # Tempo mínimo entre atualizações (reduzido para permitir números repetidos mais rapidamente)
     min_tempo_entre_atualizacoes = 2  # Reduzido de 5 para 2 segundos
     tempo_atual = time.time()
     
-    # Inicializar estruturas de dados para esta roleta (usando api_table_id como chave local)
-    if api_table_id not in historico_numeros_por_roleta:
-        historico_numeros_por_roleta[api_table_id] = []
+    # Inicializar estruturas de dados para esta roleta
+    if id_roleta not in historico_numeros_por_roleta:
+        historico_numeros_por_roleta[id_roleta] = []
     
-    if api_table_id not in sequencias_por_roleta:
-        sequencias_por_roleta[api_table_id] = []
+    if id_roleta not in sequencias_por_roleta:
+        sequencias_por_roleta[id_roleta] = []
     
     # Processamento de cada número novo
     ok = False
@@ -312,9 +317,9 @@ def processar_numeros(db, api_table_id, roleta_nome, numeros_novos, numero_hook=
             if not 0 <= n <= 36:
                 continue
             
-            # Verificação de duplicação por assinatura (assinatura usa api_table_id)
+            # Verificação de duplicação por assinatura (proteção contra duplicações falsas)
             timestamp_arredondado = int(tempo_atual / 3) * 3
-            assinatura_atual = f"{api_table_id}_{n}_{timestamp_arredondado}"
+            assinatura_atual = f"{id_roleta}_{n}_{timestamp_arredondado}"
             
             # Verificar se este número já foi processado recentemente (mesmo timestamp)
             if assinatura_atual in assinaturas_roletas:
@@ -323,28 +328,28 @@ def processar_numeros(db, api_table_id, roleta_nome, numeros_novos, numero_hook=
                     print(f"[API] Ignorando duplicação falsa para {roleta_nome}: {n}")
                     continue
             
-            # Se passou pelas validações, registrar o número (passando db_roulette_id para novo_numero)
-            if novo_numero(db, db_roulette_id, roleta_nome, n, numero_hook):
-                # Atualizar controles locais (usando api_table_id como chave)
-                ultimo_numero_por_roleta[api_table_id] = n
-                ultimo_timestamp_por_roleta[api_table_id] = tempo_atual
+            # Se passou pelas validações, registrar o número
+            if novo_numero(db, id_roleta, roleta_nome, n, numero_hook):
+                # Atualizar controles locais
+                ultimo_numero_por_roleta[id_roleta] = n
+                ultimo_timestamp_por_roleta[id_roleta] = tempo_atual
                 assinaturas_roletas[assinatura_atual] = tempo_atual
                 
                 # Atualizar histórico
-                historico_numeros_por_roleta[api_table_id].append((n, tempo_atual))
-                if len(historico_numeros_por_roleta[api_table_id]) > max_historico_por_roleta:
-                    historico_numeros_por_roleta[api_table_id] = historico_numeros_por_roleta[api_table_id][-max_historico_por_roleta:]
+                historico_numeros_por_roleta[id_roleta].append((n, tempo_atual))
+                if len(historico_numeros_por_roleta[id_roleta]) > max_historico_por_roleta:
+                    historico_numeros_por_roleta[id_roleta] = historico_numeros_por_roleta[id_roleta][-max_historico_por_roleta:]
                 
                 # Atualizar sequência
-                sequencias_por_roleta[api_table_id] = [n] + sequencias_por_roleta.get(api_table_id, [])
-                if len(sequencias_por_roleta[api_table_id]) > 5:
-                    sequencias_por_roleta[api_table_id] = sequencias_por_roleta[api_table_id][:5]
+                sequencias_por_roleta[id_roleta] = [n] + sequencias_por_roleta.get(id_roleta, [])
+                if len(sequencias_por_roleta[id_roleta]) > 5:
+                    sequencias_por_roleta[id_roleta] = sequencias_por_roleta[id_roleta][:5]
                 
                 ok = True
-                print(f"[API] Número {n} registrado para {roleta_nome} (API ID: {api_table_id}, DB ID: {db_roulette_id})")
+                print(f"[API] Número {n} registrado para {roleta_nome}")
             
         except Exception as e:
-            print(f"Erro ao processar número para {roleta_nome} (API ID: {api_table_id}): {str(e)}")
+            print(f"Erro ao processar número para {roleta_nome}: {str(e)}")
     
     return ok
 
@@ -412,21 +417,13 @@ def scrape_roletas_api(db, numero_hook=None):
             # Processar cada mesa
             for table_id, table_info in tables.items():
                 try:
-                    # Obter o ID numérico da roleta para checagem de permissão.
-                    # ids_permitidos deve conter IDs numéricos puros (ex: "2010165")
-                    id_numerico_para_verificacao = table_id 
-                    if '_' in table_id:
-                        partes = table_id.split('_', 1)
-                        if len(partes) > 1 and partes[1].isdigit():
-                            id_numerico_para_verificacao = partes[1]
-                        else:
-                            # Se não for numérico após '_', ou não houver parte após '_',
-                            # pode ser um formato de ID que não corresponde aos numéricos esperados.
-                            logger.debug(f"[API] Formato de table_id '{table_id}' não produziu ID numérico para verificação de permissão.")
-                            # Mantém table_id original para a verificação, pode ser filtrado se não estiver em ids_permitidos
+                    # Limpar ID para verificação (remover prefixos/sufixos)
+                    clean_id = table_id
+                    if '_' in clean_id:
+                        clean_id = clean_id.split('_')[0]
                     
                     # Verificação estrita se o ID está na lista de permitidos
-                    if id_numerico_para_verificacao not in ids_permitidos:
+                    if clean_id not in ids_permitidos:
                         roletas_ignoradas += 1
                         continue
                     
@@ -474,7 +471,7 @@ def scrape_roletas_api(db, numero_hook=None):
                         'ultima_atualizacao': tempo_atual
                     }
                     
-                    print(f"[API] Processando roleta permitida: {roleta_nome} (API ID: {table_id}, Numeric ID for check: {id_numerico_para_verificacao})")
+                    print(f"[API] Processando roleta permitida: {roleta_nome} (ID: {table_id}, Clean ID: {clean_id})")
                     print(f"[API] Últimos 5 números: {mesa_atual['ultimos_5_numeros']}")
                     
                     # Processar apenas se tiver números
@@ -482,19 +479,12 @@ def scrape_roletas_api(db, numero_hook=None):
                         numero_recente = last_numbers[0]
                         
                         # Verificar no banco se este número já foi registrado para esta roleta
-                        # A função processar_numeros agora lida com a obtenção do db_roulette_id correto
                         numeros_banco = []
                         try:
                             if hasattr(db, 'obter_numeros_recentes'):
-                                # Para esta verificação rápida, derivamos o db_id aqui também
-                                temp_db_id = table_id
-                                if '_' in table_id:
-                                    parts = table_id.split('_', 1)
-                                    if len(parts) > 1 and parts[1].isdigit():
-                                        temp_db_id = parts[1]
-                                numeros_banco = [n.get('numero') for n in db.obter_numeros_recentes(temp_db_id, limite=5)]
+                                numeros_banco = [n.get('numero') for n in db.obter_numeros_recentes(table_id, limite=5)]
                         except Exception as e:
-                            print(f"[API] Erro ao verificar números do banco (pré-processamento): {str(e)}")
+                            print(f"[API] Erro ao verificar números do banco: {str(e)}")
                         
                         # Converter para inteiro para comparação
                         if isinstance(numero_recente, str):
@@ -510,7 +500,7 @@ def scrape_roletas_api(db, numero_hook=None):
                         print(f"[API] Novo número detectado para {roleta_nome}: {numero_recente}")
                         if processar_numeros(db, table_id, roleta_nome, [numero_recente], numero_hook):
                             roletas_com_numeros += 1
-                            # O log de sucesso agora está dentro de processar_numeros
+                            print(f"[API] ✅ Número {numero_recente} registrado com sucesso para {roleta_nome}")
                     else:
                         print(f"[API] Mesa {roleta_nome} sem números disponíveis")
                         
@@ -547,11 +537,44 @@ def scrape_roletas_api(db, numero_hook=None):
             print(f"[API] Muitos erros consecutivos ({erros}), reiniciando ciclo")
             erros = 0
 
+
+# Importações para novo banco de dados de roletas
+try:
+    from adaptar_scraper_roletas_db import ScraperAdapter
+    ADAPTADOR_ROLETAS_DISPONÍVEL = True
+    print("Adaptador para novo banco de roletas importado com sucesso!")
+except ImportError as e:
+    print(f"Aviso: {e}")
+    print("Executando sem o adaptador para novo banco de roletas.")
+    ADAPTADOR_ROLETAS_DISPONÍVEL = False
 # Funções de compatibilidade
 def scrape_roletas(db, driver=None, numero_hook=None):
     """Função principal - Agora usa a versão API"""
     print("🚀 Usando scraper com API 888Casino")
     return scrape_roletas_api(db, numero_hook)
+
+# Wrapper para compatibilidade com o novo banco de roletas
+def scrape_roletas_wrapper(db, driver=None, numero_hook=None):
+    """Wrapper que decide qual versão do scraper usar baseado no db"""
+    global adaptador_roletas
+    
+    # Se db é o adaptador ou o adaptador não está disponível, usar o scraper original
+    if not ADAPTADOR_ROLETAS_DISPONÍVEL or db is adaptador_roletas:
+        print("Usando scraper original com o banco de dados fornecido")
+        return scrape_roletas_original(db, driver, numero_hook)
+    
+    # Se o adaptador está disponível, substituir db pelo adaptador
+    if adaptador_roletas is not None:
+        print("Usando scraper com o adaptador para o novo banco de roletas")
+        return scrape_roletas_original(adaptador_roletas, driver, numero_hook)
+    else:
+        print("Adaptador não inicializado, usando scraper original")
+        return scrape_roletas_original(db, driver, numero_hook)
+
+# Renomear a função original
+scrape_roletas_original = scrape_roletas
+# Substituir pela função wrapper
+scrape_roletas = scrape_roletas_wrapper
 
 # Testes básicos
 if __name__ == "__main__":
@@ -574,3 +597,4 @@ if __name__ == "__main__":
 
 # Exports
 __all__ = ['scrape_roletas'] 
+# Arquivo adaptado para uso com o novo banco de dados de roletas - 2025-05-06 21:00:04

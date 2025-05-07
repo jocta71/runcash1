@@ -28,8 +28,8 @@ export default async function handler(req, res) {
           console.log('[api/strategies] Processando requisição POST');
           console.time('post-strategy');
           
-          const { name, conditions, roletaId } = req.body;
-          console.log(`[api/strategies] Dados recebidos: nome=${name}, condições=${conditions?.length}, roletaId=${roletaId || 'não informado'}`);
+          const { name, conditions, roletaId, roletaNome } = req.body;
+          console.log(`[api/strategies] Dados recebidos: nome=${name}, condições=${conditions?.length}, roletaId=${roletaId || 'não informado'}, roletaNome=${roletaNome || 'não informado'}`);
 
           if (!name || !name.trim()) {
             return res.status(400).json({ success: false, message: 'O nome da estratégia é obrigatório.' });
@@ -61,6 +61,10 @@ export default async function handler(req, res) {
           if (roletaId && roletaId.trim() !== '') {
             newStrategyData.roletaId = roletaId.trim();
           }
+          
+          if (roletaNome && roletaNome.trim() !== '') {
+            newStrategyData.roletaNome = roletaNome.trim();
+          }
 
           console.log('[api/strategies] Salvando estratégia diretamente no MongoDB');
           
@@ -78,7 +82,7 @@ export default async function handler(req, res) {
           
           return res.status(201).json({ 
             success: true, 
-            data: savedStrategy, 
+            strategy: savedStrategy,
             message: "Estratégia salva com sucesso!" 
           });
         } catch (error) {
@@ -103,7 +107,7 @@ export default async function handler(req, res) {
           
           return res.status(200).json({ 
             success: true, 
-            data: strategies, 
+            data: strategies,
             count: strategies.length 
           });
         } catch (error) {

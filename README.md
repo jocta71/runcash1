@@ -142,4 +142,92 @@ npm run preview
 ## Documentação Adicional
 
 - [Frontend README](./frontend/README.md) - Detalhes da implementação do frontend
-- [Documentação de Deploy](./frontend/DEPLOY.md) - Instruções detalhadas para deploy 
+- [Documentação de Deploy](./frontend/DEPLOY.md) - Instruções detalhadas para deploy
+
+# Estratégia de Terminais para Roleta
+
+Este projeto implementa a estratégia de terminais para roletas, baseada nas regras oficiais do RunCash. O sistema utiliza uma máquina de estados para acompanhar os resultados da roleta e fazer sugestões de apostas baseadas nos padrões de terminais.
+
+## Funcionamento
+
+A estratégia de terminais é baseada na tabela oficial de terminais do RunCash, onde cada número da roleta (0-36) possui um conjunto de números "terminais" associados. Quando um número aparece, ele se torna um "gatilho" e sugere-se apostar nos seus números terminais.
+
+### Estados da Estratégia
+
+A estratégia utiliza quatro estados principais:
+
+1. **NEUTRAL**: Estado inicial. Ao receber um número, ele se torna o gatilho.
+2. **TRIGGER**: Um gatilho foi estabelecido. Espera-se que o próximo número esteja entre os terminais do gatilho.
+3. **POST_GALE_NEUTRAL**: O número não estava nos terminais do gatilho. Dá uma segunda chance apostando nos terminais do mesmo gatilho.
+4. **MORTO**: Ciclo completo, reinicia para NEUTRAL no próximo número.
+
+## Instalação
+
+### Windows (PowerShell)
+
+1. Execute o script de instalação:
+   ```
+   .\instalar_estrategia_terminal.ps1
+   ```
+
+2. O script irá:
+   - Verificar se o Python está instalado
+   - Criar um ambiente virtual
+   - Instalar as dependências necessárias
+   - Criar um arquivo batch para facilitar a execução
+
+## Uso
+
+### Executar a Estratégia
+
+Use um dos seguintes métodos:
+
+1. **Usando o arquivo batch**:
+   ```
+   .\executar_estrategia_terminal.bat
+   ```
+
+2. **Usando PowerShell**:
+   ```
+   .\terminal_env\Scripts\Activate.ps1
+   python roulette_terminal_strategy.py
+   ```
+
+### Funcionalidades
+
+Ao iniciar, você pode:
+
+1. **Carregar dados do MongoDB**: Conecta-se ao MongoDB e importa dados de resultados da roleta.
+2. **Inserir dados manualmente**: Digite os números manualmente para análise.
+
+### Menu Interativo
+
+O sistema oferece um menu com as seguintes opções:
+
+1. **Ver análise e sugestões**: Mostra a análise completa da estratégia, incluindo o estado atual, números de gatilho e sugestões de apostas.
+2. **Adicionar novo número**: Adiciona um novo resultado da roleta e atualiza o estado.
+3. **Simulação com novos números**: Permite simular a estratégia com uma sequência de números.
+4. **Resetar estratégia**: Reinicia a estratégia para o estado inicial.
+5. **Sair**: Encerra o programa.
+
+## Tabela de Terminais
+
+A tabela de terminais oficial do RunCash está implementada no sistema e define as relações entre cada número e seus terminais correspondentes.
+
+## Análise de Resultados
+
+O sistema mantém um histórico de resultados, mostrando:
+- Taxa de acerto da estratégia
+- Vitórias e derrotas
+- Estado atual da estratégia
+- Números sugeridos para apostas
+
+## Simulações
+
+A funcionalidade de simulação permite testar a estratégia com uma sequência de números, mostrando passo a passo como o estado evolui e o resultado de cada etapa da estratégia.
+
+## Requisitos
+
+- Python 3.6 ou superior
+- pymongo
+- art (para exibição visual) 
