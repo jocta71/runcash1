@@ -13,7 +13,10 @@ from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.collection import Collection
 from pymongo.database import Database
 
-from config import MONGODB_URI, MONGODB_DB_NAME, logger
+# Modificado para usar ROLETAS_MONGODB_DB_NAME se disponível
+from config import MONGODB_URI, logger
+# Usar variável de ambiente ROLETAS_MONGODB_DB_NAME se disponível, caso contrário usar MONGODB_DB_NAME
+MONGODB_DB_NAME = os.environ.get('ROLETAS_MONGODB_DB_NAME') or os.environ.get('MONGODB_DB_NAME', 'runcash')
 
 def conectar_mongodb() -> Tuple[MongoClient, Database]:
     """
@@ -30,6 +33,7 @@ def conectar_mongodb() -> Tuple[MongoClient, Database]:
         # Verificar conexão
         db.command('ping')
         logger.info(f"Conexão MongoDB estabelecida com sucesso: {MONGODB_URI}")
+        logger.info(f"Usando banco de dados: {MONGODB_DB_NAME}")
         
         return client, db
     except Exception as e:
