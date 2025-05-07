@@ -279,12 +279,7 @@ Instruções:
 
 Dados da roleta ${rouletteData.rouletteIdentifier}:
 • Total de resultados analisados: ${rouletteData.totalNumbers || 0}
-• Total de ZEROS: ${rouletteData.stats?.zeroCount || 0} (${rouletteData.stats?.zeroPercentage || "0"}%)
-• Últimos números: ${(rouletteData.recentNumbers || []).slice(0,20).join(', ')}
-• Números mais frequentes: ${(rouletteData.hotNumbers || []).map(n => n.number).join(', ')}
-• Números menos frequentes: ${(rouletteData.coldNumbers || []).map(n => n.number).join(', ')}
-• Proporção vermelho/preto: ${rouletteData.stats?.redCount || 0}/${rouletteData.stats?.blackCount || 0}
-• Proporção par/ímpar: ${rouletteData.stats?.evenCount || 0}/${rouletteData.stats?.oddCount || 0}
+
 
 A pergunta do usuário é: "${userQuery}"
 
