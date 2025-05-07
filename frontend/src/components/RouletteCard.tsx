@@ -63,7 +63,8 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
   }
 
   const currentId = roulette.id || roulette.roleta_id;
-  const currentName = roulette.nome || roulette.name || roulette.roleta_nome;
+  // Priorizar o nome real da roleta (roleta_nome), apenas construir nome genérico se não existir
+  const currentName = roulette.roleta_nome || roulette.nome || roulette.name || `Roleta ${currentId}`;
 
   // 1. Identificar a fonte primária dos números
   let potentialSources = [
@@ -180,7 +181,7 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
 
   const result: ProcessedRouletteData = {
     id: currentId,
-    nome: currentName || 'Roleta Desconhecida',
+    nome: currentName,
     provider: currentProvider,
     status: currentStatus,
     ultimoNumero: ultimoNumero,
