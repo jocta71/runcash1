@@ -39,6 +39,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ScraperAdapter")
 
+# Verificar se a variável de ambiente para o banco de dados está definida
+if not os.environ.get('ROLETAS_MONGODB_DB_NAME'):
+    os.environ['ROLETAS_MONGODB_DB_NAME'] = 'roletas_db'
+    logger.info(f"Variável ROLETAS_MONGODB_DB_NAME não encontrada, usando valor padrão: {os.environ['ROLETAS_MONGODB_DB_NAME']}")
+else:
+    logger.info(f"Usando banco de dados: {os.environ['ROLETAS_MONGODB_DB_NAME']}")
+
 class ScraperAdapter:
     """
     Adaptador para o scraper existente usar o novo banco de dados otimizado.

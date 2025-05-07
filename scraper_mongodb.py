@@ -204,7 +204,7 @@ def cor_numero(num):
     vermelhos = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
     return 'vermelho' if num in vermelhos else 'preto'
 
-def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
+def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
     """Registra um novo número"""
     try:
         if isinstance(numero, str):
@@ -220,9 +220,9 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         
         # Interação com o banco de dados
         if hasattr(db, 'garantir_roleta_existe'):
-            db.garantir_roleta_existe(id_roleta, roleta_nome)
+            db.garantir_roleta_existe(id_roleta_para_db, roleta_nome)
         if hasattr(db, 'inserir_numero'):
-            db.inserir_numero(id_roleta, roleta_nome, num_int, cor, ts)
+            db.inserir_numero(id_roleta_para_db, roleta_nome, num_int, cor, ts)
         
         # Log
         print(f"{roleta_nome}:{num_int}:{cor}")
@@ -230,7 +230,7 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         # Notificação de eventos
         event_data = {
             "type": "new_number",
-            "roleta_id": id_roleta,
+            "roleta_id": id_roleta_para_db,
             "roleta_nome": roleta_nome, 
             "numero": num_int,
             "timestamp": ts
@@ -241,7 +241,7 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         # Hook personalizado
         if numero_hook:
             try:
-                numero_hook(id_roleta, roleta_nome, num_int)
+                numero_hook(id_roleta_para_db, roleta_nome, num_int)
             except Exception as e:
                 print(f"Erro ao executar hook: {str(e)}")
         
@@ -250,7 +250,7 @@ def novo_numero(db, id_roleta, roleta_nome, numero, numero_hook=None):
         print(f"Erro ao processar novo número: {str(e)}")
         return False
 
-def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=None):
+def processar_numeros(db, api_table_id, roleta_nome, numeros_novos, numero_hook=None):
     """Processa números com validação para evitar duplicações falsas, mas permitindo números repetidos reais"""
     global ultimo_numero_por_roleta, ultimo_timestamp_por_roleta, assinaturas_roletas
     global historico_numeros_por_roleta, sequencias_por_roleta
@@ -258,11 +258,19 @@ def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=Non
     if not numeros_novos or len(numeros_novos) == 0:
         return False
     
+    # Extrair ID numérico da roleta para o banco de dados
+    id_roleta_para_db = api_table_id
+    # Verificar se o ID contém um prefixo (como "2_2010165")
+    if "_" in id_roleta_para_db:
+        id_roleta_para_db = id_roleta_para_db.split("_")[1]
+    
+    print(f"[API] ID para banco de dados: {id_roleta_para_db} (original: {api_table_id})")
+    
     # Obter números recentes para validação
     existentes = []
     try:
         if hasattr(db, 'obter_numeros_recentes'):
-            nums = db.obter_numeros_recentes(id_roleta, limite=10)
+            nums = db.obter_numeros_recentes(id_roleta_para_db, limite=10)
             existentes = [n.get('numero') for n in nums]
     except Exception as e:
         print(f"Erro ao obter números recentes: {str(e)}")
@@ -272,11 +280,11 @@ def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=Non
     tempo_atual = time.time()
     
     # Inicializar estruturas de dados para esta roleta
-    if id_roleta not in historico_numeros_por_roleta:
-        historico_numeros_por_roleta[id_roleta] = []
+    if api_table_id not in historico_numeros_por_roleta:
+        historico_numeros_por_roleta[api_table_id] = []
     
-    if id_roleta not in sequencias_por_roleta:
-        sequencias_por_roleta[id_roleta] = []
+    if api_table_id not in sequencias_por_roleta:
+        sequencias_por_roleta[api_table_id] = []
     
     # Processamento de cada número novo
     ok = False
@@ -301,7 +309,7 @@ def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=Non
             
             # Verificação de duplicação por assinatura (proteção contra duplicações falsas)
             timestamp_arredondado = int(tempo_atual / 3) * 3
-            assinatura_atual = f"{id_roleta}_{n}_{timestamp_arredondado}"
+            assinatura_atual = f"{api_table_id}_{n}_{timestamp_arredondado}"
             
             # Verificar se este número já foi processado recentemente (mesmo timestamp)
             if assinatura_atual in assinaturas_roletas:
@@ -311,21 +319,21 @@ def processar_numeros(db, id_roleta, roleta_nome, numeros_novos, numero_hook=Non
                     continue
             
             # Se passou pelas validações, registrar o número
-            if novo_numero(db, id_roleta, roleta_nome, n, numero_hook):
+            if novo_numero(db, id_roleta_para_db, roleta_nome, n, numero_hook):
                 # Atualizar controles locais
-                ultimo_numero_por_roleta[id_roleta] = n
-                ultimo_timestamp_por_roleta[id_roleta] = tempo_atual
+                ultimo_numero_por_roleta[api_table_id] = n
+                ultimo_timestamp_por_roleta[api_table_id] = tempo_atual
                 assinaturas_roletas[assinatura_atual] = tempo_atual
                 
                 # Atualizar histórico
-                historico_numeros_por_roleta[id_roleta].append((n, tempo_atual))
-                if len(historico_numeros_por_roleta[id_roleta]) > max_historico_por_roleta:
-                    historico_numeros_por_roleta[id_roleta] = historico_numeros_por_roleta[id_roleta][-max_historico_por_roleta:]
+                historico_numeros_por_roleta[api_table_id].append((n, tempo_atual))
+                if len(historico_numeros_por_roleta[api_table_id]) > max_historico_por_roleta:
+                    historico_numeros_por_roleta[api_table_id] = historico_numeros_por_roleta[api_table_id][-max_historico_por_roleta:]
                 
                 # Atualizar sequência
-                sequencias_por_roleta[id_roleta] = [n] + sequencias_por_roleta.get(id_roleta, [])
-                if len(sequencias_por_roleta[id_roleta]) > 5:
-                    sequencias_por_roleta[id_roleta] = sequencias_por_roleta[id_roleta][:5]
+                sequencias_por_roleta[api_table_id] = [n] + sequencias_por_roleta.get(api_table_id, [])
+                if len(sequencias_por_roleta[api_table_id]) > 5:
+                    sequencias_por_roleta[api_table_id] = sequencias_por_roleta[api_table_id][:5]
                 
                 ok = True
                 print(f"[API] Número {n} registrado para {roleta_nome}")
@@ -399,12 +407,13 @@ def scrape_roletas_api(db, numero_hook=None):
             # Processar cada mesa
             for table_id, table_info in tables.items():
                 try:
-                    # Limpar ID para verificação (remover prefixos/sufixos)
+                    # Limpar ID para verificação (extrair ID numérico)
                     clean_id = table_id
                     if '_' in clean_id:
-                        clean_id = clean_id.split('_')[0]
+                        # Extrair apenas o ID numérico (ex: "2_2010165" -> "2010165")
+                        clean_id = clean_id.split('_')[1]
                     
-                    # Verificação estrita se o ID está na lista de permitidos
+                    # Verificação se o ID numérico está na lista de permitidos
                     if clean_id not in ids_permitidos:
                         roletas_ignoradas += 1
                         continue
@@ -453,7 +462,7 @@ def scrape_roletas_api(db, numero_hook=None):
                         'ultima_atualizacao': tempo_atual
                     }
                     
-                    print(f"[API] Processando roleta permitida: {roleta_nome} (ID: {table_id}, Clean ID: {clean_id})")
+                    print(f"[API] Processando roleta permitida: {roleta_nome} (ID API: {table_id}, ID DB: {clean_id})")
                     print(f"[API] Últimos 5 números: {mesa_atual['ultimos_5_numeros']}")
                     
                     # Processar apenas se tiver números
@@ -461,10 +470,11 @@ def scrape_roletas_api(db, numero_hook=None):
                         numero_recente = last_numbers[0]
                         
                         # Verificar no banco se este número já foi registrado para esta roleta
+                        # Usar clean_id (ID numérico) para obter do banco
                         numeros_banco = []
                         try:
                             if hasattr(db, 'obter_numeros_recentes'):
-                                numeros_banco = [n.get('numero') for n in db.obter_numeros_recentes(table_id, limite=5)]
+                                numeros_banco = [n.get('numero') for n in db.obter_numeros_recentes(clean_id, limite=5)]
                         except Exception as e:
                             print(f"[API] Erro ao verificar números do banco: {str(e)}")
                         

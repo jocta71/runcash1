@@ -41,8 +41,8 @@ class RoletasDataSource:
         
         # Configurações
         self.MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash')
-        self.DB_ORIGINAL = "runcash"     # Banco original para compatibilidade
-        self.DB_ROLETAS = "roletas_db"   # Banco otimizado para roletas
+        # Usar a variável de ambiente para o nome do banco de dados
+        self.DB_ROLETAS = os.environ.get('ROLETAS_MONGODB_DB_NAME', 'roletas_db')
         
         try:
             # Conectar ao MongoDB Atlas
@@ -56,8 +56,7 @@ class RoletasDataSource:
             self.client.server_info()
             logger.info("Conectado ao MongoDB Atlas com sucesso!")
             
-            # Acessar bancos de dados
-            self.db_original = self.client[self.DB_ORIGINAL]
+            # Acessar banco de dados
             self.db_roletas = self.client[self.DB_ROLETAS]
             
             # Verificar se o banco de roletas existe
@@ -143,10 +142,6 @@ class RoletasDataSource:
             str: ID da roleta no MongoDB
         """
         try:
-            # Gerar UUID determinístico
-            roleta_id_hash = hashlib.md5(str(roleta_id).encode()).hexdigest()
-            roleta_uuid = str(uuid.UUID(roleta_id_hash))
-            
             # Verificar no mapeamento
             if roleta_id not in self.mapeamento_roletas:
                 logger.info(f"Roleta {roleta_nome} (ID: {roleta_id}) não encontrada no mapeamento. Criando...")
@@ -187,38 +182,10 @@ class RoletasDataSource:
                         upsert=True
                     )
             
-            # Garantir compatibilidade com banco original também
-            self._garantir_roleta_existe_original(roleta_uuid, roleta_nome)
-            
             return roleta_id
         except Exception as e:
             logger.error(f"Erro ao garantir existência da roleta {roleta_nome}: {str(e)}")
             return roleta_id
-    
-    def _garantir_roleta_existe_original(self, roleta_id: str, roleta_nome: str) -> None:
-        """
-        Garante que a roleta exista no banco original para compatibilidade
-        
-        Args:
-            roleta_id (str): ID da roleta
-            roleta_nome (str): Nome da roleta
-        """
-        try:
-            # Verificar se a roleta já existe no banco original
-            if "roletas" in self.db_original.list_collection_names():
-                if not self.db_original.roletas.find_one({"_id": roleta_id}):
-                    # Criar documento e inserir
-                    documento = {
-                        "_id": roleta_id,
-                        "nome": roleta_nome,
-                        "ativa": True,
-                        "criado_em": datetime.now(),
-                        "atualizado_em": datetime.now()
-                    }
-                    self.db_original.roletas.insert_one(documento)
-                    logger.info(f"Roleta {roleta_nome} (ID: {roleta_id}) criada no banco original para compatibilidade")
-        except Exception as e:
-            logger.warning(f"Erro ao garantir roleta no banco original: {str(e)}")
     
     def obter_roletas(self) -> List[Dict[str, Any]]:
         """
@@ -262,111 +229,82 @@ class RoletasDataSource:
         Args:
             roleta_id (str): ID da roleta
             roleta_nome (str): Nome da roleta
-            numero (int): Número sorteado
-            cor (str, optional): Cor do número. Defaults to None.
-            timestamp (str, optional): Timestamp do evento. Defaults to None.
+            numero (int): Número sorteado (0-36)
+            cor (str, optional): Cor do número (verde, vermelho, preto). Defaults to None.
+            timestamp (str, optional): Timestamp ISO do evento. Defaults to None.
             
         Returns:
             bool: True se inserido com sucesso, False caso contrário
         """
         try:
-            # Garantir que roleta existe
+            # Validar número
+            if not isinstance(numero, int):
+                try:
+                    numero = int(numero)
+                except (ValueError, TypeError):
+                    logger.error(f"Número inválido: {numero}")
+                    return False
+            
+            # Validar intervalo
+            if not (0 <= numero <= 36):
+                logger.error(f"Número fora do intervalo válido (0-36): {numero}")
+                return False
+            
+            # Determinar cor se não fornecida
+            if cor is None:
+                if numero == 0:
+                    cor = "verde"
+                elif numero in [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]:
+                    cor = "vermelho"
+                else:
+                    cor = "preto"
+            
+            # Converter timestamp para datetime se for string
+            if timestamp is None:
+                timestamp_dt = datetime.now()
+            elif isinstance(timestamp, str):
+                try:
+                    timestamp_dt = datetime.fromisoformat(timestamp)
+                except ValueError:
+                    logger.error(f"Formato de timestamp inválido: {timestamp}")
+                    timestamp_dt = datetime.now()
+            else:
+                timestamp_dt = timestamp
+            
+            # Garantir que a roleta exista
             self.garantir_roleta_existe(roleta_id, roleta_nome)
             
-            # Obter informações da coleção
+            # Obter informações da roleta
             info_roleta = self.mapeamento_roletas.get(roleta_id)
             
             if not info_roleta or not info_roleta.get("colecao"):
-                logger.error(f"Coleção não encontrada para roleta {roleta_nome} (ID: {roleta_id})")
+                logger.error(f"Informações da roleta não encontradas para ID: {roleta_id}")
                 return False
             
             colecao_nome = info_roleta.get("colecao")
-            
-            # Determinar cor se não fornecida
-            if not cor:
-                if numero == 0:
-                    cor = "verde"
-                elif numero % 2 == 0:
-                    cor = "preto"
-                else:
-                    cor = "vermelho"
-            
-            # Processar timestamp
-            if timestamp is None or not timestamp:
-                ts = datetime.now()
-            else:
-                # Tentar converter de string para datetime
-                try:
-                    if isinstance(timestamp, str):
-                        ts = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                    else:
-                        ts = timestamp
-                except:
-                    ts = datetime.now()
             
             # Criar documento
             documento = {
                 "numero": numero,
                 "cor": cor,
-                "timestamp": ts,
+                "timestamp": timestamp_dt,
                 "criado_em": datetime.now()
             }
             
-            # Inserir na coleção específica
-            result = self.db_roletas[colecao_nome].insert_one(documento)
+            # Inserir na coleção da roleta
+            resultado = self.db_roletas[colecao_nome].insert_one(documento)
             
-            if result.inserted_id:
-                logger.info(f"Número {numero} inserido para roleta {roleta_nome} na coleção {colecao_nome}")
-                
-                # Atualizar estatísticas (em thread separada para não bloquear)
-                try:
-                    threading.Thread(
-                        target=self.atualizar_estatisticas,
-                        args=(roleta_id, roleta_nome),
-                        daemon=True
-                    ).start()
-                except Exception as e:
-                    logger.error(f"Erro ao iniciar thread de atualização de estatísticas: {str(e)}")
-                
-                # Se tiver banco original, inserir lá também para compatibilidade
-                self._inserir_numero_original(roleta_id, roleta_nome, numero, cor, ts)
-                
+            # Verificar se inseriu com sucesso
+            if resultado and resultado.inserted_id:
+                logger.info(f"Número {numero} inserido para roleta {roleta_nome} (ID: {roleta_id})")
                 return True
-            
-            return False
-        except Exception as e:
-            logger.error(f"Erro ao inserir número {numero} para roleta {roleta_nome}: {str(e)}")
-            return False
-    
-    def _inserir_numero_original(self, roleta_id: str, roleta_nome: str, numero: int, 
-                               cor: str, timestamp: datetime) -> None:
-        """
-        Insere um número no banco original para compatibilidade
-        
-        Args:
-            roleta_id (str): ID da roleta
-            roleta_nome (str): Nome da roleta
-            numero (int): Número sorteado
-            cor (str): Cor do número
-            timestamp (datetime): Timestamp do evento
-        """
-        try:
-            if "roleta_numeros" in self.db_original.list_collection_names():
-                # Criar documento
-                documento = {
-                    "roleta_id": roleta_id,
-                    "roleta_nome": roleta_nome,
-                    "numero": numero,
-                    "cor": cor,
-                    "timestamp": timestamp,
-                    "criado_em": datetime.now()
-                }
+            else:
+                logger.error(f"Falha ao inserir número para roleta {roleta_nome}")
+                return False
                 
-                # Inserir no banco original
-                self.db_original.roleta_numeros.insert_one(documento)
-                logger.info(f"Número {numero} inserido no banco original para compatibilidade")
         except Exception as e:
-            logger.warning(f"Erro ao inserir número no banco original: {str(e)}")
+            logger.error(f"Erro ao inserir número para roleta {roleta_nome}: {str(e)}")
+            return False
     
     def obter_numeros(self, roleta_id: str, limite: int = 100, 
                       data_inicio: datetime = None, data_fim: datetime = None) -> List[Dict[str, Any]]:
@@ -436,7 +374,6 @@ class RoletasDataSource:
             bool: True se atualizado com sucesso, False caso contrário
         """
         try:
-            # Obter informações da coleção
             info_roleta = self.mapeamento_roletas.get(roleta_id)
             
             if not info_roleta or not info_roleta.get("colecao"):
@@ -465,41 +402,24 @@ class RoletasDataSource:
             
             # Se tiver coleção de estatísticas no banco de roletas, atualizar
             if "estatisticas" in self.db_roletas.list_collection_names():
-                # Usar datetime.datetime em vez de datetime.date para evitar erro de codificação
-                data_hoje = datetime.now()
+                # Adicionar metadados
+                estatisticas["roleta_id"] = roleta_id
+                estatisticas["roleta_nome"] = roleta_nome
+                estatisticas["atualizado_em"] = datetime.now()
                 
+                # Atualizar documento
                 self.db_roletas.estatisticas.update_one(
-                    {"roleta_id": roleta_id, "data": data_hoje.strftime("%Y-%m-%d")},
-                    {"$set": {
-                        "roleta_nome": roleta_nome,
-                        "estatisticas": estatisticas,
-                        "ultimo_numero": apenas_numeros[-1] if apenas_numeros else None,
-                        "atualizado_em": datetime.now()
-                    }},
+                    {"roleta_id": roleta_id},
+                    {"$set": estatisticas},
                     upsert=True
                 )
                 
-                logger.info(f"Estatísticas para roleta {roleta_nome} atualizadas no banco de roletas")
+                logger.info(f"Estatísticas atualizadas para roleta {roleta_nome}")
+                return True
+            else:
+                logger.warning(f"Coleção de estatísticas não encontrada no banco {self.DB_ROLETAS}")
+                return False
             
-            # Atualizar também no banco original para compatibilidade
-            if "roleta_estatisticas_diarias" in self.db_original.list_collection_names():
-                # Usar datetime.datetime em vez de datetime.date para evitar erro de codificação
-                data_hoje = datetime.now()
-                
-                self.db_original.roleta_estatisticas_diarias.update_one(
-                    {"roleta_id": roleta_id, "data": data_hoje.strftime("%Y-%m-%d")},
-                    {"$set": {
-                        "roleta_nome": roleta_nome,
-                        "estatisticas": estatisticas,
-                        "ultimo_numero": apenas_numeros[-1] if apenas_numeros else None,
-                        "atualizado_em": datetime.now()
-                    }},
-                    upsert=True
-                )
-                
-                logger.info(f"Estatísticas para roleta {roleta_nome} atualizadas no banco original")
-            
-            return True
         except Exception as e:
             logger.error(f"Erro ao atualizar estatísticas para roleta {roleta_nome}: {str(e)}")
             return False
@@ -584,20 +504,17 @@ class RoletasDataSource:
 # Exemplo de uso
 if __name__ == "__main__":
     try:
-        # Inicializar fonte de dados
-        data_source = RoletasDataSource()
+        print("Inicializando fonte de dados para roletas...")
+        ds = RoletasDataSource()
         
-        # Lista de roletas
-        roletas = data_source.obter_roletas()
-        print(f"Roletas encontradas: {len(roletas)}")
+        print("\nRoletas disponíveis:")
+        roletas = ds.obter_roletas()
+        print(f"Total de roletas: {len(roletas)}")
         
         for i, roleta in enumerate(roletas[:5]):  # Mostrar apenas 5 para não sobrecarregar
-            print(f"  {i+1}. {roleta.get('nome')} (ID: {roleta.get('id')})")
-        
-        # Fechar conexão
-        data_source.fechar()
+            print(f"  {i+1}. {roleta['nome']} (ID: {roleta['id']})")
         
     except Exception as e:
         print(f"Erro: {str(e)}")
-        
+    
     input("\nPressione ENTER para sair...") 
