@@ -27,3 +27,5 @@ dist-ssr
 
 .vercel
 *.pyc
+__pycache__/data_source_roletas_db.cpython-39.pyc
+*.pyc
