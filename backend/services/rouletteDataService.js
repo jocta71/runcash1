@@ -178,16 +178,48 @@ class RouletteDataService {
         const roleta_nome = roletaMetadata.roleta_nome;
         
         try {
-          // Verificar se a coleção existe
-          const collections = await db.listCollections({name: roleta_id}).toArray();
+          // Extrair ID numérico do UUID, se possível
+          let colecao_id = roleta_id;
+          let id_numerico = null;
           
+          // Verificar se o ID é um UUID ou contém caracteres não numéricos
+          if (roleta_id && roleta_id.includes('-')) {
+            // Tentar extrair apenas os dígitos da string
+            const digits = roleta_id.replace(/\D/g, '');
+            if (digits && digits.length > 0) {
+              id_numerico = digits;
+              
+              // Usar apenas os primeiros 10 dígitos para evitar nomes de coleção muito longos
+              if (id_numerico.length > 10) {
+                id_numerico = id_numerico.substring(0, 10);
+              }
+            }
+          } else if (roleta_id && /^\d+$/.test(roleta_id)) {
+            // O ID já é numérico
+            id_numerico = roleta_id;
+          }
+          
+          // Primeira tentativa: verificar se a coleção com UUID existe
+          let collections = await db.listCollections({name: roleta_id}).toArray();
+          
+          // Segunda tentativa: verificar se existe uma coleção com o ID numérico
+          if (collections.length === 0 && id_numerico) {
+            collections = await db.listCollections({name: id_numerico}).toArray();
+            
+            if (collections.length > 0) {
+              colecao_id = id_numerico;
+              console.log(`[RouletteData] Usando coleção numérica ${id_numerico} para roleta ${roleta_id}`);
+            }
+          }
+          
+          // Se não encontrou a coleção, pular
           if (collections.length === 0) {
             console.log(`[RouletteData] Coleção para roleta ${roleta_id} não encontrada.`);
             continue;
           }
           
           // Buscar os números da coleção específica da roleta
-          const numeros = await db.collection(roleta_id) 
+          const numeros = await db.collection(colecao_id) 
             .find({})
             .sort({ timestamp: -1 })
             .limit(5)
