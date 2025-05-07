@@ -103,6 +103,11 @@ class UnifiedRouletteClient {
   private webSocketReconnectAttempts = 0;
   private readonly maxWebSocketReconnectAttempts = 5;
   
+  // Cache local para metadados de roletas
+  private metadataCache: Map<string, string> = new Map();
+  private metadataFetchFailed: boolean = false;
+  private lastMetadataFetchAttempt: number = 0;
+  
   /**
    * Construtor privado para garantir singleton
    */
@@ -660,57 +665,51 @@ class UnifiedRouletteClient {
     this.lastUpdateTime = Date.now();
     
     if (Array.isArray(data)) {
+      // Se já tentamos buscar metadados recentemente e falhou, não tentar novamente
+      const now = Date.now();
+      const META_FETCH_COOLDOWN = 60000; // 1 minuto de cooldown entre tentativas
+      
+      if (this.metadataFetchFailed && (now - this.lastMetadataFetchAttempt < META_FETCH_COOLDOWN)) {
+        this.log('Usando cache local para nomes de roletas devido a falha recente na API');
+        // Atualizar usando cache local
+        this.updateRouletteNames(data);
+        return;
+      }
+      
       // Buscar metadados das roletas para substituir os IDs por nomes
+      this.lastMetadataFetchAttempt = now;
       this.fetchRoulettesMetadata().then(metadata => {
-        // Criar mapa de IDs para nomes
-        const metadataMap = new Map();
+        this.metadataFetchFailed = false;
+        
+        // Criar mapa de IDs para nomes e atualizar o cache local
         if (metadata && Array.isArray(metadata)) {
           metadata.forEach(item => {
             if (item.roleta_id && item.roleta_nome) {
-              metadataMap.set(item.roleta_id.toString(), item.roleta_nome);
+              this.metadataCache.set(item.roleta_id.toString(), item.roleta_nome);
             }
           });
         }
         
         // Atualizar dados com nomes de metadados
-        data.forEach(roulette => {
-          const rouletteId = roulette.id || roulette.roleta_id;
-          if (rouletteId) {
-            // Se temos o nome nos metadados, usar ele
-            if (metadataMap.has(rouletteId.toString())) {
-              roulette.nome = metadataMap.get(rouletteId.toString());
-              roulette.name = roulette.nome; // Para compatibilidade
-            }
-            // Caso contrário, manter nome original ou criar um
-            else if (!roulette.nome && !roulette.name) {
-              roulette.nome = `Roleta ${rouletteId}`;
-              roulette.name = roulette.nome; // Para compatibilidade
-            }
-            
-            // Atualizar cache
-            this.rouletteData.set(rouletteId.toString(), roulette);
-          }
-        });
-        
-        // Emitir evento após atualização com metadados
-        this.emit('update', Array.from(this.rouletteData.values()));
+        this.updateRouletteNames(data);
       }).catch(error => {
         this.error('Erro ao buscar metadados de roletas:', error);
+        this.metadataFetchFailed = true;
         
-        // Continuar com atualização normal mesmo sem metadados
-        data.forEach(roulette => {
-          const rouletteId = roulette.id || roulette.roleta_id;
-          if (rouletteId) {
-            this.rouletteData.set(rouletteId.toString(), roulette);
-          }
-        });
-        
-        // Emitir evento de atualização
-        this.emit('update', Array.from(this.rouletteData.values()));
+        // Continuar com atualização usando cache local ou nomes genéricos
+        this.updateRouletteNames(data);
       });
     } else if (data && data.id) {
       // Atualização de roleta individual
-      this.rouletteData.set(data.id, data);
+      const rouletteId = data.id.toString();
+      
+      // Aplicar nome do metadata cache se disponível
+      if (this.metadataCache.has(rouletteId)) {
+        data.nome = this.metadataCache.get(rouletteId);
+        data.name = data.nome; // Para compatibilidade
+      }
+      
+      this.rouletteData.set(rouletteId, data);
       
       // Emitir evento
       this.emit('update', Array.from(this.rouletteData.values()));
@@ -718,13 +717,45 @@ class UnifiedRouletteClient {
   }
   
   /**
+   * Atualiza nomes das roletas usando o cache ou nomes genéricos
+   */
+  private updateRouletteNames(data: any[]): void {
+    // Atualizar dados com nomes de metadados do cache local
+    data.forEach(roulette => {
+      const rouletteId = roulette.id || roulette.roleta_id;
+      if (rouletteId) {
+        const idStr = rouletteId.toString();
+        
+        // Se temos o nome nos metadados, usar ele
+        if (this.metadataCache.has(idStr)) {
+          roulette.nome = this.metadataCache.get(idStr);
+          roulette.name = roulette.nome; // Para compatibilidade
+        }
+        // Caso contrário, manter nome original ou criar um
+        else if (!roulette.nome && !roulette.name) {
+          roulette.nome = `Roleta ${rouletteId}`;
+          roulette.name = roulette.nome; // Para compatibilidade
+        }
+        
+        // Atualizar cache
+        this.rouletteData.set(idStr, roulette);
+      }
+    });
+    
+    // Emitir evento após atualização com metadados
+    this.emit('update', Array.from(this.rouletteData.values()));
+  }
+
+  /**
    * Busca metadados das roletas da API
    */
   private async fetchRoulettesMetadata(): Promise<any[]> {
     try {
       // Usar '/metadados-roletas' em vez de '/api/metadados-roletas'
       // para evitar duplicação do prefixo '/api' 
-      const response = await axios.get(getFullUrl('/metadados-roletas'));
+      const response = await axios.get(getFullUrl('/metadados-roletas'), {
+        timeout: 5000 // Timeout de 5 segundos para evitar bloqueios longos
+      });
       
       if (response.status === 200 && response.data && !response.data.error) {
         return response.data.data || [];
@@ -733,7 +764,7 @@ class UnifiedRouletteClient {
       return [];
     } catch (error) {
       this.error('Erro ao buscar metadados de roletas:', error);
-      return [];
+      throw error; // Propagar erro para ser tratado pelo updateCache
     }
   }
   
