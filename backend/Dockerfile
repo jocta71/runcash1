@@ -18,4 +18,4 @@ ENV NODE_ENV=production
 
 EXPOSE 5000
 
-CMD ["node", "start_index.js"] 
+CMD ["/bin/sh", "-c", "node start_index.js"] 

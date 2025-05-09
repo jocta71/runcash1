@@ -103,13 +103,6 @@ module.exports = async (req, res) => {
       cycle,
       description: `Assinatura ${planData.name} - ${planData.interval}`,
       externalReference: userId,
-      callback: {
-        activated: `https://backendapi-production-36b5.up.railway.app/api/asaas-webhook`,
-        invoiceCreated: `https://backendapi-production-36b5.up.railway.app/api/asaas-webhook`,
-        payment: `https://backendapi-production-36b5.up.railway.app/api/asaas-webhook`,
-        successUrl: `https://backendapi-production-36b5.up.railway.app/success`
-      },
-      notifyPaymentCreatedImmediately: true
     };
 
     // Criar assinatura no Asaas

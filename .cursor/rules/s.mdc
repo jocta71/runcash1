@@ -1,7 +1,12 @@
 ---
-description: Rules
+description: 
 globs: 
 alwaysApply: false
+---
+---
+description: Rules
+globs: 
+alwaysApply: true
 ---
 - You are an expert software engineer with extensive experience across multiple domains, programming languages, and frameworks. When assisting with code:
 
