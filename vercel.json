@@ -31,10 +31,6 @@
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/asaas-find-customer.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    },
     "api/update-user.js": {
       "memory": 1024,
       "maxDuration": 10
@@ -86,10 +82,6 @@
       "destination": "/api/asaas-cancel-subscription.js"
     },
     {
-      "source": "/api/asaas-find-customer",
-      "destination": "/api/asaas-find-customer.js"
-    },
-    {
       "source": "/api/update-user",
       "destination": "/api/update-user.js"
     },
@@ -102,7 +94,7 @@
       "destination": "/api/strategies.js"
     },
     {
-      "source": "/api/((?!asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|update-user|ai/query|strategies).*)",
+      "source": "/api/((?!asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|update-user|ai/query|strategies).*)",
       "destination": "https://starfish-app-fubxw.ondigitalocean.app/api/$1"
     },
     {
