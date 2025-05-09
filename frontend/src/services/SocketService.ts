@@ -1,14 +1,18 @@
 /**
  * Serviço Socket que implementa a conexão SSE e fallback para REST
- * Este arquivo combina a funcionalidade de socket com SSE
+ * 
+ * NOTA DE MIGRAÇÃO: Este arquivo está sendo gradualmente substituído por UnifiedDataService.
+ * Esta versão é uma ponte que internamente usa o SocketServiceAdapter.
  */
 
 import RESTSocketService, { HistoryRequest, HistoryData, RouletteEventCallback } from "./RESTSocketService";
 import { EventService } from "./EventService";
+import SocketServiceAdapter from "./SocketServiceAdapter";
 
 // Classe para gerenciar a conexão com o servidor
 class SocketService {
   private static _instance: SocketService;
+  private adapter: SocketServiceAdapter | null = null;
   private eventService: EventService | null = null;
   private isUsingSSE: boolean = false;
   private restSocketService: RESTSocketService;
@@ -16,12 +20,15 @@ class SocketService {
   private pendingInitialization: boolean = false;
 
   private constructor() {
-    // Obter instância do serviço REST
+    console.log('[SocketService] Inicializando versão em transição que usa SocketServiceAdapter');
+    
+    // Obter instância do adaptador
+    this.adapter = SocketServiceAdapter.getInstance();
+    
+    // Manter RESTSocketService para compatibilidade total com código existente
     this.restSocketService = RESTSocketService.getInstance();
     
-    console.log('[SocketService] Inicializando serviço híbrido Socket+SSE');
-    
-    // Inicialização segura e assíncrona do EventService
+    // Ainda inicializar o EventService para compatibilidade
     this.initEventService();
   }
 
@@ -39,17 +46,10 @@ class SocketService {
       // Obter a instância do EventService
       const eventService = EventService.getInstance();
       
-      // Verificar se a instância é válida antes de usá-la
       if (eventService) {
         this.eventService = eventService;
-        
-        // Tentar iniciar a conexão SSE após ter o EventService
-        setTimeout(() => {
-          this.initSSEConnection();
-        }, 500); // Pequeno atraso para garantir que o EventService tenha tempo de inicializar completamente
-      } else {
-        console.warn('[SocketService] EventService não disponível, usando apenas REST');
-        this.isUsingSSE = false;
+        this.isUsingSSE = true;
+        console.log('[SocketService] EventService inicializado');
       }
     } catch (error) {
       console.error('[SocketService] Erro ao inicializar EventService:', error);
@@ -70,86 +70,25 @@ class SocketService {
   }
 
   /**
-   * Inicializa a conexão SSE
-   */
-  private initSSEConnection(): void {
-    try {
-      console.log('[SocketService] Tentando iniciar conexão SSE...');
-      
-      // Verificar se o eventService está disponível
-      if (!this.eventService) {
-        console.warn('[SocketService] EventService não inicializado, tentando novamente...');
-        // Reagendar a inicialização
-        setTimeout(() => this.initEventService(), 1000);
-        return;
-      }
-      
-      // Registrar callback global para receber eventos SSE
-      this.eventService.subscribeToGlobalEvents((event) => {
-        if (event && event.type === 'new_number') {
-          console.log(`[SocketService] Evento SSE recebido: ${event.type} para roleta ${event.roleta_nome}`);
-          this.notifyListeners(event);
-          this.isUsingSSE = true;
-        }
-      });
-      
-      // Solicitar updates em tempo real
-      this.eventService.requestRealtimeUpdates();
-      
-      console.log('[SocketService] Conexão SSE inicializada com sucesso');
-    } catch (error) {
-      console.error('[SocketService] Erro ao iniciar conexão SSE:', error);
-      console.log('[SocketService] Usando fallback para REST...');
-      this.isUsingSSE = false;
-    }
-  }
-
-  /**
-   * Notifica os ouvintes sobre um evento
-   */
-  private notifyListeners(event: any): void {
-    // Notificar ouvintes específicos para esta roleta
-    const roletaNome = event.roleta_nome || 'unknown';
-    
-    if (this.listeners.has(roletaNome)) {
-      const listeners = this.listeners.get(roletaNome);
-      if (listeners) {
-        listeners.forEach(callback => {
-          try {
-            callback(event);
-          } catch (error) {
-            console.error(`[SocketService] Erro em listener para ${roletaNome}:`, error);
-          }
-        });
-      }
-    }
-    
-    // Notificar ouvintes globais (*)
-    if (this.listeners.has('*')) {
-      const globalListeners = this.listeners.get('*');
-      if (globalListeners) {
-        globalListeners.forEach(callback => {
-          try {
-            callback(event);
-          } catch (error) {
-            console.error('[SocketService] Erro em listener global:', error);
-          }
-        });
-      }
-    }
-  }
-
-  /**
-   * Sobrescreve o método isConnected para considerar tanto REST quanto SSE
+   * Sobrescreve o método isConnected para considerar o adaptador
    */
   public isConnected(): boolean {
-    return this.isUsingSSE || this.restSocketService.isConnected();
+    return this.adapter?.isConnected() || this.restSocketService.isConnected();
   }
 
   /**
    * Retorna o status de conexão
    */
   public getConnectionStatus(): { isConnected: boolean; usingSSE: boolean; connectionType: string } {
+    if (this.adapter) {
+      const status = this.adapter.getConnectionStatus();
+      return {
+        isConnected: status.isConnected,
+        usingSSE: status.connectionType === 'SSE',
+        connectionType: status.connectionType
+      };
+    }
+    
     return {
       isConnected: this.isConnected(),
       usingSSE: this.isUsingSSE,
@@ -161,7 +100,12 @@ class SocketService {
    * Subscreve para receber eventos de uma roleta específica
    */
   public subscribe(roletaNome: string, callback: RouletteEventCallback): void {
-    // Registrar no serviço local
+    // Registrar no adaptador
+    if (this.adapter) {
+      this.adapter.subscribe(roletaNome, callback);
+    }
+    
+    // Manter registro local para compatibilidade
     if (!this.listeners.has(roletaNome)) {
       this.listeners.set(roletaNome, new Set());
     }
@@ -169,53 +113,43 @@ class SocketService {
     const listeners = this.listeners.get(roletaNome);
     if (listeners) {
       listeners.add(callback);
-      console.log(`[SocketService] Registrado listener para ${roletaNome}, total: ${listeners.size}`);
     }
     
-    // Registrar também no serviço REST para garantir dados históricos
+    // Registrar também no serviço REST como fallback
     this.restSocketService.subscribe(roletaNome, callback);
-    
-    // Se estivermos usando SSE, registre também no EventService
-    if (this.eventService) {
-      try {
-        this.eventService.subscribe(roletaNome, callback);
-      } catch (e) {
-        console.warn(`[SocketService] Não foi possível registrar no EventService:`, e);
-      }
-    }
   }
 
   /**
    * Remove a inscrição de um listener
    */
   public unsubscribe(roletaNome: string, callback: RouletteEventCallback): void {
-    // Remover do serviço local
+    // Remover do adaptador
+    if (this.adapter) {
+      this.adapter.unsubscribe(roletaNome, callback);
+    }
+    
+    // Atualizar registro local
     if (this.listeners.has(roletaNome)) {
       const listeners = this.listeners.get(roletaNome);
       if (listeners) {
         listeners.delete(callback);
-        console.log(`[SocketService] Listener removido para ${roletaNome}, restantes: ${listeners.size}`);
       }
     }
     
     // Remover também do serviço REST
     this.restSocketService.unsubscribe(roletaNome, callback);
-    
-    // Se estivermos usando SSE, remova também do EventService
-    if (this.eventService) {
-      try {
-        this.eventService.unsubscribe(roletaNome, callback);
-      } catch (e) {
-        console.warn(`[SocketService] Erro ao remover listener do EventService:`, e);
-      }
-    }
   }
 
   /**
    * Desconecta o serviço
    */
   public disconnect(): void {
-    // Desconectar do EventService
+    // Desconectar o adaptador
+    if (this.adapter) {
+      this.adapter.disconnect();
+    }
+    
+    // Desconectar os serviços existentes
     if (this.eventService) {
       try {
         this.eventService.disconnect();
@@ -224,23 +158,20 @@ class SocketService {
       }
     }
     
-    // Desconectar também do serviço REST
     this.restSocketService.disconnect();
-    
-    console.log('[SocketService] Serviço desconectado');
   }
 
   /**
    * Reconecta o serviço
    */
   public reconnect(): void {
-    // Tentar reconectar o SSE
-    this.initSSEConnection();
+    // Reconectar o adaptador
+    if (this.adapter) {
+      this.adapter.reconnect();
+    }
     
-    // Reconectar também o serviço REST
+    // Reconectar o serviço REST
     this.restSocketService.reconnect();
-    
-    console.log('[SocketService] Serviço reconectado');
   }
 
   /**
@@ -254,7 +185,12 @@ class SocketService {
    * Emite um evento para o servidor
    */
   public emit(eventName: string, data: any): void {
-    // Simplesmente delegamos para o serviço REST
+    // Emitir via adaptador
+    if (this.adapter) {
+      this.adapter.emit(eventName, data);
+    }
+    
+    // Manter comportamento legacy para compatibilidade
     this.restSocketService.emit(eventName, data);
   }
 
@@ -262,6 +198,12 @@ class SocketService {
    * Obtém o histórico de números de uma roleta
    */
   public getRouletteHistory(roletaId: string): number[] {
+    // Usar o adaptador se disponível
+    if (this.adapter) {
+      return this.adapter.getRouletteHistory(roletaId);
+    }
+    
+    // Fallback para implementação legada
     return this.restSocketService.getRouletteHistory(roletaId);
   }
 
@@ -269,6 +211,12 @@ class SocketService {
    * Define o histórico de números de uma roleta
    */
   public setRouletteHistory(roletaId: string, numbers: number[]): void {
+    // Usar o adaptador se disponível
+    if (this.adapter) {
+      this.adapter.setRouletteHistory(roletaId, numbers);
+    }
+    
+    // Atualizar também o cache legado
     this.restSocketService.setRouletteHistory(roletaId, numbers);
   }
 
@@ -276,6 +224,12 @@ class SocketService {
    * Solicita números de uma roleta específica
    */
   public async requestRouletteNumbers(roletaId: string): Promise<boolean> {
+    // Usar o adaptador se disponível
+    if (this.adapter) {
+      return this.adapter.requestRouletteNumbers(roletaId);
+    }
+    
+    // Fallback para implementação legada
     return this.restSocketService.requestRouletteNumbers(roletaId);
   }
 
@@ -283,6 +237,12 @@ class SocketService {
    * Solicita todos os números recentes
    */
   public async requestRecentNumbers(): Promise<boolean> {
+    // Usar o adaptador se disponível
+    if (this.adapter) {
+      return this.adapter.requestRecentNumbers();
+    }
+    
+    // Fallback para implementação legada
     return this.restSocketService.requestRecentNumbers();
   }
   
@@ -290,6 +250,11 @@ class SocketService {
    * Carrega o histórico de números para todas as roletas
    */
   public async loadHistoricalRouletteNumbers(): Promise<void> {
+    // Usar o adaptador se disponível
+    if (this.adapter) {
+      return this.adapter.loadHistoricalRouletteNumbers();
+    }
+    
     console.log('[SocketService] Carregando histórico de números para todas as roletas');
     
     try {
@@ -334,6 +299,11 @@ class SocketService {
    * Método compatível com a API do RESTSocketService para carregamento de histórico
    */
   public async fetchRouletteNumbersREST(roletaId: string, limit: number = 200): Promise<boolean> {
+    // Usar o adaptador se disponível
+    if (this.adapter) {
+      return this.adapter.fetchRouletteNumbersREST(roletaId, limit);
+    }
+    
     // Verificar se o método existe no restSocketService
     if (typeof this.restSocketService.requestRouletteNumbers === 'function') {
       return this.restSocketService.requestRouletteNumbers(roletaId);

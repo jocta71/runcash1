@@ -13,6 +13,7 @@ import { TrendingUp, Zap, CheckCircle, XCircle, AlertTriangle, Info, Gauge } fro
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import UnifiedDataService from '../services/UnifiedDataService';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;
@@ -358,7 +359,54 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         }
     });
     
-    // Registrar para atualizações em tempo real via SSE
+    // Usar o novo UnifiedDataService para receber eventos em tempo real
+    const dataService = UnifiedDataService.getInstance();
+    
+    // Registrar para eventos desta roleta específica
+    dataService.subscribe(safeData.id, handleUpdate);
+    
+    // Também registrar para o nome da roleta caso o ID seja diferente
+    if (safeData.id !== safeData.name) {
+        dataService.subscribe(safeData.name, handleUpdate);
+    }
+    
+    // Registrar para eventos globais
+    dataService.subscribe('*', (event) => {
+        // Filtrar apenas eventos para esta roleta
+        if (event && (event.roleta_id === safeData.id || event.id === safeData.id)) {
+            handleUpdate(event);
+        }
+    });
+    
+    console.log(`[${componentId}] Registrado para eventos em tempo real via UnifiedDataService para roleta: ${safeData.name}`);
+    
+    // Verificar se há histórico já disponível no cache
+    const cachedHistory = dataService.getRouletteHistory(safeData.id);
+    if (cachedHistory && cachedHistory.length > 0) {
+        console.log(`[${componentId}] Usando histórico em cache (${cachedHistory.length} números)`);
+        
+        // Construir objeto com histórico
+        const historyData = {
+            id: safeData.id,
+            nome: safeData.name,
+            numbers: cachedHistory.map(n => ({
+                number: n,
+                timestamp: new Date().toISOString()
+            }))
+        };
+        
+        // Processar dados históricos
+        const processedHistoryData = processRouletteData(historyData);
+        if (processedHistoryData) {
+            setRouletteData(processedHistoryData);
+            setIsLoading(false);
+        }
+    }
+    
+    // COMPATIBILIDADE: registrar também com serviços existentes para facilitar a migração
+    // Este bloco pode ser removido depois da migração completa para o UnifiedDataService
+    
+    // Registrar para eventos do SocketService (para compatibilidade)
     import('../services/SocketService').then(module => {
         const SocketService = module.default;
         const socketService = SocketService.getInstance();
@@ -378,13 +426,11 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
                 handleUpdate(event);
             }
         });
-        
-        console.log(`[${componentId}] Registrado para eventos SSE da roleta: ${safeData.name}`);
     }).catch(error => {
         console.error(`[${componentId}] Erro ao importar SocketService:`, error);
     });
     
-    // Registrar para eventos do EventService
+    // Registrar para eventos do EventService (para compatibilidade)
     import('../services/EventService').then(module => {
         const EventService = module.EventService;
         const eventService = EventService.getInstance();
@@ -403,8 +449,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
                 handleUpdate(event);
             }
         });
-        
-        console.log(`[${componentId}] Registrado para eventos do EventService para roleta: ${safeData.name}`);
     }).catch(error => {
         console.error(`[${componentId}] Erro ao importar EventService:`, error);
     });
@@ -415,6 +459,13 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         EventBus.off(`roulette:update:${safeData.id}`, handleUpdate);
         unifiedClient.off('update:' + safeData.id, handleUpdate);
         unifiedClient.off('update', handleUpdate);
+        
+        // Remover assinaturas do UnifiedDataService
+        dataService.unsubscribe(safeData.id, handleUpdate);
+        if (safeData.id !== safeData.name) {
+            dataService.unsubscribe(safeData.name, handleUpdate);
+        }
+        dataService.unsubscribe('*', handleUpdate);
         
         // Limpar timers
         if (timeoutRef.current) {
@@ -430,7 +481,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
             abortControllerRef.current.abort();
         }
         
-        // Desinscrever dos serviços (versão segura)
+        // Desinscrever dos serviços legados (versão segura)
         try {
             import('../services/SocketService').then(module => {
                 const SocketService = module.default;
