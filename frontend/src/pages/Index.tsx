@@ -195,7 +195,6 @@ const Index = () => {
   
   // Novos estados para o checkout
   const [showCheckout, setShowCheckout] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState("basic"); // 'basic' é o padrão (mensal)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -494,13 +493,20 @@ const Index = () => {
     
     console.log(`[DEBUG] Dados brutos de todas as roletas:`, JSON.stringify(allRoulettes).substring(0, 500) + '...');
 
-    return allRoulettes.map(roulette => {
+    const simplifiedData = allRoulettes.map(roulette => {
+      return ({
+        id: roulette.id || roulette._id,
+        nome: roulette.nome || roulette.name,
+        numeros: roulette.numeros || roulette.numero || roulette.lastNumbers
+      });
+    });
+
+    return simplifiedData.map(roulette => {
       // Garantir que temos números válidos
       console.log(`[DEBUG] Processando roleta:`, JSON.stringify({
         id: roulette.id,
         nome: roulette.nome || roulette.name,
-        numeros: roulette.numeros || roulette.numero || roulette.lastNumbers,
-        provider: roulette.provider
+        numeros: roulette.numeros || roulette.numero || roulette.lastNumbers
       }));
     
       let safeNumbers: number[] = [];
@@ -668,7 +674,7 @@ const Index = () => {
       }
 
       // Criar assinatura ou pagamento único
-      const planId = selectedPlan;
+      const planId = "basic"; // Plano fixo
       const userId = user.id;
       const paymentMethod = 'PIX';
 
@@ -862,6 +868,7 @@ const Index = () => {
             <div className="w-full lg:w-1/2">
               {selectedRoulette ? (
                 <RouletteSidePanelStats
+                  roletaId={selectedRoulette.id || ''}
                   roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
                   lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
                   wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
@@ -896,17 +903,11 @@ const Index = () => {
                   <div className="flex flex-wrap justify-center w-full gap-4 mb-8">
                     {/* Card do Plano Mensal */}
                     <div 
-                      className={`w-full md:w-5/12 bg-[#18181f] border-2 rounded-xl shadow-lg overflow-hidden transition-all hover:shadow-green-500/20 cursor-pointer ${selectedPlan === "basic" ? "border-[#00FF00] shadow-md shadow-green-500/20" : "border-gray-800/50 hover:border-gray-700"}`}
-                      onClick={() => setSelectedPlan("basic")}
+                      className={`w-full md:w-5/12 bg-[#18181f] border-2 rounded-xl shadow-lg overflow-hidden transition-all hover:shadow-green-500/20 cursor-pointer border-gray-800/50 hover:border-gray-700`}
                     >
                       <div className="p-6">
                         <div className="flex items-center justify-between mb-4">
                           <h3 className="text-lg font-bold text-white">Mensal</h3>
-                          <div className="flex items-center">
-                            <div className={`w-5 h-5 rounded-full border border-gray-600 mr-3 flex items-center justify-center ${selectedPlan === "basic" ? "bg-[#00FF00] border-green-500" : "bg-transparent"}`}>
-                              {selectedPlan === "basic" && <div className="w-3 h-3 rounded-full bg-white"></div>}
-                            </div>
-                          </div>
                         </div>
                         
                         <div className="text-3xl font-bold text-white mb-2">
@@ -921,8 +922,7 @@ const Index = () => {
                     
                     {/* Card do Plano Anual */}
                     <div 
-                      className={`w-full md:w-5/12 bg-[#18181f] border-2 rounded-xl shadow-lg overflow-hidden transition-all hover:shadow-green-500/20 cursor-pointer ${selectedPlan === "premium" ? "border-[#00FF00] shadow-md shadow-green-500/20" : "border-gray-800/50 hover:border-gray-700"}`}
-                      onClick={() => setSelectedPlan("premium")}
+                      className={`w-full md:w-5/12 bg-[#18181f] border-2 rounded-xl shadow-lg overflow-hidden transition-all hover:shadow-green-500/20 cursor-pointer border-gray-800/50 hover:border-gray-700`}
                     >
                       <div className="absolute top-0 right-0 bg-[#00FF00] text-black text-xs font-bold px-3 py-1 rounded-bl-lg">
                         MELHOR OPÇÃO
@@ -930,11 +930,6 @@ const Index = () => {
                       <div className="p-6">
                         <div className="flex items-center justify-between mb-4">
                           <h3 className="text-lg font-bold text-white">Anual</h3>
-                          <div className="flex items-center">
-                            <div className={`w-5 h-5 rounded-full border border-gray-600 mr-3 flex items-center justify-center ${selectedPlan === "premium" ? "bg-[#00FF00] border-green-500" : "bg-transparent"}`}>
-                              {selectedPlan === "premium" && <div className="w-3 h-3 rounded-full bg-white"></div>}
-                            </div>
-                          </div>
                         </div>
                         
                         <div className="text-3xl font-bold text-white mb-2">
@@ -966,7 +961,7 @@ const Index = () => {
                           <div className="p-6 border-b border-gray-800">
                             <h3 className="text-xl font-bold text-white">Complete sua compra</h3>
                             <p className="text-gray-400 text-sm mt-1">
-                              {selectedPlan === 'basic' ? 'Plano Mensal - R$49/mês' : 'Plano Anual - R$99/ano'}
+                              Plano Mensal - R$49/mês
                             </p>
                           </div>
                           

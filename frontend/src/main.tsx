@@ -55,40 +55,35 @@ async function initializeRoulettesSystem() {
   // Forçar conexão com stream SSE
   unifiedClient.connectStream();
   
-  // Substituir a busca de dados iniciais via globalRouletteDataService
-  logger.info('Buscando dados iniciais de roletas via UnifiedRouletteClient...');
-  try {
-    // Assumindo que unifiedClient.fetchRouletteData() existe e retorna os dados de roletas.
-    // Esta é a abordagem moderna recomendada pelos logs.
-    const initialData = await unifiedClient.fetchRouletteData(); 
-    logger.info(`Dados iniciais obtidos pelo UnifiedRouletteClient: ${initialData ? initialData.length : 0} roletas`);
-
-    // Inicializar o RouletteFeedService.
-    // NOTA CRÍTICA: É vital que o RouletteFeedService seja refatorado internamente
-    // para usar o UnifiedRouletteClient como sua fonte de dados principal
-    // em vez do globalRouletteDataService.
-    await rouletteFeedService.initialize();
-    logger.info('RouletteFeedService inicializado.');
+  // Inicializar o serviço global e buscar dados iniciais uma única vez
+  logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
+  
+  // Usar a instância importada diretamente
+  globalRouletteDataService.fetchRouletteData().then(data => {
+    logger.info(`Dados iniciais obtidos pelo serviço global: ${data.length} roletas`);
+    
+    // Em seguida, inicializar o RouletteFeedService que usará os dados do serviço global
+    rouletteFeedService.initialize().then(() => {
+      logger.info('RouletteFeedService inicializado usando dados do serviço global');
       
-    eventService.dispatchEvent({
-      type: 'roulette:data-updated',
-      data: {
-        source: 'initial-load-unified', // Fonte atualizada para refletir a mudança
-        timestamp: new Date().toISOString(),
-        // roulettes: initialData // Opcional: incluir se os componentes usam estes dados diretamente do evento
-      }
+      // Disparar evento para notificar componentes
+      eventService.dispatchEvent({
+        type: 'roulette:data-updated',
+        data: {
+          source: 'initial-load',
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+      // Iniciar polling com intervalo de 10 segundos
+      rouletteFeedService.startPolling();
+      logger.info('Polling de roletas iniciado (intervalo de 10s)');
+    }).catch(error => {
+      logger.error('Erro ao inicializar RouletteFeedService:', error);
     });
-      
-    // O polling do RouletteFeedService pode ser redundante se o UnifiedRouletteClient 
-    // já estiver fornecendo atualizações via SSE. Isso deve ser avaliado.
-    // As chamadas internas de startPolling() e initialize() no RouletteFeedService
-    // também podem estar usando o serviço depreciado e precisarão de revisão.
-    rouletteFeedService.startPolling();
-    logger.info('Polling de roletas (via RouletteFeedService) iniciado (intervalo de 10s). ALERTA: Verificar se este polling usa UnifiedRouletteClient.');
-
-  } catch (error) {
-    logger.error('Erro ao buscar dados iniciais via UnifiedRouletteClient ou ao inicializar/configurar RouletteFeedService:', error);
-  }
+  }).catch(error => {
+    logger.error('Erro ao buscar dados iniciais pelo serviço global:', error);
+  });
   
   // Marcar como inicializado
   window.ROULETTE_SYSTEM_INITIALIZED = true;
@@ -119,21 +114,7 @@ logger.info('Conexão com o servidor sendo estabelecida em background...');
 
 // Inicializar o sistema de roletas como parte do carregamento da aplicação
 logger.info('Inicializando sistema de roletas de forma centralizada...');
-
-// IIFE para lidar com a inicialização assíncrona
-(async () => {
-  try {
-    const rouletteSystem = await initializeRoulettesSystem();
-    window.getRouletteSystem = () => rouletteSystem;
-  } catch (error) {
-    logger.error('Falha ao inicializar o sistema de roletas:', error);
-    // Fornecer um fallback ou estado de erro para getRouletteSystem
-    window.getRouletteSystem = () => {
-      logger.error('Retornando null para getRouletteSystem devido a erro de inicialização.');
-      return null;
-    };
-  }
-})();
+const rouletteSystem = await initializeRoulettesSystem();
 
 // Configuração global para requisições fetch
 const originalFetch = window.fetch;
@@ -161,6 +142,7 @@ socketService.loadHistoricalRouletteNumbers().catch(err => {
 
 // Expor globalmente a função para verificar se o sistema foi inicializado
 window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
+window.getRouletteSystem = () => rouletteSystem;
 
 // Inicializar serviço de descriptografia
 console.log('[Main] Configurando chave de acesso para descriptografia...');

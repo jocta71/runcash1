@@ -258,20 +258,11 @@ const RouletteList: React.FC = () => {
             </div>
             <div className="roulette-info">
               {roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0 && (
-                (() => {
-                  const primeiroNumero = roulette.numero[0];
-                  if (!primeiroNumero) return null;
-
-                  const ehObjeto = typeof primeiroNumero === 'object' && primeiroNumero !== null;
-
-                  return (
-                    <>
-                      <p>Último número: {ehObjeto ? (primeiroNumero as any).numero : primeiroNumero}</p>
-                      <p>Cor: {ehObjeto ? (primeiroNumero as any).cor : getNumberColor(primeiroNumero as number)}</p>
-                      <p>Hora: {ehObjeto && 'timestamp' in primeiroNumero ? new Date((primeiroNumero as any).timestamp).toLocaleTimeString() : 'N/A'}</p>
-                    </>
-                  );
-                })()
+                <>
+                  <p>Último número: {typeof roulette.numero[0] === 'object' ? roulette.numero[0].numero : roulette.numero[0]}</p>
+                  <p>Cor: {typeof roulette.numero[0] === 'object' ? roulette.numero[0].cor : getNumberColor(typeof roulette.numero[0] === 'object' ? roulette.numero[0].numero : roulette.numero[0])}</p>
+                  <p>Hora: {typeof roulette.numero[0] === 'object' && 'timestamp' in roulette.numero[0] ? new Date(roulette.numero[0].timestamp).toLocaleTimeString() : 'N/A'}</p>
+                </>
               )}
             </div>
           </div>
