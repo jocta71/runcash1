@@ -189,6 +189,11 @@ app.get('/', (req, res) => {
   });
 });
 
+// Adicionar endpoint de health check explícito
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 app.get('/api', (req, res) => {
   res.json({
     status: 'online',

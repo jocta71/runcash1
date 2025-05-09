@@ -13,6 +13,15 @@ dotenv.config();
 
 console.log('[GoogleAuth] Verificando configuração do callback do Google...');
 
+// Verificar se a verificação deve ser ignorada
+if (process.env.SKIP_GOOGLE_CALLBACK_CHECK === 'true') {
+  console.log('[GoogleAuth] Verificação do callback ignorada devido à configuração SKIP_GOOGLE_CALLBACK_CHECK=true');
+  module.exports = {
+    getCorrectGoogleCallbackUrl: () => process.env.GOOGLE_CALLBACK_URL || '/api/auth/google/callback'
+  };
+  return;
+}
+
 // Obter a URL do serviço (Railway provê esta variável)
 const serviceUrl = process.env.RAILWAY_URL || process.env.RAILWAY_STATIC_URL;
 
