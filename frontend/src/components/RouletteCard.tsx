@@ -248,286 +248,330 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
 
     const handleUpdate = (updateData: any) => {
         // <<< Log 1: Verificar se o handleUpdate é chamado e o que recebe >>>
-        console.log(`[${componentId}] handleUpdate chamado. Dados recebidos no evento 'update':`, JSON.stringify(updateData).substring(0, 500) + "..."); // Log inicial truncado
-
-        // Lógica para encontrar myData
-        let myData: any = null;
-        if (Array.isArray(updateData)) {
-            myData = updateData.find(r => (r.id || r.roleta_id) === safeData.id);
-        } else if (updateData && typeof updateData === 'object' && (updateData.id || updateData.roleta_id) === safeData.id) {
-            myData = updateData;
-        }
+        console.log(`[${componentId}] handleUpdate chamado para roleta ${safeData.id}`, 
+            updateData ? (typeof updateData === 'object' ? Object.keys(updateData) : typeof updateData) : 'null');
         
-        // <<< Log 2: Verificar se myData foi encontrado para este ID >>>
-        if(myData) {
-            console.log(`[${componentId}] Dados encontrados para este ID (${safeData.id}) na atualização. Processando...`);
-        } else {
-             // Não loga nada se não achou, para não poluir
-             // console.log(`[${componentId}] Nenhum dado para este ID (${safeData.id}) encontrado na atualização.`);
-             return; // Se não achou dados para este card, não faz nada
-        }
-
-        if (myData) { // Redundante, mas seguro
-            const processed = processRouletteData(myData); 
-            
-            // <<< Log 3: Verificar resultado do processamento >>>
-            console.log(`[${componentId}] Resultado de processRouletteData para atualização:`, processed === null ? 'NULL' : `Status: ${processed.status}, UltimoNum: ${processed.ultimoNumero}, CountNums: ${processed.numeros.length}`);
-
-            if (processed !== null) {
-                 setRouletteData(currentData => {
-                     // Se não houver dados anteriores ou a atualização não foi processada, retorna o estado atual ou o processado
-                     if (!currentData) {
-                         // Se não tem dados atuais, a atualização (se válida) se torna o estado inicial
-                         return processed;
-                     }
-                     if (!processed) {
-                          // Se a atualização falhou no processamento, mantém os dados atuais
-                          return currentData;
-                     }
-
-                     // Verifica se o ÚLTIMO NÚMERO GERAL da atualização é diferente do último número GERAL atual
-                     const isNewSpin = processed.ultimoNumero !== null &&
-                                       currentData.ultimoNumero !== processed.ultimoNumero;
-
-                     let updatedNumeros = currentData.numeros; // Assume que os números não mudaram por padrão
-
-                     if (isNewSpin) {
-                         // Pega o objeto do número mais recente da atualização (deve ser o primeiro em processed.numeros)
-                         const newNumberObject = processed.numeros.length > 0 ? processed.numeros[0] : null;
-
-                         if (newNumberObject && newNumberObject.numero === processed.ultimoNumero) {
-                            // Confirma que o primeiro número no array processado corresponde ao último número geral
-                            console.log(`%c[${componentId}] NOVO NÚMERO DETECTADO (via ultimoNumero): ${processed.ultimoNumero}`, 'color: lightgreen; font-weight: bold;');
-
-                            // Adiciona o novo número (objeto completo) no início da lista atual
-                            updatedNumeros = [newNumberObject, ...currentData.numeros].slice(0, 10); // Mantém limite de 10
-
-                            // Lógica de destaque visual
-                            setIsNewNumber(true);
-                            setTimeout(() => setIsNewNumber(false), 2000);
-                         } else {
-                             console.warn(`[${componentId}] Discrepância detectada: processed.ultimoNumero (${processed.ultimoNumero}) é novo, mas não corresponde ao primeiro item em processed.numeros (${newNumberObject?.numero}). Verifique processRouletteData.`);
-                             // Neste caso, mantém os números atuais por segurança
-                             updatedNumeros = currentData.numeros;
-                         }
-                     } else if (processed.numeros.length > 0 && currentData.numeros.length === 0) {
-                         // Caso especial: Preenchendo números pela primeira vez a partir de uma atualização
-                         console.log(`[${componentId}] Preenchendo números iniciais da atualização.`);
-                         updatedNumeros = processed.numeros.slice(0, 10);
-                     }
-                     // Se não for um novo giro (isNewSpin é false), 'updatedNumeros' já mantém 'currentData.numeros'
-
-                     // Retorna o novo estado combinando infos recentes com a lista de números atualizada/mantida
-                     return {
-                         ...currentData, // Mantém o estado atual como base
-                         ...processed,  // Sobrescreve com os dados mais recentes (status, winrate, streak, etc.)
-                         numeros: updatedNumeros, // Usa a lista de números atualizada (se novo giro) ou a mantida
-                         // ultimoNumero já vem de processed
-                     };
-                 });
-                 setIsLoading(false);
-                 setError(null);
-            } else {
-                console.warn(`[${componentId}] processRouletteData retornou null para atualização. Estado NÃO será atualizado.`);
-                if (rouletteData) setIsLoading(false);
+        try {
+            // Se a atualização for para esta roleta específica
+            if (updateData && 
+                (updateData.id === safeData.id || 
+                 updateData.roleta_id === safeData.id ||
+                 (updateData.type === 'new_number' && updateData.roleta_id === safeData.id))) {
+                
+                console.log(`[${componentId}] Processando atualização para roleta ${safeData.id}`);
+                
+                // Processar os dados atualizados
+                let processedData;
+                
+                // Verificar se o evento é do tipo 'new_number' (formato SSE)
+                if (updateData.type === 'new_number') {
+                    // Construir objeto no formato esperado pelo processador
+                    const currentData = rouletteData || { numeros: [] };
+                    const newData = {
+                        ...currentData,
+                        id: updateData.roleta_id,
+                        nome: updateData.roleta_nome,
+                        numbers: [
+                            { 
+                                number: updateData.numero, 
+                                timestamp: updateData.timestamp 
+                            },
+                            ...(currentData.numeros || []).map(n => ({ 
+                                number: n.numero, 
+                                timestamp: n.timestamp 
+                            }))
+                        ]
+                    };
+                    
+                    processedData = processRouletteData(newData);
+                    
+                    // Definir flag para tocar som se for update via SSE
+                    setIsNewNumber(true);
+                } else {
+                    // Formato normal de dados
+                    processedData = processRouletteData(updateData);
+                }
+                
+                if (processedData) {
+                    console.log(`[${componentId}] Atualizando estado com novos dados:`, processedData.numeros?.[0]?.numero);
+                    setRouletteData(processedData);
+                    setIsLoading(false);
+                    setError(null);
+                    
+                    // Incrementar contador de atualizações
+                    setUpdateCount(prev => prev + 1);
+                    
+                    // Adicionar classe de animação ao receber novos dados
+                    if (cardRef.current) {
+                        cardRef.current.classList.add('card-updated');
+                        // Remover classe após animação
+                        setTimeout(() => {
+                            if (cardRef.current) {
+                                cardRef.current.classList.remove('card-updated');
+                            }
+                        }, 1000);
+                    }
+                }
             }
+        } catch (error) {
+            console.error(`[${componentId}] Erro ao processar atualização:`, error);
         }
     };
-
-    // Busca inicial e assinatura
-    console.log(`[${componentId}] Verificando dados existentes no UnifiedClient...`);
-    const currentDataFromClient = unifiedClient.getRouletteById(safeData.id);
-    if (currentDataFromClient) {
-         console.log(`[${componentId}] Dados INICIAIS encontrados no UnifiedClient. Processando...`);
-         // Chama handleUpdate diretamente para processar os dados iniciais
-         // Isso garante que os logs dentro de handleUpdate rodem também para os dados iniciais
-         handleUpdate(currentDataFromClient); 
-         // Define isLoading como false aqui, pois já temos dados
-         setIsLoading(false); 
-      } else {
-        console.log(`[${componentId}] Nenhum dado inicial no UnifiedClient. Aguardando evento 'update'...`);
-         // Mantém isLoading true apenas se não houver dados iniciais
-        setIsLoading(true); 
-    }
-
-    console.log(`[${componentId}] Assinando evento 'update' do UnifiedClient.`);
-    const unsubscribe = unifiedClient.on('update', handleUpdate);
-
-    return () => {
-        console.log(`[${componentId}] Desmontando e cancelando assinatura do evento 'update'.`);
-        unsubscribe();
-    };
-  // Dependências revisadas: safeData.id e unifiedClient são suficientes para setup/cleanup.
-  // Removido rouletteData para evitar re-assinaturas desnecessárias quando o estado muda internamente.
-  }, [safeData.id, unifiedClient]);
-  
-  // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
-  // Console.log para verificar se há apenas uma fonte de requisições:
-  console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas UnifiedRouletteClient para obter dados da API.');
-  
-  // Função para abrir detalhes da roleta
-  const handleCardClick = () => {
-    // Removida a navegação para a página de detalhes
-    return; // Não faz nada ao clicar no card
-  };
-  
-  // Formatar tempo relativo
-  const getTimeAgo = () => {
-    const seconds = Math.floor((Date.now() - rouletteData.lastUpdateTime) / 1000);
-    if (seconds < 60) return `${seconds}s atrás`;
-    return `${Math.floor(seconds / 60)}m ${seconds % 60}s atrás`;
-  };
-  
-  // Determinar a cor do número
-  const getNumberColor = (num: number): string => {
-    if (num === 0) return 'verde';
     
-    // Números vermelhos na roleta europeia
-    const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
-  };
-
-  // Log para verificar o estado antes de renderizar
-  console.log(`[${componentId}] Renderizando. Estado rouletteData:`, rouletteData); // Log 7: Estado na renderização
-
-  if (isLoading) {
-    return (
-      <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden bg-card text-card-foreground animate-pulse">
-        <CardHeader className="p-4">
-          <div className="h-6 bg-muted rounded w-3/4"></div>
-          <div className="h-4 bg-muted rounded w-1/2 mt-1"></div>
-        </CardHeader>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex justify-center items-center space-x-2">
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-          </div>
-          <div className="h-4 bg-muted rounded w-full"></div>
-        </CardContent>
-        <CardFooter className="p-4 bg-muted/50 flex justify-between items-center">
-          <div className="h-4 bg-muted rounded w-1/4"></div>
-          <div className="h-4 bg-muted rounded w-1/3"></div>
-        </CardFooter>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-        <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden border-destructive bg-destructive/10 text-destructive-foreground">
-           <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Erro</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent className="p-4">
-                <p className="text-xs">{error}</p>
-                <Button variant="link" size="sm" className="mt-2 text-xs p-0 h-auto" onClick={() => unifiedClient.forceUpdate()}>Tentar novamente</Button>
-            </CardContent>
-        </Card>
-    );
-  }
-
-  if (!rouletteData) {
-    return (
-        <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden border-muted bg-muted/10 text-muted-foreground">
-           <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Sem Dados</CardTitle>
-                <Info className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="p-4">
-                <p className="text-xs">Ainda não há dados disponíveis para {safeData.name || 'esta roleta'}.</p>
-            </CardContent>
-        </Card>
-    );
-  }
-  
-  // Desestruturação e Renderização Normal
-  const { nome, provider, status, ultimoNumero, numeros, winRate, streak, lastUpdateTime } = rouletteData;
-  const isOnline = status?.toLowerCase() === 'online';
-  console.log(`[${componentId}] Renderizando números:`, numeros); // Log 8: Array de números antes de mapear
-  const lastNumbersToDisplay = numeros.map(n => n.numero);
-
-  return (
-    <Card 
-      ref={cardRef}
-      onClick={handleCardClick}
-      className={cn(
-        "relative h-full w-full transition-all group",
-        {
-          'border-primary border-2': isSelected,
-          'cursor-pointer hover:border-primary hover:shadow-md': !isDetailView,
-          'shadow-inner bg-muted/40': isDetailView,
-          'animate-shake': isNewNumber
-        }
-      )}
-    >
-      {loadingTimeout && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="ml-2 text-sm font-medium">Carregando dados...</span>
-        </div>
-      )}
-
-      <CardHeader className="p-3 pb-0">
-        {/* Exibe o NOME da roleta ao invés do ID */}
-        {rouletteData && <RouletteCardTitle data={rouletteData} />}
-        <CardDescription className="text-xs flex justify-between items-center mt-1">
-          <span className="opacity-70">{rouletteData?.provider || 'Provedor desconhecido'}</span>
-          <span className="text-xs flex items-center gap-1">
-            {rouletteData && (
-              <span>{getTimeAgo()}</span>
-            )}
-          </span>
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="p-4 relative z-10">
-        {/* Cabeçalho */}
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold truncate text-white flex items-center">
-            <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
-            {safeData.name}
-          </h3>
-          <div className="flex gap-1 items-center">
-            <Badge 
-              variant={rouletteData ? "secondary" : "default"} 
-              className={`text-xs ${rouletteData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
-            >
-              {rouletteData ? "Online" : "Sem dados"}
-            </Badge>
-          </div>
-        </div>
+    // Registrar para a atualização global, usando o ID como chave
+    EventBus.on(`roulette:update:${safeData.id}`, handleUpdate);
+    
+    // Registrar para qualquer atualização individual
+    unifiedClient.on('update:' + safeData.id, handleUpdate);
+    
+    // Registrar para atualizações em tempo real via SSE
+    import('../services/SocketService').then(module => {
+        const SocketService = module.default;
+        const socketService = SocketService.getInstance();
         
-        {/* Números recentes */}
-        <div className="flex justify-center items-center space-x-1 min-h-[40px]">
-          {lastNumbersToDisplay.slice(0, 5).map((num, index) => (
-            <NumberDisplay 
-              key={`${componentId}-num-${index}-${num}`} 
-              number={num} 
-              size="medium" 
-              highlight={index === 0 && isNewNumber}
-            />
-          ))}
-          {lastNumbersToDisplay.length === 0 && <span className="text-xs text-muted-foreground">Nenhum número recente</span>}
-        </div>
-      </CardContent>
+        // Registrar para atualizações desta roleta específica
+        socketService.subscribe(safeData.name, handleUpdate);
+        
+        console.log(`[${componentId}] Registrado para eventos SSE da roleta: ${safeData.name}`);
+    }).catch(error => {
+        console.error(`[${componentId}] Erro ao importar SocketService:`, error);
+    });
+    
+    // Registrar para eventos do EventService
+    import('../services/EventService').then(module => {
+        const EventService = module.EventService;
+        const eventService = EventService.getInstance();
+        
+        // Registrar para atualizações específicas desta roleta
+        eventService.subscribe(safeData.name, handleUpdate);
+        
+        console.log(`[${componentId}] Registrado para eventos do EventService para roleta: ${safeData.name}`);
+    }).catch(error => {
+        console.error(`[${componentId}] Erro ao importar EventService:`, error);
+    });
+    
+    // Limpar timers e listeners na desmontagem
+    return () => {
+        // Remover listeners de eventos
+        EventBus.off(`roulette:update:${safeData.id}`, handleUpdate);
+        unifiedClient.off('update:' + safeData.id, handleUpdate);
+        
+        // Limpar timers
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+        
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+        }
+        
+        // Limpar qualquer solicitação pendente
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        
+        // Desinscrever dos serviços (versão segura)
+        try {
+            import('../services/SocketService').then(module => {
+                const SocketService = module.default;
+                const socketService = SocketService.getInstance();
+                socketService.unsubscribe(safeData.name, handleUpdate);
+            }).catch(() => {});
+            
+            import('../services/EventService').then(module => {
+                const EventService = module.EventService;
+                const eventService = EventService.getInstance();
+                eventService.unsubscribe(safeData.name, handleUpdate);
+            }).catch(() => {});
+        } catch (e) {
+            console.error(`[${componentId}] Erro ao desinscrever:`, e);
+        }
+    };
+}, [safeData.id, safeData.name, rouletteData]);
 
-      <CardFooter className="p-4 bg-muted/50 flex justify-between items-center text-xs text-muted-foreground">
-        <span>{provider}</span>
-        <Tooltip>
-          <TooltipTrigger>
-            <span>Atualizado: {new Date(lastUpdateTime).toLocaleTimeString()}</span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{new Date(lastUpdateTime).toLocaleString()}</p>
-          </TooltipContent>
-        </Tooltip>
+// Efeito para tocar som quando um novo número chega (somente via SSE)
+useEffect(() => {
+    if (isNewNumber && enableSound) {
+        // Tocar som de atualização
+        try {
+            if (audioRef.current) {
+                audioRef.current.currentTime = 0;
+                audioRef.current.play().catch(e => {
+                    console.warn('[RouletteCard] Erro ao tocar som:', e);
+                });
+            }
+        } catch (e) {
+            console.error('[RouletteCard] Erro ao manipular áudio:', e);
+        }
+        
+        // Resetar flag
+        setIsNewNumber(false);
+    }
+}, [isNewNumber, enableSound]);
+
+// Função para abrir detalhes da roleta
+const handleCardClick = () => {
+  // Removida a navegação para a página de detalhes
+  return; // Não faz nada ao clicar no card
+};
+
+// Formatar tempo relativo
+const getTimeAgo = () => {
+  const seconds = Math.floor((Date.now() - rouletteData.lastUpdateTime) / 1000);
+  if (seconds < 60) return `${seconds}s atrás`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s atrás`;
+};
+
+// Determinar a cor do número
+const getNumberColor = (num: number): string => {
+  if (num === 0) return 'verde';
+  
+  // Números vermelhos na roleta europeia
+  const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+  return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
+};
+
+// Log para verificar o estado antes de renderizar
+console.log(`[${componentId}] Renderizando. Estado rouletteData:`, rouletteData); // Log 7: Estado na renderização
+
+if (isLoading) {
+  return (
+    <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden bg-card text-card-foreground animate-pulse">
+      <CardHeader className="p-4">
+        <div className="h-6 bg-muted rounded w-3/4"></div>
+        <div className="h-4 bg-muted rounded w-1/2 mt-1"></div>
+      </CardHeader>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex justify-center items-center space-x-2">
+          <div className="h-8 w-8 bg-muted rounded-full"></div>
+          <div className="h-8 w-8 bg-muted rounded-full"></div>
+          <div className="h-8 w-8 bg-muted rounded-full"></div>
+          <div className="h-8 w-8 bg-muted rounded-full"></div>
+          <div className="h-8 w-8 bg-muted rounded-full"></div>
+        </div>
+        <div className="h-4 bg-muted rounded w-full"></div>
+      </CardContent>
+      <CardFooter className="p-4 bg-muted/50 flex justify-between items-center">
+        <div className="h-4 bg-muted rounded w-1/4"></div>
+        <div className="h-4 bg-muted rounded w-1/3"></div>
       </CardFooter>
     </Card>
   );
+}
+
+if (error) {
+  return (
+      <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden border-destructive bg-destructive/10 text-destructive-foreground">
+         <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Erro</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent className="p-4">
+              <p className="text-xs">{error}</p>
+              <Button variant="link" size="sm" className="mt-2 text-xs p-0 h-auto" onClick={() => unifiedClient.forceUpdate()}>Tentar novamente</Button>
+          </CardContent>
+      </Card>
+  );
+}
+
+if (!rouletteData) {
+  return (
+      <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden border-muted bg-muted/10 text-muted-foreground">
+         <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Sem Dados</CardTitle>
+              <Info className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="p-4">
+              <p className="text-xs">Ainda não há dados disponíveis para {safeData.name || 'esta roleta'}.</p>
+          </CardContent>
+      </Card>
+  );
+}
+
+// Desestruturação e Renderização Normal
+const { nome, provider, status, ultimoNumero, numeros, winRate, streak, lastUpdateTime } = rouletteData;
+const isOnline = status?.toLowerCase() === 'online';
+console.log(`[${componentId}] Renderizando números:`, numeros); // Log 8: Array de números antes de mapear
+const lastNumbersToDisplay = numeros.map(n => n.numero);
+
+return (
+  <Card 
+    ref={cardRef}
+    onClick={handleCardClick}
+    className={cn(
+      "relative h-full w-full transition-all group",
+      {
+        'border-primary border-2': isSelected,
+        'cursor-pointer hover:border-primary hover:shadow-md': !isDetailView,
+        'shadow-inner bg-muted/40': isDetailView,
+        'animate-shake': isNewNumber
+      }
+    )}
+  >
+    {loadingTimeout && (
+      <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2 text-sm font-medium">Carregando dados...</span>
+      </div>
+    )}
+
+    <CardHeader className="p-3 pb-0">
+      {/* Exibe o NOME da roleta ao invés do ID */}
+      {rouletteData && <RouletteCardTitle data={rouletteData} />}
+      <CardDescription className="text-xs flex justify-between items-center mt-1">
+        <span className="opacity-70">{rouletteData?.provider || 'Provedor desconhecido'}</span>
+        <span className="text-xs flex items-center gap-1">
+          {rouletteData && (
+            <span>{getTimeAgo()}</span>
+          )}
+        </span>
+      </CardDescription>
+    </CardHeader>
+
+    <CardContent className="p-4 relative z-10">
+      {/* Cabeçalho */}
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-lg font-semibold truncate text-white flex items-center">
+          <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
+          {safeData.name}
+        </h3>
+        <div className="flex gap-1 items-center">
+          <Badge 
+            variant={rouletteData ? "secondary" : "default"} 
+            className={`text-xs ${rouletteData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
+          >
+            {rouletteData ? "Online" : "Sem dados"}
+          </Badge>
+        </div>
+      </div>
+      
+      {/* Números recentes */}
+      <div className="flex justify-center items-center space-x-1 min-h-[40px]">
+        {lastNumbersToDisplay.slice(0, 5).map((num, index) => (
+          <NumberDisplay 
+            key={`${componentId}-num-${index}-${num}`} 
+            number={num} 
+            size="medium" 
+            highlight={index === 0 && isNewNumber}
+          />
+        ))}
+        {lastNumbersToDisplay.length === 0 && <span className="text-xs text-muted-foreground">Nenhum número recente</span>}
+      </div>
+    </CardContent>
+
+    <CardFooter className="p-4 bg-muted/50 flex justify-between items-center text-xs text-muted-foreground">
+      <span>{provider}</span>
+      <Tooltip>
+        <TooltipTrigger>
+          <span>Atualizado: {new Date(lastUpdateTime).toLocaleTimeString()}</span>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{new Date(lastUpdateTime).toLocaleString()}</p>
+        </TooltipContent>
+      </Tooltip>
+    </CardFooter>
+  </Card>
+);
 };
 
 export default RouletteCard;
