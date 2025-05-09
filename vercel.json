@@ -42,6 +42,14 @@
     "api/strategies.js": {
       "memory": 1024,
       "maxDuration": 30
+    },
+    "api/health.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/roulettes.js": {
+      "memory": 1024,
+      "maxDuration": 60
     }
   },
   "rewrites": [
@@ -94,7 +102,19 @@
       "destination": "/api/strategies.js"
     },
     {
-      "source": "/api/((?!asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|update-user|ai/query|strategies).*)",
+      "source": "/api/health",
+      "destination": "/api/health.js"
+    },
+    {
+      "source": "/api/historical/all-roulettes",
+      "destination": "/api/roulettes.js"
+    },
+    {
+      "source": "/api/stream/roulettes",
+      "destination": "/api/roulettes.js?mode=stream"
+    },
+    {
+      "source": "/api/((?!asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|update-user|ai/query|strategies|health|historical/all-roulettes|stream/roulettes).*)",
       "destination": "https://starfish-app-fubxw.ondigitalocean.app/api/$1"
     },
     {
