@@ -9,20 +9,54 @@ import { EventService } from "./EventService";
 // Classe para gerenciar a conexão com o servidor
 class SocketService {
   private static _instance: SocketService;
-  private eventService: EventService;
+  private eventService: EventService | null = null;
   private isUsingSSE: boolean = false;
   private restSocketService: RESTSocketService;
   private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
+  private pendingInitialization: boolean = false;
 
   private constructor() {
     // Obter instância do serviço REST
     this.restSocketService = RESTSocketService.getInstance();
     
     console.log('[SocketService] Inicializando serviço híbrido Socket+SSE');
-    this.eventService = EventService.getInstance();
     
-    // Tentar iniciar a conexão SSE
-    this.initSSEConnection();
+    // Inicialização segura e assíncrona do EventService
+    this.initEventService();
+  }
+
+  /**
+   * Inicializa o EventService de forma segura
+   */
+  private async initEventService(): Promise<void> {
+    if (this.pendingInitialization) {
+      return; // Evitar inicializações duplicadas
+    }
+
+    this.pendingInitialization = true;
+
+    try {
+      // Obter a instância do EventService
+      const eventService = EventService.getInstance();
+      
+      // Verificar se a instância é válida antes de usá-la
+      if (eventService) {
+        this.eventService = eventService;
+        
+        // Tentar iniciar a conexão SSE após ter o EventService
+        setTimeout(() => {
+          this.initSSEConnection();
+        }, 500); // Pequeno atraso para garantir que o EventService tenha tempo de inicializar completamente
+      } else {
+        console.warn('[SocketService] EventService não disponível, usando apenas REST');
+        this.isUsingSSE = false;
+      }
+    } catch (error) {
+      console.error('[SocketService] Erro ao inicializar EventService:', error);
+      this.isUsingSSE = false;
+    } finally {
+      this.pendingInitialization = false;
+    }
   }
 
   /**
@@ -41,6 +75,14 @@ class SocketService {
   private initSSEConnection(): void {
     try {
       console.log('[SocketService] Tentando iniciar conexão SSE...');
+      
+      // Verificar se o eventService está disponível
+      if (!this.eventService) {
+        console.warn('[SocketService] EventService não inicializado, tentando novamente...');
+        // Reagendar a inicialização
+        setTimeout(() => this.initEventService(), 1000);
+        return;
+      }
       
       // Registrar callback global para receber eventos SSE
       this.eventService.subscribeToGlobalEvents((event) => {
@@ -132,6 +174,15 @@ class SocketService {
     
     // Registrar também no serviço REST para garantir dados históricos
     this.restSocketService.subscribe(roletaNome, callback);
+    
+    // Se estivermos usando SSE, registre também no EventService
+    if (this.eventService) {
+      try {
+        this.eventService.subscribe(roletaNome, callback);
+      } catch (e) {
+        console.warn(`[SocketService] Não foi possível registrar no EventService:`, e);
+      }
+    }
   }
 
   /**
@@ -149,6 +200,15 @@ class SocketService {
     
     // Remover também do serviço REST
     this.restSocketService.unsubscribe(roletaNome, callback);
+    
+    // Se estivermos usando SSE, remova também do EventService
+    if (this.eventService) {
+      try {
+        this.eventService.unsubscribe(roletaNome, callback);
+      } catch (e) {
+        console.warn(`[SocketService] Erro ao remover listener do EventService:`, e);
+      }
+    }
   }
 
   /**
@@ -156,10 +216,12 @@ class SocketService {
    */
   public disconnect(): void {
     // Desconectar do EventService
-    try {
-      this.eventService.disconnect();
-    } catch (e) {
-      console.error('[SocketService] Erro ao desconectar EventService:', e);
+    if (this.eventService) {
+      try {
+        this.eventService.disconnect();
+      } catch (e) {
+        console.error('[SocketService] Erro ao desconectar EventService:', e);
+      }
     }
     
     // Desconectar também do serviço REST
@@ -222,6 +284,64 @@ class SocketService {
    */
   public async requestRecentNumbers(): Promise<boolean> {
     return this.restSocketService.requestRecentNumbers();
+  }
+  
+  /**
+   * Carrega o histórico de números para todas as roletas
+   */
+  public async loadHistoricalRouletteNumbers(): Promise<void> {
+    console.log('[SocketService] Carregando histórico de números para todas as roletas');
+    
+    try {
+      // Verificar se o método existe no restSocketService
+      if (typeof this.restSocketService.loadHistoricalRouletteNumbers === 'function') {
+        await this.restSocketService.loadHistoricalRouletteNumbers();
+        console.log('[SocketService] Histórico carregado com sucesso via RESTSocketService');
+      } else {
+        // Implementação alternativa caso o método não exista no RESTSocketService
+        console.log('[SocketService] Usando implementação alternativa para carregar histórico');
+        const response = await fetch('/api/historical/all-roulettes');
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`[SocketService] Carregados dados históricos de ${data.length || 0} roletas`);
+          
+          // Processar dados se necessário
+          if (Array.isArray(data)) {
+            data.forEach(roulette => {
+              if (roulette && roulette.id && Array.isArray(roulette.numbers)) {
+                // Extrair apenas os números
+                const numbers = roulette.numbers.map((n: any) => 
+                  typeof n === 'number' ? n : (n.number || n.numero)
+                ).filter(Boolean);
+                
+                // Armazenar no cache do serviço
+                if (numbers.length > 0) {
+                  this.setRouletteHistory(roulette.id, numbers);
+                }
+              }
+            });
+          }
+        } else {
+          console.warn(`[SocketService] Falha ao carregar histórico: ${response.status} ${response.statusText}`);
+        }
+      }
+    } catch (error) {
+      console.error('[SocketService] Erro ao carregar histórico de números:', error);
+    }
+  }
+  
+  /**
+   * Método compatível com a API do RESTSocketService para carregamento de histórico
+   */
+  public async fetchRouletteNumbersREST(roletaId: string, limit: number = 200): Promise<boolean> {
+    // Verificar se o método existe no restSocketService
+    if (typeof this.restSocketService.requestRouletteNumbers === 'function') {
+      return this.restSocketService.requestRouletteNumbers(roletaId);
+    }
+    
+    // Fallback se o método não existir
+    console.warn('[SocketService] Método fetchRouletteNumbersREST não implementado no RESTSocketService');
+    return false;
   }
 }
 

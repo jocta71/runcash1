@@ -265,52 +265,75 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
                 
                 // Verificar se o evento é do tipo 'new_number' (formato SSE)
                 if (updateData.type === 'new_number') {
+                    console.log(`[${componentId}] Recebido evento SSE new_number:`, updateData.numero);
+                    
                     // Construir objeto no formato esperado pelo processador
-                    const currentData = rouletteData || { numeros: [] };
+                    const currentData = rouletteData || { numeros: [], nome: safeData.name };
+                    
+                    // Se o número já está nos dados atuais, não adicionar duplicado
+                    const numeroJaExiste = currentData.numeros && 
+                                          currentData.numeros.some(n => n.numero === updateData.numero);
+                    
+                    if (numeroJaExiste) {
+                        console.log(`[${componentId}] Número ${updateData.numero} já existe, ignorando duplicação`);
+                        return;
+                    }
+                    
                     const newData = {
                         ...currentData,
                         id: updateData.roleta_id,
-                        nome: updateData.roleta_nome,
+                        nome: updateData.roleta_nome || currentData.nome,
                         numbers: [
                             { 
                                 number: updateData.numero, 
-                                timestamp: updateData.timestamp 
+                                timestamp: updateData.timestamp || new Date().toISOString()
                             },
                             ...(currentData.numeros || []).map(n => ({ 
                                 number: n.numero, 
                                 timestamp: n.timestamp 
                             }))
-                        ]
+                        ],
+                        // Atualizar timestamp
+                        lastUpdateTime: Date.now()
                     };
+                    
+                    console.log(`[${componentId}] Dados preparados para processamento:`, 
+                                { id: newData.id, nome: newData.nome, numbers: newData.numbers.length });
                     
                     processedData = processRouletteData(newData);
                     
-                    // Definir flag para tocar som se for update via SSE
-                    setIsNewNumber(true);
+                    if (processedData) {
+                        // Definir flag para tocar som apenas se processamos o dado com sucesso
+                        setIsNewNumber(true);
+                        
+                        // Pequena animação visual
+                        if (cardRef.current) {
+                            cardRef.current.classList.add('card-updated');
+                            setTimeout(() => {
+                                if (cardRef.current) {
+                                    cardRef.current.classList.remove('card-updated');
+                                }
+                            }, 1000);
+                        }
+                    }
                 } else {
                     // Formato normal de dados
                     processedData = processRouletteData(updateData);
                 }
                 
                 if (processedData) {
-                    console.log(`[${componentId}] Atualizando estado com novos dados:`, processedData.numeros?.[0]?.numero);
+                    console.log(`[${componentId}] ✅ Atualizando estado com novos dados:`, 
+                                processedData.numeros?.[0]?.numero);
+                    
                     setRouletteData(processedData);
                     setIsLoading(false);
                     setError(null);
                     
                     // Incrementar contador de atualizações
                     setUpdateCount(prev => prev + 1);
-                    
-                    // Adicionar classe de animação ao receber novos dados
-                    if (cardRef.current) {
-                        cardRef.current.classList.add('card-updated');
-                        // Remover classe após animação
-                        setTimeout(() => {
-                            if (cardRef.current) {
-                                cardRef.current.classList.remove('card-updated');
-                            }
-                        }, 1000);
-                    }
+                } else {
+                    console.warn(`[${componentId}] ❌ Falha ao processar dados:`, 
+                                 JSON.stringify(updateData).substring(0, 100));
                 }
             }
         } catch (error) {
@@ -324,6 +347,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     // Registrar para qualquer atualização individual
     unifiedClient.on('update:' + safeData.id, handleUpdate);
     
+    // IMPORTANTE: Registrar para os eventos gerais também
+    unifiedClient.on('update', (data) => {
+        // Filtrar apenas eventos para esta roleta
+        if (Array.isArray(data)) {
+            const myData = data.find(r => (r.id || r.roleta_id) === safeData.id);
+            if (myData) {
+                handleUpdate(myData);
+            }
+        }
+    });
+    
     // Registrar para atualizações em tempo real via SSE
     import('../services/SocketService').then(module => {
         const SocketService = module.default;
@@ -331,6 +365,19 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         
         // Registrar para atualizações desta roleta específica
         socketService.subscribe(safeData.name, handleUpdate);
+        
+        // Também registrar para o ID da roleta caso o nome seja diferente
+        if (safeData.id !== safeData.name) {
+            socketService.subscribe(safeData.id, handleUpdate);
+        }
+        
+        // Registrar para eventos globais (*)
+        socketService.subscribe('*', (event) => {
+            // Filtrar apenas eventos para esta roleta
+            if (event && event.roleta_id === safeData.id) {
+                handleUpdate(event);
+            }
+        });
         
         console.log(`[${componentId}] Registrado para eventos SSE da roleta: ${safeData.name}`);
     }).catch(error => {
@@ -345,6 +392,18 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         // Registrar para atualizações específicas desta roleta
         eventService.subscribe(safeData.name, handleUpdate);
         
+        // Também registrar para o ID como alternativa
+        if (safeData.id !== safeData.name) {
+            eventService.subscribe(safeData.id, handleUpdate);
+        }
+        
+        // Registrar para eventos globais
+        eventService.subscribeToGlobalEvents((event) => {
+            if (event && event.roleta_id === safeData.id) {
+                handleUpdate(event);
+            }
+        });
+        
         console.log(`[${componentId}] Registrado para eventos do EventService para roleta: ${safeData.name}`);
     }).catch(error => {
         console.error(`[${componentId}] Erro ao importar EventService:`, error);
@@ -355,6 +414,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         // Remover listeners de eventos
         EventBus.off(`roulette:update:${safeData.id}`, handleUpdate);
         unifiedClient.off('update:' + safeData.id, handleUpdate);
+        unifiedClient.off('update', handleUpdate);
         
         // Limpar timers
         if (timeoutRef.current) {
@@ -376,18 +436,26 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
                 const SocketService = module.default;
                 const socketService = SocketService.getInstance();
                 socketService.unsubscribe(safeData.name, handleUpdate);
+                if (safeData.id !== safeData.name) {
+                    socketService.unsubscribe(safeData.id, handleUpdate);
+                }
+                socketService.unsubscribe('*', handleUpdate);
             }).catch(() => {});
             
             import('../services/EventService').then(module => {
                 const EventService = module.EventService;
                 const eventService = EventService.getInstance();
                 eventService.unsubscribe(safeData.name, handleUpdate);
+                if (safeData.id !== safeData.name) {
+                    eventService.unsubscribe(safeData.id, handleUpdate);
+                }
+                eventService.unsubscribeFromGlobalEvents(handleUpdate);
             }).catch(() => {});
         } catch (e) {
             console.error(`[${componentId}] Erro ao desinscrever:`, e);
         }
     };
-}, [safeData.id, safeData.name, rouletteData]);
+}, [safeData.id, safeData.name]);
 
 // Efeito para tocar som quando um novo número chega (somente via SSE)
 useEffect(() => {
