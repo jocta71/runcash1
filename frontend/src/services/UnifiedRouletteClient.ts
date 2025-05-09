@@ -1287,6 +1287,8 @@ class UnifiedRouletteClient {
             apiUrl = getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
             this.log(`Buscando histórico inicial de: ${apiUrl}`); // Log para depuração
             
+            // Nota: Como HISTORICAL.ALL_ROULETTES já contém o prefixo '/api', 
+            // não precisamos adicionar novamente ao construir a URL
             // Adicionar timeout na requisição para evitar que fique pendente indefinidamente
             const response = await axios.get<{ success: boolean; data: Record<string, RouletteNumber[]>; message?: string }>(
               apiUrl, 
