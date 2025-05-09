@@ -185,10 +185,28 @@ export class EventService {
     this.usingSocketService = true;
     this.isConnected = true; // Simular conexão estabelecida
     
-    // Registrar com o global listener para todos os eventos (*)
-    const socketService = SocketService.getInstance();
-    socketService.subscribe('*', this.handleSocketEvent);
-    this.socketServiceSubscriptions.add('*');
+    try {
+      // Importar dinamicamente para evitar dependência circular
+      import('./SocketService').then(module => {
+        const SocketService = module.default;
+        const socketService = SocketService.getInstance();
+        
+        // Verificar se o serviço foi inicializado
+        if (socketService) {
+          // Registrar com o global listener para todos os eventos (*)
+          socketService.subscribe('*', this.handleSocketEvent);
+          this.socketServiceSubscriptions.add('*');
+          
+          console.log('[EventService] SocketService conectado com sucesso');
+        } else {
+          console.warn('[EventService] SocketService não disponível para fallback');
+        }
+      }).catch(error => {
+        console.error('[EventService] Erro ao importar SocketService:', error);
+      });
+    } catch (error) {
+      console.error('[EventService] Erro ao inicializar SocketService:', error);
+    }
   }
   
   // Handler para eventos do SocketService
