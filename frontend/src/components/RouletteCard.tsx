@@ -1,6 +1,6 @@
 import { Loader2 } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { RouletteData } from '@/types';
 import NumberDisplay from './NumberDisplay';
@@ -31,10 +31,7 @@ interface RouletteNumber {
 }
 
 interface RouletteCardProps {
-  data: any; // Manter any por enquanto ou definir tipo específico
-  isDetailView?: boolean;
-  onSelect?: (id: string) => void;
-  isSelected?: boolean;
+  roulette: any;
 }
 
 // Interface para os dados específicos que o Card precisa
@@ -204,362 +201,165 @@ const RouletteCardTitle = ({ data }: { data: ProcessedRouletteData }) => (
   </div>
 );
 
-const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetailView = false, onSelect, isSelected }) => {
-  // Estados
-  const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(() => {
-       // Usar função no useState para processar apenas uma vez na montagem inicial
-       const processedInitial = processRouletteData(initialData);
-       console.log(`[RouletteCard - ${initialData?.id}] Estado inicial definido com:`, processedInitial); // Log 5: Estado inicial
-       return processedInitial;
-  });
-  const [isLoading, setIsLoading] = useState(!rouletteData); // Correto: true se não houver dados iniciais
+export const RouletteCard: React.FC<RouletteCardProps> = ({ roulette }) => {
+  const [data, setData] = useState<any>(roulette);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [isNewNumber, setIsNewNumber] = useState(false);
-  const [updateCount, setUpdateCount] = useState(0);
-  const [loadingTimeout, setLoadingTimeout] = useState(false);
-  const [historicalDataReady, setHistoricalDataReady] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Refs
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const cardRef = useRef<HTMLDivElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  
-  // Hooks
-  const navigate = useNavigate();
-  const { enableSound, enableNotifications } = useRouletteSettingsStore();
-  
-  // Dados iniciais seguros
-  const safeData = useMemo(() => ({
-    id: initialData?.id || initialData?._id || 'unknown',
-    name: initialData?.name || initialData?.nome || 'Roleta sem nome',
-  }), [initialData]);
-  
-  // ID único para este componente
-  const componentId = useRef(`roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`).current;
-  
-  // Obter instância do UnifiedClient
-  const unifiedClient = UnifiedRouletteClient.getInstance();
+  // Função auxiliar para normalizar o ID da roleta
+  const getRoulettId = (rouletteData: any): string => {
+    return rouletteData?.id || rouletteData?.roleta_id || '';
+  };
 
-  // Verificar se os dados históricos estão prontos
+  // Função auxiliar para obter o nome da roleta
+  const getRouletteName = (rouletteData: any): string => {
+    return rouletteData?.nome || rouletteData?.name || rouletteData?.roleta_nome || 'Roleta sem nome';
+  };
+
+  // Função auxiliar para obter os números da roleta
+  const getRouletteNumbers = (rouletteData: any): number[] => {
+    // Tentar diferentes formatos de dados
+    if (Array.isArray(rouletteData?.numeros)) {
+      return rouletteData.numeros;
+    }
+    if (Array.isArray(rouletteData?.numbers)) {
+      return rouletteData.numbers;
+    }
+    if (Array.isArray(rouletteData?.sequencia)) {
+      return rouletteData.sequencia;
+    }
+    return [];
+  };
+
+  // Função auxiliar para obter o último número da roleta
+  const getLatestNumber = (rouletteData: any): number | null => {
+    // Tentar diferentes formatos de dados
+    if (rouletteData?.ultimoNumero !== undefined) {
+      return rouletteData.ultimoNumero;
+    }
+    if (rouletteData?.numero !== undefined) {
+      return rouletteData.numero;
+    }
+    if (rouletteData?.lastNumber !== undefined) {
+      return rouletteData.lastNumber;
+    }
+    // Se não encontrar, tentar pegar o primeiro número da sequência
+    const numbers = getRouletteNumbers(rouletteData);
+    return numbers.length > 0 ? numbers[0] : null;
+  };
+
   useEffect(() => {
-    let isMounted = true;
-    let timeoutId: NodeJS.Timeout | null = null;
+    // Garantir que temos os dados iniciais
+    if (roulette) {
+      setData(roulette);
+    }
     
-    const checkHistoricalData = async () => {
-      try {
-        // Aguardar o carregamento dos dados históricos
-        if (unifiedClient.getHistoryLoadPromise()) {
-          // Adicionar um timeout para não ficar esperando indefinidamente
-          const timeoutPromise = new Promise<void>((_, reject) => {
-            timeoutId = setTimeout(() => {
-              reject(new Error('Timeout ao aguardar histórico'));
-            }, 10000); // 10 segundos
-          });
-          
-          try {
-            // Usar Promise.race para limitar o tempo de espera
-            await Promise.race([
-              unifiedClient.getHistoryLoadPromise(),
-              timeoutPromise
-            ]);
-          } catch (err) {
-            console.warn(`[RouletteCard - ${safeData.id}] Timeout ao aguardar histórico:`, err);
-            // Continuar mesmo com timeout
-          } finally {
-            if (timeoutId) clearTimeout(timeoutId);
-          }
-        } else {
-          // Se não houver promessa existente, tenta buscar os dados com timeout
-          try {
-            const timeoutPromise = new Promise<void>((_, reject) => {
-              timeoutId = setTimeout(() => {
-                reject(new Error('Timeout ao carregar histórico'));
-              }, 10000); // 10 segundos
-            });
-            
-            await Promise.race([
-              unifiedClient.loadHistoricalData(),
-              timeoutPromise
-            ]);
-          } catch (err) {
-            console.warn(`[RouletteCard - ${safeData.id}] Timeout ao carregar histórico:`, err);
-            // Continuar mesmo com timeout
-          } finally {
-            if (timeoutId) clearTimeout(timeoutId);
-          }
-        }
+    const unifiedClient = UnifiedRouletteClient.getInstance();
+    const rouletteId = getRoulettId(roulette);
+    
+    // Função para lidar com atualizações de dados
+    const handleUpdate = (updateData: any) => {
+      // Se for um array, procurar a roleta relevante
+      if (Array.isArray(updateData)) {
+        const updatedRoulette = updateData.find(
+          r => getRoulettId(r) === rouletteId
+        );
         
-        // Atualizar estado apenas se o componente ainda estiver montado
-        if (isMounted) {
-          setHistoricalDataReady(true);
+        if (updatedRoulette) {
+          setData(updatedRoulette);
+          setIsLoading(false);
+          setError(null);
         }
-      } catch (err) {
-        console.error(`[RouletteCard - ${safeData.id}] Erro ao aguardar dados históricos:`, err);
-        // Mesmo com erro, permitir a continuação do fluxo para não bloquear a renderização
-        if (isMounted) {
-          setHistoricalDataReady(true);
-        }
+      } 
+      // Se for um objeto único, verificar se é para esta roleta
+      else if (updateData && (getRoulettId(updateData) === rouletteId)) {
+        setData(updateData);
+        setIsLoading(false);
+        setError(null);
       }
     };
-
-    checkHistoricalData();
     
-    // Timeout de segurança para garantir que o componente não fique bloqueado
-    const safetyTimeout = setTimeout(() => {
-      if (isMounted) {
-        console.log(`[RouletteCard - ${safeData.id}] Safety timeout acionado, forçando continuação`);
-        setHistoricalDataReady(true);
+    // Tentar buscar dados do cache primeiro
+    const cachedData = unifiedClient.getRouletteById(rouletteId);
+    if (cachedData) {
+      setData(cachedData);
+    }
+    
+    // Assinar eventos de atualização do UnifiedClient
+    const unsubscribe = unifiedClient.on('update', handleUpdate);
+    
+    // Assinar eventos do EventBus (legado)
+    const handleLegacyUpdate = (event: any) => {
+      if (event && event.data) {
+        handleUpdate(event.data);
       }
-    }, 15000); // 15 segundos de timeout de segurança
+    };
+    
+    EventBus.on('roulette:data-updated', handleLegacyUpdate);
     
     // Cleanup
     return () => {
-      isMounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
-      clearTimeout(safetyTimeout);
-    };
-  }, [safeData.id]);
-  
-  // Efeito para iniciar a busca de dados
-  useEffect(() => {
-    // Não prosseguir se os dados históricos não estiverem prontos
-    if (!historicalDataReady) {
-      console.log(`[${componentId}] Aguardando carregamento dos dados históricos...`);
-      return;
-    }
-
-    console.log(`[${componentId}] useEffect executado. ID: ${safeData.id}`);
-
-    const handleUpdate = (updateData: any) => {
-      // Verificar se os dados recebidos são relevantes para esta roleta
-      let relevantData = null;
-      
-      // Se recebemos um array, encontrar a roleta pelo ID
-      if (Array.isArray(updateData)) {
-        relevantData = updateData.find(r => 
-          r.id === safeData.id || 
-          r._id === safeData.id ||
-          r.roleta_id === safeData.id);
-      } 
-      // Se recebemos um objeto único, verificar se é para esta roleta
-      else if (updateData && (
-        updateData.id === safeData.id || 
-        updateData._id === safeData.id ||
-        updateData.roleta_id === safeData.id)) {
-        relevantData = updateData;
-      }
-      
-      // Se não encontramos dados relevantes, não fazer nada
-      if (!relevantData) {
-        return;
-      }
-      
-      console.log(`[${componentId}] Dados atualizados recebidos para roleta ${safeData.id}`);
-      
-      // Processar dados e atualizar estado
-      const processedData = processRouletteData(relevantData);
-      if (processedData) {
-        setRouletteData(processedData);
-        setIsLoading(false);
-        setError(null);
-        
-        // Verificar se é um novo número
-        if (processedData.ultimoNumero !== rouletteData?.ultimoNumero) {
-          setIsNewNumber(true);
-          // Limpar o estado 'isNewNumber' após alguns segundos
-          setTimeout(() => setIsNewNumber(false), 3000);
-        }
-      }
-    };
-    
-    // Tentar buscar dados do cache do UnifiedClient primeiro
-    const cachedData = unifiedClient.getRouletteById(safeData.id);
-    if (cachedData) {
-      console.log(`[${componentId}] Usando dados em cache do UnifiedClient`);
-      const processedData = processRouletteData(cachedData);
-      if (processedData) {
-        setRouletteData(processedData);
-        setIsLoading(false);
-      }
-    }
-    
-    // Inscrever-se para atualizações futuras
-    const unsubscribe = unifiedClient.on('update', handleUpdate);
-    
-    // Lógica de limpeza
-    return () => {
       unsubscribe();
+      EventBus.off('roulette:data-updated', handleLegacyUpdate);
     };
-  }, [safeData.id, historicalDataReady, rouletteData?.ultimoNumero]);
-  
-  // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
-  // Console.log para verificar se há apenas uma fonte de requisições:
-  console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas UnifiedRouletteClient para obter dados da API.');
-  
-  // Função para abrir detalhes da roleta
-  const handleCardClick = () => {
-    // Removida a navegação para a página de detalhes
-    return; // Não faz nada ao clicar no card
-  };
-  
-  // Formatar tempo relativo
-  const getTimeAgo = () => {
-    const seconds = Math.floor((Date.now() - rouletteData.lastUpdateTime) / 1000);
-    if (seconds < 60) return `${seconds}s atrás`;
-    return `${Math.floor(seconds / 60)}m ${seconds % 60}s atrás`;
-  };
-  
-  // Determinar a cor do número
-  const getNumberColor = (num: number): string => {
-    if (num === 0) return 'verde';
-    
-    // Números vermelhos na roleta europeia
-    const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    return numerosVermelhos.includes(num) ? 'vermelho' : 'preto';
-  };
+  }, [roulette]);
 
-  // Log para verificar o estado antes de renderizar
-  console.log(`[${componentId}] Renderizando. Estado rouletteData:`, rouletteData); // Log 7: Estado na renderização
+  // Renderizar cartão com dados da roleta
+  const rouletteId = getRoulettId(data);
+  const rouletteName = getRouletteName(data);
+  const numbers = getRouletteNumbers(data);
+  const latestNumber = getLatestNumber(data);
 
+  // Renderizar indicador de loading, se necessário
   if (isLoading) {
     return (
-      <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden bg-card text-card-foreground animate-pulse">
-        <CardHeader className="p-4">
-          <div className="h-6 bg-muted rounded w-3/4"></div>
-          <div className="h-4 bg-muted rounded w-1/2 mt-1"></div>
-        </CardHeader>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex justify-center items-center space-x-2">
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-            <div className="h-8 w-8 bg-muted rounded-full"></div>
-          </div>
-          <div className="h-4 bg-muted rounded w-full"></div>
-        </CardContent>
-        <CardFooter className="p-4 bg-muted/50 flex justify-between items-center">
-          <div className="h-4 bg-muted rounded w-1/4"></div>
-          <div className="h-4 bg-muted rounded w-1/3"></div>
-        </CardFooter>
-      </Card>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col animate-pulse">
+        <div className="h-8 bg-gray-300 dark:bg-gray-700 rounded-md mb-4"></div>
+        <div className="flex space-x-2 mb-4">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="w-10 h-10 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
+          ))}
+        </div>
+        <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded-md mt-auto"></div>
+      </div>
     );
   }
 
+  // Renderizar mensagem de erro, se necessário
   if (error) {
     return (
-        <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden border-destructive bg-destructive/10 text-destructive-foreground">
-           <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Erro</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent className="p-4">
-                <p className="text-xs">{error}</p>
-                <Button variant="link" size="sm" className="mt-2 text-xs p-0 h-auto" onClick={() => unifiedClient.forceUpdate()}>Tentar novamente</Button>
-            </CardContent>
-        </Card>
+      <div className="bg-red-100 dark:bg-red-900 rounded-lg shadow-md p-4">
+        <h3 className="text-lg font-semibold text-red-800 dark:text-red-200">Erro</h3>
+        <p className="text-red-600 dark:text-red-300">{error}</p>
+      </div>
     );
   }
 
-  if (!rouletteData) {
-    return (
-        <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden border-muted bg-muted/10 text-muted-foreground">
-           <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Sem Dados</CardTitle>
-                <Info className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="p-4">
-                <p className="text-xs">Ainda não há dados disponíveis para {safeData.name || 'esta roleta'}.</p>
-            </CardContent>
-        </Card>
-    );
-  }
-  
-  // Desestruturação e Renderização Normal
-  const { nome, provider, status, ultimoNumero, numeros, winRate, streak, lastUpdateTime } = rouletteData;
-  const isOnline = status?.toLowerCase() === 'online';
-  console.log(`[${componentId}] Renderizando números:`, numeros); // Log 8: Array de números antes de mapear
-  const lastNumbersToDisplay = numeros.map(n => n.numero);
-
+  // Renderizar cartão normal
   return (
-    <Card 
-      ref={cardRef}
-      onClick={handleCardClick}
-      className={cn(
-        "relative h-full w-full transition-all group",
-        {
-          'border-primary border-2': isSelected,
-          'cursor-pointer hover:border-primary hover:shadow-md': !isDetailView,
-          'shadow-inner bg-muted/40': isDetailView,
-          'animate-shake': isNewNumber
-        }
-      )}
-    >
-      {loadingTimeout && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="ml-2 text-sm font-medium">Carregando dados...</span>
-        </div>
-      )}
-
-      <CardHeader className="p-3 pb-0">
-        {/* Exibe o NOME da roleta ao invés do ID */}
-        {rouletteData && <RouletteCardTitle data={rouletteData} />}
-        <CardDescription className="text-xs flex justify-between items-center mt-1">
-          <span className="opacity-70">{rouletteData?.provider || 'Provedor desconhecido'}</span>
-          <span className="text-xs flex items-center gap-1">
-            {rouletteData && (
-              <span>{getTimeAgo()}</span>
-            )}
-          </span>
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="p-4 relative z-10">
-        {/* Cabeçalho */}
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold truncate text-white flex items-center">
-            <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
-            {safeData.name}
-          </h3>
-          <div className="flex gap-1 items-center">
-            <Badge 
-              variant={rouletteData ? "secondary" : "default"} 
-              className={`text-xs ${rouletteData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
-            >
-              {rouletteData ? "Online" : "Sem dados"}
-            </Badge>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col">
+      <Link to={`/roulette/${rouletteId}`} className="block">
+        <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">{rouletteName}</h3>
+      </Link>
+      
+      <div className="flex space-x-2 mb-4 overflow-x-auto">
+        {numbers.slice(0, 10).map((number, index) => (
+          <div 
+            key={index} 
+            className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold
+              ${index === 0 ? 'bg-blue-600 ring-2 ring-blue-300' : 'bg-gray-500'}`}
+          >
+            {number}
           </div>
-        </div>
-        
-        {/* Números recentes */}
-        <div className="flex justify-center items-center space-x-1 min-h-[40px]">
-          {lastNumbersToDisplay.slice(0, 5).map((num, index) => (
-            <NumberDisplay 
-              key={`${componentId}-num-${index}-${num}`} 
-              number={num} 
-              size="medium" 
-              highlight={index === 0 && isNewNumber}
-            />
-          ))}
-          {lastNumbersToDisplay.length === 0 && <span className="text-xs text-muted-foreground">Nenhum número recente</span>}
-        </div>
-      </CardContent>
-
-      <CardFooter className="p-4 bg-muted/50 flex justify-between items-center text-xs text-muted-foreground">
-        <span>{provider}</span>
-        <Tooltip>
-          <TooltipTrigger>
-            <span>Atualizado: {new Date(lastUpdateTime).toLocaleTimeString()}</span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{new Date(lastUpdateTime).toLocaleString()}</p>
-          </TooltipContent>
-        </Tooltip>
-      </CardFooter>
-    </Card>
+        ))}
+      </div>
+      
+      <div className="mt-auto">
+        <Link to={`/roulette/${rouletteId}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+          Ver estratégias
+        </Link>
+      </div>
+    </div>
   );
 };
 

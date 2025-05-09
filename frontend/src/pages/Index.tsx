@@ -24,6 +24,8 @@ import { useSubscription } from '@/context/SubscriptionContext';
 import SubscriptionRequired from '@/components/SubscriptionRequired';
 import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
 import UnifiedRouletteClient from '@/services/UnifiedRouletteClient';
+import EventBus from '@/services/EventBus';
+import { Helmet } from 'react-helmet-async';
 
 
 
@@ -236,6 +238,12 @@ const Index = () => {
   
   const navigate = useNavigate();
   
+  // Tempo máximo (em ms) para esperar por dados antes de renderizar mesmo sem eles
+  const MAX_WAIT_TIME = 15000;
+  const checkDataIntervalId = useRef<number | null>(null);
+  const waitTimeoutId = useRef<number | null>(null);
+  const unifiedClient = useRef<UnifiedRouletteClient>(UnifiedRouletteClient.getInstance());
+  
   // Escutar eventos de roletas existentes para persistência
   useEffect(() => {
     const handleRouletteExists = (event: RouletteNumberEvent | StrategyUpdateEvent) => {
@@ -275,34 +283,69 @@ const Index = () => {
   
   // Escutar eventos de carregamento de dados históricos
   useEffect(() => {
-    // Handler para evento de dados históricos carregados
-    const handleHistoricalDataLoaded = (event: RouletteNumberEvent | StrategyUpdateEvent) => {
-      const data = event as unknown as { success: boolean; count?: number };
-      console.log('[Index] Evento historical_data_loaded recebido:', data);
-      if (data && data.success) {
-        console.log(`[Index] Dados históricos carregados com sucesso para ${data.count || 0} roletas`);
-        setDataFullyLoaded(true);
+    // Função para verificar se temos roletas disponíveis
+    const checkForRoulettes = () => {
+      const allRoulettes = unifiedClient.current.getAllRoulettes();
+      console.log('[Index] Verificando roletas disponíveis:', allRoulettes.length);
+      
+      if (allRoulettes && allRoulettes.length > 0) {
+        // Temos dados! Vamos usá-los
+        setRoulettes(allRoulettes);
+        setIsLoading(false);
+        
+        // Limpar o intervalo pois encontramos dados
+        if (checkDataIntervalId.current) {
+          window.clearInterval(checkDataIntervalId.current);
+          checkDataIntervalId.current = null;
+        }
+        
+        // Limpar o timeout de segurança, se existir
+        if (waitTimeoutId.current) {
+          window.clearTimeout(waitTimeoutId.current);
+          waitTimeoutId.current = null;
+        }
+        
+        console.log('[Index] Dados de roleta carregados com sucesso:', allRoulettes.length);
       }
     };
     
-    // Handler para evento de dados reais carregados
-    const handleRealDataLoaded = () => {
-      console.log('[Index] Evento Dados reais carregados recebido');
-      setDataFullyLoaded(true);
+    // Verificar periodicamente pelos dados
+    checkDataIntervalId.current = window.setInterval(checkForRoulettes, 500) as unknown as number;
+    
+    // Definir timeout de segurança para não bloquear indefinidamente
+    waitTimeoutId.current = window.setTimeout(() => {
+      console.log('[Index] Timeout atingido, renderizando mesmo sem dados');
       setIsLoading(false);
+      
+      // Limpar o intervalo de verificação
+      if (checkDataIntervalId.current) {
+        window.clearInterval(checkDataIntervalId.current);
+        checkDataIntervalId.current = null;
+      }
+      
+      // Verificar mais uma vez antes de renderizar sem dados
+      checkForRoulettes();
+    }, MAX_WAIT_TIME) as unknown as number;
+    
+    // Inscrever-se no evento de dados carregados
+    const handleRouletteDataLoaded = () => {
+      console.log('[Index] Evento de dados carregados recebido');
+      checkForRoulettes();
     };
     
-    // Registrar listeners
-    EventService.getInstance().subscribe('historical_data_loaded', handleHistoricalDataLoaded);
-    EventService.getInstance().subscribe('roulettes_loaded', handleRealDataLoaded);
+    EventBus.on('roulettes_loaded', handleRouletteDataLoaded);
     
-    console.log('[Index] Listeners para eventos de carregamento registrados');
-    
+    // Cleanup ao desmontar
     return () => {
-      // Remover listeners ao desmontar
-      EventService.getInstance().unsubscribe('historical_data_loaded', handleHistoricalDataLoaded);
-      EventService.getInstance().unsubscribe('roulettes_loaded', handleRealDataLoaded);
-      console.log('[Index] Listeners para eventos de carregamento removidos');
+      if (checkDataIntervalId.current) {
+        window.clearInterval(checkDataIntervalId.current);
+      }
+      
+      if (waitTimeoutId.current) {
+        window.clearTimeout(waitTimeoutId.current);
+      }
+      
+      EventBus.off('roulettes_loaded', handleRouletteDataLoaded);
     };
   }, []);
   
@@ -444,6 +487,16 @@ const Index = () => {
         console.log('[Index] 🔄 Liberando tela após timeout de segurança');
         setDataFullyLoaded(true);
         setIsLoading(false);
+        
+        // Tentar obter dados do UnifiedRouletteClient diretamente
+        const unifiedClient = UnifiedRouletteClient.getInstance();
+        const availableRoulettes = unifiedClient.getAllRoulettes();
+        
+        if (availableRoulettes && availableRoulettes.length > 0) {
+          console.log(`[Index] 🔄 Obtidas ${availableRoulettes.length} roletas do UnifiedRouletteClient`);
+          setRoulettes(availableRoulettes);
+          setFilteredRoulettes(availableRoulettes);
+        }
       }
     }, 10000); // 10 segundos
     
@@ -451,20 +504,46 @@ const Index = () => {
     const updateInterval = setInterval(() => {
         if (isMounted.current) {
           scheduleUpdate();
+          
+          // Verificar se temos dados no UnifiedRouletteClient a cada atualização
+          const unifiedClient = UnifiedRouletteClient.getInstance();
+          const availableRoulettes = unifiedClient.getAllRoulettes();
+          
+          if (availableRoulettes && availableRoulettes.length > 0 && 
+              (!roulettes.length || roulettes.length < availableRoulettes.length)) {
+            console.log(`[Index] 🔄 Atualizando com ${availableRoulettes.length} roletas do UnifiedRouletteClient`);
+            setRoulettes(availableRoulettes);
+            setFilteredRoulettes(availableRoulettes);
+            setDataFullyLoaded(true);
+            setIsLoading(false);
+          }
         }
-    }, 60000); // 60 segundos
+    }, 30000); // 30 segundos
+    
+    // Configurar um ouvinte para eventos de atualização do UnifiedRouletteClient
+    const unifiedClient = UnifiedRouletteClient.getInstance();
+    const unsubscribe = unifiedClient.on('update', (updateData) => {
+      if (Array.isArray(updateData) && updateData.length > 0) {
+        console.log(`[Index] 🔄 Recebido evento 'update' com ${updateData.length} roletas`);
+        setRoulettes(updateData);
+        setFilteredRoulettes(updateData);
+        setDataFullyLoaded(true);
+        setIsLoading(false);
+      }
+    });
     
     // Limpeza ao desmontar
     return () => {
       isMounted.current = false;
       clearTimeout(safetyTimeout);
       clearInterval(updateInterval);
+      unsubscribe();
       
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [loadRouletteData, dataFullyLoaded, mergeRoulettes]);
+  }, [loadRouletteData, dataFullyLoaded, mergeRoulettes, roulettes.length]);
   
   // Simplificar para usar diretamente as roletas
   // const filteredRoulettes = roulettes; // Remover esta linha
