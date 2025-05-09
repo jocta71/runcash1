@@ -48,6 +48,12 @@ const RouletteList: React.FC = () => {
   // Estado para saber se o usuário tem assinatura
   const [hasSubscription, setHasSubscription] = useState<boolean>(false);
   
+  // Estado para controlar a tentativa de carregamento
+  const [loadAttempts, setLoadAttempts] = useState<number>(0);
+  
+  // Estado para mostrar um contador de tempo desde o último carregamento
+  const [lastLoadTime, setLastLoadTime] = useState<number>(Date.now());
+  
   // Inicializar streaming ao montar o componente
   useEffect(() => {
     console.log('[RouletteList] Inicializando UnifiedRouletteClient...');
@@ -64,12 +70,16 @@ const RouletteList: React.FC = () => {
     // Handler para atualizações de dados
     const handleDataUpdate = (data: any) => {
       console.log('[RouletteList] Recebida atualização de dados');
+      setLastLoadTime(Date.now());
       
       if (data.encrypted) {
         console.log('[RouletteList] Dados criptografados recebidos');
         setIsEncrypted(true);
         return;
       }
+      
+      // Resetar contador de tentativas quando recebemos dados
+      setLoadAttempts(0);
       
       // Atualizar com todos os dados disponíveis
       const allRoulettes = unifiedClient.getAllRoulettes();
@@ -82,6 +92,7 @@ const RouletteList: React.FC = () => {
     // Handler para eventos de conexão
     const handleConnect = (data: any) => {
       console.log('[RouletteList] Conectado ao stream');
+      setLastLoadTime(Date.now());
       setStreamStatus(prevStatus => ({
         isConnected: true,
         lastReceivedAt: Date.now(),
@@ -101,7 +112,15 @@ const RouletteList: React.FC = () => {
     // Handler para erros
     const handleError = (error: any) => {
       console.error('[RouletteList] Erro no stream:', error);
-      setError('Erro ao conectar ao stream de dados. Tente novamente.');
+      
+      // Incrementar tentativas de carregamento
+      setLoadAttempts(prev => prev + 1);
+      
+      // Só mostrar erro se tivermos várias tentativas falhas
+      if (loadAttempts > 3) {
+        setError('Erro ao conectar ao stream de dados. Tente novamente.');
+      }
+      
       setStreamStatus(prevStatus => ({
         ...prevStatus!,
         isConnected: false
@@ -151,6 +170,7 @@ const RouletteList: React.FC = () => {
     if (initialRoulettes && initialRoulettes.length > 0) {
       console.log(`[RouletteList] Dados iniciais: ${initialRoulettes.length} roletas`);
       setRoulettes(initialRoulettes);
+      setLastLoadTime(Date.now());
     }
     
     // Obter status de conexão atual
@@ -161,9 +181,39 @@ const RouletteList: React.FC = () => {
       reconnectAttempts: 0
     });
     
+    // Configurar verificação periódica para garantir que temos dados
+    const checkDataInterval = setInterval(() => {
+      // Se não temos dados ainda ou muitas tentativas, tentar novamente
+      if (roulettes.length === 0 || (loadAttempts > 3 && Date.now() - lastLoadTime > 30000)) {
+        console.log('[RouletteList] Verificação periódica: tentando obter dados novamente');
+        
+        // Forçar uma tentativa de reconexão se necessário
+        if (!currentStatus.isStreamConnected) {
+          unifiedClient.connectStream();
+        }
+        
+        // Forçar uma atualização de dados
+        unifiedClient.preloadData()
+          .then(data => {
+            if (data && data.length > 0) {
+              console.log(`[RouletteList] Verificação periódica: obtidos ${data.length} roletas`);
+              setRoulettes(data);
+              setLastLoadTime(Date.now());
+              setLoadAttempts(0);
+              setError(null);
+            }
+          })
+          .catch(err => {
+            console.error('[RouletteList] Erro na verificação periódica:', err);
+            setLoadAttempts(prev => prev + 1);
+          });
+      }
+    }, 10000); // Verificar a cada 10 segundos
+    
     // Limpar listeners ao desmontar o componente
     return () => {
       console.log('[RouletteList] Limpando listeners...');
+      clearInterval(checkDataInterval);
       unifiedClient.off('update', handleDataUpdate);
       unifiedClient.off('connect', handleConnect);
       unifiedClient.off('disconnect', handleDisconnect);
@@ -175,7 +225,15 @@ const RouletteList: React.FC = () => {
         encryptedSubscription.unsubscribe();
       }
     };
-  }, []);
+  }, [loadAttempts, lastLoadTime]);
+  
+  // Calcular tempo decorrido desde a última atualização
+  const getElapsedTimeText = () => {
+    const elapsedSeconds = Math.floor((Date.now() - lastLoadTime) / 1000);
+    if (elapsedSeconds < 60) return `${elapsedSeconds} segundos atrás`;
+    if (elapsedSeconds < 3600) return `${Math.floor(elapsedSeconds / 60)} minutos atrás`;
+    return `${Math.floor(elapsedSeconds / 3600)} horas atrás`;
+  };
   
   // Renderizar indicador de carregamento se não tivermos dados
   if (roulettes.length === 0 && !isEncrypted && !error) {
@@ -183,6 +241,9 @@ const RouletteList: React.FC = () => {
       <div className="loading-container">
         <div className="spinner"></div>
         <p>Carregando dados de roletas em tempo real...</p>
+        {loadAttempts > 0 && (
+          <p>Tentativa {loadAttempts} de obter dados. Aguarde um momento...</p>
+        )}
         {streamStatus && (
           <div className="stream-status">
             <p>Status do stream: {streamStatus.isConnected ? 'Conectado' : 'Conectando...'}</p>
@@ -190,6 +251,21 @@ const RouletteList: React.FC = () => {
               <p>Tentativas de reconexão: {streamStatus.reconnectAttempts}</p>
             )}
           </div>
+        )}
+        
+        {/* Botão para forçar recarregamento caso demore muito */}
+        {loadAttempts >= 2 && (
+          <button 
+            className="retry-button"
+            onClick={() => {
+              const unifiedClient = UnifiedRouletteClient.getInstance();
+              unifiedClient.connectStream();
+              unifiedClient.preloadData();
+              setLoadAttempts(prev => prev + 1);
+            }}
+          >
+            Forçar carregamento
+          </button>
         )}
       </div>
     );
@@ -210,6 +286,7 @@ const RouletteList: React.FC = () => {
           className="retry-button"
           onClick={() => {
             setError(null);
+            setLoadAttempts(0);
             UnifiedRouletteClient.getInstance().connectStream();
           }}
         >
@@ -237,7 +314,10 @@ const RouletteList: React.FC = () => {
         <div className="stream-status">
           <p>
             Status: {streamStatus.isConnected ? 'Conectado' : 'Desconectado'} | 
-            Última atualização: {streamStatus.lastReceivedAt ? new Date(streamStatus.lastReceivedAt).toLocaleTimeString() : 'N/A'}
+            Última atualização: {streamStatus.lastReceivedAt ? 
+              new Date(streamStatus.lastReceivedAt).toLocaleTimeString() : 
+              getElapsedTimeText()
+            }
           </p>
         </div>
       )}
@@ -250,23 +330,45 @@ const RouletteList: React.FC = () => {
               {roulette.numero && Array.isArray(roulette.numero) && roulette.numero.slice(0, 10).map((num, index) => (
                 <div 
                   key={`${roulette.id}-${index}`} 
-                  className={`number-ball ${typeof num === 'object' ? num.cor : getNumberColor(typeof num === 'object' ? num.numero : num)}`}
+                  className={`number-ball ${typeof num === 'object' ? (num as any).cor : getNumberColor(typeof num === 'object' ? (num as any).numero : num)}`}
                 >
-                  {typeof num === 'object' ? num.numero : num}
+                  {typeof num === 'object' ? (num as any).numero : num}
                 </div>
               ))}
             </div>
             <div className="roulette-info">
               {roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0 && (
                 <>
-                  <p>Último número: {typeof roulette.numero[0] === 'object' ? roulette.numero[0].numero : roulette.numero[0]}</p>
-                  <p>Cor: {typeof roulette.numero[0] === 'object' ? roulette.numero[0].cor : getNumberColor(typeof roulette.numero[0] === 'object' ? roulette.numero[0].numero : roulette.numero[0])}</p>
-                  <p>Hora: {typeof roulette.numero[0] === 'object' && 'timestamp' in roulette.numero[0] ? new Date(roulette.numero[0].timestamp).toLocaleTimeString() : 'N/A'}</p>
+                  <p>Último número: {typeof roulette.numero[0] === 'object' ? (roulette.numero[0] as any).numero : roulette.numero[0]}</p>
+                  <p>Cor: {typeof roulette.numero[0] === 'object' ? 
+                      (roulette.numero[0] as any).cor : 
+                      getNumberColor(typeof roulette.numero[0] === 'object' ? 
+                        (roulette.numero[0] as any).numero : roulette.numero[0])}</p>
+                  <p>Hora: {typeof roulette.numero[0] === 'object' && roulette.numero[0] && 'timestamp' in roulette.numero[0] ? 
+                      new Date((roulette.numero[0] as any).timestamp).toLocaleTimeString() : 'N/A'}</p>
                 </>
               )}
             </div>
           </div>
         ))}
+      </div>
+      
+      {/* Botão para forçar atualização manual */}
+      <div className="refresh-container">
+        <button 
+          className="refresh-button"
+          onClick={() => {
+            const unifiedClient = UnifiedRouletteClient.getInstance();
+            unifiedClient.preloadData().then(data => {
+              if (data && data.length > 0) {
+                setRoulettes(data);
+                setLastLoadTime(Date.now());
+              }
+            });
+          }}
+        >
+          Atualizar dados
+        </button>
       </div>
     </div>
   );

@@ -49,11 +49,91 @@ async function initializeRoulettesSystem() {
   const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
   const unifiedClient = UnifiedRouletteClient.getInstance({
     streamingEnabled: true,
-    autoConnect: true
+    autoConnect: true,
+    maxReconnectAttempts: 10,  // Aumentar número de tentativas
+    reconnectInterval: 3000    // Intervalo mais longo entre tentativas
   });
   
-  // Forçar conexão com stream SSE
-  unifiedClient.connectStream();
+  // Forçar conexão com stream SSE com mecanismo de retry
+  const connectWithRetry = async (maxRetries = 5): Promise<boolean> => {
+    logger.info(`Tentando conectar ao stream SSE (tentativas restantes: ${maxRetries})`);
+    
+    unifiedClient.connectStream();
+    
+    // Aguardar pela conexão
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const checkStatus = () => {
+          const status = unifiedClient.getStatus();
+          if (status.isStreamConnected) {
+            resolve();
+          }
+        };
+        
+        // Verificar status a cada 1 segundo
+        const intervalId = setInterval(checkStatus, 1000);
+        
+        // Timeout após 10 segundos
+        const timeoutId = setTimeout(() => {
+          clearInterval(intervalId);
+          reject(new Error('Timeout ao conectar ao stream SSE'));
+        }, 10000);
+        
+        // Limpar interval e timeout quando resolver
+        const cleanup = () => {
+          clearInterval(intervalId);
+          clearTimeout(timeoutId);
+        };
+        
+        // Registrar handlers de eventos
+        const successHandler = () => {
+          cleanup();
+          resolve();
+        };
+        
+        const errorHandler = () => {
+          cleanup();
+          reject(new Error('Erro ao conectar ao stream SSE'));
+        };
+        
+        unifiedClient.on('connect', successHandler);
+        unifiedClient.on('error', errorHandler);
+        
+        // Limpar handlers quando terminar
+        setTimeout(() => {
+          unifiedClient.off('connect', successHandler);
+          unifiedClient.off('error', errorHandler);
+        }, 10000);
+      });
+      
+      logger.info('Conexão SSE estabelecida com sucesso');
+      return true;
+    } catch (error) {
+      logger.error(`Falha ao conectar ao stream SSE: ${error.message}`);
+      
+      if (maxRetries > 0) {
+        logger.info(`Tentando novamente em 3 segundos... (${maxRetries} tentativas restantes)`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        return connectWithRetry(maxRetries - 1);
+      }
+      
+      logger.warn('Máximo de tentativas excedido, prosseguindo com inicialização sem SSE');
+      return false;
+    }
+  };
+  
+  // Tentar conectar ao stream SSE
+  await connectWithRetry();
+  
+  // Fazer preload dos dados para garantir que temos algo para exibir
+  logger.info('Fazendo preload dos dados antes da inicialização da aplicação');
+  try {
+    await unifiedClient.preloadData();
+    logger.info('Preload de dados concluído com sucesso');
+  } catch (preloadError) {
+    logger.error('Erro durante preload de dados:', preloadError);
+    logger.info('Continuando com a inicialização mesmo sem dados iniciais');
+  }
   
   // Inicializar o serviço global e buscar dados iniciais uma única vez
   logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');

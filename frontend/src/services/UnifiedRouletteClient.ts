@@ -160,8 +160,14 @@ class UnifiedRouletteClient {
       return;
     }
     
-    if (this.isStreamConnected || this.isStreamConnecting) {
-      this.log('Stream já está conectado ou conectando');
+    if (this.isStreamConnected) {
+      this.log('Stream já está conectado');
+      return;
+    }
+    
+    // Se já está tentando conectar, apenas log e retornar
+    if (this.isStreamConnecting) {
+      this.log('Conexão ao stream já está em andamento, aguardando...');
       return;
     }
     
@@ -169,11 +175,11 @@ class UnifiedRouletteClient {
     if (UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT) {
       this.log('Outra instância já está tentando conectar ao stream, aguardando...');
       
-      // Aguardar 1 segundo e tentar novamente
+      // Aguardar 2 segundos e tentar novamente (aumentado de 1s para 2s)
       setTimeout(() => {
         UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
         this.connectStream();
-      }, 1000);
+      }, 2000);
       return;
     }
     
@@ -195,6 +201,13 @@ class UnifiedRouletteClient {
         }
       }
       
+      // Fechar conexão anterior se existir
+      if (this.eventSource) {
+        this.log('Fechando conexão SSE anterior antes de criar uma nova');
+        this.eventSource.close();
+        this.eventSource = null;
+      }
+      
       // Criar conexão SSE
       this.eventSource = new EventSource(streamUrl);
       
@@ -205,6 +218,20 @@ class UnifiedRouletteClient {
       // Eventos específicos
       this.eventSource.addEventListener('update', this.handleStreamUpdate.bind(this));
       this.eventSource.addEventListener('connected', this.handleStreamConnected.bind(this));
+      
+      // Configurar timeout para garantir que a conexão seja estabelecida em tempo razoável
+      setTimeout(() => {
+        if (this.isStreamConnecting && !this.isStreamConnected) {
+          this.log('Timeout de conexão ao stream SSE, tentando reconectar...');
+          if (this.eventSource) {
+            this.eventSource.close();
+            this.eventSource = null;
+          }
+          this.isStreamConnecting = false;
+          UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+          this.reconnectStream();
+        }
+      }, 10000); // 10 segundos para timeout
     } catch (error) {
       this.error('Erro ao conectar ao stream:', error);
       this.isStreamConnecting = false;
@@ -275,10 +302,19 @@ class UnifiedRouletteClient {
         this.startPolling();
       }
       
+      // Resetar contagem de tentativas depois de um tempo para possibilitar novas tentativas futuras
+      setTimeout(() => {
+        this.log('Resetando contagem de tentativas de reconexão para permitir novas tentativas');
+        this.streamReconnectAttempts = 0;
+        // Tentar conectar novamente
+        this.connectStream();
+      }, 30000); // Esperar 30 segundos antes de resetar
+      
       return;
     }
     
-    const delay = this.streamReconnectInterval * Math.min(this.streamReconnectAttempts, 5);
+    // Aumento exponencial no tempo de espera entre tentativas, com limite máximo de 30 segundos
+    const delay = Math.min(this.streamReconnectInterval * Math.pow(1.5, this.streamReconnectAttempts - 1), 30000);
     this.log(`Tentando reconectar em ${delay}ms (tentativa ${this.streamReconnectAttempts})`);
     
     // Notificar sobre tentativa de reconexão
@@ -597,49 +633,123 @@ class UnifiedRouletteClient {
    * Obtém dados simulados ou reais das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
-    // Evitar requisições simultâneas
-    if (this.isFetching) {
-      this.log('Requisição já em andamento, aguardando...');
-      if (this.fetchPromise) {
-        return this.fetchPromise;
-      }
-      return Array.from(this.rouletteData.values());
+    // Se já estiver buscando, retornar a promise existente
+    if (this.isFetching && this.fetchPromise) {
+      this.log('Já está buscando dados, aguardando...');
+      return this.fetchPromise;
     }
     
-    // Verificar se o SSE já está conectado
-    if (this.isStreamConnected) {
-      this.log('Stream SSE já está conectado, usando dados em cache');
-      return Array.from(this.rouletteData.values());
-    }
-    
-    // Tentar conectar ao SSE se não estiver conectado
-    if (!this.isStreamConnected && !this.isStreamConnecting) {
-      this.log('Tentando conectar ao SSE para obter dados reais...');
-      this.connectStream();
-      
-      // Esperar um pouco para dar tempo da conexão se estabelecer
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    
-    // Verificar se o cache ainda é válido
-    if (this.isCacheValid()) {
+    // Se o cache for válido, retornar dados do cache
+    if (this.isCacheValid() && this.rouletteData.size > 0) {
       this.log('Usando dados em cache (ainda válidos)');
       return Array.from(this.rouletteData.values());
     }
     
-    // Se já tivermos alguns dados, retorná-los mesmo que não sejam recentes
-    if (this.rouletteData.size > 0) {
-      this.log('Retornando dados existentes em cache enquanto aguarda conexão SSE');
-      return Array.from(this.rouletteData.values());
-    }
+    this.log('Iniciando busca de dados via API REST');
+    this.isFetching = true;
     
-    // Avisar o usuário que não temos dados disponíveis ainda
-    console.warn('[UnifiedRouletteClient] Tentando obter dados reais via SSE, aguarde. Se não aparecer, verifique sua conexão.');
+    // Criar nova promise e armazenar referência
+    this.fetchPromise = new Promise<any[]>(async (resolve, reject) => {
+      try {
+        // Tentar primeiro o endpoint específico para dados históricos
+        const response = await fetch(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
+        
+        if (!response.ok) {
+          throw new Error(`Erro ao buscar dados: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Verificar se a resposta contém dados esperados
+        if (!data || !data.data) {
+          throw new Error('Resposta não contém dados válidos');
+        }
+        
+        // Processar dados e atualizar cache
+        const processedData = data.data;
+        
+        // Se tem dados, atualizar memória cache
+        if (Array.isArray(processedData) && processedData.length > 0) {
+          this.log(`Recebidos ${processedData.length} roletas da API`);
+          
+          // Atualizar cache
+          this.updateCache(processedData);
+          
+          // Notificar sobre atualização
+          this.emit('update', processedData);
+          EventBus.emit('roulette:data-updated', {
+            source: 'api',
+            count: processedData.length,
+            timestamp: new Date().toISOString()
+          });
+          
+          resolve(processedData);
+        } else {
+          this.log('API retornou array vazio ou resposta inválida');
+          resolve([]);
+        }
+      } catch (error) {
+        this.error('Erro ao buscar dados:', error);
+        
+        // Tentar endpoint alternativo em caso de falha
+        try {
+          const fallbackUrl = '/api/roulettes/limits';
+          this.log(`Tentando endpoint alternativo: ${fallbackUrl}`);
+          
+          const fallbackResponse = await fetch(fallbackUrl);
+          
+          if (!fallbackResponse.ok) {
+            throw new Error(`Erro ao buscar dados do fallback: ${fallbackResponse.status}`);
+          }
+          
+          const fallbackData = await fallbackResponse.json();
+          
+          if (Array.isArray(fallbackData) && fallbackData.length > 0) {
+            this.log(`Recebidos ${fallbackData.length} roletas do endpoint alternativo`);
+            
+            // Atualizar cache
+            this.updateCache(fallbackData);
+            
+            // Notificar sobre atualização
+            this.emit('update', fallbackData);
+            EventBus.emit('roulette:data-updated', {
+              source: 'api-fallback',
+              count: fallbackData.length,
+              timestamp: new Date().toISOString()
+            });
+            
+            resolve(fallbackData);
+          } else {
+            this.log('Endpoint alternativo retornou array vazio ou resposta inválida');
+            
+            // Se temos dados em cache, mesmo desatualizados, usá-los
+            if (this.rouletteData.size > 0) {
+              const cachedData = Array.from(this.rouletteData.values());
+              this.log(`Usando ${cachedData.length} roletas do cache mesmo expirado`);
+              resolve(cachedData);
+            } else {
+              resolve([]);
+            }
+          }
+        } catch (fallbackError) {
+          this.error('Erro ao tentar endpoint alternativo:', fallbackError);
+          
+          // Verificar se já temos dados em cache, mesmo que desatualizados
+          if (this.rouletteData.size > 0) {
+            const cachedData = Array.from(this.rouletteData.values());
+            this.log(`Usando ${cachedData.length} roletas do cache mesmo após falhas`);
+            resolve(cachedData);
+          } else {
+            reject(error);
+          }
+        }
+      } finally {
+        this.isFetching = false;
+        this.fetchPromise = null;
+      }
+    });
     
-    // Se não tivermos absolutamente nenhum dado, retornar array vazio
-    // O componente que chamou este método receberá atualizações via eventos quando os dados chegarem
-    this.log('Nenhum dado disponível ainda, retornando array vazio');
-    return [];
+    return this.fetchPromise;
   }
   
   /**
@@ -787,6 +897,23 @@ class UnifiedRouletteClient {
    * Obtém todos os dados de roletas
    */
   public getAllRoulettes(): any[] {
+    // Verificar se temos dados
+    if (this.rouletteData.size === 0) {
+      this.log('Nenhum dado disponível no cache, tentando buscar...');
+      
+      // Se a última busca falhou, tentar novamente imediatamente
+      if (!this.isFetching && (!this.lastUpdateTime || Date.now() - this.lastUpdateTime > 60000)) {
+        this.fetchRouletteData().catch(err => {
+          this.error('Erro ao tentar buscar dados:', err);
+        });
+      }
+      
+      // Verificar se temos dados simulados para usar enquanto aguarda
+      if (this.logEnabled) {
+        this.log('Retornando array vazio (sem dados disponíveis ainda)');
+      }
+    }
+    
     return Array.from(this.rouletteData.values());
   }
   
@@ -797,29 +924,30 @@ class UnifiedRouletteClient {
     return {
       isStreamConnected: this.isStreamConnected,
       isStreamConnecting: this.isStreamConnecting,
-      streamReconnectAttempts: this.streamReconnectAttempts,
-      isPollingActive: !!this.pollingTimer,
-      lastEventId: this.lastEventId,
       lastReceivedAt: this.lastReceivedAt,
-      lastUpdateTime: this.lastUpdateTime,
-      cacheSize: this.rouletteData.size,
-      isCacheValid: this.isCacheValid()
+      lastEventId: this.lastEventId,
+      reconnectAttempts: this.streamReconnectAttempts,
+      cacheTTL: this.cacheTTL,
+      cacheUpdateTime: this.lastUpdateTime,
+      dataAvailable: this.rouletteData.size > 0,
+      isPolling: !!this.pollingTimer
     };
   }
   
   /**
-   * Força uma atualização imediata dos dados
-   * Tenta reconectar o streaming se não estiver conectado
+   * Força uma atualização dos dados imediatamente
    */
   public forceUpdate(): Promise<any[]> {
-    // Se streaming não estiver conectado, tenta reconectar
-    if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
-      this.log('Forçando reconexão do stream');
-      this.connectStream();
-      return Promise.resolve(Array.from(this.rouletteData.values()));
-    }
-    
-    // Caso contrário, busca dados via REST
+    this.log('Forçando atualização de dados...');
+    return this.fetchRouletteData();
+  }
+  
+  /**
+   * Tenta fazer o preload dos dados antes do stream estar conectado
+   * para garantir que haja algum dado para exibir mesmo antes da conexão estar estabelecida
+   */
+  public preloadData(): Promise<any[]> {
+    this.log('Fazendo preload de dados...');
     return this.fetchRouletteData();
   }
   
