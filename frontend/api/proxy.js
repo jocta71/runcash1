@@ -4,7 +4,7 @@ const http = require('http');
 const url = require('url');
 
 // URL do backend no Railway
-const BACKEND_URL = 'https://backendapi-production-36b5.up.railway.app';
+const BACKEND_URL = 'https://starfish-app-fubxw.ondigitalocean.app';
 
 // Função para encaminhar a requisição
 function proxyRequest(req, res, path) {

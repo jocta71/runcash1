@@ -60,7 +60,7 @@ apiApp.use(cors({
     'https://runcashh1.vercel.app', 
   
     'https://runcashh111.vercel.app',
-    'https://backendapi-production-36b5.up.railway.app'
+    'https://starfish-app-fubxw.ondigitalocean.app'
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 

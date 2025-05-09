@@ -23,14 +23,14 @@
   "rewrites": [
     { 
       "source": "/api/asaas-create-customer",
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-customer"
+      "destination": "https://starfish-app-fubxw.ondigitalocean.app/api/payment/asaas/create-customer"
     },
     { 
       "source": "/api/asaas-create-subscription", 
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/create-subscription"
+      "destination": "https://starfish-app-fubxw.ondigitalocean.app/api/payment/asaas/create-subscription"
     },
     { 
       "source": "/api/asaas-webhook",
-      "destination": "https://backendapi-production-36b5.up.railway.app/api/payment/asaas/webhook"
+      "destination": "https://starfish-app-fubxw.ondigitalocean.app/api/payment/asaas/webhook"
     }
   ]
