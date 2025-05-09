@@ -37,6 +37,17 @@ CORS(app, resources={r"/api/*": {"origins": allowed_origins.split(','), "support
 # Fonte de dados
 data_source = MongoDataSource()
 
+# Rota para health check (DigitalOcean App Platform)
+@app.route('/')
+@app.route('/health')
+def health_check():
+    """Endpoint para verificações de saúde do DigitalOcean App Platform"""
+    return jsonify({
+        "status": "ok",
+        "service": "RunCash Scraper Service",
+        "timestamp": datetime.now().isoformat()
+    })
+
 @app.route('/api/status')
 def api_status():
     """Endpoint para verificar se a API está online"""
@@ -491,10 +502,15 @@ def test_event():
 
 def start_server():
     """Inicia o servidor Flask com as configurações do arquivo .env"""
-    # Obter configurações do arquivo .env
+    # Obter configurações do arquivo .env, mas garantir porta 8080 para health checks
     host = os.environ.get('HOST', '0.0.0.0')
-    port = int(os.environ.get('PORT', 8080))
-    debug = os.environ.get('DEBUG', 'false').lower() == 'true'
+    port = 8080  # Porta fixa para compatibilidade com DigitalOcean App Platform
+    debug = False  # Desativar modo debug em produção
+    
+    logger = logging.getLogger('werkzeug')
+    logger.setLevel(logging.WARNING)  # Reduzir logs do Werkzeug
+    
+    print(f"[FLASK] Iniciando servidor na porta {port} para health checks")
     
     # Iniciar servidor Flask
     app.run(host=host, port=port, debug=debug, threaded=True)

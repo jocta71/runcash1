@@ -59,6 +59,17 @@ try:
         ADAPTADOR_DISPONIVEL = False
         from data_source_mongo import MongoDataSource
     
+    # Importar servidor Flask para health checks
+    try:
+        import threading
+        from server import app as flask_app
+        from server import start_server
+        FLASK_DISPONIVEL = True
+        logger.info("✅ Servidor Flask para health checks importado com sucesso")
+    except ImportError as e:
+        logger.warning(f"⚠️ Servidor Flask não disponível: {str(e)}")
+        FLASK_DISPONIVEL = False
+    
     print("[INFO] ✅ Módulos do scraper importados com sucesso")
 except ImportError as e:
     print(f"[ERRO CRÍTICO] ❌ Erro ao importar módulos do scraper: {str(e)}")
@@ -89,6 +100,14 @@ def main():
         # Banner de inicialização
         logger.info("🚀 Iniciando scraper de roletas (modo de extração simplificada)")
         logger.info(f"📅 Data/Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Iniciar o servidor Flask em uma thread separada para health checks
+        if FLASK_DISPONIVEL:
+            logger.info("🔄 Iniciando servidor Flask para health checks...")
+            flask_thread = threading.Thread(target=start_server)
+            flask_thread.daemon = True
+            flask_thread.start()
+            logger.info("✅ Servidor Flask para health checks iniciado com sucesso")
         
         # Verificar variáveis de ambiente
         mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/runcash')

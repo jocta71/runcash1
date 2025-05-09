@@ -5,7 +5,8 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
-    MOZ_HEADLESS=1
+    MOZ_HEADLESS=1 \
+    PORT=8080
 
 WORKDIR /app
 
@@ -28,11 +29,18 @@ RUN wget -q https://github.com/mozilla/geckodriver/releases/download/v0.33.0/gec
 
 # Copiar e instalar dependências Python primeiro para melhor cache
 COPY requirements.txt .
+
+# Garantir que Flask esteja disponível para o health check
+RUN echo "Flask==2.0.1" >> requirements.txt
+
 RUN pip install --no-cache-dir -r requirements.txt \
     && rm -rf /root/.cache/pip/*
 
 # Copiar o código da aplicação
 COPY . .
+
+# Expor a porta 8080 para health checks
+EXPOSE 8080
 
 # Comando para iniciar o scraper
 CMD ["python", "run_real_scraper.py"] 
