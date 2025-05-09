@@ -27,14 +27,12 @@ RUN wget -q https://github.com/mozilla/geckodriver/releases/download/v0.33.0/gec
     rm geckodriver-v0.33.0-linux64.tar.gz && \
     chmod +x /usr/local/bin/geckodriver
 
-# Copiar e instalar dependências Python primeiro para melhor cache
+# Copiar e instalar dependências Python
 COPY requirements.txt .
 
-# Garantir que Flask esteja disponível para o health check
-RUN echo "Flask==2.0.1" >> requirements.txt
-
-RUN pip install --no-cache-dir -r requirements.txt \
-    && rm -rf /root/.cache/pip/*
+# Instalar dependências do requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /root/.cache/pip/*
 
 # Copiar o código da aplicação
 COPY . .

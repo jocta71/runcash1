@@ -59,15 +59,47 @@ try:
         ADAPTADOR_DISPONIVEL = False
         from data_source_mongo import MongoDataSource
     
-    # Importar servidor Flask para health checks
+    # Importar Flask para health checks - tente uma importação simplificada
+    FLASK_DISPONIVEL = False
     try:
         import threading
-        from server import app as flask_app
-        from server import start_server
-        FLASK_DISPONIVEL = True
-        logger.info("✅ Servidor Flask para health checks importado com sucesso")
-    except ImportError as e:
-        logger.warning(f"⚠️ Servidor Flask não disponível: {str(e)}")
+        try:
+            from flask import Flask, jsonify
+            from datetime import datetime
+            
+            # Criar uma aplicação Flask mínima caso o server.py não seja encontrado
+            try:
+                from server import app as flask_app
+                from server import start_server
+                FLASK_DISPONIVEL = True
+                logger.info("✅ Servidor Flask para health checks importado com sucesso")
+            except ImportError as e:
+                logger.warning(f"⚠️ Servidor Flask não disponível: {str(e)}")
+                logger.warning("⚠️ Criando servidor Flask mínimo para health checks")
+                
+                # Criar uma aplicação Flask mínima para health checks
+                flask_app = Flask(__name__)
+                
+                @flask_app.route('/')
+                @flask_app.route('/health')
+                def health_check():
+                    return jsonify({
+                        "status": "ok",
+                        "service": "RunCash Scraper Service (minimal)",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                
+                def start_server():
+                    flask_app.run(host='0.0.0.0', port=8080, debug=False, threaded=True)
+                
+                FLASK_DISPONIVEL = True
+                logger.info("✅ Servidor Flask mínimo criado para health checks")
+                
+        except ImportError as e:
+            logger.warning(f"⚠️ Flask não disponível: {str(e)}")
+            FLASK_DISPONIVEL = False
+    except Exception as e:
+        logger.warning(f"⚠️ Erro ao configurar Flask para health checks: {str(e)}")
         FLASK_DISPONIVEL = False
     
     print("[INFO] ✅ Módulos do scraper importados com sucesso")
@@ -103,11 +135,15 @@ def main():
         
         # Iniciar o servidor Flask em uma thread separada para health checks
         if FLASK_DISPONIVEL:
-            logger.info("🔄 Iniciando servidor Flask para health checks...")
-            flask_thread = threading.Thread(target=start_server)
-            flask_thread.daemon = True
-            flask_thread.start()
-            logger.info("✅ Servidor Flask para health checks iniciado com sucesso")
+            try:
+                logger.info("🔄 Iniciando servidor Flask para health checks...")
+                flask_thread = threading.Thread(target=start_server)
+                flask_thread.daemon = True
+                flask_thread.start()
+                logger.info("✅ Servidor Flask para health checks iniciado com sucesso")
+            except Exception as e:
+                logger.error(f"❌ Erro ao iniciar servidor Flask: {str(e)}")
+                logger.warning("⚠️ Continuando sem servidor para health checks")
         
         # Verificar variáveis de ambiente
         mongodb_uri = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/runcash')
@@ -120,14 +156,42 @@ def main():
         logger.info(f"⏱️ Tempo mínimo entre ciclos: {min_cycle_time} segundos")
         
         # Inicializar a fonte de dados
-        if ADAPTADOR_DISPONIVEL:
-            logger.info("🔄 Inicializando adaptador para banco otimizado...")
-            data_source = ScraperAdapter()
-            logger.info("✅ Adaptador inicializado com sucesso")
-        else:
-            logger.info("🔄 Inicializando fonte de dados MongoDB tradicional...")
-            data_source = MongoDataSource()
-            logger.info("✅ Fonte de dados inicializada com sucesso")
+        data_source = None
+        try:
+            if ADAPTADOR_DISPONIVEL:
+                logger.info("🔄 Inicializando adaptador para banco otimizado...")
+                data_source = ScraperAdapter()
+                logger.info("✅ Adaptador inicializado com sucesso")
+            else:
+                logger.info("🔄 Inicializando fonte de dados MongoDB tradicional...")
+                data_source = MongoDataSource()
+                logger.info("✅ Fonte de dados inicializada com sucesso")
+        except Exception as e:
+            logger.error(f"❌ Erro ao inicializar fonte de dados: {str(e)}")
+            logger.error(traceback.format_exc())
+            logger.warning("⚠️ Continuando sem conexão com o banco de dados...")
+        
+        # Verificar se a fonte de dados foi inicializada
+        if data_source is None:
+            logger.warning("⚠️ Fonte de dados não inicializada. Apenas o health check estará disponível.")
+            
+            # Se não temos fonte de dados mas temos Flask, mantenha o servidor rodando para health checks
+            if FLASK_DISPONIVEL:
+                logger.info("🔄 Executando apenas o servidor para health checks...")
+                try:
+                    # Manter o processo principal rodando para que a thread do Flask continue
+                    while True:
+                        time.sleep(60)
+                except KeyboardInterrupt:
+                    logger.info("👋 Servidor interrompido pelo usuário")
+                except Exception as e:
+                    logger.error(f"❌ Erro no loop principal: {str(e)}")
+                finally:
+                    logger.info("🛑 Servidor encerrado")
+                    sys.exit(0)
+            else:
+                logger.error("❌ Nem fonte de dados nem Flask estão disponíveis. Encerrando...")
+                sys.exit(1)
         
         # Contador de ciclos e erros
         cycle_count = 0
