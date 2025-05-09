@@ -49,91 +49,11 @@ async function initializeRoulettesSystem() {
   const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
   const unifiedClient = UnifiedRouletteClient.getInstance({
     streamingEnabled: true,
-    autoConnect: true,
-    maxReconnectAttempts: 10,  // Aumentar número de tentativas
-    reconnectInterval: 3000    // Intervalo mais longo entre tentativas
+    autoConnect: true
   });
   
-  // Forçar conexão com stream SSE com mecanismo de retry
-  const connectWithRetry = async (maxRetries = 5): Promise<boolean> => {
-    logger.info(`Tentando conectar ao stream SSE (tentativas restantes: ${maxRetries})`);
-    
-    unifiedClient.connectStream();
-    
-    // Aguardar pela conexão
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const checkStatus = () => {
-          const status = unifiedClient.getStatus();
-          if (status.isStreamConnected) {
-            resolve();
-          }
-        };
-        
-        // Verificar status a cada 1 segundo
-        const intervalId = setInterval(checkStatus, 1000);
-        
-        // Timeout após 10 segundos
-        const timeoutId = setTimeout(() => {
-          clearInterval(intervalId);
-          reject(new Error('Timeout ao conectar ao stream SSE'));
-        }, 10000);
-        
-        // Limpar interval e timeout quando resolver
-        const cleanup = () => {
-          clearInterval(intervalId);
-          clearTimeout(timeoutId);
-        };
-        
-        // Registrar handlers de eventos
-        const successHandler = () => {
-          cleanup();
-          resolve();
-        };
-        
-        const errorHandler = () => {
-          cleanup();
-          reject(new Error('Erro ao conectar ao stream SSE'));
-        };
-        
-        unifiedClient.on('connect', successHandler);
-        unifiedClient.on('error', errorHandler);
-        
-        // Limpar handlers quando terminar
-        setTimeout(() => {
-          unifiedClient.off('connect', successHandler);
-          unifiedClient.off('error', errorHandler);
-        }, 10000);
-      });
-      
-      logger.info('Conexão SSE estabelecida com sucesso');
-      return true;
-    } catch (error) {
-      logger.error(`Falha ao conectar ao stream SSE: ${error.message}`);
-      
-      if (maxRetries > 0) {
-        logger.info(`Tentando novamente em 3 segundos... (${maxRetries} tentativas restantes)`);
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        return connectWithRetry(maxRetries - 1);
-      }
-      
-      logger.warn('Máximo de tentativas excedido, prosseguindo com inicialização sem SSE');
-      return false;
-    }
-  };
-  
-  // Tentar conectar ao stream SSE
-  await connectWithRetry();
-  
-  // Fazer preload dos dados para garantir que temos algo para exibir
-  logger.info('Fazendo preload dos dados antes da inicialização da aplicação');
-  try {
-    await unifiedClient.preloadData();
-    logger.info('Preload de dados concluído com sucesso');
-  } catch (preloadError) {
-    logger.error('Erro durante preload de dados:', preloadError);
-    logger.info('Continuando com a inicialização mesmo sem dados iniciais');
-  }
+  // Forçar conexão com stream SSE
+  unifiedClient.connectStream();
   
   // Inicializar o serviço global e buscar dados iniciais uma única vez
   logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
@@ -192,8 +112,9 @@ const socketService = SocketService.getInstance(); // Inicia a conexão
 // Informa ao usuário que a conexão está sendo estabelecida
 logger.info('Conexão com o servidor sendo estabelecida em background...');
 
-// Eliminar o uso de top-level await
+// Inicializar o sistema de roletas como parte do carregamento da aplicação
 logger.info('Inicializando sistema de roletas de forma centralizada...');
+const rouletteSystem = await initializeRoulettesSystem();
 
 // Configuração global para requisições fetch
 const originalFetch = window.fetch;
@@ -213,9 +134,15 @@ window.fetch = function(input, init) {
   return originalFetch(input, newInit);
 };
 
+// Iniciar pré-carregamento de dados históricos
+logger.info('Iniciando pré-carregamento de dados históricos...');
+socketService.loadHistoricalRouletteNumbers().catch(err => {
+  logger.error('Erro ao pré-carregar dados históricos:', err);
+});
+
 // Expor globalmente a função para verificar se o sistema foi inicializado
 window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
-window.getRouletteSystem = () => null; // Inicialmente retorna null até que o sistema seja inicializado
+window.getRouletteSystem = () => rouletteSystem;
 
 // Inicializar serviço de descriptografia
 console.log('[Main] Configurando chave de acesso para descriptografia...');
@@ -231,8 +158,8 @@ if (!keyFound) {
   cryptoService.enableDevMode(true);
 }
 
-// Função para renderizar a aplicação
-function renderApp(rootElement: HTMLElement) {
+const rootElement = document.getElementById("root");
+if (rootElement) {
   // Adicionar elemento visual para indicar carregamento inicial
   rootElement.innerHTML = `
     <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #1a1a1a; color: #f0f0f0;">
@@ -323,31 +250,10 @@ function renderApp(rootElement: HTMLElement) {
       </div>
     </div>
   `;
-
-  // Iniciar a aplicação e então inicializar o sistema de roletas em segundo plano
-  const root = createRoot(rootElement);
-  root.render(<App />);
   
-  // Inicializar o sistema de roletas após a renderização
-  initializeRoulettesSystem().then(rouletteSystem => {
-    window.getRouletteSystem = () => rouletteSystem;
-    
-    // Iniciar pré-carregamento de dados históricos
-    logger.info('Iniciando pré-carregamento de dados históricos...');
-    socketService.loadHistoricalRouletteNumbers().catch(err => {
-      logger.error('Erro ao pré-carregar dados históricos:', err);
-    });
-  }).catch(error => {
-    logger.error('Erro ao inicializar sistema de roletas:', error);
-  });
-}
-
-// Localizar o elemento root e iniciar a renderização
-const rootElement = document.getElementById("root");
-if (rootElement) {
   // Aguardar um pequeno intervalo para dar tempo à conexão de ser estabelecida
   setTimeout(() => {
-    renderApp(rootElement);
+    createRoot(rootElement).render(<App />);
   }, 1500);
 } else {
   logger.error('Elemento root não encontrado!');
