@@ -244,24 +244,82 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
 
   // Verificar se os dados históricos estão prontos
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
+    
     const checkHistoricalData = async () => {
       try {
         // Aguardar o carregamento dos dados históricos
         if (unifiedClient.getHistoryLoadPromise()) {
-          await unifiedClient.getHistoryLoadPromise();
+          // Adicionar um timeout para não ficar esperando indefinidamente
+          const timeoutPromise = new Promise<void>((_, reject) => {
+            timeoutId = setTimeout(() => {
+              reject(new Error('Timeout ao aguardar histórico'));
+            }, 10000); // 10 segundos
+          });
+          
+          try {
+            // Usar Promise.race para limitar o tempo de espera
+            await Promise.race([
+              unifiedClient.getHistoryLoadPromise(),
+              timeoutPromise
+            ]);
+          } catch (err) {
+            console.warn(`[RouletteCard - ${safeData.id}] Timeout ao aguardar histórico:`, err);
+            // Continuar mesmo com timeout
+          } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+          }
         } else {
-          // Se não houver promessa existente, tenta buscar os dados
-          await unifiedClient.loadHistoricalData();
+          // Se não houver promessa existente, tenta buscar os dados com timeout
+          try {
+            const timeoutPromise = new Promise<void>((_, reject) => {
+              timeoutId = setTimeout(() => {
+                reject(new Error('Timeout ao carregar histórico'));
+              }, 10000); // 10 segundos
+            });
+            
+            await Promise.race([
+              unifiedClient.loadHistoricalData(),
+              timeoutPromise
+            ]);
+          } catch (err) {
+            console.warn(`[RouletteCard - ${safeData.id}] Timeout ao carregar histórico:`, err);
+            // Continuar mesmo com timeout
+          } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+          }
         }
-        setHistoricalDataReady(true);
+        
+        // Atualizar estado apenas se o componente ainda estiver montado
+        if (isMounted) {
+          setHistoricalDataReady(true);
+        }
       } catch (err) {
         console.error(`[RouletteCard - ${safeData.id}] Erro ao aguardar dados históricos:`, err);
         // Mesmo com erro, permitir a continuação do fluxo para não bloquear a renderização
-        setHistoricalDataReady(true);
+        if (isMounted) {
+          setHistoricalDataReady(true);
+        }
       }
     };
 
     checkHistoricalData();
+    
+    // Timeout de segurança para garantir que o componente não fique bloqueado
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted) {
+        console.log(`[RouletteCard - ${safeData.id}] Safety timeout acionado, forçando continuação`);
+        setHistoricalDataReady(true);
+      }
+    }, 15000); // 15 segundos de timeout de segurança
+    
+    // Cleanup
+    return () => {
+      isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+      clearTimeout(safetyTimeout);
+    };
   }, [safeData.id]);
   
   // Efeito para iniciar a busca de dados

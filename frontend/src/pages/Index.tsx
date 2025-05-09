@@ -484,21 +484,63 @@ const Index = () => {
 
   // Garantir que os dados históricos sejam carregados antes de renderizar os cards
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
+    
     const loadHistoricalData = async () => {
       try {
         const unifiedClient = UnifiedRouletteClient.getInstance();
+        
+        // Adicionar timeout para evitar bloqueio indefinido
+        const timeoutPromise = new Promise<void>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error('Timeout ao carregar histórico'));
+          }, 10000); // 10 segundos
+        });
+        
         if (typeof unifiedClient.loadHistoricalData === 'function') {
-          await unifiedClient.loadHistoricalData();
+          try {
+            await Promise.race([
+              unifiedClient.loadHistoricalData(),
+              timeoutPromise
+            ]);
+          } catch (err) {
+            console.warn('[Index] Timeout ao carregar histórico:', err);
+            // Continuar mesmo com timeout
+          } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+          }
         }
-        setHistoricalDataReady(true);
+        
+        // Atualizar estado apenas se o componente ainda estiver montado
+        if (isMounted) {
+          setHistoricalDataReady(true);
+        }
       } catch (err) {
         console.error('[Index] Erro ao carregar dados históricos:', err);
         // Mesmo com erro, permitir a continuação do fluxo para não bloquear a renderização
-        setHistoricalDataReady(true);
+        if (isMounted) {
+          setHistoricalDataReady(true);
+        }
       }
     };
     
     loadHistoricalData();
+    
+    // Timeout de segurança para garantir que a página não fique bloqueada
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted) {
+        console.log('[Index] Safety timeout acionado, forçando renderização');
+        setHistoricalDataReady(true);
+      }
+    }, 15000); // 15 segundos de timeout de segurança
+    
+    // Cleanup
+    return () => {
+      isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+      clearTimeout(safetyTimeout);
+    };
   }, []);
   
   // Função para renderizar os cards de roleta
@@ -578,9 +620,9 @@ const Index = () => {
               nome: roulette.nome || roulette.name || 'Roleta sem nome',
               lastNumbers: safeNumbers,
               numeros: safeNumbers,
-              vitorias: typeof roulette.vitorias === 'number' ? roulette.vitorias : 0,
-              derrotas: typeof roulette.derrotas === 'number' ? roulette.derrotas : 0,
-              estado_estrategia: roulette.estado_estrategia || ''
+
+
+
             }}
           />
         </div>
