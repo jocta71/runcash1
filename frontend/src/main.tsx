@@ -114,7 +114,21 @@ logger.info('Conexão com o servidor sendo estabelecida em background...');
 
 // Inicializar o sistema de roletas como parte do carregamento da aplicação
 logger.info('Inicializando sistema de roletas de forma centralizada...');
-const rouletteSystem = await initializeRoulettesSystem();
+
+// IIFE para lidar com a inicialização assíncrona
+(async () => {
+  try {
+    const rouletteSystem = await initializeRoulettesSystem();
+    window.getRouletteSystem = () => rouletteSystem;
+  } catch (error) {
+    logger.error('Falha ao inicializar o sistema de roletas:', error);
+    // Fornecer um fallback ou estado de erro para getRouletteSystem
+    window.getRouletteSystem = () => {
+      logger.error('Retornando null para getRouletteSystem devido a erro de inicialização.');
+      return null;
+    };
+  }
+})();
 
 // Configuração global para requisições fetch
 const originalFetch = window.fetch;
@@ -142,7 +156,6 @@ socketService.loadHistoricalRouletteNumbers().catch(err => {
 
 // Expor globalmente a função para verificar se o sistema foi inicializado
 window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
-window.getRouletteSystem = () => rouletteSystem;
 
 // Inicializar serviço de descriptografia
 console.log('[Main] Configurando chave de acesso para descriptografia...');
