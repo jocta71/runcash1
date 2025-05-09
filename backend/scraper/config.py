@@ -38,6 +38,7 @@ HEALTH_CHECK_INTERVAL = int(os.environ.get('HEALTH_CHECK_INTERVAL', '60'))  # Em
 MAX_CICLOS = int(os.environ.get('MAX_CICLOS', '1000'))
 MAX_ERROS_CONSECUTIVOS = int(os.environ.get('MAX_ERROS_CONSECUTIVOS', '5'))
 
+
 # Configurações do servidor
 DEFAULT_HOST = os.environ.get('HOST', '0.0.0.0')
 DEFAULT_PORT = int(os.environ.get('PORT', '8080'))
