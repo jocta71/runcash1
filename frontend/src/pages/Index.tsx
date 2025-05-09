@@ -887,24 +887,6 @@ const Index = () => {
               )}
             </div>
           </div>
-          
-          {/* Sobreposição do seletor de planos - apenas para quem não tem plano */}
-          {!hasActivePlan && (
-            <div className="absolute inset-0 flex items-center justify-center z-10">
-              <div className="bg-[#131614]/80 p-10 rounded-xl backdrop-blur-lg shadow-2xl border border-gray-800/50 text-center max-w-xl w-full">
-                <h2 className="text-[#00FF00] font-bold text-xl mb-6">Acesse nossas estatísticas exclusivas</h2>
-                <p className="text-white/80 mb-6">Desbloqueie acesso completo às melhores análises de roletas em tempo real</p>
-                
-                {/* Botão de assinatura */}
-                <Button
-                  onClick={() => navigate('/plans')}
-                  className="bg-[#00FF00] hover:bg-[#00CC00] text-black font-bold py-3 px-6 rounded-lg w-full text-center transition-all transform hover:scale-105"
-                >
-                  Assinar Agora
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </Layout>
