@@ -34,7 +34,7 @@ logger.info('Manipuladores globais de erro configurados');
 window.ROULETTE_SYSTEM_INITIALIZED = false;
 
 // Inicializar o sistema de roletas como parte do carregamento da aplicação
-function initializeRoulettesSystem() {
+async function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
   // Inicializar os serviços em ordem
@@ -44,6 +44,16 @@ function initializeRoulettesSystem() {
   
   // Registrar o SocketService no RouletteFeedService
   rouletteFeedService.registerSocketService(socketService);
+  
+  // Inicializar o UnifiedRouletteClient diretamente para garantir conexão SSE
+  const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
+  const unifiedClient = UnifiedRouletteClient.getInstance({
+    streamingEnabled: true,
+    autoConnect: true
+  });
+  
+  // Forçar conexão com stream SSE
+  unifiedClient.connectStream();
   
   // Inicializar o serviço global e buscar dados iniciais uma única vez
   logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
@@ -81,6 +91,7 @@ function initializeRoulettesSystem() {
   // Adicionar função para limpar recursos quando a página for fechada
   window.addEventListener('beforeunload', () => {
     rouletteFeedService.stop();
+    unifiedClient.dispose();
     window.ROULETTE_SYSTEM_INITIALIZED = false;
     logger.info('Sistema de roletas finalizado');
   });
@@ -89,7 +100,8 @@ function initializeRoulettesSystem() {
     socketService,
     rouletteFeedService,
     eventService,
-    globalRouletteDataService
+    globalRouletteDataService,
+    unifiedClient
   };
 }
 
@@ -102,7 +114,7 @@ logger.info('Conexão com o servidor sendo estabelecida em background...');
 
 // Inicializar o sistema de roletas como parte do carregamento da aplicação
 logger.info('Inicializando sistema de roletas de forma centralizada...');
-const rouletteSystem = initializeRoulettesSystem();
+const rouletteSystem = await initializeRoulettesSystem();
 
 // Configuração global para requisições fetch
 const originalFetch = window.fetch;
