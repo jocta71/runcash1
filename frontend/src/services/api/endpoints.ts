@@ -15,7 +15,12 @@ export const ENDPOINTS = {
   // Endpoints para dados históricos
   HISTORICAL: {
     ALL_ROULETTES: '/api/historical/all-roulettes', // Endpoint para buscar histórico inicial de todas as roletas
-  }
+  },
+
+  // Garantir que o endpoint de saúde (health) tenha o prefixo /api correto
+  HEALTH: {
+    CHECK: '/api/health' // Adicionar o prefixo /api, se necessário
+  },
 };
 
 // Obtém a URL base da API a partir de variáveis de ambiente

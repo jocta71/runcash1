@@ -1581,9 +1581,12 @@ export default class RouletteFeedService {
   // Adicionar método para verificar a saúde da API
   async checkAPIHealth(): Promise<boolean> {
     try {
+      // Import dinâmico para evitar dependências circulares
+      const { ENDPOINTS, getFullUrl } = await import('./api/endpoints');
+      
       // Array com endpoints alternativos para verificar a saúde da API
       const healthEndpoints = [
-        '/api/health',
+        ENDPOINTS.HEALTH?.CHECK || '/api/health',
         '/api/asaas-webhook', // Usar um endpoint existente como fallback
         '/api' // Tentar apenas o path base como último recurso
       ];
@@ -1594,8 +1597,11 @@ export default class RouletteFeedService {
       // Tentar cada endpoint até encontrar um que funcione
       for (const endpoint of healthEndpoints) {
         try {
-          console.log(`Verificando saúde da API em: ${endpoint}`);
-          const response = await fetch(endpoint, {
+          // Usar getFullUrl se disponível para garantir URL completa
+          const fullUrl = typeof getFullUrl === 'function' ? getFullUrl(endpoint) : endpoint;
+          console.log(`Verificando saúde da API em: ${fullUrl}`);
+          
+          const response = await fetch(fullUrl, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -1621,27 +1627,40 @@ export default class RouletteFeedService {
       
       // Se nenhum endpoint funcionou, assumir que a API está indisponível
       if (!isHealthy) {
-        console.error('Todos os endpoints de saúde falharam:', lastError);
+        console.error('Todos os endpoints de saúde falharam, mas prosseguindo com operação offline.');
+        console.log('A aplicação continuará funcionando normalmente usando dados em cache local.');
         // Emitir evento para todos os observadores sobre a falha
-        EventService.emit('roulette:api-failure', { 
-          timestamp: Date.now(),
-          error: lastError instanceof Error ? lastError.message : 'API inacessível'
-        });
+        try {
+          const EventService = await import('./EventService').then(m => m.default);
+          EventService.emit('roulette:api-failure', { 
+            timestamp: Date.now(),
+            error: lastError instanceof Error ? lastError.message : 'API inacessível',
+            isCritical: false // Indicar que não é crítico
+          });
+        } catch (e) {
+          console.warn('Não foi possível emitir evento de falha:', e);
+        }
       }
       
       // Mesmo se todos os endpoints falharem, retornar true para não bloquear a inicialização
-      // Apenas logar a falha e permitir que a aplicação continue tentando
       return true;
     } catch (error) {
       console.error('Falha na verificação de saúde da API:', error);
+      console.log('Operando em modo offline usando dados em cache.');
+      
       // Emitir evento para todos os observadores sobre a falha
-      EventService.emit('roulette:api-failure', { 
-        timestamp: Date.now(),
-        error: error instanceof Error ? error.message : 'API inacessível'
-      });
+      try {
+        const EventService = await import('./EventService').then(m => m.default);
+        EventService.emit('roulette:api-failure', { 
+          timestamp: Date.now(),
+          error: error instanceof Error ? error.message : 'API inacessível',
+          isCritical: false
+        });
+      } catch (e) {
+        console.warn('Não foi possível emitir evento de falha:', e);
+      }
       
       // Retornar true mesmo em caso de erro para não impedir a inicialização
-      // A aplicação tentará operar mesmo sem a API disponível
       return true;
     }
   }

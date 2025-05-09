@@ -262,7 +262,7 @@ export const RouletteCard: React.FC<RouletteCardProps> = ({ roulette }) => {
       const rouletteId = getRoulettId(roulette);
       
       // Função para lidar com atualizações de dados
-      const handleUpdate = (updateData: any) => {
+    const handleUpdate = (updateData: any) => {
         // Se for um array, procurar a roleta relevante
         if (Array.isArray(updateData)) {
           const updatedRoulette = updateData.find(
@@ -317,9 +317,9 @@ export const RouletteCard: React.FC<RouletteCardProps> = ({ roulette }) => {
       }
       
       // Cleanup
-      return () => {
+    return () => {
         try {
-          unsubscribe();
+        unsubscribe();
           EventBus.off('roulette:data-updated', handleLegacyUpdate);
         } catch (e) {
           console.error('Erro no cleanup de eventos:', e);
@@ -348,7 +348,7 @@ export const RouletteCard: React.FC<RouletteCardProps> = ({ roulette }) => {
           ))}
         </div>
         <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded-md mt-auto"></div>
-      </div>
+          </div>
     );
   }
 
@@ -379,14 +379,14 @@ export const RouletteCard: React.FC<RouletteCardProps> = ({ roulette }) => {
             {number}
           </div>
         ))}
-      </div>
-      
+        </div>
+        
       <div className="mt-auto">
         <Link to={`/roulette/${rouletteId}`} className="text-blue-600 dark:text-blue-400 hover:underline">
           Ver estratégias
         </Link>
       </div>
-    </div>
+        </div>
   );
 };
 

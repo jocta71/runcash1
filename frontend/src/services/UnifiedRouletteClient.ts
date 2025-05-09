@@ -809,7 +809,7 @@ class UnifiedRouletteClient {
     try {
       // Tentar buscar dados do sistema legado também
       EventBus.emit('roulette:request-all-data', {
-        timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString(),
         source: 'UnifiedRouletteClient.loadHistoricalData'
       });
       
@@ -870,7 +870,7 @@ class UnifiedRouletteClient {
         window.clearInterval(this.pollingTimer);
         this.pollingTimer = null;
       }
-    } else {
+        } else {
       this.log('Página visível, retomando serviços');
       
       // Priorizar streaming
@@ -911,7 +911,7 @@ class UnifiedRouletteClient {
     // Se streaming não estiver conectado, tenta reconectar
     if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
       this.log('Forçando reconexão do stream');
-      this.connectStream();
+        this.connectStream();
       return Promise.resolve(Array.from(this.rouletteData.values()));
     }
     
@@ -957,6 +957,24 @@ class UnifiedRouletteClient {
     } catch (error) {
       this.error('Erro ao inscrever-se em eventos do sistema legado:', error);
     }
+  }
+
+  /**
+   * Obtém o status atual do serviço
+   */
+  public getStatus(): any {
+    return {
+      isStreamConnected: this.isStreamConnected,
+      isStreamConnecting: this.isStreamConnecting,
+      streamReconnectAttempts: this.streamReconnectAttempts,
+      isPollingActive: !!this.pollingTimer,
+      lastEventId: this.lastEventId,
+      lastReceivedAt: this.lastReceivedAt,
+      lastUpdateTime: this.lastUpdateTime,
+      cacheSize: this.rouletteData.size,
+      isCacheValid: this.isCacheValid(),
+      hasHistoricalData: this.initialHistoricalDataCache.size > 0
+    };
   }
 }
 
