@@ -109,54 +109,57 @@ async function initializeRoulettesSystem() {
 logger.info('Inicializando SocketService antes do render...');
 const socketService = SocketService.getInstance(); // Inicia a conexão
 
-// Informa ao usuário que a conexão está sendo estabelecida
-logger.info('Conexão com o servidor sendo estabelecida em background...');
+// Encapsular código com await em uma função auto-invocável
+(async function() {
+  // Informa ao usuário que a conexão está sendo estabelecida
+  logger.info('Conexão com o servidor sendo estabelecida em background...');
 
-// Inicializar o sistema de roletas como parte do carregamento da aplicação
-logger.info('Inicializando sistema de roletas de forma centralizada...');
-const rouletteSystem = await initializeRoulettesSystem();
+  // Inicializar o sistema de roletas como parte do carregamento da aplicação
+  logger.info('Inicializando sistema de roletas de forma centralizada...');
+  const rouletteSystem = await initializeRoulettesSystem();
 
-// Configuração global para requisições fetch
-const originalFetch = window.fetch;
-window.fetch = function(input, init) {
-  const headers = init?.headers ? new Headers(init.headers) : new Headers();
-  
-  // Adicionar header para ignorar lembrete do túnel
-  if (!headers.has('bypass-tunnel-reminder')) {
-    headers.append('bypass-tunnel-reminder', 'true');
-  }
-  
-  const newInit = {
-    ...init,
-    headers
+  // Configuração global para requisições fetch
+  const originalFetch = window.fetch;
+  window.fetch = function(input, init) {
+    const headers = init?.headers ? new Headers(init.headers) : new Headers();
+    
+    // Adicionar header para ignorar lembrete do túnel
+    if (!headers.has('bypass-tunnel-reminder')) {
+      headers.append('bypass-tunnel-reminder', 'true');
+    }
+    
+    const newInit = {
+      ...init,
+      headers
+    };
+    
+    return originalFetch(input, newInit);
   };
-  
-  return originalFetch(input, newInit);
-};
 
-// Iniciar pré-carregamento de dados históricos
-logger.info('Iniciando pré-carregamento de dados históricos...');
-socketService.loadHistoricalRouletteNumbers().catch(err => {
-  logger.error('Erro ao pré-carregar dados históricos:', err);
-});
+  // Iniciar pré-carregamento de dados históricos
+  logger.info('Iniciando pré-carregamento de dados históricos...');
+  socketService.loadHistoricalRouletteNumbers().catch(err => {
+    logger.error('Erro ao pré-carregar dados históricos:', err);
+  });
 
-// Expor globalmente a função para verificar se o sistema foi inicializado
-window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
-window.getRouletteSystem = () => rouletteSystem;
+  // Expor globalmente a função para verificar se o sistema foi inicializado
+  window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
+  window.getRouletteSystem = () => rouletteSystem;
 
-// Inicializar serviço de descriptografia
-console.log('[Main] Configurando chave de acesso para descriptografia...');
-cryptoService.setupAccessKey();
+  // Inicializar serviço de descriptografia
+  console.log('[Main] Configurando chave de acesso para descriptografia...');
+  cryptoService.setupAccessKey();
 
-// Tentar inicializar as chaves comuns para descriptografia
-console.log('[App] Inicializando sistema de criptografia');
-const keyFound = false; // tryCommonKeys removido
+  // Tentar inicializar as chaves comuns para descriptografia
+  console.log('[App] Inicializando sistema de criptografia');
+  const keyFound = false; // tryCommonKeys removido
 
-// Se nenhuma chave funcionar, ativar o modo de desenvolvimento
-if (!keyFound) {
-  console.warn('[App] Nenhuma chave de descriptografia funcionou, ativando modo de desenvolvimento');
-  cryptoService.enableDevMode(true);
-}
+  // Se nenhuma chave funcionar, ativar o modo de desenvolvimento
+  if (!keyFound) {
+    console.warn('[App] Nenhuma chave de descriptografia funcionou, ativando modo de desenvolvimento');
+    cryptoService.enableDevMode(true);
+  }
+})();
 
 const rootElement = document.getElementById("root");
 if (rootElement) {
