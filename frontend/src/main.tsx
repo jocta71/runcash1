@@ -2,7 +2,6 @@ import { createRoot } from 'react-dom/client'
 import React from 'react'
 import App from './App'
 import './index.css'
-import './styles/cards.css'
 import SocketService from './services/SocketService'
 import { initializeLogging } from './services/utils/initLogger'
 import { getLogger } from './services/utils/logger'
@@ -11,8 +10,6 @@ import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
 import globalRouletteDataService from './services/GlobalRouletteDataService'
 import cryptoService from './utils/crypto-service'
-// Importar o serviço unificado
-import UnifiedDataService from './services/UnifiedDataService'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -40,11 +37,7 @@ window.ROULETTE_SYSTEM_INITIALIZED = false;
 function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
-  // Inicializar o novo serviço unificado primeiro
-  logger.info('Inicializando UnifiedDataService...');
-  const unifiedDataService = UnifiedDataService.getInstance();
-  
-  // Inicializar os serviços legados em ordem para compatibilidade
+  // Inicializar os serviços em ordem
   const socketService = SocketService.getInstance();
   const eventService = EventService.getInstance();
   const rouletteFeedService = RouletteFeedService.getInstance();
@@ -58,22 +51,6 @@ function initializeRoulettesSystem() {
   // Usar a instância importada diretamente
   globalRouletteDataService.fetchRouletteData().then(data => {
     logger.info(`Dados iniciais obtidos pelo serviço global: ${data.length} roletas`);
-    
-    // Armazenar os dados no serviço unificado também
-    if (Array.isArray(data) && data.length > 0) {
-      logger.info('Populando cache do UnifiedDataService com dados iniciais');
-      data.forEach(roulette => {
-        if (roulette && roulette.id && Array.isArray(roulette.numbers)) {
-          const numbers = roulette.numbers.map((n: any) => 
-            typeof n === 'number' ? n : (n.number || n.numero)
-          ).filter(Boolean);
-          
-          if (numbers.length > 0) {
-            unifiedDataService.setRouletteHistory(roulette.id, numbers);
-          }
-        }
-      });
-    }
     
     // Em seguida, inicializar o RouletteFeedService que usará os dados do serviço global
     rouletteFeedService.initialize().then(() => {
@@ -103,14 +80,12 @@ function initializeRoulettesSystem() {
   
   // Adicionar função para limpar recursos quando a página for fechada
   window.addEventListener('beforeunload', () => {
-    unifiedDataService.disconnect();
     rouletteFeedService.stop();
     window.ROULETTE_SYSTEM_INITIALIZED = false;
     logger.info('Sistema de roletas finalizado');
   });
   
   return {
-    unifiedDataService,
     socketService,
     rouletteFeedService,
     eventService,
@@ -119,9 +94,8 @@ function initializeRoulettesSystem() {
 }
 
 // Inicializar o SocketService logo no início para estabelecer conexão antecipada
-logger.info('Inicializando UnifiedDataService e SocketService antes do render...');
-const unifiedDataService = UnifiedDataService.getInstance(); // Novo serviço unificado
-const socketService = SocketService.getInstance(); // Manter para compatibilidade
+logger.info('Inicializando SocketService antes do render...');
+const socketService = SocketService.getInstance(); // Inicia a conexão
 
 // Informa ao usuário que a conexão está sendo estabelecida
 logger.info('Conexão com o servidor sendo estabelecida em background...');
@@ -150,13 +124,8 @@ window.fetch = function(input, init) {
 
 // Iniciar pré-carregamento de dados históricos
 logger.info('Iniciando pré-carregamento de dados históricos...');
-// Usar o novo serviço unificado para carregamento de histórico
-unifiedDataService.loadHistoricalRouletteNumbers().catch(err => {
-  logger.error('Erro ao pré-carregar dados históricos via UnifiedDataService:', err);
-  // Fallback para o SocketService como compatibilidade
-  socketService.loadHistoricalRouletteNumbers().catch(err => {
-    logger.error('Erro ao pré-carregar dados históricos via SocketService:', err);
-  });
+socketService.loadHistoricalRouletteNumbers().catch(err => {
+  logger.error('Erro ao pré-carregar dados históricos:', err);
 });
 
 // Expor globalmente a função para verificar se o sistema foi inicializado
