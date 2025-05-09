@@ -40,7 +40,7 @@ MAX_ERROS_CONSECUTIVOS = int(os.environ.get('MAX_ERROS_CONSECUTIVOS', '5'))
 
 # Configurações do servidor
 DEFAULT_HOST = os.environ.get('HOST', '0.0.0.0')
-DEFAULT_PORT = int(os.environ.get('PORT', '5000'))
+DEFAULT_PORT = int(os.environ.get('PORT', '8080'))
 
 # Configurações de banco de dados
 # Supabase
@@ -54,7 +54,7 @@ MONGODB_DB_NAME = os.environ.get('MONGODB_DB_NAME', 'runcash')
 MONGODB_ENABLED = os.environ.get('MONGODB_ENABLED', 'true').lower() in ('true', '1', 't')
 
 # URL do Railway para envio de eventos
-RAILWAY_URL = os.environ.get('RAILWAY_URL', 'https://runcash1-production.up.railway.app')
+RAILWAY_URL = os.environ.get('RAILWAY_URL', 'https://starfish-app-fubxw.ondigitalocean.app')
 
 # Configuração de segurança
 API_KEY = os.environ.get('API_KEY', 'dev_key')

@@ -13,9 +13,9 @@ RUN node install_dependencies.js
 # Copiar todo o código-fonte
 COPY . .
 
-ENV PORT=5000
+ENV PORT=8080
 ENV NODE_ENV=production
 
-EXPOSE 5000
+EXPOSE 8080
 
 CMD ["/bin/sh", "-c", "node start_index.js"] 
