@@ -48,9 +48,6 @@ const RouletteList: React.FC = () => {
   // Estado para saber se o usuário tem assinatura
   const [hasSubscription, setHasSubscription] = useState<boolean>(false);
   
-  // Contador de tentativas de reconexão
-  const [reconnectCount, setReconnectCount] = useState<number>(0);
-  
   // Inicializar streaming ao montar o componente
   useEffect(() => {
     console.log('[RouletteList] Inicializando UnifiedRouletteClient...');
@@ -61,7 +58,7 @@ const RouletteList: React.FC = () => {
       autoConnect: true
     });
     
-    // Forçar conexão com stream SSE e tentar novamente se falhar
+    // Forçar conexão com stream SSE
     unifiedClient.connectStream();
     
     // Handler para atualizações de dados
@@ -79,8 +76,6 @@ const RouletteList: React.FC = () => {
       if (allRoulettes && allRoulettes.length > 0) {
         console.log(`[RouletteList] Atualizando ${allRoulettes.length} roletas`);
         setRoulettes(allRoulettes);
-        // Resetar contador de reconexão quando recebemos dados
-        setReconnectCount(0);
       }
     };
     
@@ -166,59 +161,21 @@ const RouletteList: React.FC = () => {
       reconnectAttempts: 0
     });
     
-    // Tentar reconectar a cada 10 segundos se não houver dados ou se a conexão falhar
-    const reconnectInterval = setInterval(() => {
-      // Verificar se já temos dados
-      const allRoulettes = unifiedClient.getAllRoulettes();
-      if (!allRoulettes || allRoulettes.length === 0) {
-        // Incrementar contador de reconexão
-        setReconnectCount(prev => prev + 1);
-        console.log(`[RouletteList] Sem dados, forçando reconexão... (tentativa ${reconnectCount + 1})`);
-        
-        // Forçar reconexão
-        unifiedClient.disconnectStream();
-        setTimeout(() => {
-          unifiedClient.connectStream();
-        }, 1000); // Esperar 1s entre desconexão e nova conexão
-        
-        // Tentar buscar dados diretamente
-        unifiedClient.forceUpdate().catch(err => {
-          console.error('[RouletteList] Erro ao forçar atualização:', err);
-        });
-      }
-      
-      // Se não estamos conectados, reconectar
-      try {
-        const status = unifiedClient.getStatus();
-        if (status && typeof status === 'object' && 'isStreamConnected' in status && !status.isStreamConnected) {
-          console.log('[RouletteList] Stream não está conectado, reconectando...');
-          unifiedClient.connectStream();
-        }
-      } catch (error) {
-        console.error('[RouletteList] Erro ao verificar status da conexão:', error);
-        // Tentar reconectar mesmo assim
-        unifiedClient.connectStream();
-      }
-    }, 10000); // A cada 10 segundos
-    
     // Limpar listeners ao desmontar o componente
     return () => {
-      console.log('[RouletteList] Limpando recursos...');
+      console.log('[RouletteList] Limpando listeners...');
       unifiedClient.off('update', handleDataUpdate);
       unifiedClient.off('connect', handleConnect);
       unifiedClient.off('disconnect', handleDisconnect);
       unifiedClient.off('error', handleError);
       unifiedClient.off('reconnecting', handleReconnecting);
       
-      // Limpar intervalo de reconexão
-      clearInterval(reconnectInterval);
-      
       // Cancelar inscrição de eventos
       if (encryptedSubscription) {
         encryptedSubscription.unsubscribe();
       }
     };
-  }, [reconnectCount]);
+  }, []);
   
   // Renderizar indicador de carregamento se não tivermos dados
   if (roulettes.length === 0 && !isEncrypted && !error) {
@@ -231,9 +188,6 @@ const RouletteList: React.FC = () => {
             <p>Status do stream: {streamStatus.isConnected ? 'Conectado' : 'Conectando...'}</p>
             {streamStatus.reconnectAttempts > 0 && (
               <p>Tentativas de reconexão: {streamStatus.reconnectAttempts}</p>
-            )}
-            {reconnectCount > 0 && (
-              <p>Tentativas de recuperação de dados: {reconnectCount}</p>
             )}
           </div>
         )}
@@ -256,7 +210,7 @@ const RouletteList: React.FC = () => {
           className="retry-button"
           onClick={() => {
             setError(null);
-            setReconnectCount(prev => prev + 1); // Forçar reconnect no useEffect
+            UnifiedRouletteClient.getInstance().connectStream();
           }}
         >
           Tentar novamente
@@ -285,39 +239,39 @@ const RouletteList: React.FC = () => {
             Status: {streamStatus.isConnected ? 'Conectado' : 'Desconectado'} | 
             Última atualização: {streamStatus.lastReceivedAt ? new Date(streamStatus.lastReceivedAt).toLocaleTimeString() : 'N/A'}
           </p>
-          {reconnectCount > 0 && (
-            <p className="text-xs text-gray-500">Reconexões: {reconnectCount}</p>
-          )}
         </div>
       )}
       
       <div className="roulette-grid">
         {roulettes.map((roulette: Roulette) => (
           <div key={roulette.id} className="roulette-card">
-            <h3>{roulette.nome || 'Roleta sem nome'}</h3>
+            <h3>{roulette.nome}</h3>
             <div className="numbers-container">
               {roulette.numero && Array.isArray(roulette.numero) && roulette.numero.slice(0, 10).map((num, index) => (
                 <div 
                   key={`${roulette.id}-${index}`} 
-                  className={`number-ball ${typeof num === 'object' ? (num?.cor || getNumberColor(num?.numero || 0)) : getNumberColor(num || 0)}`}
+                  className={`number-ball ${typeof num === 'object' ? num.cor : getNumberColor(typeof num === 'object' ? num.numero : num)}`}
                 >
-                  {typeof num === 'object' ? (num?.numero ?? '?') : (num ?? '?')}
+                  {typeof num === 'object' ? num.numero : num}
                 </div>
               ))}
             </div>
             <div className="roulette-info">
               {roulette.numero && Array.isArray(roulette.numero) && roulette.numero.length > 0 && (
-                <>
-                  <p>Último número: {typeof roulette.numero[0] === 'object' ? 
-                    (roulette.numero[0]?.numero ?? 'N/A') : (roulette.numero[0] ?? 'N/A')}</p>
-                  <p>Cor: {typeof roulette.numero[0] === 'object' ? 
-                    (roulette.numero[0]?.cor ?? 'Desconhecida') : 
-                    getNumberColor(typeof roulette.numero[0] === 'object' ? 
-                      (roulette.numero[0]?.numero ?? 0) : (roulette.numero[0] ?? 0))}</p>
-                  <p>Hora: {typeof roulette.numero[0] === 'object' && 
-                    roulette.numero[0] && 'timestamp' in roulette.numero[0] ? 
-                    new Date(roulette.numero[0].timestamp).toLocaleTimeString() : 'N/A'}</p>
-                </>
+                (() => {
+                  const primeiroNumero = roulette.numero[0];
+                  if (!primeiroNumero) return null;
+
+                  const ehObjeto = typeof primeiroNumero === 'object' && primeiroNumero !== null;
+
+                  return (
+                    <>
+                      <p>Último número: {ehObjeto ? (primeiroNumero as any).numero : primeiroNumero}</p>
+                      <p>Cor: {ehObjeto ? (primeiroNumero as any).cor : getNumberColor(primeiroNumero as number)}</p>
+                      <p>Hora: {ehObjeto && 'timestamp' in primeiroNumero ? new Date((primeiroNumero as any).timestamp).toLocaleTimeString() : 'N/A'}</p>
+                    </>
+                  );
+                })()
               )}
             </div>
           </div>

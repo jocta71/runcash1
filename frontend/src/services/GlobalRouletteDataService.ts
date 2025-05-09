@@ -155,74 +155,38 @@ class GlobalRouletteDataService {
   }
   
   /**
-   * Busca dados de roletas da API
-   * @returns Lista de roletas
+   * Busca dados das roletas da API usando o cliente unificado
+   * @deprecated Use o UnifiedRouletteClient diretamente
+   * @returns Promise com dados das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
-    if (this.isFetching) {
-      console.log('[GlobalRouletteService] Já existe uma requisição em andamento, retornando promise');
-      if (this._currentFetchPromise) {
-        return this._currentFetchPromise;
-      }
+    console.warn('[GlobalRouletteService] fetchRouletteData está depreciado. Use UnifiedRouletteClient.getInstance().fetchRouletteData()');
+    
+    try {
+      // Registrar o tempo para limitar requisições muito frequentes
+      this.lastFetchTime = Date.now();
+      
+      // Usar o cliente unificado para buscar dados
+      const data = await this.unifiedClient.fetchRouletteData();
+      
+      // Atualizar dados locais
+      this.rouletteData = data;
+      
+      // Notificar assinantes
+      this.notifySubscribers();
+      
+      return this.rouletteData;
+    } catch (error) {
+      console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
+      
+      // Emitir evento de erro
+      EventBus.emit('roulette:fetch-error', {
+        error,
+        message: `Erro ao buscar dados: ${error.message}`
+      });
+      
+      return this.rouletteData;
     }
-    
-    this.isFetching = true;
-    console.log('[GlobalRouletteService] Iniciando busca de dados de roletas...');
-    
-    // Criar e armazenar a Promise para retornar em caso de chamadas concorrentes
-    this._currentFetchPromise = new Promise<any[]>(async (resolve, reject) => {
-      try {
-        // Verificar se temos dados recentes no UnifiedClient antes de fazer uma solicitação
-        const unifiedClientData = this.unifiedClient.getAllRoulettes();
-        if (unifiedClientData && unifiedClientData.length > 0) {
-          console.log(`[GlobalRouletteService] Obtidos ${unifiedClientData.length} dados de roletas do UnifiedClient.`);
-          this.rouletteData = unifiedClientData;
-          this.lastFetchTime = Date.now();
-          this.isFetching = false;
-          
-          // Notificar assinantes imediatamente com dados frescos do UnifiedClient
-          this.notifySubscribers();
-          resolve(unifiedClientData);
-          return;
-        }
-        
-        // Se não temos dados no UnifiedClient, forçar uma atualização e aguardar
-        console.log('[GlobalRouletteService] Sem dados no UnifiedClient, forçando atualização...');
-        try {
-          await this.unifiedClient.forceUpdate();
-          
-          // Aguardar um pequeno tempo para os dados serem processados
-          await new Promise(r => setTimeout(r, 1000));
-          
-          // Verificar novamente se temos dados
-          const updatedData = this.unifiedClient.getAllRoulettes();
-          if (updatedData && updatedData.length > 0) {
-            console.log(`[GlobalRouletteService] Obtidos ${updatedData.length} dados após forceUpdate.`);
-            this.rouletteData = updatedData;
-            this.lastFetchTime = Date.now();
-            this.isFetching = false;
-            
-            // Notificar assinantes
-            this.notifySubscribers();
-            resolve(updatedData);
-            return;
-          }
-        } catch (forceUpdateError) {
-          console.error('[GlobalRouletteService] Erro ao forçar atualização:', forceUpdateError);
-          // Continuar com a abordagem de fallback abaixo
-        }
-                
-        // ... resto do código existente (fallback) ...
-        
-      } catch (error) {
-        console.error('[GlobalRouletteService] Erro ao buscar dados:', error);
-        this.isFetching = false;
-        this._currentFetchPromise = null;
-        reject(error);
-      }
-    });
-    
-    return this._currentFetchPromise;
   }
   
   /**

@@ -49,32 +49,11 @@ async function initializeRoulettesSystem() {
   const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
   const unifiedClient = UnifiedRouletteClient.getInstance({
     streamingEnabled: true,
-    autoConnect: true,
-    reconnectInterval: 3000,  // Tentar reconectar a cada 3 segundos
-    maxReconnectAttempts: 20  // Aumentar número máximo de tentativas de reconexão
+    autoConnect: true
   });
   
   // Forçar conexão com stream SSE
   unifiedClient.connectStream();
-  
-  // Configurar callback para tentar reconectar periodicamente se a conexão falhar
-  const checkConnection = () => {
-    const status = unifiedClient.getStatus();
-    if (!status.isStreamConnected) {
-      logger.info('Conexão SSE não detectada, tentando reconectar...');
-      unifiedClient.connectStream();
-    }
-    
-    // Verificar se há dados
-    const allRoulettes = unifiedClient.getAllRoulettes();
-    if (!allRoulettes || allRoulettes.length === 0) {
-      logger.info('Sem dados de roletas, forçando atualização...');
-      unifiedClient.forceUpdate();
-    }
-  };
-  
-  // Verificar conexão a cada 5 segundos
-  const connectionCheckInterval = setInterval(checkConnection, 5000);
   
   // Inicializar o serviço global e buscar dados iniciais uma única vez
   logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
@@ -113,7 +92,6 @@ async function initializeRoulettesSystem() {
   window.addEventListener('beforeunload', () => {
     rouletteFeedService.stop();
     unifiedClient.dispose();
-    clearInterval(connectionCheckInterval);
     window.ROULETTE_SYSTEM_INITIALIZED = false;
     logger.info('Sistema de roletas finalizado');
   });
@@ -136,16 +114,7 @@ logger.info('Conexão com o servidor sendo estabelecida em background...');
 
 // Inicializar o sistema de roletas como parte do carregamento da aplicação
 logger.info('Inicializando sistema de roletas de forma centralizada...');
-// Usar IIFE para evitar await no nível superior
-let rouletteSystem: any = null;
-(function() {
-  initializeRoulettesSystem().then(system => {
-    rouletteSystem = system;
-    logger.info('Sistema de roletas inicializado com sucesso');
-  }).catch(error => {
-    logger.error('Erro ao inicializar sistema de roletas:', error);
-  });
-})();
+const rouletteSystem = await initializeRoulettesSystem();
 
 // Configuração global para requisições fetch
 const originalFetch = window.fetch;
