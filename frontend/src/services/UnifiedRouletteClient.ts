@@ -125,6 +125,9 @@ class UnifiedRouletteClient {
       window.addEventListener('blur', this.handleBlur);
     }
     
+    // Escutar eventos do GlobalRouletteService (sistema legado) para integrar dados
+    this.subscribeToGlobalRouletteService();
+    
     // Priorizar conexão SSE (ao invés de WebSocket) 
     if (this.streamingEnabled && options.autoConnect !== false) {
       this.log('Iniciando com conexão SSE (prioridade)');
@@ -1391,6 +1394,46 @@ class UnifiedRouletteClient {
   //   },
   //   ...
   // };
+
+  /**
+   * Inscreve-se no serviço legado GlobalRouletteService para receber dados
+   * Esta é uma medida temporária para garantir compatibilidade
+   */
+  private subscribeToGlobalRouletteService(): void {
+    try {
+      // Verificar se o EventBus está disponível
+      if (EventBus) {
+        this.log('Inscrevendo-se em eventos do sistema legado GlobalRouletteService');
+        
+        // Inscrever-se no evento 'roulette:data-updated' que é emitido pelo serviço legado
+        EventBus.on('roulette:data-updated', (eventData: any) => {
+          if (eventData && eventData.data) {
+            this.log(`Recebendo dados do sistema legado: ${Array.isArray(eventData.data) ? 
+              `${eventData.data.length} roletas` : 'uma roleta'}`);
+            
+            // Usar os dados recebidos para atualizar o cache
+            this.updateCache(eventData.data);
+            
+            // Emitir evento próprio para notificar nossos assinantes
+            this.emit('update', Array.isArray(eventData.data) ? 
+              eventData.data : [eventData.data]);
+          }
+        });
+        
+        // Para obter feedback de quando o sistema legado carrega dados
+        EventBus.on('roulette:all-data-updated', (eventData: any) => {
+          this.log(`GlobalRouletteService carregou ${eventData?.data?.length || 0} roletas`);
+          
+          if (eventData && eventData.data && Array.isArray(eventData.data) && eventData.data.length > 0) {
+            this.updateCache(eventData.data);
+            this.emit('update', eventData.data);
+          }
+        });
+      }
+    } catch (error) {
+      this.error('Erro ao inscrever-se em eventos do sistema legado:', error);
+    }
+  }
 }
 
 // Exportar singleton

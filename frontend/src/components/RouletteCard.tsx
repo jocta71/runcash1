@@ -333,119 +333,66 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     console.log(`[${componentId}] useEffect executado. ID: ${safeData.id}`);
 
     const handleUpdate = (updateData: any) => {
-        // <<< Log 1: Verificar se o handleUpdate é chamado e o que recebe >>>
-        console.log(`[${componentId}] handleUpdate chamado. Dados recebidos no evento 'update':`, JSON.stringify(updateData).substring(0, 500) + "..."); // Log inicial truncado
-
-        // Lógica para encontrar myData
-        let myData: any = null;
-        if (Array.isArray(updateData)) {
-            myData = updateData.find(r => (r.id || r.roleta_id) === safeData.id);
-        } else if (updateData && typeof updateData === 'object' && (updateData.id || updateData.roleta_id) === safeData.id) {
-            myData = updateData;
-        }
+      // Verificar se os dados recebidos são relevantes para esta roleta
+      let relevantData = null;
+      
+      // Se recebemos um array, encontrar a roleta pelo ID
+      if (Array.isArray(updateData)) {
+        relevantData = updateData.find(r => 
+          r.id === safeData.id || 
+          r._id === safeData.id ||
+          r.roleta_id === safeData.id);
+      } 
+      // Se recebemos um objeto único, verificar se é para esta roleta
+      else if (updateData && (
+        updateData.id === safeData.id || 
+        updateData._id === safeData.id ||
+        updateData.roleta_id === safeData.id)) {
+        relevantData = updateData;
+      }
+      
+      // Se não encontramos dados relevantes, não fazer nada
+      if (!relevantData) {
+        return;
+      }
+      
+      console.log(`[${componentId}] Dados atualizados recebidos para roleta ${safeData.id}`);
+      
+      // Processar dados e atualizar estado
+      const processedData = processRouletteData(relevantData);
+      if (processedData) {
+        setRouletteData(processedData);
+        setIsLoading(false);
+        setError(null);
         
-        // <<< Log 2: Verificar se myData foi encontrado para este ID >>>
-        if(myData) {
-            console.log(`[${componentId}] Dados encontrados para este ID (${safeData.id}) na atualização. Processando...`);
-        } else {
-             // Não loga nada se não achou, para não poluir
-             // console.log(`[${componentId}] Nenhum dado para este ID (${safeData.id}) encontrado na atualização.`);
-             return; // Se não achou dados para este card, não faz nada
+        // Verificar se é um novo número
+        if (processedData.ultimoNumero !== rouletteData?.ultimoNumero) {
+          setIsNewNumber(true);
+          // Limpar o estado 'isNewNumber' após alguns segundos
+          setTimeout(() => setIsNewNumber(false), 3000);
         }
-
-        if (myData) { // Redundante, mas seguro
-            const processed = processRouletteData(myData); 
-            
-            // <<< Log 3: Verificar resultado do processamento >>>
-            console.log(`[${componentId}] Resultado de processRouletteData para atualização:`, processed === null ? 'NULL' : `Status: ${processed.status}, UltimoNum: ${processed.ultimoNumero}, CountNums: ${processed.numeros.length}`);
-
-            if (processed !== null) {
-                 setRouletteData(currentData => {
-                     // Se não houver dados anteriores ou a atualização não foi processada, retorna o estado atual ou o processado
-                     if (!currentData) {
-                         // Se não tem dados atuais, a atualização (se válida) se torna o estado inicial
-                         return processed;
-                     }
-                     if (!processed) {
-                          // Se a atualização falhou no processamento, mantém os dados atuais
-                          return currentData;
-                     }
-
-                     // Verifica se o ÚLTIMO NÚMERO GERAL da atualização é diferente do último número GERAL atual
-                     const isNewSpin = processed.ultimoNumero !== null &&
-                                       currentData.ultimoNumero !== processed.ultimoNumero;
-
-                     let updatedNumeros = currentData.numeros; // Assume que os números não mudaram por padrão
-
-                     if (isNewSpin) {
-                         // Pega o objeto do número mais recente da atualização (deve ser o primeiro em processed.numeros)
-                         const newNumberObject = processed.numeros.length > 0 ? processed.numeros[0] : null;
-
-                         if (newNumberObject && newNumberObject.numero === processed.ultimoNumero) {
-                            // Confirma que o primeiro número no array processado corresponde ao último número geral
-                            console.log(`%c[${componentId}] NOVO NÚMERO DETECTADO (via ultimoNumero): ${processed.ultimoNumero}`, 'color: lightgreen; font-weight: bold;');
-
-                            // Adiciona o novo número (objeto completo) no início da lista atual
-                            updatedNumeros = [newNumberObject, ...currentData.numeros].slice(0, 10); // Mantém limite de 10
-
-                            // Lógica de destaque visual
-                            setIsNewNumber(true);
-                            setTimeout(() => setIsNewNumber(false), 2000);
-                         } else {
-                             console.warn(`[${componentId}] Discrepância detectada: processed.ultimoNumero (${processed.ultimoNumero}) é novo, mas não corresponde ao primeiro item em processed.numeros (${newNumberObject?.numero}). Verifique processRouletteData.`);
-                             // Neste caso, mantém os números atuais por segurança
-                             updatedNumeros = currentData.numeros;
-                         }
-                     } else if (processed.numeros.length > 0 && currentData.numeros.length === 0) {
-                         // Caso especial: Preenchendo números pela primeira vez a partir de uma atualização
-                         console.log(`[${componentId}] Preenchendo números iniciais da atualização.`);
-                         updatedNumeros = processed.numeros.slice(0, 10);
-                     }
-                     // Se não for um novo giro (isNewSpin é false), 'updatedNumeros' já mantém 'currentData.numeros'
-
-                     // Retorna o novo estado combinando infos recentes com a lista de números atualizada/mantida
-                     return {
-                         ...currentData, // Mantém o estado atual como base
-                         ...processed,  // Sobrescreve com os dados mais recentes (status, winrate, streak, etc.)
-                         numeros: updatedNumeros, // Usa a lista de números atualizada (se novo giro) ou a mantida
-                         // ultimoNumero já vem de processed
-                     };
-                 });
-                 setIsLoading(false);
-                 setError(null);
-            } else {
-                console.warn(`[${componentId}] processRouletteData retornou null para atualização. Estado NÃO será atualizado.`);
-                if (rouletteData) setIsLoading(false);
-            }
-        }
+      }
     };
-
-    // Busca inicial e assinatura
-    console.log(`[${componentId}] Verificando dados existentes no UnifiedClient...`);
-    const currentDataFromClient = unifiedClient.getRouletteById(safeData.id);
-    if (currentDataFromClient) {
-         console.log(`[${componentId}] Dados INICIAIS encontrados no UnifiedClient. Processando...`);
-         // Chama handleUpdate diretamente para processar os dados iniciais
-         // Isso garante que os logs dentro de handleUpdate rodem também para os dados iniciais
-         handleUpdate(currentDataFromClient); 
-         // Define isLoading como false aqui, pois já temos dados
-         setIsLoading(false); 
-      } else {
-        console.log(`[${componentId}] Nenhum dado inicial no UnifiedClient. Aguardando evento 'update'...`);
-         // Mantém isLoading true apenas se não houver dados iniciais
-        setIsLoading(true); 
+    
+    // Tentar buscar dados do cache do UnifiedClient primeiro
+    const cachedData = unifiedClient.getRouletteById(safeData.id);
+    if (cachedData) {
+      console.log(`[${componentId}] Usando dados em cache do UnifiedClient`);
+      const processedData = processRouletteData(cachedData);
+      if (processedData) {
+        setRouletteData(processedData);
+        setIsLoading(false);
+      }
     }
-
-    console.log(`[${componentId}] Assinando evento 'update' do UnifiedClient.`);
+    
+    // Inscrever-se para atualizações futuras
     const unsubscribe = unifiedClient.on('update', handleUpdate);
-
+    
+    // Lógica de limpeza
     return () => {
-        console.log(`[${componentId}] Desmontando e cancelando assinatura do evento 'update'.`);
-        unsubscribe();
+      unsubscribe();
     };
-  // Dependências revisadas: safeData.id e unifiedClient são suficientes para setup/cleanup.
-  // Removido rouletteData para evitar re-assinaturas desnecessárias quando o estado muda internamente.
-  }, [safeData.id, unifiedClient]);
+  }, [safeData.id, historicalDataReady, rouletteData?.ultimoNumero]);
   
   // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
   // Console.log para verificar se há apenas uma fonte de requisições:

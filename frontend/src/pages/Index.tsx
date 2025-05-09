@@ -486,6 +486,7 @@ const Index = () => {
   useEffect(() => {
     let isMounted = true;
     let timeoutId: NodeJS.Timeout | null = null;
+    let checkDataIntervalId: NodeJS.Timeout | null = null;
     
     const loadHistoricalData = async () => {
       try {
@@ -512,10 +513,27 @@ const Index = () => {
           }
         }
         
-        // Atualizar estado apenas se o componente ainda estiver montado
-        if (isMounted) {
-          setHistoricalDataReady(true);
-        }
+        // Verificar se temos dados de roletas, seja do histórico ou do GlobalRouletteService
+        const checkForRoulettes = () => {
+          const availableRoulettes = unifiedClient.getAllRoulettes();
+          console.log(`[Index] Verificando dados de roletas: ${availableRoulettes.length} roletas disponíveis`);
+          
+          if (availableRoulettes.length > 0) {
+            // Temos dados! Podemos mostrar os cards
+            if (isMounted) {
+              setHistoricalDataReady(true);
+              if (checkDataIntervalId) clearInterval(checkDataIntervalId);
+            }
+          }
+        };
+        
+        // Verificar imediatamente
+        checkForRoulettes();
+        
+        // E também configurar um intervalo para verificar a cada 1 segundo
+        // se os dados chegaram via GlobalRouletteService
+        checkDataIntervalId = setInterval(checkForRoulettes, 1000);
+        
       } catch (err) {
         console.error('[Index] Erro ao carregar dados históricos:', err);
         // Mesmo com erro, permitir a continuação do fluxo para não bloquear a renderização
@@ -539,6 +557,7 @@ const Index = () => {
     return () => {
       isMounted = false;
       if (timeoutId) clearTimeout(timeoutId);
+      if (checkDataIntervalId) clearInterval(checkDataIntervalId);
       clearTimeout(safetyTimeout);
     };
   }, []);
