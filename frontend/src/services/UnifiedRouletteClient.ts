@@ -1316,6 +1316,21 @@ class UnifiedRouletteClient {
     return this.initialHistoricalDataCache.get(rouletteName);
   }
 
+  // Método público para verificar se os dados históricos estão sendo carregados
+  public isHistoryLoading(): boolean {
+    return this.isFetchingInitialHistory;
+  }
+
+  // Método público para obter a Promise de carregamento dos dados históricos
+  public getHistoryLoadPromise(): Promise<void> | null {
+    return this.initialHistoryFetchPromise;
+  }
+
+  // Método público para iniciar o carregamento dos dados históricos
+  public loadHistoricalData(): Promise<void> {
+    return this.fetchAndCacheInitialHistory();
+  }
+
   // --- Garantir que ENDPOINTS.HISTORICAL.ALL_ROULETTES exista ---
   // (Precisa verificar ou adicionar em frontend/src/services/api/endpoints.ts)
   // Exemplo de como poderia ser em endpoints.ts:

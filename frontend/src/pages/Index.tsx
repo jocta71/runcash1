@@ -22,6 +22,8 @@ import {
 } from '@/integrations/asaas/client';
 import { useSubscription } from '@/context/SubscriptionContext';
 import SubscriptionRequired from '@/components/SubscriptionRequired';
+import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
+import UnifiedRouletteClient from '@/services/UnifiedRouletteClient';
 
 
 
@@ -216,6 +218,7 @@ const Index = () => {
   const [checkStatusInterval, setCheckStatusInterval] = useState<NodeJS.Timeout | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [historicalDataReady, setHistoricalDataReady] = useState(false);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -479,8 +482,32 @@ const Index = () => {
     }).slice(0, 3);
   }, [roulettes]);
 
+  // Garantir que os dados históricos sejam carregados antes de renderizar os cards
+  useEffect(() => {
+    const loadHistoricalData = async () => {
+      try {
+        const unifiedClient = UnifiedRouletteClient.getInstance();
+        if (typeof unifiedClient.loadHistoricalData === 'function') {
+          await unifiedClient.loadHistoricalData();
+        }
+        setHistoricalDataReady(true);
+      } catch (err) {
+        console.error('[Index] Erro ao carregar dados históricos:', err);
+        // Mesmo com erro, permitir a continuação do fluxo para não bloquear a renderização
+        setHistoricalDataReady(true);
+      }
+    };
+    
+    loadHistoricalData();
+  }, []);
+  
   // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
+    // Se os dados históricos não estiverem prontos, renderizar skeletons
+    if (!historicalDataReady) {
+      return renderRouletteSkeletons();
+    }
+    
     if (!Array.isArray(filteredRoulettes) || filteredRoulettes.length === 0) {
       console.log('[DEBUG] Não há roletas para renderizar. Array vazio ou inválido:', filteredRoulettes);
       return null;

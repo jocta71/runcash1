@@ -217,6 +217,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   const [isNewNumber, setIsNewNumber] = useState(false);
   const [updateCount, setUpdateCount] = useState(0);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [historicalDataReady, setHistoricalDataReady] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Refs
@@ -240,10 +241,37 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   
   // Obter instância do UnifiedClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
+
+  // Verificar se os dados históricos estão prontos
+  useEffect(() => {
+    const checkHistoricalData = async () => {
+      try {
+        // Aguardar o carregamento dos dados históricos
+        if (unifiedClient.getHistoryLoadPromise()) {
+          await unifiedClient.getHistoryLoadPromise();
+        } else {
+          // Se não houver promessa existente, tenta buscar os dados
+          await unifiedClient.loadHistoricalData();
+        }
+        setHistoricalDataReady(true);
+      } catch (err) {
+        console.error(`[RouletteCard - ${safeData.id}] Erro ao aguardar dados históricos:`, err);
+        // Mesmo com erro, permitir a continuação do fluxo para não bloquear a renderização
+        setHistoricalDataReady(true);
+      }
+    };
+
+    checkHistoricalData();
+  }, [safeData.id]);
   
   // Efeito para iniciar a busca de dados
   useEffect(() => {
-    const componentId = `roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`; 
+    // Não prosseguir se os dados históricos não estiverem prontos
+    if (!historicalDataReady) {
+      console.log(`[${componentId}] Aguardando carregamento dos dados históricos...`);
+      return;
+    }
+
     console.log(`[${componentId}] useEffect executado. ID: ${safeData.id}`);
 
     const handleUpdate = (updateData: any) => {
