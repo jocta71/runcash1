@@ -841,6 +841,123 @@ class UnifiedRouletteClient {
       });
     }
   }
+
+  /**
+   * Registra mensagem de log
+   */
+  private log(...args: any[]): void {
+    if (this.logEnabled) {
+      console.log('[UnifiedRouletteClient]', ...args);
+    }
+  }
+  
+  /**
+   * Registra mensagem de erro
+   */
+  private error(...args: any[]): void {
+    console.error('[UnifiedRouletteClient]', ...args);
+  }
+
+  /**
+   * Manipulador para mudança de visibilidade da página
+   */
+  private handleVisibilityChange = (): void => {
+    if (document.hidden) {
+      this.log('Página não visível, pausando serviços');
+      
+      // Pausar polling se ativo
+      if (this.pollingTimer) {
+        window.clearInterval(this.pollingTimer);
+        this.pollingTimer = null;
+      }
+    } else {
+      this.log('Página visível, retomando serviços');
+      
+      // Priorizar streaming
+      if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
+        this.connectStream();
+      }
+      // Usar polling apenas se streaming falhar
+      else if (this.pollingEnabled && !this.pollingTimer && !this.isStreamConnected) {
+        this.startPolling();
+      }
+    }
+  }
+  
+  /**
+   * Manipulador para evento de foco na janela
+   */
+  private handleFocus = (): void => {
+    this.log('Janela ganhou foco');
+    
+    // Atualizar dados imediatamente apenas se não estiver usando streaming
+    if (!this.isStreamConnected && !this.isStreamConnecting) {
+      this.fetchRouletteData();
+    }
+  }
+  
+  /**
+   * Manipulador para evento de perda de foco
+   */
+  private handleBlur = (): void => {
+    this.log('Janela perdeu foco');
+  }
+  
+  /**
+   * Força uma atualização imediata dos dados
+   * Tenta reconectar o streaming se não estiver conectado
+   */
+  public forceUpdate(): Promise<any[]> {
+    // Se streaming não estiver conectado, tenta reconectar
+    if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
+      this.log('Forçando reconexão do stream');
+      this.connectStream();
+      return Promise.resolve(Array.from(this.rouletteData.values()));
+    }
+    
+    // Caso contrário, busca dados via REST
+    return this.fetchRouletteData();
+  }
+  
+  /**
+   * Inscreve-se no serviço legado GlobalRouletteService para receber dados
+   * Esta é uma medida temporária para garantir compatibilidade
+   */
+  private subscribeToGlobalRouletteService(): void {
+    try {
+      // Verificar se o EventBus está disponível
+      if (EventBus) {
+        this.log('Inscrevendo-se em eventos do sistema legado GlobalRouletteService');
+        
+        // Inscrever-se no evento 'roulette:data-updated' que é emitido pelo serviço legado
+        EventBus.on('roulette:data-updated', (eventData: any) => {
+          if (eventData && eventData.data) {
+            this.log(`Recebendo dados do sistema legado: ${Array.isArray(eventData.data) ? 
+              `${eventData.data.length} roletas` : 'uma roleta'}`);
+            
+            // Usar os dados recebidos para atualizar o cache
+            this.updateCache(eventData.data);
+            
+            // Emitir evento próprio para notificar nossos assinantes
+            this.emit('update', Array.isArray(eventData.data) ? 
+              eventData.data : [eventData.data]);
+          }
+        });
+        
+        // Para obter feedback de quando o sistema legado carrega dados
+        EventBus.on('roulette:all-data-updated', (eventData: any) => {
+          this.log(`GlobalRouletteService carregou ${eventData?.data?.length || 0} roletas`);
+          
+          if (eventData && eventData.data && Array.isArray(eventData.data) && eventData.data.length > 0) {
+            this.updateCache(eventData.data);
+            this.emit('update', eventData.data);
+          }
+        });
+      }
+    } catch (error) {
+      this.error('Erro ao inscrever-se em eventos do sistema legado:', error);
+    }
+  }
 }
 
 // Exportar singleton

@@ -208,7 +208,7 @@ export const RouletteCard: React.FC<RouletteCardProps> = ({ roulette }) => {
   
   // Função auxiliar para normalizar o ID da roleta
   const getRoulettId = (rouletteData: any): string => {
-    return rouletteData?.id || rouletteData?.roleta_id || '';
+    return rouletteData?.id || rouletteData?.roleta_id || rouletteData?._id || '';
   };
 
   // Função auxiliar para obter o nome da roleta
@@ -224,6 +224,9 @@ export const RouletteCard: React.FC<RouletteCardProps> = ({ roulette }) => {
     }
     if (Array.isArray(rouletteData?.numbers)) {
       return rouletteData.numbers;
+    }
+    if (Array.isArray(rouletteData?.lastNumbers)) {
+      return rouletteData.lastNumbers;
     }
     if (Array.isArray(rouletteData?.sequencia)) {
       return rouletteData.sequencia;
@@ -254,54 +257,78 @@ export const RouletteCard: React.FC<RouletteCardProps> = ({ roulette }) => {
       setData(roulette);
     }
     
-    const unifiedClient = UnifiedRouletteClient.getInstance();
-    const rouletteId = getRoulettId(roulette);
-    
-    // Função para lidar com atualizações de dados
-    const handleUpdate = (updateData: any) => {
-      // Se for um array, procurar a roleta relevante
-      if (Array.isArray(updateData)) {
-        const updatedRoulette = updateData.find(
-          r => getRoulettId(r) === rouletteId
-        );
-        
-        if (updatedRoulette) {
-          setData(updatedRoulette);
+    try {
+      const unifiedClient = UnifiedRouletteClient.getInstance();
+      const rouletteId = getRoulettId(roulette);
+      
+      // Função para lidar com atualizações de dados
+      const handleUpdate = (updateData: any) => {
+        // Se for um array, procurar a roleta relevante
+        if (Array.isArray(updateData)) {
+          const updatedRoulette = updateData.find(
+            r => getRoulettId(r) === rouletteId
+          );
+          
+          if (updatedRoulette) {
+            setData(updatedRoulette);
+            setIsLoading(false);
+            setError(null);
+          }
+        } 
+        // Se for um objeto único, verificar se é para esta roleta
+        else if (updateData && (getRoulettId(updateData) === rouletteId)) {
+          setData(updateData);
           setIsLoading(false);
           setError(null);
         }
-      } 
-      // Se for um objeto único, verificar se é para esta roleta
-      else if (updateData && (getRoulettId(updateData) === rouletteId)) {
-        setData(updateData);
-        setIsLoading(false);
-        setError(null);
+      };
+      
+      // Tentar buscar dados do cache primeiro
+      try {
+        const cachedData = unifiedClient.getRouletteById && unifiedClient.getRouletteById(rouletteId);
+        if (cachedData) {
+          setData(cachedData);
+        }
+      } catch (e) {
+        console.error('Erro ao buscar dados do cache:', e);
       }
-    };
-    
-    // Tentar buscar dados do cache primeiro
-    const cachedData = unifiedClient.getRouletteById(rouletteId);
-    if (cachedData) {
-      setData(cachedData);
+      
+      // Assinar eventos de atualização do UnifiedClient
+      let unsubscribe = () => {};
+      try {
+        if (unifiedClient.on) {
+          unsubscribe = unifiedClient.on('update', handleUpdate);
+        }
+      } catch (e) {
+        console.error('Erro ao assinar eventos do UnifiedClient:', e);
+      }
+      
+      // Assinar eventos do EventBus (legado)
+      const handleLegacyUpdate = (event: any) => {
+        if (event && event.data) {
+          handleUpdate(event.data);
+        }
+      };
+      
+      try {
+        EventBus.on('roulette:data-updated', handleLegacyUpdate);
+      } catch (e) {
+        console.error('Erro ao assinar eventos do EventBus:', e);
+      }
+      
+      // Cleanup
+      return () => {
+        try {
+          unsubscribe();
+          EventBus.off('roulette:data-updated', handleLegacyUpdate);
+        } catch (e) {
+          console.error('Erro no cleanup de eventos:', e);
+        }
+      };
+    } catch (e) {
+      console.error('Erro geral no RouletteCard:', e);
+      setError('Erro ao carregar dados da roleta');
     }
-    
-    // Assinar eventos de atualização do UnifiedClient
-    const unsubscribe = unifiedClient.on('update', handleUpdate);
-    
-    // Assinar eventos do EventBus (legado)
-    const handleLegacyUpdate = (event: any) => {
-      if (event && event.data) {
-        handleUpdate(event.data);
-      }
-    };
-    
-    EventBus.on('roulette:data-updated', handleLegacyUpdate);
-    
-    // Cleanup
-    return () => {
-      unsubscribe();
-      EventBus.off('roulette:data-updated', handleLegacyUpdate);
-    };
   }, [roulette]);
 
   // Renderizar cartão com dados da roleta

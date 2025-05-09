@@ -285,29 +285,52 @@ const Index = () => {
   useEffect(() => {
     // Função para verificar se temos roletas disponíveis
     const checkForRoulettes = () => {
-      const allRoulettes = unifiedClient.current.getAllRoulettes();
-      console.log('[Index] Verificando roletas disponíveis:', allRoulettes.length);
-      
-      if (allRoulettes && allRoulettes.length > 0) {
-        // Temos dados! Vamos usá-los
-        setRoulettes(allRoulettes);
-        setIsLoading(false);
+      try {
+        const allRoulettes = unifiedClient.current && 
+                            unifiedClient.current.getAllRoulettes && 
+                            unifiedClient.current.getAllRoulettes();
+                            
+        console.log('[Index] Verificando roletas disponíveis:', allRoulettes?.length || 0);
         
-        // Limpar o intervalo pois encontramos dados
-        if (checkDataIntervalId.current) {
-          window.clearInterval(checkDataIntervalId.current);
-          checkDataIntervalId.current = null;
+        if (allRoulettes && allRoulettes.length > 0) {
+          // Temos dados! Vamos usá-los
+          setRoulettes(allRoulettes);
+          setIsLoading(false);
+          
+          // Limpar o intervalo pois encontramos dados
+          if (checkDataIntervalId.current) {
+            window.clearInterval(checkDataIntervalId.current);
+            checkDataIntervalId.current = null;
+          }
+          
+          // Limpar o timeout de segurança, se existir
+          if (waitTimeoutId.current) {
+            window.clearTimeout(waitTimeoutId.current);
+            waitTimeoutId.current = null;
+          }
+          
+          console.log('[Index] Dados de roleta carregados com sucesso:', allRoulettes.length);
         }
-        
-        // Limpar o timeout de segurança, se existir
-        if (waitTimeoutId.current) {
-          window.clearTimeout(waitTimeoutId.current);
-          waitTimeoutId.current = null;
-        }
-        
-        console.log('[Index] Dados de roleta carregados com sucesso:', allRoulettes.length);
+      } catch (e) {
+        console.error('[Index] Erro ao verificar roletas disponíveis:', e);
       }
     };
+    
+    // Inicializar o UnifiedRouletteClient se necessário
+    try {
+      if (!unifiedClient.current) {
+        unifiedClient.current = UnifiedRouletteClient.getInstance();
+      }
+      
+      // Garantir que os dados históricos comecem a ser carregados
+      if (unifiedClient.current.loadHistoricalData) {
+        unifiedClient.current.loadHistoricalData().catch(err => {
+          console.error('[Index] Erro ao carregar dados históricos:', err);
+        });
+      }
+    } catch (e) {
+      console.error('[Index] Erro ao inicializar UnifiedRouletteClient:', e);
+    }
     
     // Verificar periodicamente pelos dados
     checkDataIntervalId.current = window.setInterval(checkForRoulettes, 500) as unknown as number;
@@ -333,19 +356,29 @@ const Index = () => {
       checkForRoulettes();
     };
     
-    EventBus.on('roulettes_loaded', handleRouletteDataLoaded);
+    try {
+      EventBus.on('roulettes_loaded', handleRouletteDataLoaded);
+    } catch (e) {
+      console.error('[Index] Erro ao inscrever-se em eventos do EventBus:', e);
+    }
     
     // Cleanup ao desmontar
     return () => {
-      if (checkDataIntervalId.current) {
-        window.clearInterval(checkDataIntervalId.current);
+      try {
+        if (checkDataIntervalId.current) {
+          window.clearInterval(checkDataIntervalId.current);
+          checkDataIntervalId.current = null;
+        }
+        
+        if (waitTimeoutId.current) {
+          window.clearTimeout(waitTimeoutId.current);
+          waitTimeoutId.current = null;
+        }
+        
+        EventBus.off('roulettes_loaded', handleRouletteDataLoaded);
+      } catch (e) {
+        console.error('[Index] Erro no cleanup de eventos:', e);
       }
-      
-      if (waitTimeoutId.current) {
-        window.clearTimeout(waitTimeoutId.current);
-      }
-      
-      EventBus.off('roulettes_loaded', handleRouletteDataLoaded);
     };
   }, []);
   
@@ -653,76 +686,38 @@ const Index = () => {
       return null;
     }
     
-    console.log(`[DEBUG] Renderizando ${filteredRoulettes.length} roletas disponíveis:`, JSON.stringify(filteredRoulettes.map(r => ({id: r.id, nome: r.nome || r.name})), null, 2));
+    console.log(`[DEBUG] Renderizando ${filteredRoulettes.length} roletas disponíveis`);
     
     // MODIFICAÇÃO CRÍTICA: Mostrar todas as roletas sem paginação
     const allRoulettes = filteredRoulettes;
-    
-    console.log(`[DEBUG] Dados brutos de todas as roletas:`, JSON.stringify(allRoulettes).substring(0, 500) + '...');
 
-    const simplifiedData = allRoulettes.map(roulette => {
-      return ({
-        id: roulette.id || roulette._id,
-        nome: roulette.nome || roulette.name,
-        numeros: roulette.numeros || roulette.numero || roulette.lastNumbers
-      });
-    });
-
-    return simplifiedData.map(roulette => {
-      // Garantir que temos números válidos
-      console.log(`[DEBUG] Processando roleta:`, JSON.stringify({
-        id: roulette.id,
-        nome: roulette.nome || roulette.name,
-        numeros: roulette.numeros || roulette.numero || roulette.lastNumbers
-      }));
-    
-      let safeNumbers: number[] = [];
+    return allRoulettes.map(roulette => {
+      // Obter ID seguro da roleta
+      const rouletteId = roulette.id || roulette._id || '';
+      const rouletteName = roulette.nome || roulette.name || 'Roleta sem nome';
       
-      // Tentar extrair números do campo numero
-      if (Array.isArray(roulette.numero)) {
-        safeNumbers = roulette.numero
-          .filter(item => item !== null && item !== undefined)
-          .map(item => {
-            // Aqui sabemos que item não é null ou undefined após o filtro
-            const nonNullItem = item as unknown; // Usar unknown em vez de any
-            // Se for um objeto com a propriedade numero
-            if (typeof nonNullItem === 'object' && nonNullItem !== null && 'numero' in nonNullItem) {
-              return (nonNullItem as {numero: number}).numero;
-            }
-            // Se for um número diretamente
-            return Number(nonNullItem);
-          });
-      } 
-      // Tentar extrair de lastNumbers se ainda estiver vazio
-      else if (Array.isArray(roulette.lastNumbers) && roulette.lastNumbers.length > 0) {
-        safeNumbers = roulette.lastNumbers;
-      } 
-      // Tentar extrair de numeros se ainda estiver vazio
-      else if (Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
-        safeNumbers = roulette.numeros;
+      // Preparar números para exibição, tentando acessar diferentes formatos possíveis
+      let numbers: number[] = [];
+      
+      if (Array.isArray(roulette.numeros)) {
+        numbers = roulette.numeros;
+      } else if (Array.isArray(roulette.lastNumbers)) {
+        numbers = roulette.lastNumbers;
+      } else if (Array.isArray(roulette.numero)) {
+        numbers = roulette.numero.map((n: any) => 
+          typeof n === 'object' && n !== null && 'numero' in n ? n.numero : Number(n)
+        ).filter((n: any) => !isNaN(n));
       }
       
-      console.log(`[DEBUG] Números extraídos para roleta ${roulette.id}:`, safeNumbers);
+      console.log(`[DEBUG] Roleta ${rouletteId} (${rouletteName}): ${numbers.length} números`);
       
       return (
         <div 
-          key={roulette.id} 
-          className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === roulette.id ? 'border-2 border-green-500 shadow-lg shadow-green-500/20' : 'p-0.5'}`}
+          key={rouletteId} 
+          className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === rouletteId ? 'border-2 border-green-500 shadow-lg shadow-green-500/20' : 'p-0.5'}`}
           onClick={() => setSelectedRoulette(roulette)}
         >
-          <RouletteCard
-            data={{
-              id: roulette.id || '',
-              _id: roulette._id || roulette.id || '',
-              name: roulette.name || roulette.nome || 'Roleta sem nome',
-              nome: roulette.nome || roulette.name || 'Roleta sem nome',
-              lastNumbers: safeNumbers,
-              numeros: safeNumbers,
-
-
-
-            }}
-          />
+          <RouletteCard roulette={roulette} />
         </div>
       );
     });
