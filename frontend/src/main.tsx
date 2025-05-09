@@ -34,7 +34,7 @@ logger.info('Manipuladores globais de erro configurados');
 window.ROULETTE_SYSTEM_INITIALIZED = false;
 
 // Inicializar o sistema de roletas como parte do carregamento da aplicação
-function initializeRoulettesSystem() {
+async function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
   // Inicializar os serviços em ordem
@@ -45,41 +45,43 @@ function initializeRoulettesSystem() {
   // Registrar o SocketService no RouletteFeedService
   rouletteFeedService.registerSocketService(socketService);
   
+  // Inicializar o UnifiedRouletteClient diretamente para garantir conexão SSE
+  const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
+  const unifiedClient = UnifiedRouletteClient.getInstance({
+    streamingEnabled: true,
+    autoConnect: true,
+    reconnectInterval: 3000,  // Tentar reconectar a cada 3 segundos
+    maxReconnectAttempts: 20  // Aumentar número máximo de tentativas de reconexão
+  });
+  
+  // Forçar conexão com stream SSE
+  unifiedClient.connectStream();
+  
+  // Configurar callback para tentar reconectar periodicamente se a conexão falhar
+  const checkConnection = () => {
+    const status = unifiedClient.getStatus();
+    if (!status.isStreamConnected) {
+      logger.info('Conexão SSE não detectada, tentando reconectar...');
+      unifiedClient.connectStream();
+    }
+    
+    // Verificar se há dados
+    const allRoulettes = unifiedClient.getAllRoulettes();
+    if (!allRoulettes || allRoulettes.length === 0) {
+      logger.info('Sem dados de roletas, forçando atualização...');
+      unifiedClient.forceUpdate();
+    }
+  };
+  
+  // Verificar conexão a cada 5 segundos
+  const connectionCheckInterval = setInterval(checkConnection, 5000);
+  
   // Inicializar o serviço global e buscar dados iniciais uma única vez
   logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
-  
-  // Função para inicializar o UnifiedRouletteClient
-  const initializeUnifiedClient = () => {
-    import('./services/UnifiedRouletteClient').then(({ default: UnifiedRouletteClient }) => {
-      const unifiedClient = UnifiedRouletteClient.getInstance({
-        streamingEnabled: true,
-        autoConnect: true
-      });
-      
-      // Forçar conexão com stream SSE
-      unifiedClient.connectStream();
-      
-      // Adicionar ao objeto do sistema de roletas
-      if (window.ROULETTE_SYSTEM_INITIALIZED && window.getRouletteSystem) {
-        const system = window.getRouletteSystem();
-        system.unifiedClient = unifiedClient;
-      }
-      
-      // Adicionar função para limpar recursos quando a página for fechada
-      window.addEventListener('beforeunload', () => {
-        unifiedClient.dispose();
-      });
-    }).catch(error => {
-      logger.error('Erro ao inicializar UnifiedRouletteClient:', error);
-    });
-  };
   
   // Usar a instância importada diretamente
   globalRouletteDataService.fetchRouletteData().then(data => {
     logger.info(`Dados iniciais obtidos pelo serviço global: ${data.length} roletas`);
-    
-    // Inicializar o UnifiedRouletteClient
-    initializeUnifiedClient();
     
     // Em seguida, inicializar o RouletteFeedService que usará os dados do serviço global
     rouletteFeedService.initialize().then(() => {
@@ -102,9 +104,6 @@ function initializeRoulettesSystem() {
     });
   }).catch(error => {
     logger.error('Erro ao buscar dados iniciais pelo serviço global:', error);
-    
-    // Mesmo com erro, tentar inicializar o UnifiedRouletteClient
-    initializeUnifiedClient();
   });
   
   // Marcar como inicializado
@@ -113,6 +112,8 @@ function initializeRoulettesSystem() {
   // Adicionar função para limpar recursos quando a página for fechada
   window.addEventListener('beforeunload', () => {
     rouletteFeedService.stop();
+    unifiedClient.dispose();
+    clearInterval(connectionCheckInterval);
     window.ROULETTE_SYSTEM_INITIALIZED = false;
     logger.info('Sistema de roletas finalizado');
   });
@@ -121,7 +122,8 @@ function initializeRoulettesSystem() {
     socketService,
     rouletteFeedService,
     eventService,
-    globalRouletteDataService
+    globalRouletteDataService,
+    unifiedClient
   };
 }
 
@@ -134,7 +136,16 @@ logger.info('Conexão com o servidor sendo estabelecida em background...');
 
 // Inicializar o sistema de roletas como parte do carregamento da aplicação
 logger.info('Inicializando sistema de roletas de forma centralizada...');
-const rouletteSystem = initializeRoulettesSystem();
+// Usar IIFE para evitar await no nível superior
+let rouletteSystem: any = null;
+(function() {
+  initializeRoulettesSystem().then(system => {
+    rouletteSystem = system;
+    logger.info('Sistema de roletas inicializado com sucesso');
+  }).catch(error => {
+    logger.error('Erro ao inicializar sistema de roletas:', error);
+  });
+})();
 
 // Configuração global para requisições fetch
 const originalFetch = window.fetch;
