@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-// Debug flag - set to true para habilitar logs durante a depuração
+// Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;
 
 // Helper function for controlled logging
@@ -247,51 +247,23 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     console.log(`[${componentId}] useEffect executado. ID: ${safeData.id}`);
 
     const handleUpdate = (updateData: any) => {
-        // Log detalhado para depuração
-        debugLog(`[${componentId}] handleUpdate chamado. Tipo de updateData:`, typeof updateData);
-        if (Array.isArray(updateData)) {
-          debugLog(`[${componentId}] updateData é um array com ${updateData.length} itens`);
-        } else if (typeof updateData === 'object') {
-          debugLog(`[${componentId}] updateData é um objeto com keys:`, Object.keys(updateData));
-        }
+        // <<< Log 1: Verificar se o handleUpdate é chamado e o que recebe >>>
+        console.log(`[${componentId}] handleUpdate chamado. Dados recebidos no evento 'update':`, JSON.stringify(updateData).substring(0, 500) + "..."); // Log inicial truncado
 
         // Lógica para encontrar myData
         let myData: any = null;
         if (Array.isArray(updateData)) {
             myData = updateData.find(r => (r.id || r.roleta_id) === safeData.id);
-            if (!myData) {
-              debugLog(`[${componentId}] ID ${safeData.id} não encontrado no array de atualização`);
-            }
-        } else if (updateData && typeof updateData === 'object') {
-            // Checar se updateData é a própria roleta para este card
-            if ((updateData.id || updateData.roleta_id) === safeData.id) {
-                myData = updateData;
-                debugLog(`[${componentId}] Dados diretos encontrados para o ID ${safeData.id}`);
-            } 
-            // Checar se os dados estão em um sub-objeto
-            else if (updateData.data && Array.isArray(updateData.data)) {
-                myData = updateData.data.find(r => (r.id || r.roleta_id) === safeData.id);
-                debugLog(`[${componentId}] Procurando em updateData.data - Encontrado:`, !!myData);
-            }
-            // Checar se estamos recebendo um evento de novo número
-            else if (updateData.type === 'new_number' && updateData.roleta_id === safeData.id) {
-                // Criar um objeto com os dados do novo número
-                myData = {
-                    id: updateData.roleta_id,
-                    nome: updateData.roleta_nome || 'Roleta',
-                    numero: [{
-                        numero: updateData.numero,
-                        timestamp: updateData.timestamp || new Date().toISOString()
-                    }],
-                    lastUpdateTime: Date.now()
-                };
-                debugLog(`[${componentId}] Evento de novo número recebido para o ID ${safeData.id}: ${updateData.numero}`);
-            }
+        } else if (updateData && typeof updateData === 'object' && (updateData.id || updateData.roleta_id) === safeData.id) {
+            myData = updateData;
         }
         
+        // <<< Log 2: Verificar se myData foi encontrado para este ID >>>
         if(myData) {
-            debugLog(`[${componentId}] Dados encontrados para este ID (${safeData.id}) na atualização:`, JSON.stringify(myData).substring(0, 200) + '...');
+            console.log(`[${componentId}] Dados encontrados para este ID (${safeData.id}) na atualização. Processando...`);
         } else {
+             // Não loga nada se não achou, para não poluir
+             // console.log(`[${componentId}] Nenhum dado para este ID (${safeData.id}) encontrado na atualização.`);
              return; // Se não achou dados para este card, não faz nada
         }
 
@@ -299,16 +271,13 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
             const processed = processRouletteData(myData); 
             
             // <<< Log 3: Verificar resultado do processamento >>>
-            debugLog(`[${componentId}] Resultado de processRouletteData:`, processed ? 
-                  `Status: ${processed.status}, UltimoNum: ${processed.ultimoNumero}, NumCount: ${processed.numeros.length}` : 
-                  'NULL');
+            console.log(`[${componentId}] Resultado de processRouletteData para atualização:`, processed === null ? 'NULL' : `Status: ${processed.status}, UltimoNum: ${processed.ultimoNumero}, CountNums: ${processed.numeros.length}`);
 
             if (processed !== null) {
                  setRouletteData(currentData => {
                      // Se não houver dados anteriores ou a atualização não foi processada, retorna o estado atual ou o processado
                      if (!currentData) {
                          // Se não tem dados atuais, a atualização (se válida) se torna o estado inicial
-                         debugLog(`[${componentId}] Definindo dados iniciais pois currentData é null`);
                          return processed;
                      }
                      if (!processed) {
@@ -328,7 +297,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
 
                          if (newNumberObject && newNumberObject.numero === processed.ultimoNumero) {
                             // Confirma que o primeiro número no array processado corresponde ao último número geral
-                            debugLog(`[${componentId}] NOVO NÚMERO DETECTADO: ${processed.ultimoNumero}`);
+                            console.log(`%c[${componentId}] NOVO NÚMERO DETECTADO (via ultimoNumero): ${processed.ultimoNumero}`, 'color: lightgreen; font-weight: bold;');
 
                             // Adiciona o novo número (objeto completo) no início da lista atual
                             updatedNumeros = [newNumberObject, ...currentData.numeros].slice(0, 10); // Mantém limite de 10
@@ -343,7 +312,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
                          }
                      } else if (processed.numeros.length > 0 && currentData.numeros.length === 0) {
                          // Caso especial: Preenchendo números pela primeira vez a partir de uma atualização
-                         debugLog(`[${componentId}] Preenchendo números iniciais da atualização.`);
+                         console.log(`[${componentId}] Preenchendo números iniciais da atualização.`);
                          updatedNumeros = processed.numeros.slice(0, 10);
                      }
                      // Se não for um novo giro (isNewSpin é false), 'updatedNumeros' já mantém 'currentData.numeros'
@@ -366,48 +335,31 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     };
 
     // Busca inicial e assinatura
-    debugLog(`[${componentId}] Verificando dados existentes no UnifiedClient...`);
+    console.log(`[${componentId}] Verificando dados existentes no UnifiedClient...`);
     const currentDataFromClient = unifiedClient.getRouletteById(safeData.id);
     if (currentDataFromClient) {
-         debugLog(`[${componentId}] Dados INICIAIS encontrados no UnifiedClient. Processando...`);
+         console.log(`[${componentId}] Dados INICIAIS encontrados no UnifiedClient. Processando...`);
          // Chama handleUpdate diretamente para processar os dados iniciais
          // Isso garante que os logs dentro de handleUpdate rodem também para os dados iniciais
          handleUpdate(currentDataFromClient); 
          // Define isLoading como false aqui, pois já temos dados
          setIsLoading(false); 
-    } else {
-        debugLog(`[${componentId}] Nenhum dado inicial no UnifiedClient. Aguardando evento 'update'...`);
-        // Mantém isLoading true apenas se não houver dados iniciais
-        setIsLoading(true);
-        
-        // Forçar uma atualização após 5 segundos se não receber dados
-        setTimeout(() => {
-            if (isLoading) {
-                debugLog(`[${componentId}] Forçando busca de dados após 5s sem resposta`);
-                const forcedData = unifiedClient.getRouletteById(safeData.id);
-                if (forcedData) {
-                    handleUpdate(forcedData);
-                } else {
-                    // Se ainda não há dados após 5s, forçar uma atualização global
-                    debugLog(`[${componentId}] Ainda sem dados após 5s, forçando atualização global`);
-                    unifiedClient.forceUpdate().then(data => {
-                        debugLog(`[${componentId}] Atualização global concluída`);
-                    });
-                }
-            }
-        }, 5000);
+      } else {
+        console.log(`[${componentId}] Nenhum dado inicial no UnifiedClient. Aguardando evento 'update'...`);
+         // Mantém isLoading true apenas se não houver dados iniciais
+        setIsLoading(true); 
     }
 
-    debugLog(`[${componentId}] Assinando evento 'update' do UnifiedClient.`);
+    console.log(`[${componentId}] Assinando evento 'update' do UnifiedClient.`);
     const unsubscribe = unifiedClient.on('update', handleUpdate);
 
     return () => {
-        debugLog(`[${componentId}] Desmontando e cancelando assinatura do evento 'update'.`);
+        console.log(`[${componentId}] Desmontando e cancelando assinatura do evento 'update'.`);
         unsubscribe();
     };
   // Dependências revisadas: safeData.id e unifiedClient são suficientes para setup/cleanup.
   // Removido rouletteData para evitar re-assinaturas desnecessárias quando o estado muda internamente.
-  }, [safeData.id, unifiedClient, isLoading]);
+  }, [safeData.id, unifiedClient]);
   
   // Adicionar um comentário para garantir que este é o único lugar fazendo requisições:
   // Console.log para verificar se há apenas uma fonte de requisições:

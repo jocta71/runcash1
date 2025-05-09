@@ -6,12 +6,12 @@ import RESTSocketService from './RESTSocketService';
 import Cookies from 'js-cookie';
 
 // Debug flag - set to false to disable logs in production
-const DEBUG_ENABLED = true;
+const DEBUG_ENABLED = false;
 
 // Helper function for controlled logging
 const debugLog = (...args: any[]) => {
   if (DEBUG_ENABLED) {
-    console.log('[EventService]', ...args);
+    console.log(...args);
   }
 };
 
@@ -154,87 +154,24 @@ export class EventService {
 
   // Obtém a URL do servidor de eventos baseado no método atual
   private getServerUrl(method: string = 'direct'): string {
-    // Usar a URL da API correta baseada no ambiente
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://runcash-api.vercel.app';
-    const eventsEndpoint = '/api/events';
+    const baseUrl = 'https://short-mammals-help.loca.lt/api/events';
     
     switch (method) {
       case 'direct':
         // Tentar conexão direta primeiro
-        return `${baseUrl}${eventsEndpoint}`;
+        return baseUrl;
       case 'proxy':
         // Usar um proxy CORS quando a conexão direta falhar
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`${baseUrl}${eventsEndpoint}`)}`;
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(baseUrl)}`;
         return proxyUrl;
       default:
-        return `${baseUrl}${eventsEndpoint}`;
+        return baseUrl;
     }
   }
 
   private connect(): void {
-    // Se já estiver tentando uma conexão SSE, abortar
-    if (this.eventSource) {
-      debugLog('Conexão SSE já em andamento, abortando tentativa duplicada');
-      return;
-    }
-
-    // Se já estiver usando Socket como fallback, não tentar SSE
-    if (this.usingSocketService) {
-      debugLog('Já usando SocketService como fallback, não tentando SSE');
-      return;
-    }
-
-    debugLog('Tentando conexão via SSE...');
-    try {
-      const url = this.getServerUrl(this.connectionMethods[this.currentMethodIndex]);
-      debugLog(`Conectando ao servidor de eventos: ${url}`);
-      
-      this.eventSource = new EventSource(url);
-      
-      this.eventSource.onopen = () => {
-        debugLog('Conexão SSE estabelecida com sucesso!');
-        this.isConnected = true;
-        this.connectionAttempts = 0;
-        
-        // Resetar o índice do método para começar do preferido na próxima vez
-        this.currentMethodIndex = 0;
-      };
-      
-      this.eventSource.onerror = (event) => {
-        debugLog('Erro na conexão SSE:', event);
-        this.disconnect();
-        
-        // Tentar próximo método de conexão
-        this.currentMethodIndex = (this.currentMethodIndex + 1) % this.connectionMethods.length;
-        
-        if (this.currentMethodIndex === 0) {
-          // Se já tentamos todos os métodos, usar SocketService como fallback final
-          debugLog('Todos os métodos de conexão SSE falharam, usando SocketService como fallback');
-          this.useSocketServiceAsFallback();
-        } else {
-          // Tentar próximo método após um pequeno atraso
-          setTimeout(() => this.connect(), 1000);
-        }
-      };
-      
-      this.eventSource.addEventListener('message', (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          debugLog('Evento SSE recebido:', data);
-          
-          // Processar o evento
-          if (data.type) {
-            this.notifyListeners(data);
-          }
-        } catch (error) {
-          debugLog('Erro ao processar evento SSE:', error);
-        }
-      });
-    } catch (error) {
-      debugLog('Erro ao iniciar conexão SSE:', error);
-      // Ir direto para fallback em caso de erro grave
-      this.useSocketServiceAsFallback();
-    }
+    // Usar diretamente o SocketService, sem tentativas de usar EventSource
+    this.useSocketServiceAsFallback();
   }
   
   // NOVO: Usar SocketService como fallback final
@@ -243,7 +180,7 @@ export class EventService {
       return; // Já está usando SocketService
     }
     
-    debugLog('Utilizando SocketService como fallback para eventos em tempo real');
+    debugLog('[EventService] Utilizando SocketService como fallback para eventos em tempo real');
     
     this.usingSocketService = true;
     this.isConnected = true; // Simular conexão estabelecida
@@ -252,12 +189,6 @@ export class EventService {
     const socketService = SocketService.getInstance();
     socketService.subscribe('*', this.handleSocketEvent);
     this.socketServiceSubscriptions.add('*');
-    
-    // Avisar que o modo de fallback está sendo usado
-    debugLog('Modo de fallback ativado. Usando polling para obter dados.');
-    
-    // Iniciar polling como último recurso
-    this.startPolling();
   }
   
   // Handler para eventos do SocketService
