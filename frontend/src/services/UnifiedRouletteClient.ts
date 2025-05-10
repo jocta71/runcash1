@@ -1,6 +1,6 @@
 /**
  * Cliente unificado para dados das roletas
- * Centraliza acesso aos dados de roletas de diferentes fontes
+ * Centraliza acesso aos dados de roletas exclusivamente via Stream SSE
  */
 
 import EventService from './EventService';
@@ -31,10 +31,10 @@ interface ClientOptions {
 }
 
 interface ClientStatus {
-  isConnected: boolean;
-  isStreamConnected: boolean;
+  isConnected: boolean; // Indica se o mapa de roletas tem dados
+  isStreamConnected: boolean; // Indica se a conexão SSE está ativa
   lastUpdate: string;
-  source: string;
+  source: 'stream' | 'disconnected';
 }
 
 class UnifiedRouletteClient {
@@ -45,64 +45,48 @@ class UnifiedRouletteClient {
   private isStreamConnected: boolean = false;
   private lastUpdate: string = '';
   private streamUrl: string = '';
-  private pollingInterval: number | null = null;
   private eventService: EventService;
 
   private constructor(options?: ClientOptions) {
     this.eventService = EventService.getInstance();
     
-    // Configurar com base nas opções
     if (options) {
       this.isStreamingEnabled = options.streamingEnabled !== false;
-      
-      if (options.autoConnect === true) {
-        if (this.isStreamingEnabled) {
-          this.connectStream();
-        }
+      if (options.autoConnect === true && this.isStreamingEnabled) {
+        this.connectStream();
       }
     }
     
-    logger.info('UnifiedRouletteClient inicializado');
+    logger.info('UnifiedRouletteClient inicializado para operar via SSE');
   }
 
-  /**
-   * Obtém a única instância do cliente (padrão Singleton)
-   */
   public static getInstance(options?: ClientOptions): UnifiedRouletteClient {
     if (!UnifiedRouletteClient.instance) {
       UnifiedRouletteClient.instance = new UnifiedRouletteClient(options);
     } else if (options) {
-      // Atualizar opções da instância existente
       if (options.streamingEnabled !== undefined) {
         UnifiedRouletteClient.instance.isStreamingEnabled = options.streamingEnabled;
       }
-      if (options.autoConnect === true) {
-        if (UnifiedRouletteClient.instance.isStreamingEnabled) {
-          UnifiedRouletteClient.instance.connectStream();
-        }
+      if (options.autoConnect === true && UnifiedRouletteClient.instance.isStreamingEnabled) {
+        UnifiedRouletteClient.instance.connectStream();
       }
     }
     return UnifiedRouletteClient.instance;
   }
 
-  /**
-   * Conecta ao stream de eventos SSE
-   */
   public connectStream(): boolean {
     if (!this.isStreamingEnabled) {
       logger.info('Streaming está desativado, não conectando ao stream');
       return false;
     }
     
-    if (this.eventSource) {
+    if (this.eventSource && this.isStreamConnected) {
       logger.info('Stream já está conectado');
       return true;
     }
     
     try {
-      // Usar a URL da API do config
       this.streamUrl = `${config.apiBaseUrl}/stream/roulettes`;
-      
       logger.info(`Conectando ao stream em: ${this.streamUrl}`);
       
       this.eventSource = new EventSource(this.streamUrl);
@@ -111,8 +95,6 @@ class UnifiedRouletteClient {
         logger.info('Stream SSE conectado com sucesso');
         this.isStreamConnected = true;
         this.lastUpdate = new Date().toISOString();
-        
-        // Emitir evento de conexão
         EventService.emitGlobalEvent('roulette_stream_connected', {
           timestamp: this.lastUpdate,
           url: this.streamUrl
@@ -122,37 +104,30 @@ class UnifiedRouletteClient {
       this.eventSource.onerror = (error) => {
         logger.error('Erro na conexão SSE:', error);
         this.isStreamConnected = false;
-        
-        // Tentar reconectar automaticamente
-        setTimeout(() => {
-          if (this.eventSource) {
+        if (this.eventSource) {
             this.eventSource.close();
             this.eventSource = null;
-            this.connectStream();
-          }
-        }, 5000);
-        
-        // Emitir evento de erro
+        }
+        // Tentar reconectar automaticamente após um tempo
+        setTimeout(() => this.connectStream(), 5000);
         EventService.emitGlobalEvent('roulette_stream_error', {
           timestamp: new Date().toISOString(),
           error: 'Erro na conexão SSE'
         });
       };
       
-      // Ouvir eventos de números
       this.eventSource.addEventListener('number', (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse((event as MessageEvent).data);
           this.handleNumberEvent(data);
         } catch (error) {
           logger.error('Erro ao processar evento de número:', error);
         }
       });
       
-      // Ouvir eventos de atualização de roletas
       this.eventSource.addEventListener('update', (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse((event as MessageEvent).data);
           this.handleUpdateEvent(data);
         } catch (error) {
           logger.error('Erro ao processar evento de atualização:', error);
@@ -161,15 +136,12 @@ class UnifiedRouletteClient {
       
       return true;
     } catch (error) {
-      logger.error('Erro ao conectar ao stream:', error);
+      logger.error('Erro ao iniciar conexão com o stream:', error);
       this.isStreamConnected = false;
       return false;
     }
   }
 
-  /**
-   * Desconecta do stream de eventos
-   */
   public disconnectStream(): void {
     if (this.eventSource) {
       logger.info('Desconectando do stream SSE');
@@ -177,20 +149,11 @@ class UnifiedRouletteClient {
       this.eventSource = null;
       this.isStreamConnected = false;
     }
-    
-    // Limpar intervalo de polling se estiver ativo
-    if (this.pollingInterval !== null) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = null;
-    }
   }
 
-  /**
-   * Processa eventos de números recebidos
-   */
   private handleNumberEvent(data: any): void {
     if (!data || !data.roleta_id || data.numero === undefined) {
-      logger.warn('Evento de número inválido:', data);
+      logger.warn('Evento de número inválido recebido via SSE:', data);
       return;
     }
     
@@ -199,9 +162,8 @@ class UnifiedRouletteClient {
     const numero = typeof data.numero === 'number' ? data.numero : 
                   typeof data.numero === 'string' ? parseInt(data.numero, 10) : 0;
     
-    logger.debug(`Número recebido: ${roletaNome} - ${numero}`);
+    logger.debug(`SSE Número: ${roletaNome} - ${numero}`);
     
-    // Atualizar dados internos
     const roleta = this.roulettes.get(roletaId) || {
       id: roletaId,
       nome: roletaNome,
@@ -210,20 +172,14 @@ class UnifiedRouletteClient {
     
     const numeros = Array.isArray(roleta.numeros) ? roleta.numeros : [];
     numeros.unshift(numero);
+    if (numeros.length > 100) numeros.length = 100;
     
-    // Limitar a 100 números
-    if (numeros.length > 100) {
-      numeros.length = 100;
-    }
-    
-    // Atualizar roleta
     this.roulettes.set(roletaId, {
       ...roleta,
       numeros,
       ultima_atualizacao: new Date().toISOString()
     });
     
-    // Criar evento para o EventService
     const event: RouletteNumberEvent = {
       type: 'new_number',
       roleta_id: roletaId,
@@ -231,66 +187,46 @@ class UnifiedRouletteClient {
       numero: numero,
       timestamp: new Date().toISOString()
     };
-    
-    // Emitir evento
     this.eventService.dispatchEvent(event);
+    this.lastUpdate = new Date().toISOString();
   }
 
-  /**
-   * Processa eventos de atualização recebidos
-   */
   private handleUpdateEvent(data: any): void {
     if (!data || !data.roletas || !Array.isArray(data.roletas)) {
-      logger.warn('Evento de atualização inválido:', data);
+      logger.warn('Evento de atualização inválido recebido via SSE:', data);
       return;
     }
     
-    logger.info(`Recebida atualização com ${data.roletas.length} roletas`);
+    logger.info(`SSE Atualização: ${data.roletas.length} roletas`);
     
-    // Atualizar dados internos para cada roleta
-    data.roletas.forEach((roleta: any) => {
-      if (!roleta || !roleta.id) return;
+    data.roletas.forEach((roletaData: any) => {
+      if (!roletaData || !roletaData.id) return;
+      if (!ROLETAS_PERMITIDAS.includes(roletaData.id) && ROLETAS_PERMITIDAS.length > 0) return;
       
-      const roletaId = roleta.id;
-      
-      // Verificar se é uma roleta permitida
-      if (!ROLETAS_PERMITIDAS.includes(roletaId)) {
-        return;
-      }
-      
-      // Obter roleta existente ou criar nova
-      const existingRoleta = this.roulettes.get(roletaId) || {
-        id: roletaId,
-        nome: roleta.nome || 'Roleta sem nome',
+      const existingRoleta = this.roulettes.get(roletaData.id) || {
+        id: roletaData.id,
+        nome: roletaData.nome || 'Roleta sem nome',
         numeros: []
       };
       
-      // Atualizar números se presentes
-      if (roleta.numeros && Array.isArray(roleta.numeros)) {
-        existingRoleta.numeros = roleta.numeros;
-      } else if (roleta.numero) {
-        // Tentar extrair números do campo numero caso seja um array
-        if (Array.isArray(roleta.numero)) {
-          existingRoleta.numeros = roleta.numero.map((item: any) => {
-            if (typeof item === 'object' && item.numero !== undefined) {
-              return Number(item.numero);
-            }
-            return Number(item);
-          });
-        }
+      let numerosToUpdate = existingRoleta.numeros;
+      if (roletaData.numeros && Array.isArray(roletaData.numeros)) {
+        numerosToUpdate = roletaData.numeros;
+      } else if (roletaData.numero && Array.isArray(roletaData.numero)) {
+        numerosToUpdate = roletaData.numero.map((item: any) => 
+          (typeof item === 'object' && item.numero !== undefined) ? Number(item.numero) : Number(item)
+        );
       }
-      
-      // Atualizar a roleta
-      this.roulettes.set(roletaId, {
+
+      this.roulettes.set(roletaData.id, {
         ...existingRoleta,
-        ...roleta,
+        ...roletaData,
+        numeros: numerosToUpdate,
         ultima_atualizacao: new Date().toISOString()
       });
     });
     
     this.lastUpdate = new Date().toISOString();
-    
-    // Emitir evento de atualização
     EventService.emitGlobalEvent('roulettes_updated', {
       count: data.roletas.length,
       timestamp: this.lastUpdate,
@@ -298,152 +234,72 @@ class UnifiedRouletteClient {
     });
   }
 
-  /**
-   * Busca dados das roletas via API REST
-   */
-  public async fetchRouletteData(): Promise<RouletteData[]> {
-    try {
-      logger.info('Buscando dados das roletas via API REST');
-      
-      const response = await fetch(`${config.apiBaseUrl}/roulettes`, {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'bypass-tunnel-reminder': 'true'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!Array.isArray(data)) {
-        throw new Error('Resposta inválida: não é um array');
-      }
-      
-      logger.info(`Recebidos dados de ${data.length} roletas`);
-      
-      // Processar dados e atualizar cache interno
-      data.forEach(roleta => {
-        if (!roleta || !roleta.id) return;
-        
-        const roletaId = roleta.id;
-        
-        // Verificar se é uma roleta permitida
-        if (!ROLETAS_PERMITIDAS.includes(roletaId)) {
-          return;
-        }
-        
-        // Obter roleta existente ou criar nova
-        const existingRoleta = this.roulettes.get(roletaId) || {
-          id: roletaId,
-          nome: roleta.nome || 'Roleta sem nome',
-          numeros: []
-        };
-        
-        // Processar dados
-        this.roulettes.set(roletaId, {
-          ...existingRoleta,
-          ...roleta,
-          ultima_atualizacao: new Date().toISOString()
-        });
-      });
-      
-      this.lastUpdate = new Date().toISOString();
-      
-      // Emitir evento
-      EventService.emitGlobalEvent('roulettes_loaded', {
-        count: data.length,
-        timestamp: this.lastUpdate,
-        source: 'api'
-      });
-      
-      return Array.from(this.roulettes.values());
-    } catch (error) {
-      logger.error('Erro ao buscar dados das roletas:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtém todas as roletas
-   */
   public getAllRoulettes(): RouletteData[] {
     return Array.from(this.roulettes.values());
   }
 
-  /**
-   * Obtém uma roleta específica pelo ID
-   */
   public getRouletteById(roletaId: string): RouletteData | undefined {
     return this.roulettes.get(roletaId);
   }
 
-  /**
-   * Força uma atualização dos dados das roletas
-   */
-  public async forceUpdate(): Promise<RouletteData[]> {
-    return await this.fetchRouletteData();
+  public async forceUpdate(): Promise<void> {
+    logger.warn('UnifiedRouletteClient opera exclusivamente via SSE. A atualização forçada depende do servidor enviar os dados pelo stream.');
+    // Se o servidor SSE tiver um mecanismo para solicitar um "full update", ele poderia ser invocado aqui.
+    // Por enquanto, esta função não iniciará uma chamada REST.
+    if (this.isStreamConnected) {
+        EventService.emitGlobalEvent('roulette_force_update_requested', {
+            timestamp: new Date().toISOString(),
+            source: 'client_side_force_update'
+        });
+        // Aqui você poderia, opcionalmente, enviar uma mensagem ao servidor via um canal diferente (se existir)
+        // para pedir um refresh completo dos dados no stream SSE.
+    } else {
+        logger.info('Stream SSE não conectado. Tentando reconectar para obter dados atualizados.');
+        this.connectStream(); // Tenta reconectar para pegar os dados mais recentes via SSE.
+    }
+    return Promise.resolve();
   }
 
-  /**
-   * Obtém o status do cliente
-   */
   public getStatus(): ClientStatus {
     return {
-      isConnected: this.roulettes.size > 0,
+      isConnected: this.roulettes.size > 0, // Considera conectado se tiver dados
       isStreamConnected: this.isStreamConnected,
       lastUpdate: this.lastUpdate,
-      source: this.isStreamConnected ? 'stream' : 'api'
+      source: this.isStreamConnected ? 'stream' : 'disconnected'
     };
   }
   
-  /**
-   * Envia uma solicitação para obter números recentes
-   */
   public requestRecentNumbers(): void {
-    if (this.eventSource && this.isStreamConnected) {
-      logger.debug('Solicitando números recentes via SSE');
-      
-      // Enviar evento para o servidor pedindo números recentes
-      // Note: Isso só funcionará se o servidor suportar essa funcionalidade
-      try {
-        // Como não podemos enviar mensagens via SSE, vamos usar uma chamada fetch
-        fetch(`${config.apiBaseUrl}/request-recent-numbers`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'bypass-tunnel-reminder': 'true'
-          },
-          body: JSON.stringify({
-            requestTime: new Date().toISOString()
-          })
-        }).catch(error => {
-          logger.error('Erro ao solicitar números recentes:', error);
-        });
-      } catch (error) {
-        logger.error('Erro ao solicitar números recentes:', error);
-      }
-    } else {
-      // Se não tiver stream, buscar via API
-      this.fetchRouletteData().catch(error => {
-        logger.error('Erro ao buscar dados recentes:', error);
+    if (this.isStreamConnected && this.eventSource) {
+      logger.debug('Solicitando números recentes via endpoint POST (se configurado no backend)');
+      // Este fetch é mantido caso o backend tenha um endpoint específico para isso,
+      // que não seja a busca completa de /api/roulettes.
+      // Se este endpoint também não deve ser usado, ele pode ser removido.
+      fetch(`${config.apiBaseUrl}/request-recent-numbers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'bypass-tunnel-reminder': 'true'
+        },
+        body: JSON.stringify({
+          requestTime: new Date().toISOString()
+        })
+      }).then(response => {
+        if(!response.ok) logger.error(`Falha ao solicitar números recentes: ${response.status}`);
+        else logger.info('Solicitação de números recentes enviada.');
+      }).catch(error => {
+        logger.error('Erro ao solicitar números recentes via POST:', error);
       });
+    } else {
+      logger.warn('Não é possível solicitar números recentes: Stream SSE não conectado.');
+       if(!this.isStreamConnected) this.connectStream(); // Tenta reconectar se não estiver conectado
     }
   }
   
-  /**
-   * Libera recursos do cliente
-   */
   public dispose(): void {
-    logger.info('Liberando recursos do cliente');
-    
+    logger.info('Liberando recursos do UnifiedRouletteClient');
     this.disconnectStream();
     this.roulettes.clear();
-    
-    // Emitir evento
     EventService.emitGlobalEvent('roulette_client_disposed', {
       timestamp: new Date().toISOString()
     });
