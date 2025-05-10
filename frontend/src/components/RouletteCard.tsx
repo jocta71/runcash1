@@ -194,16 +194,6 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
   return result;
 };
 
-// Renomear o componente para evitar o conflito
-const RouletteCardTitle = ({ data }: { data: ProcessedRouletteData }) => (
-  <div className="flex items-center gap-2">
-    <span className="text-lg font-semibold truncate">{data.nome}</span>
-    <Badge variant={data.status === 'online' ? 'default' : 'destructive'} className={`ml-auto ${data.status === 'online' ? 'bg-green-500 hover:bg-green-600' : ''}`}>
-      {data.status === 'online' ? 'Online' : 'Offline'}
-    </Badge>
-  </div>
-);
-
 const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetailView = false, onSelect, isSelected }) => {
   // Estados
   const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(() => {
