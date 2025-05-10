@@ -2,17 +2,25 @@ import React, { useEffect, useState, useRef } from 'react';
 import { RouletteData } from '@/integrations/api/rouletteService';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import LastNumbersBar from './LastNumbersBar';
-import { useDataLoading } from '@/App';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { ExtendedRouletteData, RouletteTable } from "@/types/roulette";
-import { useLocationContext } from "@/context/LocationContext";
+import EventService from '@/services/EventService';
 import { RouletteStatsInline } from '@/components/roulette/RouletteStatsInline';
+import { useDataLoading } from '@/App';
+import UnifiedRouletteClient from '@/services/UnifiedRouletteClient';
 
-// Importar EventService de forma segura
-import eventService from '@/services/EventService';
-const EventService = eventService;
+interface RouletteTable {
+  tableId: string;
+  tableName: string;
+  numbers: string[];
+  dealer?: string;
+  players?: number;
+}
+
+// Estender o tipo RouletteData para incluir propriedades adicionais que usamos
+interface ExtendedRouletteData extends RouletteData {
+  lastNumbers?: number[];
+  numeros?: any[];
+  name?: string;
+}
 
 interface LiveRoulettesDisplayProps {
   roulettesData?: ExtendedRouletteData[]; // Opcional para manter compatibilidade retroativa
@@ -60,7 +68,7 @@ const formatRouletteData = (data: ExtendedRouletteData[]) => {
 
 const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesData }) => {
   // Obter dados pré-carregados do contexto, se disponíveis
-  const { isDataLoaded, rouletteData: preloadedData } = useDataLoading();
+  const { isDataLoaded, rouletteData: preloadedData, forceReconnect } = useDataLoading();
   
   const [tables, setTables] = useState<RouletteTable[]>([]);
   const [roulettes, setRoulettes] = useState<ExtendedRouletteData[]>(roulettesData || []);
@@ -70,23 +78,27 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   const [updatingData, setUpdatingData] = useState(false);
   const rouletteCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   
-  // Referência ao serviço de feed centralizado, sem iniciar novo polling
-  const feedService = React.useMemo(() => {
-    // Verificar se o sistema já foi inicializado globalmente
-    if (window.isRouletteSystemInitialized && window.isRouletteSystemInitialized()) {
-      console.log('[LiveRoulettesDisplay] Usando sistema de roletas já inicializado');
-      // Recuperar o serviço do sistema global
-      return window.getRouletteSystem 
-        ? window.getRouletteSystem().rouletteFeedService 
-        : RouletteFeedService.getInstance();
-    }
-    
-    // Fallback para o comportamento padrão
-    console.log('[LiveRoulettesDisplay] Sistema global não detectado, usando instância padrão');
-    return RouletteFeedService.getInstance();
-  }, []);
+  // Referência ao cliente de roletas unificado
+  const clientRef = useRef<UnifiedRouletteClient | null>(null);
 
-  // Usar os dados passados como prop ou obter do feedService
+  // Inicialização - obter cliente unificado uma única vez
+  useEffect(() => {
+    clientRef.current = UnifiedRouletteClient.getInstance({
+      streamingEnabled: true,
+      autoConnect: true,
+    });
+    
+    // Diagnóstico de conexão
+    console.log('[LiveRoulettesDisplay] Status inicial da conexão:');
+    clientRef.current.diagnoseConnectionState();
+    
+    // Limpar
+    return () => {
+      // Não precisamos desconectar, pois outros componentes podem estar usando o cliente
+    };
+  }, []);
+  
+  // Usar os dados passados como prop ou obter do clientRef
   useEffect(() => {
     // Verificar dados da props primeiro (prioridade mais alta)
     if (roulettesData && Array.isArray(roulettesData) && roulettesData.length > 0) {
@@ -106,30 +118,30 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       return; // Encerrar aqui
     }
     
-    // Verificar cache do feedService (terceira prioridade)
-      const cachedRoulettes = feedService.getAllRoulettes();
+    // Verificar se temos cliente unificado
+    if (clientRef.current) {
+      // Verificar cache do cliente (terceira prioridade)
+      const cachedRoulettes = clientRef.current.getAllRoulettes();
       if (cachedRoulettes && cachedRoulettes.length > 0) {
-        console.log(`[LiveRoulettesDisplay] Usando ${cachedRoulettes.length} roletas do cache centralizado`);
-      const formattedData = formatRouletteData(cachedRoulettes as ExtendedRouletteData[]);
-      setRoulettes(formattedData);
-        setIsLoading(false);
-      return; // Encerrar aqui
-    }
-        
-    // Timeout mais curto para fallback (última opção)
-        console.log('[LiveRoulettesDisplay] Aguardando dados serem carregados pela inicialização central');
-    const delayTimeout = setTimeout(() => {
-          const delayedRoulettes = feedService.getAllRoulettes();
-          if (delayedRoulettes && delayedRoulettes.length > 0) {
-            console.log(`[LiveRoulettesDisplay] Dados recebidos após espera: ${delayedRoulettes.length} roletas`);
-        const formattedData = formatRouletteData(delayedRoulettes as ExtendedRouletteData[]);
+        console.log(`[LiveRoulettesDisplay] Usando ${cachedRoulettes.length} roletas do cache do cliente unificado`);
+        const formattedData = formatRouletteData(cachedRoulettes as ExtendedRouletteData[]);
         setRoulettes(formattedData);
+        setIsLoading(false);
+        return; // Encerrar aqui
       }
-      setIsLoading(false); // Mesmo sem dados, liberar a UI
-    }, 3000);
+
+      // Se não temos dados em cache, forçar uma conexão direta com o stream
+      console.log('[LiveRoulettesDisplay] Sem dados em cache, forçando conexão com o stream...');
+      clientRef.current.forceUpdate();
+    }
     
-    return () => clearTimeout(delayTimeout);
-  }, [feedService, roulettesData, isDataLoaded, preloadedData]);
+    // Timeout de segurança para evitar tela de carregamento infinita
+    const safetyTimeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 5000); // 5 segundos máximos de espera
+    
+    return () => clearTimeout(safetyTimeout);
+  }, [clientRef, roulettesData, isDataLoaded, preloadedData]);
   
   // Efeito para simular clique automático quando os dados são carregados
   useEffect(() => {
@@ -145,72 +157,63 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     }
   }, [roulettes, selectedRoulette, isLoading]);
 
-  // Inscrever-se para atualizações de dados do feed service
+  // Inscrever-se para atualizações de dados do SSE
   useEffect(() => {
     const handleDataUpdated = (updateData: any) => {
-      console.log('[LiveRoulettesDisplay] Recebida atualização de dados:', updateData);
+      console.log('[LiveRoulettesDisplay] Recebida atualização de dados:', 
+        updateData.source || 'desconhecido');
+      
       setUpdatingData(true);
       
-      // Pequeno delay para mostrar o indicador de atualização
-      setTimeout(() => {
-        try {
-      // Obter dados atualizados do cache
-      const updatedRoulettes = feedService.getAllRoulettes();
-      
-      if (updatedRoulettes && updatedRoulettes.length > 0) {
-        console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
-            
-            // Formatar dados para garantir consistência
-            const formattedData = formatRouletteData(updatedRoulettes as ExtendedRouletteData[]);
-            
-            // Atualizar o estado com os dados formatados
-            setRoulettes(formattedData);
-            setIsLoading(false);
+      // Obter dados atualizados do cliente unificado
+      if (clientRef.current) {
+        const updatedRoulettes = clientRef.current.getAllRoulettes();
         
-        // Se ainda não houver roleta selecionada, selecionar a segunda
-            if (!selectedRoulette && formattedData.length > 1) {
-              setSelectedRoulette(formattedData[1]);
-          setShowStatsInline(true);
-        } else if (selectedRoulette) {
-          // Atualizar a roleta selecionada com dados mais recentes
-              const updatedSelectedRoulette = formattedData.find(r => 
-            r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
-          );
+        if (updatedRoulettes && updatedRoulettes.length > 0) {
+          console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
           
-          if (updatedSelectedRoulette) {
-            setSelectedRoulette(updatedSelectedRoulette);
+          // Formatar dados para garantir consistência
+          const formattedData = formatRouletteData(updatedRoulettes as ExtendedRouletteData[]);
+          
+          // Atualizar o estado com os dados formatados
+          setRoulettes(formattedData);
+          setIsLoading(false);
+          
+          // Se ainda não houver roleta selecionada, selecionar a segunda
+          if (!selectedRoulette && formattedData.length > 1) {
+            setSelectedRoulette(formattedData[1]);
+            setShowStatsInline(true);
+          } else if (selectedRoulette) {
+            // Atualizar a roleta selecionada com dados mais recentes
+            const updatedSelectedRoulette = formattedData.find(r => 
+              r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
+            );
+            
+            if (updatedSelectedRoulette) {
+              setSelectedRoulette(updatedSelectedRoulette);
+            }
           }
         }
       }
-        } catch (error) {
-          console.error('[LiveRoulettesDisplay] Erro ao processar dados atualizados:', error);
-        } finally {
-          // Sempre terminar a atualização
-          setUpdatingData(false);
-        }
+      
+      // Terminar a atualização após um breve atraso para feedback visual
+      setTimeout(() => {
+        setUpdatingData(false);
       }, 300);
     };
     
-    // Verificação defensiva antes de inscrever nos eventos
-    if (EventService && typeof EventService.on === 'function') {
     // Inscrever-se no evento de atualização de dados
     EventService.on('roulette:data-updated', handleDataUpdated);
-      
-      // Inscrever-se também para o evento de novo número
-      EventService.on('roulette:new-number', handleDataUpdated);
+    
+    // Inscrever-se também para o evento de novo número
+    EventService.on('roulette:new-number', handleDataUpdated);
     
     // Limpar ao desmontar
     return () => {
-        if (EventService && typeof EventService.off === 'function') {
       EventService.off('roulette:data-updated', handleDataUpdated);
-          EventService.off('roulette:new-number', handleDataUpdated);
-        }
+      EventService.off('roulette:new-number', handleDataUpdated);
     };
-    }
-    
-    // Se EventService não estiver disponível, retornar noop
-    return () => {};
-  }, [feedService, selectedRoulette]);
+  }, [selectedRoulette]);
 
   // Função para selecionar uma roleta e mostrar estatísticas ao lado
   const handleRouletteSelect = (roleta: ExtendedRouletteData) => {
@@ -222,6 +225,31 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   const handleCloseStats = () => {
     setSelectedRoulette(null);
     setShowStatsInline(false);
+  };
+
+  // Função para reconectar manualmente o stream
+  const handleManualReconnect = () => {
+    console.log('[LiveRoulettesDisplay] Forçando reconexão manual do stream...');
+    setUpdatingData(true);
+    
+    if (clientRef.current) {
+      clientRef.current.forceReconnectStream();
+      
+      // Agendar diagnóstico de conexão após tentativa
+      setTimeout(() => {
+        if (clientRef.current) {
+          console.log('[LiveRoulettesDisplay] Status após tentativa de reconexão:');
+          clientRef.current.diagnoseConnectionState();
+        }
+        setUpdatingData(false);
+      }, 2000);
+    } else if (forceReconnect) {
+      // Fallback para a função de reconexão do contexto global
+      forceReconnect();
+      setTimeout(() => setUpdatingData(false), 2000);
+    } else {
+      setUpdatingData(false);
+    }
   };
 
   // Se temos dados passados por props, mostrar eles diretamente
@@ -240,26 +268,40 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
                 <span>Atualizando...</span>
               </div>
             )}
-          <div className="relative w-64">
-            <input 
-              type="text" 
-              placeholder="Buscar roleta..." 
-              className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-            <svg 
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
+            <button
+              onClick={handleManualReconnect}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+              disabled={updatingData}
             >
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
+              {updatingData ? (
+                <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
+              ) : (
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+              {updatingData ? 'Reconectando...' : 'Reconectar'}
+            </button>
+            <div className="relative w-64">
+              <input 
+                type="text" 
+                placeholder="Buscar roleta..." 
+                className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <svg 
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                width="16" 
+                height="16" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
             </div>
           </div>
         </div>
@@ -408,17 +450,42 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     );
   }
 
-  if (tables.length === 0) {
+  if (roulettes.length === 0) {
     return (
       <div className="text-center p-4 text-gray-400">
-        Nenhuma mesa de roleta ativa no momento.
+        <div className="mb-4">Nenhuma mesa de roleta ativa no momento.</div>
+        <button
+          onClick={handleManualReconnect}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm flex items-center gap-2 mx-auto"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Reconectar Stream
+        </button>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h2 className="text-2xl font-bold mb-6 text-white">Roletas ao Vivo</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-white">Roletas ao Vivo</h2>
+        <button
+          onClick={handleManualReconnect}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+          disabled={updatingData}
+        >
+          {updatingData ? (
+            <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
+          ) : (
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          )}
+          {updatingData ? 'Reconectando...' : 'Reconectar Stream'}
+        </button>
+      </div>
       
       {/* Grid de roletas com exatamente 3 cards por linha */}
       <div className="grid grid-cols-3 gap-6">
@@ -429,16 +496,6 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
             tableName={table.tableName}
           />
         ))}
-      </div>
-      
-      {/* Botão para atualizar manualmente com a nova função */}
-      <div className="flex justify-center mt-8">
-        <button 
-          onClick={() => (window as any).forceRouletteUpdate?.()}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors"
-        >
-          Atualizar Agora
-        </button>
       </div>
     </div>
   );

@@ -1,12 +1,17 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { AlertCircle, PackageOpen, Loader2, Copy, RefreshCw } from 'lucide-react';
+import RouletteCard from '@/components/RouletteCard';
 import Layout from '@/components/Layout';
+import { RouletteRepository } from '../services/data/rouletteRepository';
+import { RouletteData } from '@/types';
+import EventService, { RouletteNumberEvent, StrategyUpdateEvent } from '@/services/EventService';
+import { RequestThrottler } from '@/services/utils/requestThrottler';
+import RouletteSidePanelStats from '@/components/RouletteSidePanelStats';
 import { Button } from '@/components/ui/button';
-import { useDataLoading } from '@/App';
-import { toast } from '@/components/ui/use-toast';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { RouletteData } from '@/types/roulette';
-import RouletteFeedService from '@/services/RouletteFeedService';
+import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { 
   createAsaasCustomer, 
   createAsaasSubscription, 
@@ -17,20 +22,9 @@ import {
 } from '@/integrations/asaas/client';
 import { useSubscription } from '@/context/SubscriptionContext';
 import SubscriptionRequired from '@/components/SubscriptionRequired';
+import { useDataLoading } from '@/App';
 
-// Lazy load para componentes pesados
-const RouletteCard = lazy(() => import('@/components/RouletteCard'));
-const LiveRoulettesDisplay = lazy(() => import('@/components/roulette/LiveRoulettesDisplay'));
 
-// Componente de loading para Suspense
-const ComponentLoading = () => (
-  <div className="flex items-center justify-center p-8 bg-gray-800/50 rounded-lg border border-gray-700 animate-pulse">
-    <div className="flex flex-col items-center gap-2">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      <p className="text-sm text-gray-400">Carregando componente...</p>
-    </div>
-  </div>
-);
 
 interface ChatMessage {
   id: string;
@@ -44,6 +38,7 @@ interface ChatMessage {
   message: string;
   timestamp: Date;
 }
+
 
 // Adicionar área do código para persistência de roletas
 interface KnownRoulette {
@@ -223,6 +218,7 @@ const Index = () => {
   const [verifyingPayment, setVerifyingPayment] = useState(false);
 
   const { user } = useAuth();
+  const { toast } = useToast();
   const { currentSubscription, currentPlan } = useSubscription();
   const hasActivePlan = useMemo(() => {
     return currentSubscription?.status?.toLowerCase() === 'active' || 

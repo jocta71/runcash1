@@ -3,7 +3,7 @@ import { BrowserRouter, Route, Routes, useNavigate, useLocation } from "react-ro
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
-import { useEffect, lazy, Suspense, useRef, useState, createContext, useContext } from "react";
+import { useEffect, lazy, Suspense, useRef, useState, createContext, useContext, useCallback } from "react";
 import LoadingScreen from './components/LoadingScreen';
 import './App.css';
 import { ThemeProvider } from './components/theme-provider';
@@ -18,6 +18,7 @@ import { LoginModalProvider, useLoginModal } from "./context/LoginModalContext";
 import UnifiedRouletteClient from './services/UnifiedRouletteClient';
 import { Button } from "./components/ui/button";
 import { RefreshCw } from "lucide-react";
+import EventService from './services/EventService';
 
 // Contexto para o carregamento de dados
 interface DataLoadingContextProps {
@@ -54,38 +55,44 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
     console.log('Forçando reconexão do stream...');
     
     if (clientRef.current) {
-      try {
-        clientRef.current.forceReconnectStream();
-        
-        // Após reconectar, tentar buscar dados novos
-        setTimeout(async () => {
-          try {
-            // Verificação defensiva
-            if (clientRef.current && typeof clientRef.current.forceUpdate === 'function') {
-              const newData = await clientRef.current.forceUpdate();
-              if (newData && newData.length > 0) {
-                console.log(`Reconexão bem-sucedida. ${newData.length} roletas carregadas`);
-                setRouletteData(newData);
-                setIsDataLoaded(true);
-              }
-            } else {
-              console.warn('Método forceUpdate não disponível no cliente');
-            }
-          } catch (err) {
-            console.error('Erro ao recarregar dados após reconexão:', err);
-          } finally {
-            setReconnecting(false);
+      clientRef.current.forceReconnectStream();
+      
+      // Após reconectar, tentar buscar dados novos
+      setTimeout(async () => {
+        try {
+          const newData = await clientRef.current?.forceUpdate();
+          if (newData && newData.length > 0) {
+            console.log(`Reconexão bem-sucedida. ${newData.length} roletas carregadas`);
+            setRouletteData(newData);
+            setIsDataLoaded(true);
           }
-        }, 2000);
-      } catch (error) {
-        console.error('Erro ao forçar reconexão:', error);
-        setReconnecting(false);
-      }
+        } catch (err) {
+          console.error('Erro ao recarregar dados após reconexão:', err);
+        } finally {
+          setReconnecting(false);
+        }
+      }, 2000);
     } else {
       console.error('Cliente não inicializado');
       setReconnecting(false);
     }
   };
+  
+  // Manipulador de dados recebidos do SSE
+  const handleDataFromSSE = useCallback((updateEvent: any) => {
+    console.log(`[DataLoadingProvider] Recebendo atualização SSE: ${updateEvent.source || 'desconhecido'}`);
+    
+    if (clientRef.current) {
+      // Obter dados atualizados do cliente
+      const freshData = clientRef.current.getAllRoulettes();
+      
+      if (freshData && freshData.length > 0) {
+        setRouletteData(freshData);
+        setIsDataLoaded(true);
+        setError(null);
+      }
+    }
+  }, []);
   
   // Inicializar o cliente de roletas e carregar dados
   useEffect(() => {
@@ -94,52 +101,24 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
       if (isLoading) {
         console.log('Timeout de segurança acionado - liberando interface');
         setIsLoading(false);
-        
-        // Se não temos dados ainda, tentar novamente em background
-        if (rouletteData.length === 0) {
-          console.log('Iniciando carregamento em segundo plano');
-          loadDataInBackground();
-        }
       }
     }, 5000); // 5 segundos máximos de espera
     
-    // Função para carregar dados em segundo plano
-    const loadDataInBackground = async () => {
-      try {
-        // Obter a instância do cliente unificado
-        const client = UnifiedRouletteClient.getInstance({
-          autoConnect: true,
-          streamingEnabled: true
-        });
-        
-        clientRef.current = client;
-        
-        // Não mostramos mais o loading já que estamos em background
-        const data = await client.forceUpdate();
-        console.log(`Dados carregados em background: ${data.length} roletas`);
-        
-        // Atualizar o estado
-        setRouletteData(data);
-        setIsDataLoaded(true);
-      } catch (err) {
-        console.error('Erro ao carregar dados em background:', err);
-        setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
-      }
-    };
-    
     const initializeData = async () => {
       try {
-        console.log('Inicializando carregamento de dados centralizado...');
+        console.log('Inicializando cliente SSE para dados de roletas...');
         
-        // Obter a instância do cliente unificado
+        // Obter a instância do cliente unificado com foco em SSE
         const client = UnifiedRouletteClient.getInstance({
           autoConnect: true,
           streamingEnabled: true,
-          enablePolling: true,
-          pollingInterval: 3000 // Polling a cada 3 segundos como fallback
+          enablePolling: false, // Desativar polling, usar apenas SSE
         });
         
         clientRef.current = client;
+        
+        // Inscrever-se para atualizações de dados
+        EventService.on('roulette:data-updated', handleDataFromSSE);
         
         // Primeiro verificar se já temos dados em cache
         const cachedData = client.getAllRoulettes();
@@ -152,29 +131,63 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
           return; // Encerrar já que temos dados
         }
         
-        // Se não temos cache, forçar atualização
-        console.log('Cache vazio, buscando dados atualizados...');
-        const data = await client.forceUpdate();
-        console.log(`Dados carregados com sucesso: ${data.length} roletas encontradas`);
+        // Se não temos cache, forçar conexão ao stream SSE
+        console.log('Cache vazio, conectando ao stream SSE...');
+        client.connectStream();
         
-        // Atualizar o estado
-        setRouletteData(data);
-        setIsDataLoaded(true);
+        // Dar um tempo para o stream se conectar
+        setTimeout(async () => {
+          // Forçar uma atualização para tentar obter dados iniciais
+          const data = await client.forceUpdate();
+          
+          if (data && data.length > 0) {
+            console.log(`Dados iniciais carregados: ${data.length} roletas`);
+            setRouletteData(data);
+            setIsDataLoaded(true);
+          } else {
+            console.log('Sem dados iniciais, aguardando stream SSE...');
+          }
+          
+          setIsLoading(false);
+        }, 1500);
       } catch (err) {
-        console.error('Erro ao carregar dados iniciais:', err);
+        console.error('Erro ao inicializar dados:', err);
         setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
-      } finally {
         setIsLoading(false);
       }
     };
     
     initializeData();
     
-    // Limpar timeout
+    // Limpar listeners e timeouts
     return () => {
       clearTimeout(safetyTimeout);
+      EventService.off('roulette:data-updated', handleDataFromSSE);
     };
-  }, []);
+  }, [handleDataFromSSE]);
+  
+  // Registrar o estado de diagnóstico do cliente na janela global para depuração
+  useEffect(() => {
+    if (clientRef.current) {
+      // Expor método de diagnóstico de conexão para depuração
+      (window as any).diagnoseRouletteConnection = () => {
+        if (clientRef.current) {
+          console.log('---- DIAGNÓSTICO DE CONEXÃO SSE ----');
+          return clientRef.current.diagnoseConnectionState();
+        }
+        return 'Cliente não inicializado';
+      };
+      
+      // Expor método de reconexão forçada para depuração
+      (window as any).forceRouletteUpdate = forceReconnect;
+    }
+    
+    return () => {
+      // Limpar métodos de diagnóstico
+      delete (window as any).diagnoseRouletteConnection;
+      delete (window as any).forceRouletteUpdate;
+    };
+  }, [forceReconnect]);
   
   // Se estiver carregando, mostrar a tela de carregamento
   if (isLoading) {
@@ -205,20 +218,24 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-// Substitua os imports de páginas estáticos por lazy loads
-const Index = lazy(() => import('./pages/Index'));
-const LiveRoulettePage = lazy(() => import('./pages/LiveRoulettePage'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const NotFound = lazy(() => import('./pages/NotFound'));
-const PlansPage = lazy(() => import('./pages/PlansPage'));
-const TestPage = lazy(() => import('./pages/TestPage'));
-const PaymentPage = lazy(() => import('./pages/PaymentPage'));
-const PaymentSuccessPage = lazy(() => import('./pages/PaymentSuccessPage'));
-const PaymentCanceled = lazy(() => import('./pages/PaymentCanceled'));
-const BillingPage = lazy(() => import('./pages/BillingPage'));
-const AccountRedirect = lazy(() => import('./pages/AccountRedirect'));
-const ProfileSubscription = lazy(() => import('./pages/ProfileSubscription'));
-const GerenciarChaves = lazy(() => import('./pages/GerenciarChaves'));
+// Importação de componentes principais com lazy loading
+const Index = lazy(() => import("@/pages/Index"));
+const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
+const ProfileSubscription = lazy(() => import("@/pages/ProfileSubscription"));
+const AccountRedirect = lazy(() => import("@/pages/AccountRedirect"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
+const PlansPage = lazy(() => import("@/pages/PlansPage"));
+const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
+const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
+const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
+const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
+const TestPage = lazy(() => import("@/pages/TestPage"));
+const BillingPage = lazy(() => import("@/pages/BillingPage"));
+const GerenciarChavesPage = lazy(() => import("@/pages/GerenciarChaves"));
+// Comentando a importação da página de checkout, já que agora está integrada nos planos
+// const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+// Comentando a importação da página de teste do Asaas
+// const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -331,16 +348,6 @@ const AuthStateManager = () => {
   return null; // Este componente não renderiza nada
 };
 
-// Adicionar fallback de carregamento para rotas
-const PageLoading = () => (
-  <div className="w-full h-screen flex items-center justify-center bg-background">
-    <div className="flex flex-col items-center gap-2">
-      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-      <p className="text-sm text-muted-foreground">Carregando...</p>
-    </div>
-  </div>
-);
-
 // Componente principal da aplicação
 const App = () => {
   // Criar uma única instância do QueryClient com useRef para mantê-la durante re-renders
@@ -393,22 +400,19 @@ const App = () => {
                             {/* Remover rota explícita de login e sempre usar o modal */}
                             
                             {/* Páginas principais - Acessíveis mesmo sem login, mas mostram modal se necessário */}
-                            <Route 
-                              path="/" 
-                              element={
-                                <Suspense fallback={<PageLoading />}>
-                                  <ProtectedRoute>
-                                    <Index />
-                                  </ProtectedRoute>
+                            <Route index element={
+                              <ProtectedRoute>
+                                <Suspense fallback={<LoadingScreen />}>
+                                  <Index />
                                 </Suspense>
-                              } 
-                            />
+                              </ProtectedRoute>
+                            } />
                             
                             {/* Rota para página de gerenciamento de chaves de acesso API */}
                             <Route path="/gerenciar-chaves" element={
                               <ProtectedRoute requireAuth={true}>
                                 <Suspense fallback={<LoadingScreen />}>
-                                  <GerenciarChaves />
+                                  <GerenciarChavesPage />
                                 </Suspense>
                               </ProtectedRoute>
                             } />
