@@ -8,8 +8,8 @@ import { getLogger } from './services/utils/logger'
 import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
 import EventService from './services/EventService'
-import globalRouletteDataService from './services/GlobalRouletteDataService'
 import cryptoService from './utils/crypto-service'
+import UnifiedRouletteClient from './services/UnifiedRouletteClient'
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
@@ -38,7 +38,6 @@ async function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
   // Inicializar o UnifiedRouletteClient diretamente
-  const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
   const unifiedClient = UnifiedRouletteClient.getInstance({
     streamingEnabled: true,
     autoConnect: true
@@ -54,16 +53,13 @@ async function initializeRoulettesSystem() {
   // Registrar o UnifiedRouletteClient no RouletteFeedService (compatibilidade)
   rouletteFeedService.registerSocketService(unifiedClient);
   
-  // Inicializar o serviço global e buscar dados iniciais uma única vez
-  logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
-  
-  // Usar a instância importada diretamente
-  globalRouletteDataService.fetchRouletteData().then(data => {
-    logger.info(`Dados iniciais obtidos pelo serviço global: ${data.length} roletas`);
+  // Inicializar o serviço de feed e buscar dados iniciais uma única vez
+  logger.info('Inicializando serviço de feed e realizando única busca de dados de roletas...');
+  unifiedClient.fetchRouletteData().then(data => {
+    logger.info(`Dados iniciais obtidos pelo UnifiedRouletteClient: ${data.length} roletas`);
     
-    // Em seguida, inicializar o RouletteFeedService que usará os dados do serviço global
     rouletteFeedService.initialize().then(() => {
-      logger.info('RouletteFeedService inicializado usando dados do serviço global');
+      logger.info('RouletteFeedService inicializado usando dados do UnifiedRouletteClient');
       
       // Disparar evento para notificar componentes
       eventService.dispatchEvent({
@@ -81,7 +77,7 @@ async function initializeRoulettesSystem() {
       logger.error('Erro ao inicializar RouletteFeedService:', error);
     });
   }).catch(error => {
-    logger.error('Erro ao buscar dados iniciais pelo serviço global:', error);
+    logger.error('Erro ao buscar dados iniciais pelo UnifiedRouletteClient:', error);
   });
   
   // Marcar como inicializado
@@ -98,7 +94,6 @@ async function initializeRoulettesSystem() {
   return {
     rouletteFeedService,
     eventService,
-    globalRouletteDataService,
     unifiedClient
   };
 }

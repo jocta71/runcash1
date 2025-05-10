@@ -1,5 +1,5 @@
 import { getRequiredEnvVar, isProduction } from '../config/env';
-import globalRouletteDataService from '@/services/GlobalRouletteDataService';
+import UnifiedRouletteClient from './UnifiedRouletteClient';
 
 // Adicionar tipagem para NodeJS.Timeout para evitar erro de tipo
 declare global {
@@ -103,7 +103,7 @@ class RESTSocketService {
   private handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
       console.log('[RESTSocketService] Página voltou a ficar visível, solicitando atualização via serviço global');
-      globalRouletteDataService.forceUpdate();
+      UnifiedRouletteClient.getInstance().forceUpdate();
     }
   }
 
@@ -120,17 +120,17 @@ class RESTSocketService {
     console.log('[RESTSocketService] Não criando timer próprio - usando serviço global centralizado');
     
     // Registrar para receber atualizações do serviço global
-    globalRouletteDataService.subscribe('RESTSocketService-main', () => {
+    UnifiedRouletteClient.getInstance().on('update', () => {
       console.log('[RESTSocketService] Recebendo atualização do serviço global centralizado');
       // Reprocessar dados do serviço global quando houver atualização
-      const data = globalRouletteDataService.getAllRoulettes();
+      const data = UnifiedRouletteClient.getInstance().getAllRoulettes();
       if (data && Array.isArray(data)) {
         this.processDataAsEvents(data);
       }
     });
     
     // Processar dados iniciais se disponíveis
-    const initialData = globalRouletteDataService.getAllRoulettes();
+    const initialData = UnifiedRouletteClient.getInstance().getAllRoulettes();
     if (initialData && initialData.length > 0) {
       console.log('[RESTSocketService] Processando dados iniciais do serviço global');
       this.processDataAsEvents(initialData);
@@ -444,10 +444,10 @@ class RESTSocketService {
   public async requestRecentNumbers(): Promise<boolean> {
     try {
       console.log('[RESTSocketService] Forçando atualização de dados via serviço global');
-      await globalRouletteDataService.forceUpdate();
+      await UnifiedRouletteClient.getInstance().forceUpdate();
       
       // Processar os dados atualizados
-      const data = globalRouletteDataService.getAllRoulettes();
+      const data = UnifiedRouletteClient.getInstance().getAllRoulettes();
       if (data && Array.isArray(data)) {
         this.processDataAsEvents(data);
       }
@@ -470,10 +470,10 @@ class RESTSocketService {
   public async requestRouletteNumbers(roletaId: string): Promise<boolean> {
     try {
       console.log(`[RESTSocketService] Buscando números para roleta ${roletaId} via serviço global`);
-      await globalRouletteDataService.forceUpdate();
+      await UnifiedRouletteClient.getInstance().forceUpdate();
       
       // Processar os dados atualizados
-      const data = globalRouletteDataService.getAllRoulettes();
+      const data = UnifiedRouletteClient.getInstance().getAllRoulettes();
       if (data && Array.isArray(data)) {
         const roleta = data.find(r => r.id === roletaId);
         if (roleta && roleta.numero && Array.isArray(roleta.numero)) {
@@ -504,7 +504,7 @@ class RESTSocketService {
       this._isLoadingHistoricalData = true;
       
       // Buscar dados detalhados pelo serviço global
-      const data = await globalRouletteDataService.fetchDetailedRouletteData();
+      const data = await UnifiedRouletteClient.getInstance().fetchRouletteData();
       
       if (Array.isArray(data)) {
         // Processar os dados recebidos
@@ -590,7 +590,7 @@ class RESTSocketService {
     console.log('[RESTSocketService] Iniciando polling do segundo endpoint via serviço centralizado');
     
     // Usar o GlobalRouletteDataService para obter dados
-    globalRouletteDataService.subscribe('RESTSocketService', () => {
+    UnifiedRouletteClient.getInstance().on('update', () => {
       console.log('[RESTSocketService] Recebendo dados do serviço centralizado');
       this.processDataFromCentralService();
     });
@@ -613,7 +613,7 @@ class RESTSocketService {
       console.log('[RESTSocketService] Processando dados do serviço centralizado');
       
       // Obter os dados do serviço global
-      const rouletteData = globalRouletteDataService.getAllRoulettes();
+      const rouletteData = UnifiedRouletteClient.getInstance().getAllRoulettes();
       
       // Registrar esta chamada como bem-sucedida
       const now = Date.now();

@@ -1,8 +1,7 @@
 import EventService from './EventService';
 import { getLogger } from './utils/logger';
-import globalRouletteDataService from './GlobalRouletteDataService';
-import { cryptoService } from '../utils/crypto-utils';
 import EventBus from '../services/EventBus';
+import UnifiedRouletteClient from './UnifiedRouletteClient';
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');
@@ -419,68 +418,38 @@ export default class RouletteFeedService {
       return this.roulettes;
     }
     
-    logger.info('🔄 Buscando dados iniciais através do serviço global centralizado');
-    
+    logger.info('🔄 Buscando dados iniciais via UnifiedRouletteClient');
     try {
-      // Usar exclusivamente o serviço global para buscar dados
-      const globalRoulettes = await globalRouletteDataService.fetchRouletteData();
-      
-    if (globalRoulettes && globalRoulettes.length > 0) {
-        logger.info(`📋 Recebidos ${globalRoulettes.length} roletas do serviço global centralizado`);
-      
-      // Transformar dados para o formato esperado
-      const liveTables: { [key: string]: any } = {};
-      globalRoulettes.forEach(roleta => {
-        if (roleta && roleta.id) {
-          // Certifique-se de que estamos lidando corretamente com o campo numero
-          // Na API, o 'numero' é um array de objetos com propriedade 'numero'
-          const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-          
-          liveTables[roleta.id] = {
-            GameID: roleta.id,
-            Name: roleta.name || roleta.nome,
-            ativa: roleta.ativa,
-            // Manter a estrutura do campo numero exatamente como está na API
-            numero: numeroArray,
-            // Incluir outras propriedades da roleta
-            ...roleta
-          };
-        }
-      });
-      
-      // Armazenar os dados
-      this.lastUpdateTime = Date.now();
-      this.hasCachedData = true;
-      this.roulettes = liveTables;
-      
-      // Sinalizar que dados iniciais foram carregados globalmente
-      RouletteFeedService.INITIAL_DATA_FETCHED = true;
-      
-      // Notificar que temos novos dados
-      this.notifySubscribers(liveTables);
-      
-        // Ajustar intervalo de polling baseado no sucesso
-        this.adjustPollingInterval(false);
-        
-        return this.roulettes;
+      // Buscar dados diretamente do UnifiedRouletteClient
+      const unifiedClient = UnifiedRouletteClient.getInstance();
+      const globalRoulettes = await unifiedClient.fetchRouletteData();
+      if (globalRoulettes && globalRoulettes.length > 0) {
+        logger.info(`📋 Recebidos ${globalRoulettes.length} roletas do UnifiedRouletteClient`);
+        // Transformar dados para o formato esperado
+        const liveTables: { [key: string]: any } = {};
+        globalRoulettes.forEach(roleta => {
+          if (roleta && roleta.id) {
+            const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+            liveTables[roleta.id] = {
+              GameID: roleta.id,
+              Name: roleta.name || roleta.nome,
+              ativa: roleta.ativa,
+              numero: numeroArray,
+              ...roleta
+            };
+          }
+        });
+        this.lastUpdateTime = Date.now();
+        this.hasCachedData = true;
+        this.roulettes = liveTables;
+        RouletteFeedService.INITIAL_DATA_FETCHED = true;
+        this.notifySubscribers(liveTables);
+        return liveTables;
       }
-      
-      // Se não conseguiu dados do serviço global, tentar usar cache existente
-      if (this.hasCachedData) {
-        logger.info('⚠️ Não foi possível obter dados do serviço global, usando cache local');
-        return this.roulettes;
-      }
-      
-      logger.warn('⚠️ Não foi possível obter dados iniciais');
       return {};
     } catch (error) {
-      logger.error(`❌ Erro ao buscar dados iniciais: ${error.message || 'Desconhecido'}`);
-      
-      // Ajustar intervalo em caso de erro
-      this.adjustPollingInterval(true);
-      
-      // Retornar dados em cache se existirem, ou objeto vazio
-      return this.roulettes || {};
+      logger.error('Erro ao buscar dados iniciais via UnifiedRouletteClient:', error);
+      return {};
     }
   }
 
@@ -1672,36 +1641,25 @@ export default class RouletteFeedService {
    */
   private registerGlobalEventListeners(): void {
     logger.info('Registrando ouvintes para eventos globais');
-    
     // Ouvinte para atualizações globais de dados
     const globalDataUpdateHandler = () => {
-      logger.info('Recebida atualização do serviço global de roletas');
+      logger.info('Recebida atualização do UnifiedRouletteClient');
       this.fetchLatestData();
     };
-    
-    // Inscrever no serviço global se disponível
-    if (typeof globalRouletteDataService !== 'undefined') {
-      try {
-        globalRouletteDataService.subscribe('RouletteFeedService', globalDataUpdateHandler);
-      } catch (error) {
-        logger.warn('Não foi possível registrar no globalRouletteDataService:', error);
-      }
-    }
-    
+    // Inscrever no UnifiedRouletteClient
+    const unifiedClient = UnifiedRouletteClient.getInstance();
+    unifiedClient.on('update', globalDataUpdateHandler);
     // Ouvinte para mudanças na visibilidade da página
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.handleVisibilityChange);
     }
-    
     // Ouvinte para quando novos números são recebidos
     EventService.on('roulette:new-number', (event) => {
       logger.debug('Novo número recebido via evento:', event);
-      // Atualizar o cache com o novo número
       if (event && event.roleta_id) {
         this.updateCacheWithNewNumber(event);
       }
     });
-    
     logger.info('Ouvintes de eventos globais registrados');
   }
 
