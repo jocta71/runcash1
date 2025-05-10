@@ -3,7 +3,7 @@ import { RouletteData } from '@/integrations/api/rouletteService';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import LastNumbersBar from './LastNumbersBar';
 import EventService from '@/services/EventService';
-import { RouletteStatsInline } from './RouletteStatsInline';
+import { RouletteStatsInline } from '@/components/roulette/RouletteStatsInline';
 import { useDataLoading } from '@/App';
 
 interface RouletteTable {
@@ -14,8 +14,15 @@ interface RouletteTable {
   players?: number;
 }
 
+// Estender o tipo RouletteData para incluir propriedades adicionais que usamos
+interface ExtendedRouletteData extends RouletteData {
+  lastNumbers?: number[];
+  numeros?: any[];
+  name?: string;
+}
+
 interface LiveRoulettesDisplayProps {
-  roulettesData?: RouletteData[]; // Opcional para manter compatibilidade retroativa
+  roulettesData?: ExtendedRouletteData[]; // Opcional para manter compatibilidade retroativa
 }
 
 const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesData }) => {
@@ -23,9 +30,9 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   const { isDataLoaded, rouletteData: preloadedData } = useDataLoading();
   
   const [tables, setTables] = useState<RouletteTable[]>([]);
-  const [roulettes, setRoulettes] = useState<RouletteData[]>(roulettesData || []);
+  const [roulettes, setRoulettes] = useState<ExtendedRouletteData[]>(roulettesData || []);
   const [isLoading, setIsLoading] = useState(!isDataLoaded && !roulettesData);
-  const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
+  const [selectedRoulette, setSelectedRoulette] = useState<ExtendedRouletteData | null>(null);
   const [showStatsInline, setShowStatsInline] = useState(false);
   const rouletteCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   
@@ -47,41 +54,67 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
 
   // Usar os dados passados como prop ou obter do feedService
   useEffect(() => {
+    // Função auxiliar para formatar dados da roleta
+    const formatRouletteData = (data: ExtendedRouletteData[]) => {
+      return data.map(roleta => {
+        // Garantir que os números sejam tratados corretamente
+        const formattedNumbers = Array.isArray(roleta.numero) && roleta.numero.length > 0
+          ? roleta.numero
+          : Array.isArray(roleta.lastNumbers) && roleta.lastNumbers.length > 0 
+            ? roleta.lastNumbers.map(n => ({ numero: n }))
+            : Array.isArray(roleta.numeros) && roleta.numeros.length > 0
+              ? roleta.numeros.map(n => ({ numero: n }))
+              : [];
+        
+        return {
+          ...roleta,
+          numero: formattedNumbers,
+          nome: roleta.nome || roleta.name || 'Roleta sem nome'
+        };
+      });
+    };
+    
+    // Verificar dados da props primeiro (prioridade mais alta)
     if (roulettesData && Array.isArray(roulettesData) && roulettesData.length > 0) {
       console.log(`[LiveRoulettesDisplay] Usando ${roulettesData.length} roletas fornecidas via props`);
-      setRoulettes(roulettesData);
+      const formattedData = formatRouletteData(roulettesData);
+      setRoulettes(formattedData);
       setIsLoading(false);
-    } else if (isDataLoaded && preloadedData.length > 0) {
-      // Usar dados pré-carregados do contexto global
+      return; // Encerrar aqui
+    } 
+    
+    // Verificar dados do contexto global (segunda prioridade)
+    if (isDataLoaded && preloadedData && preloadedData.length > 0) {
       console.log(`[LiveRoulettesDisplay] Usando ${preloadedData.length} roletas do contexto global`);
-      setRoulettes(preloadedData);
+      const formattedData = formatRouletteData(preloadedData as ExtendedRouletteData[]);
+      setRoulettes(formattedData);
       setIsLoading(false);
-    } else {
-      // Obter dados do feed service em vez de fazer requisições diretas
-      console.log('[LiveRoulettesDisplay] Buscando dados de roletas do serviço centralizado');
-      
-      // Verificar se o serviço já tem dados em cache
-      const cachedRoulettes = feedService.getAllRoulettes();
-      
-      if (cachedRoulettes && cachedRoulettes.length > 0) {
-        console.log(`[LiveRoulettesDisplay] Usando ${cachedRoulettes.length} roletas do cache centralizado`);
-        setRoulettes(cachedRoulettes);
-        setIsLoading(false);
-      } else {
-        console.log('[LiveRoulettesDisplay] Aguardando dados serem carregados pela inicialização central'); 
-        
-        // Definir timeout de fallback caso demore muito
-        setTimeout(() => {
-          // Verificar novamente após alguns segundos
-          const delayedRoulettes = feedService.getAllRoulettes();
-          if (delayedRoulettes && delayedRoulettes.length > 0) {
-            console.log(`[LiveRoulettesDisplay] Dados recebidos após espera: ${delayedRoulettes.length} roletas`);
-            setRoulettes(delayedRoulettes);
-            setIsLoading(false);
-          }
-        }, 3000); // Timeout mais curto, pois já temos um timeout na página
-      }
+      return; // Encerrar aqui
     }
+    
+    // Verificar cache do feedService (terceira prioridade)
+    const cachedRoulettes = feedService.getAllRoulettes();
+    if (cachedRoulettes && cachedRoulettes.length > 0) {
+      console.log(`[LiveRoulettesDisplay] Usando ${cachedRoulettes.length} roletas do cache centralizado`);
+      const formattedData = formatRouletteData(cachedRoulettes as ExtendedRouletteData[]);
+      setRoulettes(formattedData);
+      setIsLoading(false);
+      return; // Encerrar aqui
+    }
+    
+    // Timeout mais curto para fallback (última opção)
+    console.log('[LiveRoulettesDisplay] Aguardando dados serem carregados pela inicialização central');
+    const delayTimeout = setTimeout(() => {
+      const delayedRoulettes = feedService.getAllRoulettes();
+      if (delayedRoulettes && delayedRoulettes.length > 0) {
+        console.log(`[LiveRoulettesDisplay] Dados recebidos após espera: ${delayedRoulettes.length} roletas`);
+        const formattedData = formatRouletteData(delayedRoulettes as ExtendedRouletteData[]);
+        setRoulettes(formattedData);
+      }
+      setIsLoading(false); // Mesmo sem dados, liberar a UI
+    }, 3000);
+    
+    return () => clearTimeout(delayTimeout);
   }, [feedService, roulettesData, isDataLoaded, preloadedData]);
   
   // Efeito para simular clique automático quando os dados são carregados
@@ -138,7 +171,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   }, [feedService, selectedRoulette]);
 
   // Função para selecionar uma roleta e mostrar estatísticas ao lado
-  const handleRouletteSelect = (roleta: RouletteData) => {
+  const handleRouletteSelect = (roleta: ExtendedRouletteData) => {
     setSelectedRoulette(roleta);
     setShowStatsInline(true);
   };
