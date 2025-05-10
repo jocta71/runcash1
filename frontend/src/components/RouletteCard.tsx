@@ -485,8 +485,12 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
       )}
 
       <CardHeader className="p-3 pb-0">
-        {/* Exibe o NOME da roleta ao invés do ID */}
-        {rouletteData && <RouletteCardTitle data={rouletteData} />}
+        {rouletteData && <CardTitle className="text-lg font-semibold flex items-center justify-between">
+          <span className="truncate">{rouletteData.nome}</span>
+          <Badge variant={rouletteData.status === 'online' ? 'default' : 'destructive'} className={`ml-auto ${rouletteData.status === 'online' ? 'bg-green-500 hover:bg-green-600' : ''}`}>
+            {rouletteData.status === 'online' ? 'Online' : 'Offline'}
+          </Badge>
+        </CardTitle>}
         <CardDescription className="text-xs flex justify-between items-center mt-1">
           <span className="opacity-70">{rouletteData?.provider || 'Provedor desconhecido'}</span>
           <span className="text-xs flex items-center gap-1">
