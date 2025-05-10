@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { AlertCircle, PackageOpen, Loader2, Copy } from 'lucide-react';
+import { AlertCircle, PackageOpen, Loader2, Copy, RefreshCw } from 'lucide-react';
 import RouletteCard from '@/components/RouletteCard';
 import Layout from '@/components/Layout';
 import { RouletteRepository } from '../services/data/rouletteRepository';
@@ -178,7 +178,7 @@ const formatPhone = (value: string) => {
 
 const Index = () => {
   // Obter os dados pré-carregados do contexto
-  const { isDataLoaded, rouletteData, error: dataLoadingError } = useDataLoading();
+  const { isDataLoaded, rouletteData, error: dataLoadingError, forceReconnect } = useDataLoading();
   
   // Estado local
   const [error, setError] = useState<string | null>(dataLoadingError);
@@ -812,6 +812,14 @@ const Index = () => {
     }
   }, [isDataLoaded, rouletteData, dataLoadingError]);
 
+  // Função de reconexão manual
+  const handleManualReconnect = () => {
+    setLoadingCards(true);
+    forceReconnect();
+    // Dar um tempo para mostrar o indicador de carregamento
+    setTimeout(() => setLoadingCards(false), 3000);
+  };
+
   return (
     <Layout>
       <div className="container mx-auto px-4 pt-4 md:pt-8 min-h-[80vh] relative">
@@ -837,12 +845,23 @@ const Index = () => {
                   <div className="text-white font-bold">
                     Roletas Disponíveis
                   </div>
-                  {loadingCards && (
-                    <div className="text-xs bg-yellow-600/20 px-2 py-1 rounded-full text-yellow-400 flex items-center">
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                      Atualizando...
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {loadingCards && (
+                      <div className="text-xs bg-yellow-600/20 px-2 py-1 rounded-full text-yellow-400 flex items-center">
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        Atualizando...
+                      </div>
+                    )}
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="text-xs flex items-center gap-1 bg-gray-800 border-gray-700 hover:bg-gray-700"
+                      onClick={handleManualReconnect}
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Reconectar
+                    </Button>
+                  </div>
                 </div>
               </div>
               

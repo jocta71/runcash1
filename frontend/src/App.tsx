@@ -16,18 +16,22 @@ import ProtectedRoute from './components/ProtectedRoute';
 import SoundManager from "./components/SoundManager";
 import { LoginModalProvider, useLoginModal } from "./context/LoginModalContext";
 import UnifiedRouletteClient from './services/UnifiedRouletteClient';
+import { Button } from "./components/ui/button";
+import { RefreshCw } from "lucide-react";
 
 // Contexto para o carregamento de dados
 interface DataLoadingContextProps {
   isDataLoaded: boolean;
   rouletteData: any[];
   error: string | null;
+  forceReconnect: () => void;
 }
 
 const DataLoadingContext = createContext<DataLoadingContextProps>({
   isDataLoaded: false,
   rouletteData: [],
-  error: null
+  error: null,
+  forceReconnect: () => {}
 });
 
 // Hook para facilitar o uso do contexto
@@ -39,6 +43,39 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
   const [rouletteData, setRouletteData] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [reconnecting, setReconnecting] = useState(false);
+  const clientRef = useRef<UnifiedRouletteClient | null>(null);
+  
+  // Função para forçar reconexão do stream
+  const forceReconnect = () => {
+    if (reconnecting) return;
+    
+    setReconnecting(true);
+    console.log('Forçando reconexão do stream...');
+    
+    if (clientRef.current) {
+      clientRef.current.forceReconnectStream();
+      
+      // Após reconectar, tentar buscar dados novos
+      setTimeout(async () => {
+        try {
+          const newData = await clientRef.current?.forceUpdate();
+          if (newData && newData.length > 0) {
+            console.log(`Reconexão bem-sucedida. ${newData.length} roletas carregadas`);
+            setRouletteData(newData);
+            setIsDataLoaded(true);
+          }
+        } catch (err) {
+          console.error('Erro ao recarregar dados após reconexão:', err);
+        } finally {
+          setReconnecting(false);
+        }
+      }, 2000);
+    } else {
+      console.error('Cliente não inicializado');
+      setReconnecting(false);
+    }
+  };
   
   // Inicializar o cliente de roletas e carregar dados
   useEffect(() => {
@@ -65,6 +102,8 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
           streamingEnabled: true
         });
         
+        clientRef.current = client;
+        
         // Não mostramos mais o loading já que estamos em background
         const data = await client.forceUpdate();
         console.log(`Dados carregados em background: ${data.length} roletas`);
@@ -87,8 +126,10 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
           autoConnect: true,
           streamingEnabled: true,
           enablePolling: true,
-          pollingInterval: 3000 // Polling a cada 10 segundos como fallback
+          pollingInterval: 3000 // Polling a cada 3 segundos como fallback
         });
+        
+        clientRef.current = client;
         
         // Primeiro verificar se já temos dados em cache
         const cachedData = client.getAllRoulettes();
@@ -133,7 +174,22 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
   // Renderizar mesmo se não tiver dados completos,
   // o contexto vai continuar atualizando em segundo plano
   return (
-    <DataLoadingContext.Provider value={{ isDataLoaded, rouletteData, error }}>
+    <DataLoadingContext.Provider value={{ isDataLoaded, rouletteData, error, forceReconnect }}>
+      {/* Botão flutuante para reconexão em caso de problemas */}
+      {error && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <Button
+            size="sm"
+            variant="destructive"
+            className="flex items-center gap-1 bg-red-600 text-white px-3 py-2 rounded-md"
+            onClick={forceReconnect}
+            disabled={reconnecting}
+          >
+            <RefreshCw className={`h-4 w-4 ${reconnecting ? 'animate-spin' : ''}`} />
+            {reconnecting ? 'Reconectando...' : 'Reconectar Dados'}
+          </Button>
+        </div>
+      )}
       {children}
     </DataLoadingContext.Provider>
   );
