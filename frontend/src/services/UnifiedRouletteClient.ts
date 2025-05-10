@@ -220,37 +220,32 @@ class UnifiedRouletteClient {
   /**
    * Desconecta do stream SSE
    */
-  public disconnectStream(): void {
-    if (!this.isStreamConnected && !this.isStreamConnecting) {
-      return;
-    }
+  protected disconnectStream(): void {
+    console.log('[UnifiedRouletteClient] Desconectando stream');
     
-    this.log('Desconectando do stream SSE');
-    
+    // Desconectar EventSource
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
     }
     
-    if (this.streamReconnectTimer) {
-      window.clearTimeout(this.streamReconnectTimer);
-      this.streamReconnectTimer = null;
+    // Desconectar Socket
+    if (this.socket) {
+      try {
+        this.socket.close();
+      } catch (e) {
+        console.error('[UnifiedRouletteClient] Erro ao fechar socket:', e);
+      }
+      this.socket = null;
+      this.webSocketConnected = false;
     }
     
     this.isStreamConnected = false;
     this.isStreamConnecting = false;
-    this.streamReconnectAttempts = 0;
-    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
     
     // Notificar sobre a desconexão
     this.emit('disconnect', { timestamp: Date.now() });
-    EventService.emit('roulette:stream-disconnected', { timestamp: new Date().toISOString() });
-    
-    // Iniciar polling como fallback se estiver habilitado
-    if (this.pollingEnabled && !this.pollingTimer) {
-      this.log('Iniciando polling após desconexão do stream');
-      this.startPolling();
-    }
+    this.emitEvent('roulette:stream-disconnected', { timestamp: new Date().toISOString() });
   }
   
   /**
@@ -268,7 +263,7 @@ class UnifiedRouletteClient {
       
       // Emitir evento
       this.emit('max-reconnect', { attempts: this.streamReconnectAttempts });
-      EventService.emit('roulette:stream-max-reconnect', { 
+      this.emitEvent('roulette:stream-max-reconnect', { 
         attempts: this.streamReconnectAttempts,
         timestamp: new Date().toISOString()
       });
@@ -313,7 +308,7 @@ class UnifiedRouletteClient {
     
     // Notificar sobre conexão
     this.emit('connect', { timestamp: Date.now() });
-    EventService.emit('roulette:stream-connected', { timestamp: new Date().toISOString() });
+    this.emitEvent('roulette:stream-connected', { timestamp: new Date().toISOString() });
     
     // Se polling estiver ativo como fallback, parar
     if (this.pollingTimer) {
@@ -374,7 +369,7 @@ class UnifiedRouletteClient {
       
       // Notificar
       this.emit('connected', data);
-      EventService.emit('roulette:stream-ready', { 
+      this.emitEvent('roulette:stream-ready', { 
         timestamp: new Date().toISOString(),
         data
       });
@@ -526,7 +521,7 @@ class UnifiedRouletteClient {
           // Atualizar cache com dados simulados e notificar
           this.updateCache(simulatedData);
           this.emit('update', simulatedData);
-          EventService.emit('roulette:data-updated', {
+          this.emitEvent('roulette:data-updated', {
             timestamp: new Date().toISOString(),
             data: simulatedData,
             source: 'simulation-from-crypto-service'
@@ -548,7 +543,7 @@ class UnifiedRouletteClient {
           // Atualizar cache com dados simulados e notificar
           this.updateCache(manualSimulatedData);
           this.emit('update', manualSimulatedData);
-          EventService.emit('roulette:data-updated', {
+          this.emitEvent('roulette:data-updated', {
             timestamp: new Date().toISOString(),
             data: manualSimulatedData,
             source: 'manual-simulation-fallback'
@@ -572,7 +567,7 @@ class UnifiedRouletteClient {
         // Atualizar cache com dados simulados e notificar
         this.updateCache(fallbackData);
         this.emit('update', fallbackData);
-        EventService.emit('roulette:data-updated', {
+        this.emitEvent('roulette:data-updated', {
           timestamp: new Date().toISOString(),
           data: fallbackData,
           source: 'fallback-after-simulation-error'
@@ -957,7 +952,7 @@ class UnifiedRouletteClient {
     this.log('Recebida mensagem de erro ou notificação:', JSON.stringify(data).substring(0, 100));
     
     // Emitir evento de erro
-    EventService.emit('roulette:api-message', {
+    this.emitEvent('roulette:api-message', {
       timestamp: new Date().toISOString(),
       type: data.error ? 'error' : 'notification',
       message: data.message || 'Mensagem sem detalhes',
@@ -1017,7 +1012,7 @@ class UnifiedRouletteClient {
         
         // Emitir evento de atualização
         this.emit('update', Array.from(this.rouletteData.values()));
-        EventService.emit('roulette:data-updated', {
+        this.emitEvent('roulette:data-updated', {
           timestamp: new Date().toISOString(),
           data: Array.from(this.rouletteData.values()),
           source: 'decrypted-data'
@@ -1030,7 +1025,7 @@ class UnifiedRouletteClient {
         console.warn('[UnifiedRouletteClient] Dados descriptografados sem estrutura esperada');
         // Tentar extrair metadados ou outras informações úteis
         if (data && typeof data === 'object') {
-          EventService.emit('roulette:metadata', {
+          this.emitEvent('roulette:metadata', {
             timestamp: new Date().toISOString(),
             data
           });
@@ -1055,7 +1050,7 @@ class UnifiedRouletteClient {
     console.log(`[UnifiedRouletteClient] Notificação (${type}): ${message}`);
     
     // Emitir evento de notificação
-    EventService.emit('notification', {
+    this.emitEvent('notification', {
       type,
       message,
       timestamp: new Date().toISOString()
@@ -1120,7 +1115,7 @@ class UnifiedRouletteClient {
     
     // Notificar sobre a conexão
     this.emit('websocket-connected', { timestamp: new Date().toISOString() });
-    EventService.emit('roulette:websocket-connected', {
+    this.emitEvent('roulette:websocket-connected', {
       timestamp: new Date().toISOString()
     });
   }
@@ -1170,7 +1165,7 @@ class UnifiedRouletteClient {
         
         // Emitir evento de atualização
         this.emit('update', rouletteData);
-        EventService.emit('roulette:data-updated', {
+        this.emitEvent('roulette:data-updated', {
           timestamp: new Date().toISOString(),
           data: rouletteData,
           source: 'websocket'
@@ -1181,7 +1176,7 @@ class UnifiedRouletteClient {
           this.log(`Recebida lista com ${message.data.length} roletas do WebSocket`);
           this.updateCache(message.data);
           this.emit('update', message.data);
-          EventService.emit('roulette:all-data-updated', {
+          this.emitEvent('roulette:all-data-updated', {
             timestamp: new Date().toISOString(),
             data: message.data,
             source: 'websocket'
