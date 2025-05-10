@@ -7,16 +7,23 @@ import { initializeLogging } from './services/utils/initLogger'
 import { getLogger } from './services/utils/logger'
 import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
-import EventService from './services/EventService'
+import { EventService } from './services/EventService'
 import globalRouletteDataService from './services/GlobalRouletteDataService'
 import cryptoService from './utils/crypto-service'
+
+// Inicialização explícita dos serviços em ordem controlada
+import eventService from './services/EventService'
+
+// Expor EventService globalmente para evitar erros de "getInstance is not a function"
+window.EventService = EventService
 
 // Declaração global para estender o objeto Window com nossas propriedades
 declare global {
   interface Window {
     ROULETTE_SYSTEM_INITIALIZED: boolean;
-    isRouletteSystemInitialized: () => boolean;
-    getRouletteSystem: () => any;
+    isRouletteSystemInitialized?: () => boolean;
+    getRouletteSystem?: () => any;
+    EventService: typeof EventService;
   }
 }
 

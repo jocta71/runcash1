@@ -2,24 +2,24 @@
  * Serviço centralizado para gerenciamento de eventos
  * Facilita a comunicação entre componentes independentes
  */
-class EventService {
-  private static instance: EventService;
+class EventServiceClass {
+  private static instance: EventServiceClass;
   private events: Map<string, Function[]>;
-
-  private constructor() {
+  
+  constructor() {
     this.events = new Map();
   }
-
+  
   /**
    * Obtém a instância única do serviço de eventos
    */
-  public static getInstance(): EventService {
-    if (!EventService.instance) {
-      EventService.instance = new EventService();
+  public static getInstance(): EventServiceClass {
+    if (!EventServiceClass.instance) {
+      EventServiceClass.instance = new EventServiceClass();
     }
-    return EventService.instance;
+    return EventServiceClass.instance;
   }
-
+  
   /**
    * Registra um listener para um evento
    * @param eventName Nome do evento
@@ -46,13 +46,13 @@ class EventService {
     const callbacks = this.events.get(eventName) || [];
     const filteredCallbacks = callbacks.filter(cb => cb !== callback);
     this.events.set(eventName, filteredCallbacks);
-      
+    
     // Se não houver mais listeners, remover o evento
     if (filteredCallbacks.length === 0) {
       this.events.delete(eventName);
     }
   }
-
+  
   /**
    * Emite um evento para todos os listeners registrados
    * @param eventName Nome do evento
@@ -64,23 +64,23 @@ class EventService {
     }
     
     const callbacks = this.events.get(eventName) || [];
-      callbacks.forEach(callback => {
-        try {
+    callbacks.forEach(callback => {
+      try {
         callback(data);
-        } catch (error) {
+      } catch (error) {
         console.error(`Erro ao executar callback para evento '${eventName}':`, error);
-        }
-      });
+      }
+    });
   }
-
+  
   /**
    * Remove todos os listeners de um evento específico
    * @param eventName Nome do evento
    */
   public removeAllListeners(eventName: string): void {
     this.events.delete(eventName);
-    }
-    
+  }
+  
   /**
    * Lista todos os eventos registrados e o número de listeners
    * Útil para debugging
@@ -93,13 +93,36 @@ class EventService {
     });
     
     return eventCounts;
-      }
   }
   
-// Criando uma instância global para facilitar uso
-const eventService = EventService.getInstance();
-    
-// Para compatibilidade com código que usa EventBus
+  /**
+   * Métodos auxiliares para compatibilidade com código antigo
+   */
+  
+  // Alias para o método on para compatibilidade
+  public subscribe(eventName: string, callback: Function): void {
+    this.on(eventName, callback);
+  }
+  
+  // Alias para o método off para compatibilidade
+  public unsubscribe(eventName: string, callback: Function): void {
+    this.off(eventName, callback);
+  }
+}
+
+// Criar a instância única do serviço
+const eventService = EventServiceClass.getInstance();
+
+// Adicionar o método getInstance diretamente no objeto para compatibilidade
+Object.defineProperty(eventService, 'getInstance', {
+  value: () => eventService,
+  enumerable: false,
+  configurable: false,
+  writable: false
+});
+
+// Para compatibilidade com código existente
 const EventBus = eventService;
 
-export { eventService as default, eventService as EventService, EventBus }; 
+// Exportar com ambos os padrões para máxima compatibilidade
+export { eventService as default, eventService as EventService, EventBus, EventServiceClass }; 
