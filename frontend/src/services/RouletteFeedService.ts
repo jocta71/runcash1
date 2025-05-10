@@ -194,6 +194,15 @@ export default class RouletteFeedService {
   private isError: boolean = false;
   private errorMessage: string = '';
 
+  // Adicionar constantes para reconexão SSE
+  private readonly SSE_RECONNECT_DELAY = 5000; // 5 segundos
+  private readonly MAX_RECONNECT_ATTEMPTS = 5;
+  private reconnectAttempts = 0;
+  private sseConnection: EventSource | null = null;
+
+  // Adicionar propriedade isConnected
+  private isConnected: boolean = false;
+
   /**
    * O construtor configura os parâmetros iniciais e inicia o serviço
    * @param options Opções de configuração para o serviço
@@ -409,45 +418,46 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Busca os dados iniciais das roletas (se não estiverem em cache)
+   * Busca os dados iniciais das roletas
    */
   public async fetchInitialData(): Promise<{ [key: string]: any }> {
     const MAX_RETRIES = 3;
     let retryCount = 0;
+    let lastError: any = null;
     
     while (retryCount < MAX_RETRIES) {
       try {
-        logger.info(`🔄 Buscando dados iniciais via UnifiedRouletteClient (tentativa ${retryCount + 1}/${MAX_RETRIES})`);
+        logger.info(`🔄 Buscando dados iniciais (tentativa ${retryCount + 1}/${MAX_RETRIES})`);
         
-        const unifiedClient = UnifiedRouletteClient.getInstance();
-        const globalRoulettes = await unifiedClient.fetchRouletteData();
+        // Tentar obter dados via SSE primeiro
+        if (this.isConnected) {
+          const unifiedClient = UnifiedRouletteClient.getInstance();
+          const globalRoulettes = await unifiedClient.fetchRouletteData();
+          
+          if (globalRoulettes && globalRoulettes.length > 0) {
+            logger.info(`📋 Recebidos ${globalRoulettes.length} roletas via SSE`);
+            return this.processRouletteData(globalRoulettes);
+          }
+        }
         
-        if (globalRoulettes && globalRoulettes.length > 0) {
-          logger.info(`📋 Recebidos ${globalRoulettes.length} roletas do UnifiedRouletteClient`);
-          
-          const liveTables: { [key: string]: any } = {};
-          globalRoulettes.forEach(roleta => {
-            if (roleta && roleta.id) {
-              const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-              liveTables[roleta.id] = {
-                GameID: roleta.id,
-                Name: roleta.name || roleta.nome,
-                ativa: roleta.ativa,
-                numero: numeroArray,
-                ...roleta
-              };
-            }
-          });
-          
-          this.lastUpdateTime = Date.now();
-          this.hasCachedData = true;
-          this.roulettes = liveTables;
-          RouletteFeedService.INITIAL_DATA_FETCHED = true;
-          
-          // Notificar assinantes sobre os dados iniciais
-          this.notifySubscribers(liveTables);
-          
-          return liveTables;
+        // Se SSE falhar ou não estiver conectado, tentar via REST
+        const response = await fetch('/api/roulettes', {
+          method: 'GET',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data && Array.isArray(data) && data.length > 0) {
+          logger.info(`📋 Recebidos ${data.length} roletas via REST`);
+          return this.processRouletteData(data);
         }
         
         // Se não recebemos dados, esperar antes de tentar novamente
@@ -459,6 +469,7 @@ export default class RouletteFeedService {
         
         retryCount++;
       } catch (error) {
+        lastError = error;
         logger.error(`❌ Erro ao buscar dados iniciais (tentativa ${retryCount + 1}/${MAX_RETRIES}):`, error);
         
         if (retryCount < MAX_RETRIES - 1) {
@@ -471,8 +482,43 @@ export default class RouletteFeedService {
       }
     }
     
-    logger.error('❌ Todas as tentativas de buscar dados iniciais falharam');
+    logger.error('❌ Todas as tentativas de buscar dados iniciais falharam:', lastError);
+    EventService.emit('roulette:initial-data-failed', {
+      error: lastError,
+      attempts: retryCount
+    });
+    
     return {};
+  }
+
+  /**
+   * Processa os dados das roletas recebidos
+   */
+  private processRouletteData(data: any[]): { [key: string]: any } {
+    const liveTables: { [key: string]: any } = {};
+    
+    data.forEach(roleta => {
+      if (roleta && roleta.id) {
+        const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+        liveTables[roleta.id] = {
+          GameID: roleta.id,
+          Name: roleta.name || roleta.nome,
+          ativa: roleta.ativa,
+          numero: numeroArray,
+          ...roleta
+        };
+      }
+    });
+    
+    this.lastUpdateTime = Date.now();
+    this.hasCachedData = true;
+    this.roulettes = liveTables;
+    RouletteFeedService.INITIAL_DATA_FETCHED = true;
+    
+    // Notificar assinantes sobre os dados iniciais
+    this.notifySubscribers(liveTables);
+    
+    return liveTables;
   }
 
   /**
@@ -1538,13 +1584,21 @@ export default class RouletteFeedService {
     subscribers.forEach((callback, index) => {
       try {
         if (typeof callback === 'function') {
+          // Executar callback com timeout de segurança
+          const timeoutId = setTimeout(() => {
+            logger.warn(`⚠️ Callback no índice ${index} excedeu tempo limite`);
+            this.unsubscribe(callback);
+          }, 5000);
+
           callback(data);
+          clearTimeout(timeoutId);
         } else {
           logger.warn(`⚠️ Removendo callback inválido no índice ${index}`);
           this.subscribers = this.subscribers.filter(cb => cb !== callback);
         }
       } catch (error) {
         logger.error(`❌ Erro ao notificar assinante ${index}:`, error);
+        this.unsubscribe(callback);
       }
     });
   }
@@ -1555,7 +1609,8 @@ export default class RouletteFeedService {
     if (typeof callback !== 'function') {
       logger.error('❌ Tentativa de adicionar callback inválido:', {
         type: typeof callback,
-        value: callback
+        value: callback,
+        stack: new Error().stack
       });
       return;
     }
@@ -1567,7 +1622,22 @@ export default class RouletteFeedService {
     }
 
     try {
-      this.subscribers.push(callback);
+      // Adicionar callback com validação adicional
+      const validatedCallback = (data: any) => {
+        try {
+          if (typeof callback === 'function') {
+            callback(data);
+          } else {
+            logger.warn('⚠️ Callback se tornou inválido durante execução');
+            this.unsubscribe(callback);
+          }
+        } catch (error) {
+          logger.error('❌ Erro ao executar callback:', error);
+          this.unsubscribe(callback);
+        }
+      };
+
+      this.subscribers.push(validatedCallback);
       logger.debug('➕ Novo assinante adicionado ao serviço RouletteFeedService');
     } catch (error) {
       logger.error('❌ Erro ao adicionar assinante:', error);
@@ -1610,29 +1680,27 @@ export default class RouletteFeedService {
   // Adicionar método para verificar a saúde da API
   async checkAPIHealth(): Promise<boolean> {
     try {
-      // Aumentar timeout para 10 segundos
-      const response = await fetch('/api/stream/roulettes', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive'
-        },
-        // Aumentar timeout para 10 segundos
-        signal: AbortSignal.timeout(10000),
-      });
+      // Tentar estabelecer conexão SSE
+      this.initializeSSE();
       
-      if (response.ok) {
-        logger.info('✅ Conexão SSE disponível');
+      // Aguardar conexão ser estabelecida
+      const maxWaitTime = 10000; // 10 segundos
+      const startTime = Date.now();
+      
+      while (!this.isConnected && (Date.now() - startTime) < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      if (this.isConnected) {
+        logger.info('✅ Conexão SSE estabelecida com sucesso');
         return true;
       }
       
-      logger.warn(`⚠️ Endpoint SSE retornou status: ${response.status}`);
+      logger.warn('⚠️ Timeout ao aguardar conexão SSE');
       return false;
     } catch (error) {
       logger.error('❌ Falha ao verificar conexão SSE:', error);
       
-      // Emitir evento de falha com mais detalhes
       EventService.emit('roulette:api-failure', { 
         timestamp: Date.now(),
         error: error instanceof Error ? error.message : 'API inacessível',
@@ -1644,6 +1712,56 @@ export default class RouletteFeedService {
       });
       
       return false;
+    }
+  }
+
+  /**
+   * Inicializa a conexão SSE
+   */
+  private initializeSSE(): void {
+    if (this.sseConnection) {
+      logger.info('🔄 Reconectando stream SSE...');
+      this.sseConnection.close();
+    }
+
+    try {
+      this.sseConnection = new EventSource('/api/stream/roulettes');
+      
+      this.sseConnection.onopen = () => {
+        logger.info('✅ Conexão SSE estabelecida');
+        this.reconnectAttempts = 0;
+        this.isConnected = true;
+      };
+
+      this.sseConnection.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          this.handleRouletteData(data);
+        } catch (error) {
+          logger.error('❌ Erro ao processar mensagem SSE:', error);
+        }
+      };
+
+      this.sseConnection.onerror = (error) => {
+        logger.error('❌ Erro na conexão SSE:', error);
+        this.isConnected = false;
+        
+        if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+          this.reconnectAttempts++;
+          logger.info(`🔄 Tentativa de reconexão ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS}`);
+          setTimeout(() => this.initializeSSE(), this.SSE_RECONNECT_DELAY);
+        } else {
+          logger.error('❌ Máximo de tentativas de reconexão atingido');
+          EventService.emit('roulette:sse-connection-failed', {
+            attempts: this.reconnectAttempts,
+            lastError: error
+          });
+        }
+      };
+
+    } catch (error) {
+      logger.error('❌ Erro ao inicializar conexão SSE:', error);
+      this.isConnected = false;
     }
   }
 
