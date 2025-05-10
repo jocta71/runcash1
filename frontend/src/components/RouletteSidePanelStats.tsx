@@ -51,7 +51,7 @@ import { v4 as uuidv4 } from 'uuid';
 const logger = getLogger('RouletteSidePanelStats');
 
 interface RouletteSidePanelStatsProps {
-  roletaId?: string; // Tornando explicitamente opcional
+  roletaId: string;
   roletaNome: string;
   lastNumbers: number[];
   wins: number;
@@ -598,14 +598,12 @@ export const RouletteSidePanelStats = ({
   losses,
   providers = [] 
 }: RouletteSidePanelStatsProps): JSX.Element => {
-  // Validar e criar um identificador alternativo quando roletaId está indefinido
+  // Validar e logar quando roletaId está indefinido
   const validRouletteIdentifier = useMemo(() => {
     if (!roletaId) {
-      // Criar um identificador baseado no nome da roleta
-      const safeIdentifier = roletaNome.toLowerCase().replace(/[^a-z0-9]/g, '_');
-      // Não logar como warning para evitar poluir o console, usar debug em vez disso
-      logger.debug(`Componente inicializado com roletaId undefined para ${roletaNome}. Usando identificador baseado no nome: ${safeIdentifier}`);
-      return safeIdentifier;
+      logger.warn(`[RouletteSidePanelStats] Componente inicializado com roletaId undefined para ${roletaNome}. Usando o nome da roleta como identificador.`);
+      // Usar o nome da roleta como identificador alternativo
+      return roletaNome || '';
     }
     return roletaId;
   }, [roletaId, roletaNome]);
@@ -812,25 +810,7 @@ export const RouletteSidePanelStats = ({
       setHistoricalNumbers([]);
       
       // Carregar dados pré-carregados se disponíveis
-      let preloadedData: RouletteNumber[] = [];
-      
-      // Tratar o cliente como um objeto genérico para verificar os métodos
-      const clientAny = unifiedClient as any;
-      
-      // Verificar se o método existe no cliente unificado
-      if (clientAny && typeof clientAny.getPreloadedHistory === 'function') {
-        preloadedData = clientAny.getPreloadedHistory(roletaNome);
-      } else if (clientAny && typeof clientAny.getRouletteHistory === 'function') {
-        // Tentar método alternativo
-        preloadedData = clientAny.getRouletteHistory(roletaNome) || [];
-      } else if (lastNumbers && lastNumbers.length > 0) {
-        // Usar lastNumbers passado via props como fallback
-        preloadedData = lastNumbers.map(numero => ({
-          numero,
-          timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-        }));
-      }
-      
+      const preloadedData = unifiedClient.getPreloadedHistory(roletaNome);
       if (preloadedData && preloadedData.length > 0) {
         logger.info(`[${componentInstanceId}] Usando ${preloadedData.length} números pré-carregados para ${roletaNome}`);
         setHistoricalNumbers(preloadedData);
@@ -851,7 +831,7 @@ export const RouletteSidePanelStats = ({
     
     // Se não é uma nova roleta, não fazer nada
     // Isso evita remontagens desnecessárias dos listeners
-  }, [componentInstanceId, roletaId, roletaNome, unifiedClient, setupListeners, logger, lastNumbers]);
+  }, [componentInstanceId, roletaId, roletaNome, unifiedClient, setupListeners, logger]);
   
   // Efeito de cleanup quando componente é desmontado completamente
   useEffect(() => {

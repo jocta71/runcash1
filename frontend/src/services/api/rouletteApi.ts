@@ -1,9 +1,8 @@
 import axios from 'axios';
-import { ENDPOINTS, getFullUrl } from './endpoints';
+import { ENDPOINTS } from './endpoints';
 import { getNumericId } from '../data/rouletteTransformer';
 // Importar dados mockados
 import mockRouletteData from '../../assets/data/mockRoulettes.json';
-import { mockRouletteData as utilsMockRouletteData } from '../../utils/mock/roulette-data';
 
 // Tipo para resposta de erro
 interface ApiErrorResponse {
@@ -28,76 +27,85 @@ type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
 export const RouletteApi = {
   /**
    * Busca todas as roletas disponíveis
-   * @deprecated Use UnifiedRouletteClient para dados em tempo real
+   * @returns Resposta da API com as roletas ou erro
    */
-  async fetchAllRoulettes() {
-    console.warn('⚠️ ATENÇÃO: fetchAllRoulettes() está depreciado. ' +
-      'Use UnifiedRouletteClient.getInstance().getAllRoulettes() para dados em tempo real.');
-
+  async fetchAllRoulettes(): Promise<ApiResponse<any[]>> {
     try {
-      // Tentar usar o UnifiedRouletteClient se disponível
+      console.warn('[API] DEPRECIADO: fetchAllRoulettes - Considere usar UnifiedRouletteClient para dados em tempo real');
+      console.log('[API] Buscando dados de roletas através do UnifiedRouletteClient');
+      
       try {
-        const { default: UnifiedRouletteClient } = await import('../../services/UnifiedRouletteClient');
+        // Obter UnifiedRouletteClient
+        const { default: UnifiedRouletteClient } = await import('../UnifiedRouletteClient');
         const client = UnifiedRouletteClient.getInstance();
         
-        // Forçar conexão ao stream se possível
-        client.connectStream();
+        // Garantir que o cliente está conectado ao stream
+        if (!client.getStatus().isStreamConnected) {
+          client.connectStream();
+        }
         
-        // Aguardar alguns milissegundos para dar tempo do cliente receber dados
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Obter roletas do cliente unificado
+        // Obter roletas do cache do cliente
         const roulettes = client.getAllRoulettes();
         
-        if (roulettes && Array.isArray(roulettes) && roulettes.length > 0) {
-          console.log(`Retornando ${roulettes.length} roletas do UnifiedRouletteClient`);
-          return roulettes;
-        } else {
-          console.warn('Nenhuma roleta disponível no UnifiedRouletteClient, tentando API direta...');
-        }
-      } catch (clientError) {
-        console.error('Erro ao usar UnifiedRouletteClient:', clientError);
-      }
-      
-      // Tentar a API direta como fallback se o cliente falhou
-      const url = getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
-      console.log(`Buscando roletas de ${url}`);
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          console.error('Erro de autenticação ao buscar roletas:', response.status);
-          throw new Error('Erro de autenticação. Verifique suas credenciais.');
-        }
+        // Processar roletas
+        const processedRoulettes = roulettes.map((roulette: any) => {
+          // Garantir que temos o campo roleta_id em cada objeto
+          if (!roulette.roleta_id && roulette._id) {
+            const numericId = getNumericId(roulette._id);
+            roulette.roleta_id = numericId;
+          }
+          return roulette;
+        });
         
-        if (response.status === 404) {
-          console.warn('Endpoint não encontrado, usando dados simulados como fallback');
-          return utilsMockRouletteData;
-        }
+        return {
+          error: false,
+          data: processedRoulettes
+        };
+      } catch (primaryError) {
+        console.error('[API] Erro ao obter dados do UnifiedRouletteClient:', primaryError);
         
-        throw new Error(`Erro ao buscar roletas: ${response.status} ${response.statusText}`);
+        // Retornar erro em vez de tentar endpoint alternativo
+        return {
+          error: true,
+          code: 'NO_DATA_AVAILABLE',
+          message: 'Sem dados disponíveis. Tente novamente mais tarde.',
+          statusCode: 503
+        };
+      }
+    } catch (error: any) {
+      console.error('[API] Erro ao buscar roletas:', error);
+      
+      // Verificar se é erro de autenticação
+      if (error.response?.status === 401) {
+        return {
+          error: true,
+          code: 'AUTH_REQUIRED',
+          message: 'Autenticação necessária para acessar este recurso',
+          statusCode: 401
+        };
       }
       
-      const data = await response.json();
-      
-      if (!data || !Array.isArray(data)) {
-        console.warn('Formato de resposta inválido, usando dados simulados');
-        return utilsMockRouletteData;
+      // Verificar se é erro de assinatura
+      if (error.response?.status === 403) {
+        // Extrair código e mensagem específicos do erro
+        const errorCode = error.response.data?.code || 'SUBSCRIPTION_REQUIRED';
+        const errorMessage = error.response.data?.message || 'Você precisa de uma assinatura ativa para acessar este recurso';
+        
+        return {
+          error: true,
+          code: errorCode,
+          message: errorMessage,
+          statusCode: 403
+        };
       }
       
-      if (data.length === 0) {
-        console.warn('Nenhuma roleta retornada pela API, usando dados simulados');
-        return utilsMockRouletteData;
-      }
-      
-      return data;
-    } catch (error) {
-      console.error('Erro ao buscar roletas:', error);
-      
-      // Em caso de erro, retornar dados simulados
-      console.log('Retornando dados simulados devido a erro na API');
-      return utilsMockRouletteData;
+      // Outros erros
+      return {
+        error: true,
+        code: 'FETCH_ERROR',
+        message: error.response?.data?.message || error.message || 'Erro ao buscar roletas',
+        statusCode: error.response?.status || 500
+      };
     }
   },
 

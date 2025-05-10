@@ -11,8 +11,8 @@
 
 import { ENDPOINTS, getFullUrl } from './api/endpoints';
 import EventBus from './EventBus';
+import cryptoService from '../utils/crypto-service';
 import axios from 'axios';
-import { mockRouletteData } from '../utils/mock/roulette-data';
 
 // Tipos para callbacks de eventos
 type EventCallback = (data: any) => void;
@@ -47,20 +47,7 @@ interface ApiResponse<T> {
 // Interface para dados históricos (adaptar se necessário)
 interface RouletteNumber {
   numero: number;
-  cor: string;
-  timestamp: string;
-}
-
-interface Roulette {
-  roleta_id: string;
-  casa_de_aposta: string;
-  tipo_de_roleta: string;
-  status: string;
-  numeros: RouletteNumber[];
-  ultima_atualizacao: string;
-  estrategias: any[];
-  connected: boolean;
-  is_simulated?: boolean;
+  timestamp: string; // ou Date
 }
 
 /**
@@ -138,9 +125,6 @@ class UnifiedRouletteClient {
       window.addEventListener('blur', this.handleBlur);
     }
     
-    // Escutar eventos do GlobalRouletteService (sistema legado) para integrar dados
-    this.subscribeToGlobalRouletteService();
-    
     // Priorizar conexão SSE (ao invés de WebSocket) 
     if (this.streamingEnabled && options.autoConnect !== false) {
       this.log('Iniciando com conexão SSE (prioridade)');
@@ -198,67 +182,25 @@ class UnifiedRouletteClient {
     this.isStreamConnecting = true;
     this.log(`Conectando ao stream SSE: ${ENDPOINTS.STREAM.ROULETTES}`);
     
-    // Usar dados simulados se o cache estiver vazio
-    if (this.rouletteData.size === 0) {
-      setTimeout(() => {
-        this.log('Usando dados simulados enquanto conecta ao stream');
-        this.useSimulatedData();
-      }, 500);
-    }
-    
     try {
-      // Criar um timeout para cancelar a tentativa de conectar se demorar muito
-      const connectionTimeoutId = setTimeout(() => {
-        this.log('Timeout ao tentar conectar ao stream. Usando dados simulados.');
-        if (this.isStreamConnecting) {
-          this.isStreamConnecting = false;
-          UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
-          
-          if (this.eventSource) {
-            this.eventSource.close();
-            this.eventSource = null;
-          }
-          
-          // Usar dados simulados como fallback
-          this.useSimulatedData();
-          
-          // Iniciar polling como fallback
-          this.startPolling();
-        }
-      }, 5000); // 5 segundos de timeout
-      
       // Parar polling se estiver ativo, já que vamos usar o streaming
       this.stopPolling();
       
       // Construir URL com query params para autenticação, se necessário
       let streamUrl = ENDPOINTS.STREAM.ROULETTES;
-      
-      // Tentar carregar chave de acesso se disponível
-      try {
-        // Verificar se existe uma chave de acesso no localStorage
-        if (typeof window !== 'undefined' && window.localStorage) {
-          const accessKey = window.localStorage.getItem('roulette_access_key');
-          if (accessKey) {
-            streamUrl += `?key=${encodeURIComponent(accessKey)}`;
-          }
+      if (cryptoService.hasAccessKey()) {
+        const accessKey = cryptoService.getAccessKey();
+        if (accessKey) {
+          streamUrl += `?key=${encodeURIComponent(accessKey)}`;
         }
-      } catch (error) {
-        this.error('Erro ao tentar obter chave de acesso:', error);
       }
       
       // Criar conexão SSE
       this.eventSource = new EventSource(streamUrl);
       
       // Configurar handlers de eventos
-      this.eventSource.onopen = (event) => {
-        clearTimeout(connectionTimeoutId);
-        this.handleStreamOpen();
-      };
-      
-      this.eventSource.onerror = (event) => {
-        clearTimeout(connectionTimeoutId);
-        this.handleStreamError(event);
-      };
+      this.eventSource.onopen = this.handleStreamOpen.bind(this);
+      this.eventSource.onerror = this.handleStreamError.bind(this);
       
       // Eventos específicos
       this.eventSource.addEventListener('update', this.handleStreamUpdate.bind(this));
@@ -268,11 +210,6 @@ class UnifiedRouletteClient {
       this.isStreamConnecting = false;
       UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
       this.reconnectStream();
-      
-      // Usar dados simulados como fallback
-      setTimeout(() => {
-        this.useSimulatedData();
-      }, 500);
     }
   }
   
@@ -421,7 +358,7 @@ class UnifiedRouletteClient {
       
       // Tentar extrair a chave de acesso do evento connected
       try {
-        const keyExtracted = this.extractAndSetAccessKeyFromEvent(data);
+        const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(data);
         if (keyExtracted) {
           this.log('✅ Chave de acesso extraída e configurada a partir do evento connected');
         } else {
@@ -450,7 +387,7 @@ class UnifiedRouletteClient {
   /**
    * Handler para eventos de atualização do stream
    */
-  private handleStreamUpdate(event: MessageEvent): Promise<void> {
+  private async handleStreamUpdate(event: MessageEvent): Promise<void> {
     this.lastReceivedAt = Date.now();
     this.lastEventId = event.lastEventId;
     
@@ -484,8 +421,8 @@ class UnifiedRouletteClient {
       }
       
       // Tentar extrair chave de acesso se ainda não tivermos
-      if (!this.hasAccessKey()) {
-        const keyExtracted = this.extractAndSetAccessKeyFromEvent(parsedData);
+      if (!cryptoService.hasAccessKey()) {
+        const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(parsedData);
         if (keyExtracted) {
           this.log('✅ Chave de acesso extraída e configurada a partir do evento update');
         }
@@ -504,27 +441,19 @@ class UnifiedRouletteClient {
         
         // Emitir evento de atualização para todos os listeners
         // Enviar o array completo de roletas atualizadas
-        const rouletteValues = Array.from(this.rouletteData.values());
-        this.emit('update', rouletteValues);
-        
-        // Emitir através do EventBus para componentes legados
+        this.emit('update', Array.from(this.rouletteData.values()));
         EventBus.emit('roulette:data-updated', {
           timestamp: new Date().toISOString(),
-          data: rouletteValues,
+          data: Array.from(this.rouletteData.values()),
           source: 'sse-all-roulettes' // Indicar a origem
         });
-        
-        // Emitir evento específico de carregamento completo dos dados
-        EventBus.emit('roulettes_loaded', { success: true });
 
       } else if (parsedData.type === 'update' && parsedData.data) {
         // Evento individual (manter para compatibilidade ou outros usos?)
         const rouletteUpdate = parsedData.data;
         this.log(`Atualização individual recebida: Roleta ${rouletteUpdate.roleta_nome || rouletteUpdate.roleta_id}, Número ${rouletteUpdate.numero}`);
         this.updateCache(rouletteUpdate); 
-        
-        // Emitir através dos dois sistemas
-        this.emit('update', Array.from(this.rouletteData.values()));
+        this.emit('update', rouletteUpdate);
         EventBus.emit('roulette:data-updated', {
           timestamp: new Date().toISOString(),
           data: rouletteUpdate,
@@ -547,33 +476,73 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Usa dados simulados quando a API não está disponível
-   * Usado como fallback
+   * Gera e utiliza dados simulados como fallback quando a descriptografia falha
    */
   private useSimulatedData(): void {
-    this.log('Gerando dados simulados de roleta para fallback');
+    this.log('Usando dados simulados do crypto-service como fallback');
     
-    // Usar os dados simulados pré-gerados
-    const roletasSimuladas = mockRouletteData;
-    
-    // Atualizar o cache com os dados simulados
-    roletasSimuladas.forEach(roleta => {
-      this.rouletteData.set(roleta.roleta_id, roleta);
-    });
-    
-    // Emitir evento de que os dados foram carregados
-    this.emitEvent('roulettes_loaded', Array.from(this.rouletteData.values()));
-    this.log(`${roletasSimuladas.length} roletas simuladas foram carregadas`);
-  }
-  
-  /**
-   * Retorna a cor para um número da roleta
-   */
-  private getColorForNumber(number: number): string {
-    if (number === 0) return "verde";
-    
-    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-    return redNumbers.includes(number) ? "vermelho" : "preto";
+    // Usar os dados simulados do crypto-service em vez de criar manualmente
+    cryptoService.decryptData('dummy')
+      .then(simulatedResponse => {
+        if (simulatedResponse && simulatedResponse.data && simulatedResponse.data.roletas) {
+          const simulatedData = simulatedResponse.data.roletas;
+          this.log(`Usando ${simulatedData.length} roletas simuladas do crypto-service`);
+          
+          // Atualizar cache com dados simulados e notificar
+          this.updateCache(simulatedData);
+          this.emit('update', simulatedData);
+          EventBus.emit('roulette:data-updated', {
+            timestamp: new Date().toISOString(),
+            data: simulatedData,
+            source: 'simulation-from-crypto-service'
+          });
+        } else {
+          this.error('Formato de dados simulados inesperado do crypto-service');
+          
+          // Criar roletas simuladas manualmente como fallback
+          const manualSimulatedData = [{
+            id: 'simulated_recovery_' + Date.now(),
+            nome: 'Roleta Simulada Fallback',
+            provider: 'Fallback de Simulação',
+            status: 'online',
+            numeros: Array.from({length: 20}, () => Math.floor(Math.random() * 37)),
+            ultimoNumero: Math.floor(Math.random() * 37),
+            horarioUltimaAtualizacao: new Date().toISOString()
+          }];
+          
+          // Atualizar cache com dados simulados e notificar
+          this.updateCache(manualSimulatedData);
+          this.emit('update', manualSimulatedData);
+          EventBus.emit('roulette:data-updated', {
+            timestamp: new Date().toISOString(),
+            data: manualSimulatedData,
+            source: 'manual-simulation-fallback'
+          });
+        }
+      })
+      .catch(error => {
+        this.error('Erro ao obter dados simulados do crypto-service:', error);
+        
+        // Fallback para dados simulados manualmente em caso de erro
+        const fallbackData = [{
+          id: 'fallback_' + Date.now(),
+          nome: 'Roleta Fallback',
+          provider: 'Erro de Simulação',
+          status: 'online',
+          numeros: Array.from({length: 20}, () => Math.floor(Math.random() * 37)),
+          ultimoNumero: Math.floor(Math.random() * 37),
+          horarioUltimaAtualizacao: new Date().toISOString()
+        }];
+        
+        // Atualizar cache com dados simulados e notificar
+        this.updateCache(fallbackData);
+        this.emit('update', fallbackData);
+        EventBus.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          data: fallbackData,
+          source: 'fallback-after-simulation-error'
+        });
+      });
   }
   
   /**
@@ -692,87 +661,23 @@ class UnifiedRouletteClient {
     if (Array.isArray(data)) {
       // Atualizar múltiplas roletas
       data.forEach(roulette => {
-        if (roulette && (roulette.id || roulette.roleta_id)) {
-          const rouletteId = roulette.id || roulette.roleta_id;
-          this.rouletteData.set(rouletteId, roulette);
+        if (roulette && roulette.id) {
+          this.rouletteData.set(roulette.id, roulette);
         }
       });
       
       this.log(`Cache atualizado com ${data.length} roletas`);
-      
-      // Notificar sistema global sobre atualização (após curto delay para evitar loop infinito)
-      setTimeout(() => {
-        // Emitir evento 'all-data-updated' no EventBus para componentes legados
-        EventBus.emit('roulette:all-data-updated', {
-          timestamp: new Date().toISOString(),
-          data: Array.from(this.rouletteData.values()),
-          source: 'UnifiedRouletteClient.updateCache'
-        });
-      }, 100);
-      
-    } else if (data && (data.id || data.roleta_id)) {
+    } else if (data && data.id) {
       // Atualizar uma única roleta
-      const rouletteId = data.id || data.roleta_id;
-      this.rouletteData.set(rouletteId, data);
-      this.log(`Cache atualizado para roleta ${rouletteId}`);
-      
-      // Notificar sistema legado
-      setTimeout(() => {
-        EventBus.emit('roulette:data-updated', {
-          timestamp: new Date().toISOString(),
-          data: data,
-          source: 'UnifiedRouletteClient.updateCache-single'
-        });
-      }, 100);
+      this.rouletteData.set(data.id, data);
+      this.log(`Cache atualizado para roleta ${data.id}`);
     }
-  }
-  
-  /**
-   * Obtém dados de uma roleta específica
-   */
-  public getRouletteById(id: string): any {
-    return this.rouletteData.get(id) || null;
-  }
-  
-  /**
-   * Obtém dados de uma roleta pelo nome
-   */
-  public getRouletteByName(name: string): any {
-    for (const roulette of this.rouletteData.values()) {
-      const rouletteName = roulette.nome || roulette.name || '';
-      if (rouletteName.toLowerCase() === name.toLowerCase()) {
-        return roulette;
-      }
-    }
-    return null;
-  }
-  
-  /**
-   * Retorna todas as roletas disponíveis
-   * Método seguro para uso externo que nunca retorna nulo
-   */
-  public getAllRoulettes(): any[] {
-    // Se não tivermos dados, tentar buscar
-    if (this.rouletteData.size === 0) {
-      // Tentar buscar dados de forma assíncrona, mas não esperar
-      this.fetchData().then(() => {
-        this.log('Dados carregados com sucesso');
-      }).catch(error => {
-        this.error('Erro ao carregar dados:', error);
-      });
-      
-      // Enquanto isso, retornar dados simulados para não bloquear a UI
-      this.useSimulatedData();
-    }
-    
-    // Retornar o que temos no cache
-    return Array.from(this.rouletteData.values());
   }
   
   /**
    * Registra um callback para um evento
    */
-  public on(event: string, callback: (data: any) => void): () => void {
+  public on(event: string, callback: EventCallback): Unsubscribe {
     if (!this.eventCallbacks.has(event)) {
       this.eventCallbacks.set(event, new Set());
     }
@@ -788,7 +693,7 @@ class UnifiedRouletteClient {
   /**
    * Remove um callback para um evento
    */
-  public off(event: string, callback: (data: any) => void): void {
+  public off(event: string, callback: EventCallback): void {
     if (!this.eventCallbacks.has(event)) {
       return;
     }
@@ -804,95 +709,15 @@ class UnifiedRouletteClient {
       return;
     }
     
-    // Criar uma cópia segura dos callbacks para evitar problemas se a coleção for modificada durante a iteração
-    const callbacks = Array.from(this.eventCallbacks.get(event) || []);
-    
-    // Usar setTimeout para garantir que a emissão seja assíncrona
-    // Isso evita problemas de canal fechado antes da resposta
-    setTimeout(() => {
-      for (const callback of callbacks) {
-        try {
-          callback(data);
-        } catch (error) {
-          console.error(`[UnifiedRouletteClient] Erro em callback para evento ${event}:`, error);
-        }
+    for (const callback of this.eventCallbacks.get(event)!) {
+      try {
+        callback(data);
+      } catch (error) {
+        this.error(`Erro em callback para evento ${event}:`, error);
       }
-    }, 0);
-  }
-
-  /**
-   * Carrega dados históricos
-   */
-  public loadHistoricalData(): Promise<void> {
-    return this.fetchAndCacheInitialHistory();
-  }
-
-  /**
-   * Busca e cacheia os dados históricos iniciais
-   */
-  private async fetchAndCacheInitialHistory(): Promise<void> {
-    console.log('[UnifiedRouletteClient] Iniciando carregamento do histórico');
-    
-    // Se já estamos em processo de carregamento, retornar
-    if (this.isFetchingInitialHistory) {
-      console.log('[UnifiedRouletteClient] Já existe um carregamento em andamento');
-      return;
-    }
-    
-    this.isFetchingInitialHistory = true;
-    
-    try {
-      // Tentar buscar dados do sistema legado também
-      EventBus.emit('roulette:request-all-data', {
-          timestamp: new Date().toISOString(),
-        source: 'UnifiedRouletteClient.loadHistoricalData'
-      });
-      
-      // Após algum tempo, verificar se temos dados
-      setTimeout(() => {
-        // Se ainda não temos dados, emitir um evento mesmo assim para não bloquear a interface
-        if (this.rouletteData.size === 0) {
-          console.log('[UnifiedRouletteClient] Timeout ao buscar histórico, prosseguindo');
-          EventBus.emit('roulettes_loaded', { success: true });
-        } else {
-          console.log(`[UnifiedRouletteClient] Histórico carregado com ${this.rouletteData.size} roletas`);
-          EventBus.emit('roulettes_loaded', { 
-            success: true,
-            count: this.rouletteData.size
-          });
-        }
-        
-        this.isFetchingInitialHistory = false;
-      }, 5000); // Esperar 5 segundos
-      
-    } catch (error) {
-      console.error('[UnifiedRouletteClient] Erro ao carregar histórico:', error);
-      this.isFetchingInitialHistory = false;
-      
-      // Emitir evento mesmo com erro
-      EventBus.emit('roulettes_loaded', { 
-        success: false,
-        error
-      });
-    }
-  }
-
-  /**
-   * Registra mensagem de log
-   */
-  private log(...args: any[]): void {
-    if (this.logEnabled) {
-      console.log('[UnifiedRouletteClient]', ...args);
     }
   }
   
-  /**
-   * Registra mensagem de erro
-   */
-  private error(...args: any[]): void {
-    console.error('[UnifiedRouletteClient]', ...args);
-  }
-
   /**
    * Manipulador para mudança de visibilidade da página
    */
@@ -905,7 +730,7 @@ class UnifiedRouletteClient {
         window.clearInterval(this.pollingTimer);
         this.pollingTimer = null;
       }
-        } else {
+    } else {
       this.log('Página visível, retomando serviços');
       
       // Priorizar streaming
@@ -939,61 +764,32 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Força uma atualização imediata dos dados
-   * Tenta reconectar o streaming se não estiver conectado
+   * Obtém dados de uma roleta específica
    */
-  public forceUpdate(): Promise<any[]> {
-    // Se streaming não estiver conectado, tenta reconectar
-    if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
-      this.log('Forçando reconexão do stream');
-        this.connectStream();
-      return Promise.resolve(Array.from(this.rouletteData.values()));
-    }
-    
-    // Caso contrário, busca dados via REST
-    return this.fetchRouletteData();
+  public getRouletteById(id: string): any {
+    return this.rouletteData.get(id) || null;
   }
   
   /**
-   * Inscreve-se no serviço legado GlobalRouletteService para receber dados
-   * Esta é uma medida temporária para garantir compatibilidade
+   * Obtém dados de uma roleta pelo nome
    */
-  private subscribeToGlobalRouletteService(): void {
-    try {
-      // Verificar se o EventBus está disponível
-      if (EventBus) {
-        this.log('Inscrevendo-se em eventos do sistema legado GlobalRouletteService');
-        
-        // Inscrever-se no evento 'roulette:data-updated' que é emitido pelo serviço legado
-        EventBus.on('roulette:data-updated', (eventData: any) => {
-          if (eventData && eventData.data) {
-            this.log(`Recebendo dados do sistema legado: ${Array.isArray(eventData.data) ? 
-              `${eventData.data.length} roletas` : 'uma roleta'}`);
-            
-            // Usar os dados recebidos para atualizar o cache
-            this.updateCache(eventData.data);
-            
-            // Emitir evento próprio para notificar nossos assinantes
-            this.emit('update', Array.isArray(eventData.data) ? 
-              eventData.data : [eventData.data]);
-          }
-        });
-        
-        // Para obter feedback de quando o sistema legado carrega dados
-        EventBus.on('roulette:all-data-updated', (eventData: any) => {
-          this.log(`GlobalRouletteService carregou ${eventData?.data?.length || 0} roletas`);
-          
-          if (eventData && eventData.data && Array.isArray(eventData.data) && eventData.data.length > 0) {
-            this.updateCache(eventData.data);
-            this.emit('update', eventData.data);
-          }
-        });
+  public getRouletteByName(name: string): any {
+    for (const roulette of this.rouletteData.values()) {
+      const rouletteName = roulette.nome || roulette.name || '';
+      if (rouletteName.toLowerCase() === name.toLowerCase()) {
+        return roulette;
       }
-    } catch (error) {
-      this.error('Erro ao inscrever-se em eventos do sistema legado:', error);
     }
+    return null;
   }
-
+  
+  /**
+   * Obtém todos os dados de roletas
+   */
+  public getAllRoulettes(): any[] {
+    return Array.from(this.rouletteData.values());
+  }
+  
   /**
    * Obtém o status atual do serviço
    */
@@ -1007,180 +803,529 @@ class UnifiedRouletteClient {
       lastReceivedAt: this.lastReceivedAt,
       lastUpdateTime: this.lastUpdateTime,
       cacheSize: this.rouletteData.size,
-      isCacheValid: this.isCacheValid(),
-      hasHistoricalData: this.initialHistoricalDataCache.size > 0
+      isCacheValid: this.isCacheValid()
     };
   }
-
+  
   /**
-   * Emite um evento para os assinantes
+   * Força uma atualização imediata dos dados
+   * Tenta reconectar o streaming se não estiver conectado
    */
-  private emitEvent(eventName: string, data: any): void {
-    try {
-      // Emitir através do EventBus
-      EventBus.emit(eventName, data);
-      
-      // Emitir através do sistema de eventos interno
-      this.emit(eventName, data);
-    } catch (error) {
-      this.error(`Erro ao emitir evento ${eventName}:`, error);
+  public forceUpdate(): Promise<any[]> {
+    // Se streaming não estiver conectado, tenta reconectar
+    if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
+      this.log('Forçando reconexão do stream');
+      this.connectStream();
+      return Promise.resolve(Array.from(this.rouletteData.values()));
     }
+    
+    // Caso contrário, busca dados via REST
+    return this.fetchRouletteData();
   }
-
+  
   /**
-   * Tenta extrair chave de acesso de um evento
-   * @private
+   * Limpa recursos ao desmontar
    */
-  private extractAndSetAccessKeyFromEvent(data: any): boolean {
-    try {
-      let parsedData = data;
-      if (typeof data === 'string') {
-        try {
-          parsedData = JSON.parse(data);
-        } catch (e) {
-          // Ignorar, não é um JSON válido
-          return false;
-        }
-      }
-      
-      // Verificar campos comuns que podem conter a chave
-      let accessKey = null;
-      if (parsedData?.key) accessKey = parsedData.key;
-      if (parsedData?.accessKey) accessKey = parsedData.accessKey;
-      if (parsedData?.data?.key) accessKey = parsedData.data.key;
-      if (parsedData?.data?.accessKey) accessKey = parsedData.data.accessKey;
-      
-      if (accessKey) {
-        this.log(`Chave de acesso encontrada no evento: ${accessKey.substring(0, 5)}...`);
-        if (typeof window !== 'undefined' && window.localStorage) {
-          window.localStorage.setItem('roulette_access_key', accessKey);
-          return true;
-        }
-      }
-      
-      return false;
-    } catch (error) {
-      this.error('Erro ao extrair chave de acesso do evento:', error);
-      return false;
+  public dispose(): void {
+    // Limpar timers
+    if (this.pollingTimer) {
+      window.clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+    
+    if (this.streamReconnectTimer) {
+      window.clearTimeout(this.streamReconnectTimer);
+      this.streamReconnectTimer = null;
+    }
+    
+    if (this.webSocketReconnectTimer) {
+      window.clearTimeout(this.webSocketReconnectTimer);
+      this.webSocketReconnectTimer = null;
+    }
+    
+    // Fechar WebSocket
+    if (this.socket) {
+      this.socket.close();
+      this.socket = null;
+    }
+    
+    // Fechar stream
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    
+    // Reset da flag de conexão global
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+    
+    // Remover event listeners
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+      window.removeEventListener('focus', this.handleFocus);
+      window.removeEventListener('blur', this.handleBlur);
+    }
+    
+    // Limpar callbacks
+    this.eventCallbacks.clear();
+  }
+  
+  /**
+   * Registra mensagem de log
+   */
+  private log(...args: any[]): void {
+    if (this.logEnabled) {
+      console.log('[UnifiedRouletteClient]', ...args);
     }
   }
   
   /**
-   * Verifica se existe uma chave de acesso
-   * @private
+   * Registra mensagem de erro
    */
-  private hasAccessKey(): boolean {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return !!window.localStorage.getItem('roulette_access_key');
-    }
-    return false;
+  private error(...args: any[]): void {
+    console.error('[UnifiedRouletteClient]', ...args);
   }
-
+  
   /**
-   * Processa dados criptografados recebidos
-   * NOTA: Esta implementação simples apenas retorna os dados como estão
+   * Manipula mensagens de erro ou notificação especial
    */
-  private async processEncryptedData(data: any): Promise<any> {
-    // Esta é uma versão simplificada que apenas retorna os dados recebidos
-    // Em uma implementação real, aqui seria feita a descriptografia
-    try {
-      return data;
-    } catch (error) {
-      this.error('Erro ao processar dados criptografados:', error);
-      return null;
-    }
+  private handleErrorMessage(data: any): void {
+    this.log('Recebida mensagem de erro ou notificação:', JSON.stringify(data).substring(0, 100));
+    
+    // Emitir evento de erro
+    EventBus.emit('roulette:api-message', {
+      timestamp: new Date().toISOString(),
+      type: data.error ? 'error' : 'notification',
+      message: data.message || 'Mensagem sem detalhes',
+      code: data.code,
+      data
+    });
+    
+    // Notificar assinantes
+    this.emit('message', data);
   }
-
+  
   /**
-   * Busca dados das roletas
-   * @param forceRefresh Força uma atualização dos dados
-   * @returns Dados das roletas
+   * Processa dados descriptografados
    */
-  public async fetchData(forceRefresh: boolean = false): Promise<any[]> {
+  private handleDecryptedData(data: any): void {
+    console.log('[UnifiedRouletteClient] Processando dados descriptografados', JSON.stringify(data).substring(0, 200));
+    
     try {
-      this.log('Buscando dados das roletas...');
+      // Verificar a estrutura dos dados descriptografados
+      let rouletteData = data;
+      let validStructure = false;
       
-      // Se já temos dados em cache e não foi solicitado forceRefresh, retornar cache
-      if (!forceRefresh && this.rouletteData.size > 0) {
-        this.log(`Retornando ${this.rouletteData.size} roletas do cache`);
-        return Array.from(this.rouletteData.values());
+      // Verificar formato padrão: { data: [...] } 
+      if (data && data.data) {
+        // Se data.data.roletas existe, é o formato simulado
+        if (data.data.roletas && Array.isArray(data.data.roletas)) {
+          console.log(`[UnifiedRouletteClient] Encontrado formato simulado com ${data.data.roletas.length} roletas`);
+          rouletteData = data.data.roletas;
+          validStructure = true;
+        } 
+        // Se data.data é um array, é o formato padrão
+        else if (Array.isArray(data.data)) {
+          console.log(`[UnifiedRouletteClient] Encontrado formato padrão com ${data.data.length} roletas`);
+          rouletteData = data.data;
+          validStructure = true;
+        }
+        // Se data.data é outro formato, usar diretamente
+        else {
+          console.log('[UnifiedRouletteClient] Usando data.data diretamente');
+          rouletteData = data.data;
+        }
+      }
+      // Verificar formato alternativo: { roletas: [...] }
+      else if (data && data.roletas && Array.isArray(data.roletas)) {
+        console.log(`[UnifiedRouletteClient] Encontrado formato alternativo com ${data.roletas.length} roletas`);
+        rouletteData = data.roletas;
+        validStructure = true;
       }
       
-      // Tentar conectar ao stream se ainda não estiver conectado
-      if (!this.isStreamConnected && !this.isStreamConnecting) {
-        this.log('Stream não está conectado, tentando conectar');
-        this.connectStream();
+      // Verificar se temos um array válido para processar
+      if (Array.isArray(rouletteData)) {
+        console.log(`[UnifiedRouletteClient] Processando array com ${rouletteData.length} roletas`);
+        validStructure = true;
         
-        // Aguardar um pouco para dar tempo de conectar
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-      // Se temos dados após a conexão, retornar
-      if (this.rouletteData.size > 0) {
-        this.log(`Stream conectado, retornando ${this.rouletteData.size} roletas`);
-        return Array.from(this.rouletteData.values());
-      }
-      
-      // Tentar buscar dados da API REST como fallback
-      this.log('Tentando buscar dados da API REST como fallback');
-      try {
-        const url = getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
-        const response = await fetch(url);
+        // Atualizar cache com os dados
+        this.updateCache(rouletteData);
         
-        if (!response.ok) {
-          this.error(`Erro na API REST: ${response.status} ${response.statusText}`);
-          throw new Error(`Erro na requisição: ${response.statusText}`);
+        // Emitir evento de atualização
+        this.emit('update', Array.from(this.rouletteData.values()));
+        EventBus.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          data: Array.from(this.rouletteData.values()),
+          source: 'decrypted-data'
+        });
+      } else {
+        console.warn('[UnifiedRouletteClient] Dados descriptografados não contêm array de roletas');
+      }
+      
+      if (!validStructure) {
+        console.warn('[UnifiedRouletteClient] Dados descriptografados sem estrutura esperada');
+        // Tentar extrair metadados ou outras informações úteis
+        if (data && typeof data === 'object') {
+          EventBus.emit('roulette:metadata', {
+            timestamp: new Date().toISOString(),
+            data
+          });
         }
         
-        const data = await response.json();
+        // Tentar reconectar via SSE 
+        this.log('Tentando reconectar via SSE para obter dados reais...');
+        this.connectStream();
+      }
+    } catch (error) {
+      this.error('Erro ao processar dados descriptografados:', error);
+      // Tentar reconectar via SSE
+      this.log('Tentando reconectar via SSE após erro de processamento...');
+      this.connectStream();
+    }
+  }
+  
+  /**
+   * Mostra uma notificação para o usuário
+   */
+  private notify(type: string, message: string): void {
+    console.log(`[UnifiedRouletteClient] Notificação (${type}): ${message}`);
+    
+    // Emitir evento de notificação
+    EventBus.emit('notification', {
+      type,
+      message,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  /**
+   * Conecta ao servidor WebSocket para receber dados reais do scraper
+   */
+  private connectToWebSocket(): void {
+    if (this.socket) {
+      // Já existe uma conexão, fechá-la antes de criar nova
+      this.socket.close();
+      this.socket = null;
+    }
+    
+    try {
+      this.log('Tentando conectar ao WebSocket para dados do scraper...');
+      
+      // Usar a URL configurada na propriedade webSocketUrl
+      const wsUrl = this.webSocketUrl;
+      
+      // Criar nova conexão WebSocket
+      this.socket = new WebSocket(wsUrl);
+      
+      // Configurar handlers de eventos
+      this.socket.onopen = this.handleWebSocketOpen.bind(this);
+      this.socket.onmessage = this.handleWebSocketMessage.bind(this);
+      this.socket.onerror = this.handleWebSocketError.bind(this);
+      this.socket.onclose = this.handleWebSocketClose.bind(this);
+      
+      this.webSocketReconnectAttempts++;
+      
+    } catch (error) {
+      this.error('Erro ao conectar ao WebSocket:', error);
+      this.scheduleWebSocketReconnect();
+    }
+  }
+  
+  /**
+   * Handler para evento de abertura da conexão WebSocket
+   */
+  private handleWebSocketOpen(event: Event): void {
+    this.log('Conexão WebSocket estabelecida com sucesso');
+    this.webSocketConnected = true;
+    this.webSocketReconnectAttempts = 0;
+    
+    // Enviar autenticação se necessário
+    if (cryptoService.hasAccessKey()) {
+      const accessKey = cryptoService.getAccessKey();
+      const authMessage = JSON.stringify({
+        type: 'auth',
+        token: accessKey,
+        client: 'runcash-frontend'
+      });
+      this.socket?.send(authMessage);
+      this.log('Enviada mensagem de autenticação para o WebSocket');
+    }
+    
+    // Solicitar dados imediatamente após a conexão
+    this.requestLatestRouletteData();
+    
+    // Notificar sobre a conexão
+    this.emit('websocket-connected', { timestamp: new Date().toISOString() });
+    EventBus.emit('roulette:websocket-connected', {
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  /**
+   * Handler para mensagens recebidas do WebSocket
+   */
+  private handleWebSocketMessage(event: MessageEvent): void {
+    try {
+      // Processar a mensagem recebida
+      const message = JSON.parse(event.data);
+      this.log('Mensagem WebSocket recebida:', message.type || 'sem tipo');
+      
+      // Verificar tipo de mensagem
+      if (message.type === 'numero' || message.type === 'update' || message.type === 'event' || message.type === 'new_number') {
+        // Atualização de número de roleta - formato compatível com o scraper
+        const rouletteData = {
+          id: message.roleta_id || message.id,
+          nome: message.roleta_nome || message.nome || message.roleta,
+          provider: message.provider || 'Desconhecido',
+          status: message.status || 'online',
+          numeros: message.numeros || message.sequencia || [],
+          ultimoNumero: message.numero || message.ultimoNumero || (message.numeros && message.numeros[0]),
+          horarioUltimaAtualizacao: message.timestamp 
+            ? (typeof message.timestamp === 'number' ? new Date(message.timestamp).toISOString() : message.timestamp)
+            : new Date().toISOString()
+        };
         
-        if (Array.isArray(data) && data.length > 0) {
-          this.log(`Recebidas ${data.length} roletas da API REST`);
-          
-          // Atualizar cache com os dados recebidos
-          data.forEach(roleta => {
-            if (roleta && roleta.roleta_id) {
-              this.rouletteData.set(roleta.roleta_id, roleta);
+        // Log detalhado para depuração
+        this.log(`Recebido número ${rouletteData.ultimoNumero} para roleta ${rouletteData.nome} (${rouletteData.id})`);
+        
+        // Se recebemos apenas um número, adicioná-lo à sequência
+        if (!rouletteData.numeros.length && rouletteData.ultimoNumero !== undefined) {
+          // Buscar roleta existente para obter a sequência atual
+          const existingRoulette = this.rouletteData.get(rouletteData.id);
+          if (existingRoulette && existingRoulette.numeros && existingRoulette.numeros.length) {
+            // Criar nova sequência com o número mais recente no início
+            rouletteData.numeros = [rouletteData.ultimoNumero, ...existingRoulette.numeros.slice(0, 14)];
+          } else {
+            // Se não temos sequência existente, inicializar com o número atual
+            rouletteData.numeros = [rouletteData.ultimoNumero];
+          }
+        }
+        
+        // Atualizar o cache
+        this.updateCache(rouletteData);
+        
+        // Emitir evento de atualização
+        this.emit('update', rouletteData);
+        EventBus.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          data: rouletteData,
+          source: 'websocket'
+        });
+      } else if (message.type === 'roulettes' || message.type === 'roletas' || message.type === 'list') {
+        // Lista completa de roletas
+        if (Array.isArray(message.data)) {
+          this.log(`Recebida lista com ${message.data.length} roletas do WebSocket`);
+          this.updateCache(message.data);
+          this.emit('update', message.data);
+          EventBus.emit('roulette:all-data-updated', {
+            timestamp: new Date().toISOString(),
+            data: message.data,
+            source: 'websocket'
+          });
+        }
+      } else if (message.type === 'auth-result') {
+        // Resultado de autenticação
+        if (message.success) {
+          this.log('Autenticação no WebSocket bem-sucedida');
+          // Solicitar dados após autenticação
+          this.requestLatestRouletteData();
+        } else {
+          this.error('Falha na autenticação no WebSocket:', message.message || 'Motivo desconhecido');
+        }
+      } else if (message.type === 'log' || message.type === 'info') {
+        // Mensagem de log do servidor
+        this.log(`Mensagem de log do servidor: ${message.message || JSON.stringify(message)}`);
+      } else {
+        // Tipo desconhecido - tentar processar mesmo assim se tiver dados relevantes
+        this.log(`Tipo de mensagem desconhecido: ${message.type || 'undefined'}`);
+        
+        // Verificar se podemos extrair dados de roleta mesmo assim
+        if (message.roleta_id || message.roleta || message.id || message.data) {
+          if (message.data && Array.isArray(message.data)) {
+            // Provavelmente é uma lista de roletas
+            this.log(`Processando lista de ${message.data.length} roletas de mensagem não tipada`);
+            this.updateCache(message.data);
+          } else if (message.numero !== undefined || message.ultimoNumero !== undefined) {
+            // Provavelmente é uma atualização de número
+            this.log(`Processando atualização de número de mensagem não tipada: ${message.numero || message.ultimoNumero}`);
+            const rouletteData = {
+              id: message.roleta_id || message.id || 'unknown',
+              nome: message.roleta_nome || message.nome || message.roleta || 'Roleta Desconhecida',
+              provider: message.provider || 'Desconhecido',
+              status: message.status || 'online',
+              numeros: message.numeros || message.sequencia || [],
+              ultimoNumero: message.numero || message.ultimoNumero,
+              horarioUltimaAtualizacao: message.timestamp || new Date().toISOString()
+            };
+            this.updateCache(rouletteData);
+          }
+        }
+      }
+    } catch (error) {
+      this.error('Erro ao processar mensagem WebSocket:', error);
+    }
+  }
+  
+  /**
+   * Handler para erros na conexão WebSocket
+   */
+  private handleWebSocketError(event: Event): void {
+    this.error('Erro na conexão WebSocket:', event);
+    this.webSocketConnected = false;
+    this.scheduleWebSocketReconnect();
+  }
+  
+  /**
+   * Handler para fechamento da conexão WebSocket
+   */
+  private handleWebSocketClose(event: CloseEvent): void {
+    this.log(`Conexão WebSocket fechada: Código ${event.code}, Razão: ${event.reason}`);
+    this.webSocketConnected = false;
+    
+    // Verificar se devemos tentar reconectar
+    if (event.code !== 1000) { // 1000 é fechamento normal
+      this.scheduleWebSocketReconnect();
+    }
+  }
+  
+  /**
+   * Agenda uma tentativa de reconexão ao WebSocket
+   */
+  private scheduleWebSocketReconnect(): void {
+    // Limpar timer existente
+    if (this.webSocketReconnectTimer !== null) {
+      window.clearTimeout(this.webSocketReconnectTimer);
+      this.webSocketReconnectTimer = null;
+    }
+    
+    // Verificar se excedemos o número máximo de tentativas
+    if (this.webSocketReconnectAttempts >= this.maxWebSocketReconnectAttempts) {
+      this.error(`Número máximo de tentativas de reconexão WebSocket (${this.maxWebSocketReconnectAttempts}) atingido, desistindo...`);
+      
+      // Tentar o fallback SSE em vez de simulação
+      if (!this.isStreamConnected && !this.isStreamConnecting) {
+        this.log('Tentando conexão SSE como alternativa após falha no WebSocket');
+        this.connectStream();
+      }
+      
+      return;
+    }
+    
+    // Calcular tempo de espera (backoff exponencial)
+    const reconnectDelay = Math.min(1000 * Math.pow(2, this.webSocketReconnectAttempts), 30000);
+    this.log(`Agendando reconexão WebSocket em ${reconnectDelay}ms (tentativa ${this.webSocketReconnectAttempts})`);
+    
+    // Agendar reconexão
+    this.webSocketReconnectTimer = window.setTimeout(() => {
+      this.log('Tentando reconectar ao WebSocket...');
+      this.connectToWebSocket();
+    }, reconnectDelay) as unknown as number;
+  }
+  
+  /**
+   * Envia solicitação ao WebSocket para obter dados mais recentes
+   */
+  private requestLatestRouletteData(): void {
+    if (!this.webSocketConnected || !this.socket) {
+      return;
+    }
+    
+    try {
+      // Formato compatível com o backend API
+      const requestMessage = JSON.stringify({
+        type: 'request',
+        action: 'get_data',
+        target: 'roulettes',
+        timestamp: Date.now(),
+        accessKey: cryptoService.getAccessKey() || ''
+      });
+      
+      this.socket.send(requestMessage);
+      this.log('Solicitação de dados recentes enviada via WebSocket');
+    } catch (error) {
+      this.error('Erro ao solicitar dados via WebSocket:', error);
+    }
+  }
+
+  // --- Função para Buscar e Cachear Histórico Inicial ---
+  private async fetchAndCacheInitialHistory(): Promise<void> {
+    // Evitar múltiplas buscas simultâneas ou repetidas
+    if (this.isFetchingInitialHistory || this.initialHistoricalDataCache.size > 0) {
+      this.log('Busca de histórico inicial já em andamento ou concluída.');
+      // Se já estiver buscando, retorna a promise existente
+      if (this.initialHistoryFetchPromise) {
+        return this.initialHistoryFetchPromise;
+      }
+      return Promise.resolve();
+    }
+
+    this.isFetchingInitialHistory = true;
+    this.log('Iniciando busca do histórico inicial para todas as roletas...');
+
+    this.initialHistoryFetchPromise = (async () => {
+      let apiUrl = ''; // Declarar fora para estar acessível no catch/finally
+      try {
+        // <<< Usar getFullUrl para construir a URL completa >>>
+        apiUrl = getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
+        this.log(`Buscando histórico inicial de: ${apiUrl}`); // Log para depuração
+        const response = await axios.get<{ success: boolean; data: Record<string, RouletteNumber[]>; message?: string }>(apiUrl);
+
+        if (response.data && response.data.success && response.data.data) {
+          const historicalData = response.data.data;
+          const rouletteNames = Object.keys(historicalData);
+
+          // Limpar cache antigo antes de popular
+          this.initialHistoricalDataCache.clear();
+
+          // Popular o cache
+          rouletteNames.forEach(name => {
+            if (Array.isArray(historicalData[name])) {
+              this.initialHistoricalDataCache.set(name, historicalData[name]);
             }
           });
+
+          this.log(`Histórico inicial carregado e cacheado para ${rouletteNames.length} roletas.`);
           
-          return data;
+          // Emitir evento (opcional)
+          this.emit('initialHistoryLoaded', this.initialHistoricalDataCache);
+
         } else {
-          this.error('API REST retornou dados inválidos ou vazios');
-          throw new Error('Dados inválidos recebidos da API');
+          throw new Error(response.data?.message || 'Falha ao buscar dados históricos iniciais: resposta inválida');
         }
-      } catch (apiError) {
-        this.error('Erro ao buscar dados da API REST:', apiError);
-        
-        // Se ainda não temos dados após todas as tentativas, usar dados simulados
-        if (this.rouletteData.size === 0) {
-          this.log('Usando dados simulados como último recurso');
-          this.useSimulatedData();
-          return Array.from(this.rouletteData.values());
-        }
+
+      } catch (error: any) {
+         // Usar apiUrl se disponível, senão o endpoint relativo
+         const endpointDesc = apiUrl || ENDPOINTS.HISTORICAL.ALL_ROULETTES;
+         this.error(`Erro ao buscar histórico de ${endpointDesc}:`, error.message || error);
+        // Limpar cache em caso de erro para permitir nova tentativa
+        this.initialHistoricalDataCache.clear();
+        // Emitir evento de erro (opcional)
+        this.emit('initialHistoryError', error);
+        // Rejeitar a promise para que quem estiver aguardando saiba do erro
+        throw error;
+      } finally {
+        this.isFetchingInitialHistory = false;
+        // Não limpar initialHistoryFetchPromise aqui, para que futuras chamadas saibam que já foi tentado
       }
-      
-      // Se chegamos aqui e ainda temos dados no cache, retornar o cache
-      if (this.rouletteData.size > 0) {
-        return Array.from(this.rouletteData.values());
-      }
-      
-      // Se tudo falhar, retornar dados simulados
-      this.useSimulatedData();
-      return Array.from(this.rouletteData.values());
-    } catch (error) {
-      this.error('Erro ao buscar dados:', error);
-      
-      // Garantir que sempre retornamos alguma coisa
-      if (this.rouletteData.size > 0) {
-        return Array.from(this.rouletteData.values());
-      }
-      
-      // Último recurso: dados simulados
-      this.useSimulatedData();
-      return Array.from(this.rouletteData.values());
-    }
+    })();
+
+    return this.initialHistoryFetchPromise;
   }
+
+  // --- Novo Método Público para Acessar o Cache ---
+  public getPreloadedHistory(rouletteName: string): RouletteNumber[] | undefined {
+    return this.initialHistoricalDataCache.get(rouletteName);
+  }
+
+  // --- Garantir que ENDPOINTS.HISTORICAL.ALL_ROULETTES exista ---
+  // (Precisa verificar ou adicionar em frontend/src/services/api/endpoints.ts)
+  // Exemplo de como poderia ser em endpoints.ts:
+  // export const ENDPOINTS = {
+  //   ...
+  //   HISTORICAL: {
+  //     ALL_ROULETTES: '/api/historical/all-roulettes',
+  //   },
+  //   ...
+  // };
 }
 
 // Exportar singleton

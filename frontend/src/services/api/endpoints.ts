@@ -14,28 +14,16 @@ export const ENDPOINTS = {
 
   // Endpoints para dados históricos
   HISTORICAL: {
-    ALL_ROULETTES: '/api/historical/all-roulettes', // Endpoint para buscar histórico inicial de todas as roletas
-  },
-
-  // Garantir que o endpoint de saúde (health) tenha o prefixo /api correto
-  HEALTH: {
-    CHECK: '/api/health' // Adicionar o prefixo /api, se necessário
-  },
+    ALL_ROULETTES: '/historical/all-roulettes', // Endpoint para buscar histórico inicial de todas as roletas
+  }
 };
 
 // Obtém a URL base da API a partir de variáveis de ambiente
 export const getApiBaseUrl = (): string => {
-  return import.meta.env.VITE_API_BASE_URL || '';
+  return import.meta.env.VITE_API_BASE_URL || '/api';
 };
 
 // Obtém a URL completa para um endpoint
 export const getFullUrl = (endpoint: string): string => {
-  // Se o endpoint já começar com /api, não adicionar o prefixo novamente
-  if (endpoint.startsWith('/api')) {
-    return `${getApiBaseUrl()}${endpoint}`;
-  }
-  
-  // Caso contrário, garantir que o prefixo /api seja adicionado
-  const apiPrefix = '/api';
-  return `${getApiBaseUrl()}${apiPrefix}${endpoint}`;
+  return `${getApiBaseUrl()}${endpoint}`;
 }; 

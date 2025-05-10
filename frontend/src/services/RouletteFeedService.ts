@@ -1,29 +1,8 @@
 import EventService from './EventService';
 import { getLogger } from './utils/logger';
 import globalRouletteDataService from './GlobalRouletteDataService';
+import { cryptoService } from '../utils/crypto-utils';
 import EventBus from '../services/EventBus';
-import { ENDPOINTS, getFullUrl } from './api/endpoints';
-
-// Classe EventEmitter simples para o navegador
-class EventEmitter {
-  private events: Record<string, Function[]> = {};
-
-  public on(event: string, listener: Function): this {
-    if (!this.events[event]) {
-      this.events[event] = [];
-    }
-    this.events[event].push(listener);
-    return this;
-  }
-
-  public emit(event: string, ...args: any[]): boolean {
-    if (!this.events[event]) {
-      return false;
-    }
-    this.events[event].forEach(listener => listener(...args));
-    return true;
-  }
-}
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');
@@ -109,9 +88,9 @@ interface RouletteFeedServiceOptions {
  * Serviço para obter atualizações das roletas usando polling único
  * Intervalo ajustado para 10 segundos conforme especificação
  */
-export default class RouletteFeedService extends EventEmitter {
+export default class RouletteFeedService {
   private static instance: RouletteFeedService | null = null;
-  private roulettes: Record<string, any> = {};
+  private roulettes: { [key: string]: any } = {}; // Alterado para um objeto em vez de array
   
   // Controle de estado global
   private IS_INITIALIZING: boolean = false;
@@ -216,14 +195,11 @@ export default class RouletteFeedService extends EventEmitter {
   private isError: boolean = false;
   private errorMessage: string = '';
 
-  private healthStatus: boolean = false;
-
   /**
    * O construtor configura os parâmetros iniciais e inicia o serviço
    * @param options Opções de configuração para o serviço
    */
   constructor(options: RouletteFeedServiceOptions = {}) {
-    super();
     const {
       autoStart = true,
       initialInterval = 10000, // 10 segundos padrão
@@ -510,14 +486,91 @@ export default class RouletteFeedService extends EventEmitter {
 
   /**
    * Busca os dados mais recentes das roletas
-   * DEPRECIADO: Este método será removido em versões futuras.
-   * @deprecated Use UnifiedRouletteClient.getInstance().getAllRoulettes() em vez disso
+   * @deprecated Use UnifiedRouletteClient.getInstance().getAllRoulettes() em vez deste método.
+   * Este método será removido em versões futuras.
    */
   public fetchLatestData(): Promise<any> {
-    this.log('AVISO: fetchLatestData está depreciado. Use UnifiedRouletteClient.getInstance().getAllRoulettes()');
+    // Mostrar aviso explícito sobre depreciação
+    console.warn(
+      '[RouletteFeedService] AVISO DE DEPRECIAÇÃO: fetchLatestData() está depreciado.' +
+      '\nUse UnifiedRouletteClient.getInstance().getAllRoulettes() para dados de roletas.' +
+      '\nEste método será removido em versões futuras.'
+    );
     
-    // Retornar uma promise que resolve com os dados em cache
-    return Promise.resolve(Object.values(this.roulettes));
+    // Verificar se já há uma requisição em andamento
+    if (this.isFetching) {
+      if (this.fetchPromise) {
+        return this.fetchPromise;
+      }
+      
+      // Se não tiver uma Promise válida, retornar os dados em cache
+      if (Object.values(this.roulettes).length > 0) {
+        return Promise.resolve(Object.values(this.roulettes));
+      }
+      return Promise.resolve([]);
+    }
+    
+    // Verificar se o cache ainda é válido
+    if (this.isCacheValid()) {
+      return Promise.resolve(Object.values(this.roulettes));
+    }
+    
+    // Inicializar estado da request
+    this.isFetching = true;
+    this.lastFetchTime = Date.now();
+    
+    // Se não puder fazer request devido ao rate limiting, retornar cache
+    if (!this.canMakeRequest()) {
+      console.warn('[RouletteFeedService] Limite de requisições atingido, usando cache');
+      this.isFetching = false;
+      return Promise.resolve(Object.values(this.roulettes));
+    }
+    
+    // Criar ID único para esta requisição
+    const requestId = this.generateRequestId();
+    
+    // Registrar requisição pendente
+    this.pendingRequests[requestId] = {
+      timestamp: Date.now(),
+      url: '/api/stream/roulettes',
+      service: 'RouletteFeedService'
+    };
+    
+    // Importar UnifiedRouletteClient e usar para buscar os dados
+    import('./UnifiedRouletteClient').then(module => {
+      const UnifiedRouletteClient = module.default;
+      // Forçar atualização dos dados através do cliente unificado
+      UnifiedRouletteClient.getInstance().forceUpdate();
+    }).catch(error => {
+      console.error('[RouletteFeedService] Erro ao importar UnifiedRouletteClient:', error);
+    });
+    
+    // Criar promise para compatibilidade com código existente
+    this.fetchPromise = new Promise((resolve, reject) => {
+      try {
+        // Usar cache e resolver imediatamente
+        if (Object.values(this.roulettes).length > 0) {
+          resolve(Object.values(this.roulettes));
+            } else {
+          // Sem dados em cache, resolver com array vazio
+          resolve([]);
+        }
+        
+        // Limpar estado
+        this.isFetching = false;
+        this.fetchPromise = null;
+        delete this.pendingRequests[requestId];
+        
+      } catch (error) {
+        console.error('[RouletteFeedService] Erro geral:', error);
+        this.isFetching = false;
+        this.fetchPromise = null;
+        delete this.pendingRequests[requestId];
+        reject(error);
+      }
+    });
+    
+    return this.fetchPromise;
   }
 
   /**
@@ -1525,151 +1578,147 @@ export default class RouletteFeedService extends EventEmitter {
     logger.info(`🔄 Requisição ${requestId} concluída com sucesso: ${status}`);
   }
 
-  /**
-   * Verifica a saúde da API
-   * Retorna uma promessa que resolve quando a verificação é concluída
-   * Nunca rejeita para evitar quebrar o fluxo da aplicação
-   */
-  public checkAPIHealth(): Promise<boolean> {
-    // Usar Promise.race para garantir que a promessa não fique pendente indefinidamente
-    return Promise.race([
-      this._checkAPIHealth(),
-      // Promessa que resolve após 5 segundos para evitar bloqueio
-      new Promise<boolean>(resolve => {
-        setTimeout(() => {
-          this.log('Timeout na verificação de saúde da API, assumindo API indisponível');
-          resolve(false);
-        }, 5000);
-      })
-    ]);
-  }
-  
-  /**
-   * Implementação interna da verificação de saúde
-   * Tenta múltiplos endpoints e manipula erros graciosamente
-   */
-  private async _checkAPIHealth(): Promise<boolean> {
-    this.log('Verificando saúde da API...');
-    
-    // Lista de endpoints para tentar, em ordem de prioridade
-    const healthEndpoints = [
-      '/api/v1/status',   // Adicionando mais alternativas no início
-      '/api/status/check',
-      '/api/availability',
-      '/api/status',
-      '/api/health',
-      '/health',
-      '/api/v1/health'
-    ];
-    
-    // Usar AbortController para limitar o tempo de cada requisição
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-    
+  // Adicionar método para verificar a saúde da API
+  async checkAPIHealth(): Promise<boolean> {
     try {
+      // Array com endpoints alternativos para verificar a saúde da API
+      const healthEndpoints = [
+        '/api/health',
+        '/api/asaas-webhook', // Usar um endpoint existente como fallback
+        '/api' // Tentar apenas o path base como último recurso
+      ];
+      
+      let isHealthy = false;
+      let lastError = null;
+      
       // Tentar cada endpoint até encontrar um que funcione
       for (const endpoint of healthEndpoints) {
         try {
-          // Obter URL completa para o endpoint
-          let url = '';
-          
-          try {
-            // Tentar usar a função fornecida pelo módulo de endpoints
-            if (typeof getFullUrl === 'function') {
-              url = getFullUrl(endpoint);
-            } else {
-              // Fallback para URL relativa
-              url = `${window.location.origin}${endpoint}`;
-            }
-          } catch (urlError) {
-            // Se getFullUrl falhar, cair para URL relativa
-            url = `${window.location.origin}${endpoint}`;
-          }
-          
-          this.log(`Tentando endpoint de saúde: ${endpoint}`);
-          
-          // Usar fetch com um timeout curto
-          const response = await fetch(url, { 
+          console.log(`Verificando saúde da API em: ${endpoint}`);
+          const response = await fetch(endpoint, {
             method: 'GET',
-            signal: controller.signal,
-            // Adicionar cabeçalhos para evitar problemas de cache
             headers: {
-              'Cache-Control': 'no-cache, no-store',
-              'Pragma': 'no-cache'
-            }
+              'Content-Type': 'application/json',
+            },
+            // Baixo timeout para evitar esperar muito tempo
+            signal: AbortSignal.timeout(3000),
           });
           
-          // Limpar timeout se a requisição for bem-sucedida
-          clearTimeout(timeoutId);
-          
+          // Se a resposta foi bem-sucedida (qualquer status 2xx)
           if (response.ok) {
-            this.log(`API está saudável (${response.status}) via ${endpoint}`);
-            this.healthStatus = true;
-            this.emit('health', { status: 'healthy', endpoint });
-            return true;
+            console.log(`✅ API saudável, resposta de ${endpoint}: ${response.status}`);
+            isHealthy = true;
+            break;
           } else {
-            this.log(`Endpoint ${endpoint} respondeu com status ${response.status}`);
+            console.warn(`⚠️ Endpoint ${endpoint} retornou status ${response.status}`);
           }
-        } catch (endpointError) {
-          // Ignorar erros específicos de endpoint e continuar tentando
-          this.log(`Falha ao verificar endpoint ${endpoint}:`, endpointError);
+        } catch (err) {
+          lastError = err;
+          console.warn(`❌ Falha ao verificar saúde em ${endpoint}:`, err);
+          // Continuar para o próximo endpoint em caso de erro
         }
       }
       
-      // Se chegou aqui, nenhum endpoint funcionou
-      this.log('Todos os endpoints de saúde falharam, API possivelmente indisponível');
+      // Se nenhum endpoint funcionou, assumir que a API está indisponível
+      if (!isHealthy) {
+        console.error('Todos os endpoints de saúde falharam:', lastError);
+        // Emitir evento para todos os observadores sobre a falha
+        EventService.emit('roulette:api-failure', { 
+          timestamp: Date.now(),
+          error: lastError instanceof Error ? lastError.message : 'API inacessível'
+        });
+      }
       
-      // Ainda assim, considerar API saudável para não bloquear a aplicação
-      this.healthStatus = true; // Forçar como saudável mesmo com falha
-      this.emit('health', { status: 'assumed-healthy', reason: 'fallback-activated' });
-      return true; // Retornar true para permitir que a aplicação continue
+      // Mesmo se todos os endpoints falharem, retornar true para não bloquear a inicialização
+      // Apenas logar a falha e permitir que a aplicação continue tentando
+      return true;
     } catch (error) {
-      // Limpar timeout em caso de erro
-      clearTimeout(timeoutId);
+      console.error('Falha na verificação de saúde da API:', error);
+      // Emitir evento para todos os observadores sobre a falha
+      EventService.emit('roulette:api-failure', { 
+        timestamp: Date.now(),
+        error: error instanceof Error ? error.message : 'API inacessível'
+      });
       
-      this.error('Erro grave ao verificar saúde da API:', error);
-      
-      // Mesmo com erro grave, considerar API saudável para não bloquear a aplicação
-      this.healthStatus = true;
-      this.emit('health', { status: 'assumed-healthy', error });
-      return true; // Retornar true para permitir que a aplicação continue
+      // Retornar true mesmo em caso de erro para não impedir a inicialização
+      // A aplicação tentará operar mesmo sem a API disponível
+      return true;
     }
-  }
-
-  /**
-   * Método auxiliar para log
-   */
-  private log(message: string, ...args: any[]): void {
-    console.log(`[RouletteFeedService] ${message}`, ...args);
-  }
-
-  /**
-   * Método auxiliar para log de erros
-   */
-  private error(message: string, ...args: any[]): void {
-    console.error(`[RouletteFeedService] ${message}`, ...args);
   }
 
   /**
    * Registra ouvintes para eventos globais relacionados às roletas
+   * Esta função centraliza o registro de todos os event listeners necessários
    */
   private registerGlobalEventListeners(): void {
-    this.log('Registrando ouvintes para eventos globais');
+    logger.info('Registrando ouvintes para eventos globais');
     
-    // Aqui pode adicionar seu código para registrar event listeners
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-          this.log('Página visível novamente, verificando dados');
-          this.checkAPIHealth().then(isHealthy => {
-            if (isHealthy) {
-              this.fetchLatestData();
-            }
-          });
-        }
-      });
+    // Ouvinte para atualizações globais de dados
+    const globalDataUpdateHandler = () => {
+      logger.info('Recebida atualização do serviço global de roletas');
+      this.fetchLatestData();
+    };
+    
+    // Inscrever no serviço global se disponível
+    if (typeof globalRouletteDataService !== 'undefined') {
+      try {
+        globalRouletteDataService.subscribe('RouletteFeedService', globalDataUpdateHandler);
+      } catch (error) {
+        logger.warn('Não foi possível registrar no globalRouletteDataService:', error);
+      }
     }
     
-    this.log('Ouvintes de eventos globais registrados');
+    // Ouvinte para mudanças na visibilidade da página
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    }
+    
+    // Ouvinte para quando novos números são recebidos
+    EventService.on('roulette:new-number', (event) => {
+      logger.debug('Novo número recebido via evento:', event);
+      // Atualizar o cache com o novo número
+      if (event && event.roleta_id) {
+        this.updateCacheWithNewNumber(event);
+      }
+    });
+    
+    logger.info('Ouvintes de eventos globais registrados');
+  }
+
+  /**
+   * Atualiza o cache com um novo número recebido via evento
+   */
+  private updateCacheWithNewNumber(event: any): void {
+    // Verificar se temos a roleta no cache
+    const roletaId = event.roleta_id;
+    if (!roletaId || !this.roulettes[roletaId]) return;
+    
+    // Criar o objeto do novo número
+    const newNumber = {
+      numero: event.numero,
+      cor: this.determinarCorNumero(event.numero),
+      timestamp: event.timestamp || new Date().toISOString()
+    };
+    
+    // Adicionar o novo número ao início do array
+    const roleta = this.roulettes[roletaId];
+    if (!roleta.numero) roleta.numero = [];
+    
+    // Adicionar no início (mais recente)
+    roleta.numero.unshift(newNumber);
+    
+    // Notificar os assinantes sobre a atualização
+    this.notifyDataUpdate();
+  }
+
+  /**
+   * Função auxiliar para determinar a cor de um número
+   */
+  private determinarCorNumero(numero: number): string {
+    if (numero === 0) return 'verde';
+    
+    // Números vermelhos na roleta europeia
+    const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
   }
 } 
