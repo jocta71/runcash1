@@ -1,10 +1,29 @@
 import EventService from './EventService';
 import { getLogger } from './utils/logger';
 import globalRouletteDataService from './GlobalRouletteDataService';
-import { cryptoService } from '../utils/crypto-utils';
 import EventBus from '../services/EventBus';
-import { EventEmitter } from 'events';
 import { ENDPOINTS, getFullUrl } from './api/endpoints';
+
+// Classe EventEmitter simples para o navegador
+class EventEmitter {
+  private events: Record<string, Function[]> = {};
+
+  public on(event: string, listener: Function): this {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    this.events[event].push(listener);
+    return this;
+  }
+
+  public emit(event: string, ...args: any[]): boolean {
+    if (!this.events[event]) {
+      return false;
+    }
+    this.events[event].forEach(listener => listener(...args));
+    return true;
+  }
+}
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');

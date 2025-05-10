@@ -26,8 +26,6 @@ import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
 import UnifiedRouletteClient from '@/services/UnifiedRouletteClient';
 import EventBus from '../services/EventBus';
 import { Helmet } from 'react-helmet-async';
-import { Spinner } from '@/components/ui/spinner';
-import NavigationBar from '@/components/NavigationBar';
 
 
 
@@ -995,9 +993,6 @@ const Index = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 pt-4 md:pt-8 min-h-[80vh] relative">
-        {/* Barra de navegação com ícones para diferentes seções */}
-        <NavigationBar />
-        
         {/* Cabeçalho com título da página */}
         <h1 className="text-2xl font-bold mb-4">
           Dashboard de Roletas
