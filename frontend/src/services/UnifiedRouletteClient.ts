@@ -43,9 +43,11 @@ class UnifiedRouletteClient {
   private eventSource: EventSource | null = null;
   private isStreamingEnabled: boolean = true;
   private isStreamConnected: boolean = false;
+  private isConnecting: boolean = false; // Flag para controlar tentativas de conexão
   private lastUpdate: string = '';
   private streamUrl: string = '';
   private eventService: EventService;
+  private reconnectTimeoutId: NodeJS.Timeout | null = null; 
 
   private constructor(options?: ClientOptions) {
     this.eventService = EventService.getInstance();
@@ -68,7 +70,10 @@ class UnifiedRouletteClient {
         UnifiedRouletteClient.instance.isStreamingEnabled = options.streamingEnabled;
       }
       if (options.autoConnect === true && UnifiedRouletteClient.instance.isStreamingEnabled) {
-        UnifiedRouletteClient.instance.connectStream();
+        // Apenas chama connectStream se não estiver já conectado ou conectando
+        if(!UnifiedRouletteClient.instance.isStreamConnected && !UnifiedRouletteClient.instance.isConnecting) {
+            UnifiedRouletteClient.instance.connectStream();
+        }
       }
     }
     return UnifiedRouletteClient.instance;
@@ -80,10 +85,26 @@ class UnifiedRouletteClient {
       return false;
     }
     
-    if (this.eventSource && this.isStreamConnected) {
-      logger.info('Stream já está conectado');
+    // Se já está conectado ou uma tentativa de conexão está em andamento, não faz nada
+    if ((this.eventSource && this.isStreamConnected) || this.isConnecting) {
+      logger.info(`Stream já conectado ou tentativa em andamento. Conectado: ${this.isStreamConnected}, Conectando: ${this.isConnecting}`);
       return true;
     }
+    
+    // Limpa timeout de reconexão anterior, se houver
+    if (this.reconnectTimeoutId) {
+        clearTimeout(this.reconnectTimeoutId);
+        this.reconnectTimeoutId = null;
+    }
+
+    // Garante que qualquer instância anterior seja fechada
+    if (this.eventSource) {
+        this.eventSource.close();
+        this.eventSource = null;
+    }
+
+    this.isConnecting = true; // Marca que uma tentativa de conexão foi iniciada
+    this.isStreamConnected = false;
     
     try {
       this.streamUrl = `${config.apiBaseUrl}/stream/roulettes`;
@@ -94,6 +115,7 @@ class UnifiedRouletteClient {
       this.eventSource.onopen = () => {
         logger.info('Stream SSE conectado com sucesso');
         this.isStreamConnected = true;
+        this.isConnecting = false; // Conexão estabelecida
         this.lastUpdate = new Date().toISOString();
         EventService.emitGlobalEvent('roulette_stream_connected', {
           timestamp: this.lastUpdate,
@@ -104,12 +126,21 @@ class UnifiedRouletteClient {
       this.eventSource.onerror = (error) => {
         logger.error('Erro na conexão SSE:', error);
         this.isStreamConnected = false;
+        this.isConnecting = false; // Tentativa de conexão falhou ou foi interrompida
+        
         if (this.eventSource) {
-            this.eventSource.close();
+            this.eventSource.close(); // Fecha a conexão atual problemática
             this.eventSource = null;
         }
-        // Tentar reconectar automaticamente após um tempo
-        setTimeout(() => this.connectStream(), 5000);
+        
+        // Tentar reconectar automaticamente após um tempo, apenas se o streaming estiver habilitado
+        if (this.isStreamingEnabled && !this.reconnectTimeoutId) {
+            logger.info('Agendando tentativa de reconexão SSE em 5 segundos...');
+            this.reconnectTimeoutId = setTimeout(() => {
+                this.reconnectTimeoutId = null; // Limpa o ID do timeout antes de tentar reconectar
+                this.connectStream();
+            }, 5000);
+        }
         EventService.emitGlobalEvent('roulette_stream_error', {
           timestamp: new Date().toISOString(),
           error: 'Erro na conexão SSE'
@@ -136,19 +167,25 @@ class UnifiedRouletteClient {
       
       return true;
     } catch (error) {
-      logger.error('Erro ao iniciar conexão com o stream:', error);
+      logger.error('Erro crítico ao iniciar conexão com o stream (ex: URL inválida):', error);
       this.isStreamConnected = false;
+      this.isConnecting = false; // Falha crítica ao tentar conectar
       return false;
     }
   }
 
   public disconnectStream(): void {
+    logger.info('Desconectando do stream SSE solicitado...');
+    if (this.reconnectTimeoutId) { // Cancela qualquer tentativa de reconexão agendada
+        clearTimeout(this.reconnectTimeoutId);
+        this.reconnectTimeoutId = null;
+    }
     if (this.eventSource) {
-      logger.info('Desconectando do stream SSE');
       this.eventSource.close();
       this.eventSource = null;
-      this.isStreamConnected = false;
     }
+    this.isStreamConnected = false;
+    this.isConnecting = false; // Garante que o estado de conexão seja resetado
   }
 
   private handleNumberEvent(data: any): void {
@@ -243,26 +280,22 @@ class UnifiedRouletteClient {
   }
 
   public async forceUpdate(): Promise<void> {
-    logger.warn('UnifiedRouletteClient opera exclusivamente via SSE. A atualização forçada depende do servidor enviar os dados pelo stream.');
-    // Se o servidor SSE tiver um mecanismo para solicitar um "full update", ele poderia ser invocado aqui.
-    // Por enquanto, esta função não iniciará uma chamada REST.
+    logger.warn('UnifiedRouletteClient opera exclusivamente via SSE. Tentando reconectar para forçar atualização de dados do servidor.');
     if (this.isStreamConnected) {
-        EventService.emitGlobalEvent('roulette_force_update_requested', {
-            timestamp: new Date().toISOString(),
-            source: 'client_side_force_update'
-        });
-        // Aqui você poderia, opcionalmente, enviar uma mensagem ao servidor via um canal diferente (se existir)
-        // para pedir um refresh completo dos dados no stream SSE.
+        // Se já conectado, uma forma de "forçar" seria desconectar e reconectar, ou emitir um evento.
+        // Por ora, vamos desconectar e reconectar para tentar obter o conjunto mais recente de dados.
+        this.disconnectStream();
+        this.connectStream(); 
     } else {
-        logger.info('Stream SSE não conectado. Tentando reconectar para obter dados atualizados.');
-        this.connectStream(); // Tenta reconectar para pegar os dados mais recentes via SSE.
+        logger.info('Stream SSE não conectado. Tentando conectar para obter dados atualizados.');
+        this.connectStream(); 
     }
     return Promise.resolve();
   }
 
   public getStatus(): ClientStatus {
     return {
-      isConnected: this.roulettes.size > 0, // Considera conectado se tiver dados
+      isConnected: this.roulettes.size > 0, 
       isStreamConnected: this.isStreamConnected,
       lastUpdate: this.lastUpdate,
       source: this.isStreamConnected ? 'stream' : 'disconnected'
@@ -271,13 +304,10 @@ class UnifiedRouletteClient {
   
   public requestRecentNumbers(): void {
     if (this.isStreamConnected && this.eventSource) {
-      logger.debug('Cliente está conectado ao stream SSE. O servidor deve enviar os dados recentes através do stream.');
-      // Se o backend tiver um mecanismo específico para ser acionado via um evento aqui (ex: via EventService),
-      // ele poderia ser implementado. Por ora, assume-se que o servidor envia dados ativamente.
-      // Exemplo: EventService.emitGlobalEvent('client_requests_recent_numbers_via_sse');
+      logger.debug('Cliente conectado ao stream SSE. O servidor deve enviar os dados recentes ativamente.');
     } else {
       logger.warn('Não é possível solicitar números recentes: Stream SSE não conectado.');
-       if(!this.isStreamConnected) {
+       if(!this.isStreamConnected && !this.isConnecting) { // Evita múltiplas tentativas se já estiver conectando
         logger.info('Tentando reconectar ao stream para obter dados.');
         this.connectStream(); 
        }
