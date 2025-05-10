@@ -16,6 +16,7 @@ const logger = getLogger('FetchService');
 const POLLING_INTERVAL = 5000; // 5 segundos entre cada verificação
 const MAX_RETRIES = 3; // Número máximo de tentativas antes de desistir
 const ALLOWED_ROULETTES = ROLETAS_PERMITIDAS;
+const RETRY_INTERVAL = 1000; // Intervalo entre tentativas de retry
 
 // Mapear nomes para IDs canônicos
 const NAME_TO_ID_MAP: Record<string, string> = {
@@ -76,7 +77,7 @@ class FetchService {
   }
   
   /**
-   * Para o polling de dados
+   * Para o polling de dados global
    */
   public stopPolling(): void {
     if (this.pollingIntervalId !== null) {
@@ -84,7 +85,7 @@ class FetchService {
       this.pollingIntervalId = null;
     }
     this.isPolling = false;
-    logger.info('Polling parado');
+    logger.info('Polling global parado');
   }
   
   /**
@@ -445,7 +446,6 @@ class FetchService {
    */
   public async fetchData<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const maxRetries = 3;
-    const RETRY_INTERVAL = 1000; // Definindo a constante que estava faltando
     
     let retries = 0;
 
@@ -519,12 +519,12 @@ class FetchService {
   }
 
   /**
-   * Inicia polling para buscar dados da roleta com intervalo regular
+   * Inicia polling para roleta específica com callback
    */
-  public startPolling(roletaId: string, callback: (data: any) => void, interval = 5000): void {
+  public startRoulettePolling(roletaId: string, callback: (data: any) => void, interval = 5000): void {
     if (this.pollingIntervals.has(roletaId)) {
       logger.debug(`Polling já ativo para roleta ${roletaId}. Reiniciando.`);
-      this.stopPolling(roletaId);
+      this.stopRoulettePolling(roletaId);
     }
 
     logger.info(`Iniciando polling para roleta ${roletaId} a cada ${interval}ms`);
@@ -532,41 +532,27 @@ class FetchService {
     // Função para buscar dados da roleta
     const fetchRouletteData = async () => {
       try {
-        logger.debug(`Buscando dados da roleta ${roletaId} via UnifiedRouletteClient`);
+        logger.debug(`Buscando dados da roleta ${roletaId} via API`);
         
-        // Importar UnifiedRouletteClient dinamicamente para evitar dependência circular
-        const UnifiedRouletteClientModule = await import('./UnifiedRouletteClient');
-        const UnifiedRouletteClient = UnifiedRouletteClientModule.default;
-        const unifiedClient = UnifiedRouletteClient.getInstance();
-        
-        // Garantir que o cliente está atualizado
-        await unifiedClient.forceUpdate();
-        
-        // Obter todas as roletas do cliente unificado
-        const allRoulettes = unifiedClient.getAllRoulettes();
-        
-        if (!Array.isArray(allRoulettes) || allRoulettes.length === 0) {
-          logger.warn(`Resposta inválida para roleta ${roletaId}: não é um array ou está vazio`);
-          return;
-        }
-        
-        // Encontrar a roleta específica
-        const roleta = allRoulettes.find(r => r.id === roletaId || r._id === roletaId);
+        // Tentar obter dados diretamente da API
+        const roleta = await this.get<any>(`${this.apiBaseUrl}/roulettes/${roletaId}`, {
+          throttleKey: `roulette_${roletaId}`,
+          forceRefresh: true
+        });
         
         if (roleta) {
-          logger.debug(`Dados obtidos para roleta ${roleta.nome || roletaId} via UnifiedRouletteClient`);
+          logger.debug(`Dados obtidos para roleta ${roleta.nome || roletaId}`);
           
           // Emitir evento sinalizando que os dados foram carregados com sucesso
-          EventService.emitGlobalEvent('roulettes_loaded', {
+          EventService.emitGlobalEvent('roulette_loaded', {
             success: true,
-            count: allRoulettes.length,
-            timestamp: new Date().toISOString(),
-            source: 'unified_client'
+            roletaId,
+            timestamp: new Date().toISOString()
           });
           
           callback(roleta);
         } else {
-          logger.warn(`Roleta ${roletaId} não encontrada na resposta`);
+          logger.warn(`Roleta ${roletaId} não encontrada na resposta da API`);
         }
       } catch (error) {
         logger.error(`Erro ao buscar dados da roleta ${roletaId}: ${error.message}`);
@@ -584,7 +570,7 @@ class FetchService {
   /**
    * Para o polling para uma roleta específica
    */
-  public stopPolling(roletaId: string): void {
+  public stopRoulettePolling(roletaId: string): void {
     const timerId = this.pollingIntervals.get(roletaId);
     if (timerId) {
       logger.info(`Parando polling para roleta ${roletaId}`);
@@ -593,38 +579,33 @@ class FetchService {
     }
   }
 
-  async getAllRoulettes() {
+  /**
+   * Busca todas as roletas disponíveis (método público)
+   */
+  public async getAllRoulettes(): Promise<any[]> {
     try {
-      logger.debug('Buscando todas as roletas disponíveis via UnifiedRouletteClient');
+      logger.debug('Buscando todas as roletas disponíveis');
       
-      // Importar UnifiedRouletteClient dinamicamente para evitar dependência circular
-      const UnifiedRouletteClientModule = await import('./UnifiedRouletteClient');
-      const UnifiedRouletteClient = UnifiedRouletteClientModule.default;
-      const unifiedClient = UnifiedRouletteClient.getInstance();
+      const response = await this.get<any[]>(`${this.apiBaseUrl}/roulettes`, {
+        throttleKey: 'all_roulettes',
+        forceRefresh: true
+      });
       
-      // Garantir que o cliente está conectado
-      if (!unifiedClient.getStatus().isStreamConnected) {
-        unifiedClient.connectStream();
-      }
-      
-      // Obter todas as roletas do cliente unificado
-      const allRoulettes = await unifiedClient.forceUpdate();
-      
-      if (!Array.isArray(allRoulettes)) {
+      if (!Array.isArray(response)) {
         throw new Error('Resposta inválida: não é um array');
       }
       
       // Processar dados com o transformador de objetos
-      const processedData = allRoulettes.map(this.processRouletteData);
+      const processedData = response.map(this.processRouletteData);
       
-      logger.info(`✅ Encontradas ${processedData.length} roletas via UnifiedRouletteClient`);
+      logger.info(`✅ Encontradas ${processedData.length} roletas`);
       
       // Emitir evento que os dados de roletas foram carregados completamente
       EventService.emitGlobalEvent('roulettes_loaded', {
         success: true,
         count: processedData.length,
         timestamp: new Date().toISOString(),
-        source: 'unified_client'
+        source: 'fetch_service'
       });
       
       return processedData;

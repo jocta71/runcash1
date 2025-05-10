@@ -1,9 +1,7 @@
 // Serviço para gerenciar eventos em tempo real usando Socket.IO
 import { toast } from '@/components/ui/use-toast';
 import config from '@/config/env';
-import SocketService from '@/services/SocketService';
-import RESTSocketService from './RESTSocketService';
-import Cookies from 'js-cookie';
+import SocketService from '@/integrations/socket/socketService';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = false;
@@ -65,22 +63,10 @@ interface Subscription {
 export class EventService {
   private static instance: EventService | null = null;
   private static isInitializing = false;
-  private static initializationPromise: Promise<EventService> | null = null;
 
-  private eventListeners: Record<string, Function[]> = {};
-  private globalEventListeners: Record<string, Function[]> = {};
-  private socketService: SocketService | null = null;
-
-  private eventSource: EventSource | null = null;
   private listeners: Map<string, Set<RouletteEventCallback>> = new Map();
   private isConnected: boolean = false;
   private connectionAttempts: number = 0;
-  private reconnectTimeout: number | null = null;
-  private usingPolling: boolean = false;
-  private pollingInterval: number | null = null;
-  private lastEventId: string | null = null;
-  private connectionMethods: string[] = ['socketio-fallback', 'direct', 'proxy', 'polling'];
-  private currentMethodIndex: number = 0;
   private usingSocketService: boolean = false;
   private socketServiceSubscriptions: Set<string> = new Set();
   
@@ -92,12 +78,8 @@ export class EventService {
       throw new Error('Erro: Tentativa de criar uma nova instância do EventService. Use EventService.getInstance()');
     }
     
-    // Inicialização padrão
-    this.eventListeners = {};
-    this.globalEventListeners = {};
-    
-    // Usar socket service diretamente em vez de verificar assinatura
-    this.useSocketServiceAsFallback();
+    // Inicialização com SocketService
+    this.useSocketService();
     
     // Adicionar listener para visibilidade da página
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
@@ -105,7 +87,6 @@ export class EventService {
 
   /**
    * Obtém a única instância do EventService (Singleton)
-   * Implementa um mecanismo que previne múltiplas instâncias mesmo com chamadas paralelas
    */
   public static getInstance(): EventService {
     // Se já existe uma instância, retorna imediatamente
@@ -116,8 +97,7 @@ export class EventService {
     // Se já está inicializando, aguarde
     if (EventService.isInitializing) {
       console.log('[EventService] Inicialização em andamento, aguardando...');
-      // Não tentamos retornar a promise de inicialização, pois não é utilizada corretamente
-      // Apenas retornamos a instância, que deve estar definida neste ponto
+      // Retornamos a instância, que deve estar definida neste ponto
       return EventService.instance as EventService;
     }
 
@@ -147,40 +127,18 @@ export class EventService {
       // Tentar reconectar se a página ficar visível e não estiver conectado
       if (!this.isConnected) {
         debugLog('[EventService] Página tornou-se visível, reconectando...');
-        this.useSocketServiceAsFallback();
+        this.useSocketService();
       }
     }
   }
-
-  // Obtém a URL do servidor de eventos baseado no método atual
-  private getServerUrl(method: string = 'direct'): string {
-    const baseUrl = 'https://short-mammals-help.loca.lt/api/events';
-    
-    switch (method) {
-      case 'direct':
-        // Tentar conexão direta primeiro
-        return baseUrl;
-      case 'proxy':
-        // Usar um proxy CORS quando a conexão direta falhar
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(baseUrl)}`;
-        return proxyUrl;
-      default:
-        return baseUrl;
-    }
-  }
-
-  private connect(): void {
-    // Usar diretamente o SocketService, sem tentativas de usar EventSource
-    this.useSocketServiceAsFallback();
-  }
   
-  // NOVO: Usar SocketService como fallback final
-  private useSocketServiceAsFallback(): void {
+  // Usar SocketService para conexão
+  private useSocketService(): void {
     if (this.usingSocketService) {
       return; // Já está usando SocketService
     }
     
-    debugLog('[EventService] Utilizando SocketService como fallback para eventos em tempo real');
+    debugLog('[EventService] Utilizando SocketService para eventos em tempo real');
     
     this.usingSocketService = true;
     this.isConnected = true; // Simular conexão estabelecida
@@ -241,90 +199,6 @@ export class EventService {
     // Notificar todos os ouvintes registrados
     this.notifyListeners(formattedEvent);
   }
-  
-  // Método alternativo de polling para quando SSE falhar
-  private startPolling(): void {
-    if (this.pollingInterval !== null) {
-      clearInterval(this.pollingInterval);
-    }
-    
-    this.usingPolling = true;
-    debugLog('[EventService] Iniciando polling como fallback');
-    
-    // Simular conexão estabelecida para fins de UI
-    this.isConnected = true;
-    
-    // Polling a cada 3 segundos
-    this.pollingInterval = window.setInterval(() => {
-      this.performPoll();
-    }, 3000);
-    
-    // Primeira chamada imediata
-    this.performPoll();
-  }
-  
-  private async performPoll(): Promise<void> {
-    try {
-      // Tentar endpoint Socket.IO alternativo que sabemos que funciona
-      const baseUrl = config.apiBaseUrl;
-      const url = `${baseUrl}/latest-numbers`;
-      
-      const response = await fetch(url, {
-        headers: {
-          'bypass-tunnel-reminder': 'true'
-        }
-      });
-      
-      if (!response.ok) {
-        // Se falhar, tentar o url original
-        throw new Error(`HTTP error ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (Array.isArray(data)) {
-        // Processar vários eventos
-        data.forEach(item => {
-          if (item.roleta_nome && item.numero !== undefined) {
-            const event: RouletteNumberEvent = {
-              type: 'new_number',
-              roleta_id: item.roleta_id || 'unknown-id',
-              roleta_nome: item.roleta_nome,
-              numero: Number(item.numero),
-              timestamp: item.timestamp || new Date().toISOString()
-            };
-            this.notifyListeners(event);
-          } else if (item.type === 'strategy_update') {
-            this.notifyListeners(item as StrategyUpdateEvent);
-          }
-        });
-      } else if (data.roleta_nome && data.numero !== undefined) {
-        // Processar evento único
-        const event: RouletteNumberEvent = {
-          type: 'new_number',
-          roleta_id: data.roleta_id || 'unknown-id',
-          roleta_nome: data.roleta_nome,
-          numero: Number(data.numero),
-          timestamp: data.timestamp || new Date().toISOString()
-        };
-        this.notifyListeners(event);
-      }
-    } catch (error) {
-      debugLog(`[EventService] Erro no polling: ${error}, tentando usar SocketService...`);
-      
-      // Se polling falhar após algumas tentativas, usar SocketService
-      this.connectionAttempts++;
-      
-      if (this.connectionAttempts > 3) {
-        if (this.pollingInterval !== null) {
-          clearInterval(this.pollingInterval);
-          this.pollingInterval = null;
-        }
-        
-        this.useSocketServiceAsFallback();
-      }
-    }
-  }
 
   // Adiciona um listener para eventos de uma roleta específica
   public subscribe(roletaNome: string, callback: RouletteEventCallback): void {
@@ -337,17 +211,17 @@ export class EventService {
     const listeners = this.listeners.get(roletaNome);
     listeners?.add(callback);
     
-    // Se estiver usando SocketService como fallback, registrar também lá
+    // Se estiver usando SocketService, registrar também lá
     if (this.usingSocketService && !this.socketServiceSubscriptions.has(roletaNome)) {
       const socketService = SocketService.getInstance();
       socketService.subscribe(roletaNome, this.handleSocketEvent);
       this.socketServiceSubscriptions.add(roletaNome);
     }
     
-    // Sempre verificar a conexão ao inscrever um novo listener
+    // Verificar a conexão ao inscrever um novo listener
     if (!this.isConnected) {
       debugLog(`[EventService] Conexão não ativa, reconectando...`);
-      this.connect();
+      this.useSocketService();
     }
   }
 
@@ -403,12 +277,12 @@ export class EventService {
     }
   }
 
-  // Verifica se o sistema está conectado (SSE ou polling)
+  // Verifica se o sistema está conectado
   public isSocketConnected(): boolean {
     return this.isConnected;
   }
 
-  // Desconecta o EventSource e limpa polling
+  // Desconecta e limpa recursos
   public disconnect(): void {
     // Limpar subscrições do SocketService se estiver usando
     if (this.usingSocketService) {
@@ -418,12 +292,6 @@ export class EventService {
       });
       this.socketServiceSubscriptions.clear();
       this.usingSocketService = false;
-    }
-    
-    // Limpar qualquer reconexão pendente
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
     }
     
     this.isConnected = false;
@@ -579,24 +447,13 @@ export class EventService {
       // Verificar conexão do SocketService
       if (!socketService.isSocketConnected()) {
         debugLog('[EventService] Socket não conectado, tentando reconectar');
-        // Simplificar a chamada para evitar problema com o tipo void
-        socketService.reconnect();
+        socketService.reconnectAllSockets();
         // Solicitar atualizações em qualquer caso
         socketService.requestRecentNumbers();
       } else {
         // Se estiver conectado, solicitar atualização
         socketService.requestRecentNumbers();
       }
-    } else if (this.isConnected && this.eventSource) {
-      // Se estiver usando SSE, enviar evento para solicitar atualização
-      debugLog('[EventService] Solicitando atualizações via SSE');
-      // Não é possível enviar diretamente via SSE, mas podemos reconectar para atualizar
-      this.disconnect();
-      this.connect();
-    } else if (this.usingPolling) {
-      // Se estiver usando polling, forçar uma verificação imediata
-      debugLog('[EventService] Forçando verificação via polling');
-      this.performPoll();
     }
   }
 
@@ -646,37 +503,6 @@ export class EventService {
         }
       });
     }
-  }
-
-  // Método para usar SocketService com limites para usuários sem plano
-  private useSocketServiceWithLimits(): void {
-    if (this.usingSocketService) {
-      return; // Já está usando SocketService
-    }
-    
-    debugLog('[EventService] Utilizando SocketService com limites');
-    
-    this.usingSocketService = true;
-    this.isConnected = true; // Simular conexão estabelecida
-    
-    // Usar SocketService padrão para modo limitado
-    const socketService = SocketService.getInstance();
-    
-    // Apenas se inscrever em eventos de amostra
-    socketService.subscribe('*', (event: any) => {
-      // Filtrar eventos - apenas permitir eventos de roletas de amostra
-      if (event && event.type === 'new_number') {
-        // Verificar se o evento é de uma das roletas de amostra
-        // Este código depende de como você identifica roletas de amostra
-        const sampleEvent = {
-          ...event,
-          sample: true // Marcar como evento de amostra
-        };
-        this.handleSocketEvent(sampleEvent);
-      }
-    });
-    
-    this.socketServiceSubscriptions.add('*');
   }
 }
 
