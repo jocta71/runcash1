@@ -491,71 +491,68 @@ const Index = () => {
     // MODIFICAÇÃO CRÍTICA: Mostrar todas as roletas sem paginação
     const allRoulettes = filteredRoulettes;
     
-    console.log(`[DEBUG] Dados brutos de todas as roletas:`, JSON.stringify(allRoulettes).substring(0, 500) + '...');
-
-    const simplifiedData = allRoulettes.map(roulette => {
-      return ({
-        id: roulette.id || roulette._id,
-        nome: roulette.nome || roulette.name,
-        numeros: roulette.numeros || roulette.numero || roulette.lastNumbers
-      });
-    });
-
-    return simplifiedData.map(roulette => {
-      // Garantir que temos números válidos
-      console.log(`[DEBUG] Processando roleta:`, JSON.stringify({
-        id: roulette.id,
-        nome: roulette.nome || roulette.name,
-        numeros: roulette.numeros || roulette.numero || roulette.lastNumbers
-      }));
-    
+    return allRoulettes.map(roulette => {
+      // Extrair propriedades básicas com fallbacks
+      const id = roulette.id || roulette._id || '';
+      const nome = roulette.nome || roulette.name || 'Roleta sem nome';
+      
+      // Extrair números com segurança
       let safeNumbers: number[] = [];
       
-      // Tentar extrair números do campo numero
-      if (Array.isArray(roulette.numero)) {
+      // Verificar se tem dados em roulette.numero (prioridade 1)
+      if (Array.isArray(roulette.numero) && roulette.numero.length > 0) {
         safeNumbers = roulette.numero
           .filter(item => item !== null && item !== undefined)
           .map(item => {
-            // Aqui sabemos que item não é null ou undefined após o filtro
-            const nonNullItem = item as unknown; // Usar unknown em vez de any
-            // Se for um objeto com a propriedade numero
-            if (typeof nonNullItem === 'object' && nonNullItem !== null && 'numero' in nonNullItem) {
-              return (nonNullItem as {numero: number}).numero;
+            // Usamos type assertion para garantir ao TypeScript que item não é nulo
+            const safeItem = item as any; // depois do filtro, sabemos que não é null/undefined
+            // Se for um objeto com propriedade numero (formato {numero: 12})
+            if (typeof safeItem === 'object' && 'numero' in safeItem) {
+              return Number(safeItem.numero);
             }
-            // Se for um número diretamente
-            return Number(nonNullItem);
-          });
+            // Se for número diretamente
+            return Number(safeItem);
+          })
+          .filter(num => !isNaN(num)); // Filtrar apenas números válidos
       } 
-      // Tentar extrair de lastNumbers se ainda estiver vazio
+      // Verificar se tem dados em roulette.lastNumbers (prioridade 2)
       else if (Array.isArray(roulette.lastNumbers) && roulette.lastNumbers.length > 0) {
-        safeNumbers = roulette.lastNumbers;
+        safeNumbers = roulette.lastNumbers
+          .filter(n => n !== null && n !== undefined)
+          .map(Number)
+          .filter(num => !isNaN(num));
       } 
-      // Tentar extrair de numeros se ainda estiver vazio
+      // Verificar se tem dados em roulette.numeros (prioridade 3)
       else if (Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
-        safeNumbers = roulette.numeros;
+        safeNumbers = roulette.numeros
+          .filter(n => n !== null && n !== undefined)
+          .map(Number)
+          .filter(num => !isNaN(num));
       }
       
-      console.log(`[DEBUG] Números extraídos para roleta ${roulette.id}:`, safeNumbers);
+      // Log para depuração
+      console.log(`[DEBUG] Números extraídos para roleta ${id}:`, safeNumbers);
+      
+      // Criar objeto de dados padronizado para o RouletteCard
+      const cardData = {
+        id: id,
+        _id: roulette._id || id,
+        name: nome,
+        nome: nome,
+        lastNumbers: safeNumbers,
+        numeros: safeNumbers,
+        vitorias: typeof roulette.vitorias === 'number' ? roulette.vitorias : 0,
+        derrotas: typeof roulette.derrotas === 'number' ? roulette.derrotas : 0,
+        estado_estrategia: roulette.estado_estrategia || ''
+      };
       
       return (
         <div 
-          key={roulette.id} 
-          className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === roulette.id ? 'border-2 border-green-500 shadow-lg shadow-green-500/20' : 'p-0.5'}`}
+          key={id} 
+          className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === id ? 'border-2 border-green-500 shadow-lg shadow-green-500/20' : 'p-0.5'}`}
           onClick={() => setSelectedRoulette(roulette)}
         >
-          <RouletteCard
-            data={{
-              id: roulette.id || '',
-              _id: roulette._id || roulette.id || '',
-              name: roulette.name || roulette.nome || 'Roleta sem nome',
-              nome: roulette.nome || roulette.name || 'Roleta sem nome',
-              lastNumbers: safeNumbers,
-              numeros: safeNumbers,
-              vitorias: typeof roulette.vitorias === 'number' ? roulette.vitorias : 0,
-              derrotas: typeof roulette.derrotas === 'number' ? roulette.derrotas : 0,
-              estado_estrategia: roulette.estado_estrategia || ''
-            }}
-          />
+          <RouletteCard data={cardData} />
         </div>
       );
     });
