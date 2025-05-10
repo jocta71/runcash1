@@ -247,6 +247,15 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     console.log(`[${componentId}] useEffect executado. ID: ${safeData.id}`);
 
     const handleUpdate = (updateData: any) => {
+        // Adicionar logs detalhados para diagnosticar o problema
+        console.log(`[${componentId}] handleUpdate chamado. Tipo de dados:`, typeof updateData);
+        console.log(`[${componentId}] handleUpdate: É array?`, Array.isArray(updateData));
+        if (Array.isArray(updateData)) {
+            console.log(`[${componentId}] handleUpdate: Array com ${updateData.length} roletas`);
+        } else {
+            console.log(`[${componentId}] handleUpdate: Dados não são array`, updateData);
+        }
+
         // <<< Log 1: Verificar se o handleUpdate é chamado e o que recebe >>>
         console.log(`[${componentId}] handleUpdate chamado. Dados recebidos no evento 'update':`, JSON.stringify(updateData).substring(0, 500) + "..."); // Log inicial truncado
 
@@ -254,16 +263,20 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         let myData: any = null;
         if (Array.isArray(updateData)) {
             myData = updateData.find(r => (r.id || r.roleta_id) === safeData.id);
+            console.log(`[${componentId}] Buscando roleta com id=${safeData.id} no array. Encontrado:`, myData ? "SIM" : "NÃO");
         } else if (updateData && typeof updateData === 'object' && (updateData.id || updateData.roleta_id) === safeData.id) {
             myData = updateData;
+            console.log(`[${componentId}] Atualização individual com id=${safeData.id}. Encontrado:`, myData ? "SIM" : "NÃO");
         }
         
         // <<< Log 2: Verificar se myData foi encontrado para este ID >>>
         if(myData) {
             console.log(`[${componentId}] Dados encontrados para este ID (${safeData.id}) na atualização. Processando...`);
         } else {
-             // Não loga nada se não achou, para não poluir
-             // console.log(`[${componentId}] Nenhum dado para este ID (${safeData.id}) encontrado na atualização.`);
+             // Log adicional para diagnóstico se não encontrou dados
+             console.log(`[${componentId}] Nenhum dado para este ID (${safeData.id}) encontrado na atualização.`);
+             console.log(`[${componentId}] IDs disponíveis no array:`, Array.isArray(updateData) ? 
+              updateData.map(item => item.id || item.roleta_id).join(', ') : "N/A");
              return; // Se não achou dados para este card, não faz nada
         }
 

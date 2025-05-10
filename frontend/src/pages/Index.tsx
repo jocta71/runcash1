@@ -22,9 +22,6 @@ import {
 } from '@/integrations/asaas/client';
 import { useSubscription } from '@/context/SubscriptionContext';
 import SubscriptionRequired from '@/components/SubscriptionRequired';
-import { EmptyState } from '@/components/ui/empty-state';
-import { DatabaseIcon } from 'lucide-react';
-import UnifiedRouletteClient from '@/services/UnifiedRouletteClient';
 
 
 
@@ -475,28 +472,7 @@ const Index = () => {
 
   // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
-    console.log("[DEBUG] Chamando renderRouletteCards");
-    console.log("[DEBUG] roulettes:", roulettes);
-    
     if (!Array.isArray(roulettes) || roulettes.length === 0) {
-      console.log("[DEBUG] Não há roletas para renderizar. Array vazio ou inválido:", roulettes);
-      
-      // Verificar se há roletas disponíveis, independente do filtro
-      try {
-        // Tentar obter todas as roletas do UnifiedClient diretamente
-        const client = UnifiedRouletteClient.getInstance();
-        const allRouletteData = client.getAllRoulettes();
-        console.log("[DEBUG] AllRoulettes do UnifiedClient:", allRouletteData?.length || 0);
-        
-        if (allRouletteData.length > 0) {
-          console.log("[DEBUG] Existem roletas no UnifiedClient, mas o array roulettes está vazio.");
-          console.log("[DEBUG] Isso pode indicar que os eventos não estão sendo processados corretamente.");
-        }
-      } catch (error) {
-        console.error("[DEBUG] Erro ao buscar todas as roletas:", error);
-      }
-      
-      // Retorne o conteúdo original quando não houver roletas
       console.log('[DEBUG] Não há roletas para renderizar. Array vazio ou inválido:', roulettes);
       return null;
     }
@@ -557,7 +533,7 @@ const Index = () => {
         derrotas: typeof roulette.derrotas === 'number' ? roulette.derrotas : 0,
         estado_estrategia: roulette.estado_estrategia || ''
       };
-
+      
       return (
         <div 
           key={id} 
@@ -837,22 +813,19 @@ const Index = () => {
           </div>
         )}
         
-        {/* Modal de assinatura requerida */}
-        <SubscriptionRequired />
-        
         {/* Reset de estilo para evitar conflitos */}
         <style>{radioInputStyles}</style>
         
         {/* Resto do conteúdo... */}
         <div className="relative">
           {/* Layout principal */}
-          <div className={`flex flex-col lg:flex-row gap-6 ${!hasActivePlan ? 'opacity-60' : ''}`}>
+          <div className="flex flex-col lg:flex-row gap-6">
             {/* Cards de roleta à esquerda */}
             <div className="w-full lg:w-1/2">
               <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">
                 <div className="flex justify-between items-center">
-                  <div className={`${!hasActivePlan ? 'h-8 w-32 bg-gray-800 rounded animate-pulse' : 'text-white font-bold'}`}>
-                    {hasActivePlan ? 'Roletas Disponíveis' : ''}
+                  <div className="text-white font-bold">
+                    Roletas Disponíveis
                   </div>
                 </div>
               </div>

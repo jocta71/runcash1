@@ -401,6 +401,7 @@ class UnifiedRouletteClient {
       try {
         parsedData = JSON.parse(rawData);
         this.log('Dados JSON parseados com sucesso');
+        console.log('DEBUG: Dados parseados:', parsedData); // Log diagnóstico
       } catch (error) {
         // Se falhar o parse, pode ser uma mensagem simples ou formato inesperado
         this.error('Falha ao parsear dados JSON do SSE:', error, rawData);
@@ -429,30 +430,40 @@ class UnifiedRouletteClient {
       }
       
       // ---- Processamento dos dados da roleta ----
-      // Assumimos que os dados agora são sempre JSON não criptografado
+      // Adicionar logs de diagnóstico
+      console.log('DEBUG: Tipo de evento:', parsedData.type);
       
       // Verificar o tipo de evento recebido do backend SSE
       if (parsedData.type === 'all_roulettes_update' && Array.isArray(parsedData.data)) {
         // Evento único com dados de todas as roletas
-        this.log(`Atualização completa recebida via SSE com ${parsedData.data.length} roletas`);
+        console.log(`DEBUG: Atualização completa recebida via SSE com ${parsedData.data.length} roletas`);
+        console.log('DEBUG: Antes de updateCache, tamanho do rouletteData:', this.rouletteData.size);
         
         // Atualizar o cache com o array completo
         this.updateCache(parsedData.data);
         
+        console.log('DEBUG: Após updateCache, tamanho do rouletteData:', this.rouletteData.size);
+        const rouletteArray = Array.from(this.rouletteData.values());
+        console.log('DEBUG: Emitindo evento update com', rouletteArray.length, 'roletas');
+        
         // Emitir evento de atualização para todos os listeners
         // Enviar o array completo de roletas atualizadas
-        this.emit('update', Array.from(this.rouletteData.values()));
+        this.emit('update', rouletteArray);
         EventBus.emit('roulette:data-updated', {
           timestamp: new Date().toISOString(),
-          data: Array.from(this.rouletteData.values()),
+          data: rouletteArray,
           source: 'sse-all-roulettes' // Indicar a origem
         });
 
       } else if (parsedData.type === 'update' && parsedData.data) {
         // Evento individual (manter para compatibilidade ou outros usos?)
         const rouletteUpdate = parsedData.data;
-        this.log(`Atualização individual recebida: Roleta ${rouletteUpdate.roleta_nome || rouletteUpdate.roleta_id}, Número ${rouletteUpdate.numero}`);
+        console.log(`DEBUG: Atualização individual recebida: Roleta ${rouletteUpdate.roleta_nome || rouletteUpdate.roleta_id}, Número ${rouletteUpdate.numero}`);
+        
+        console.log('DEBUG: Antes de updateCache (individual), tamanho do rouletteData:', this.rouletteData.size);
         this.updateCache(rouletteUpdate); 
+        console.log('DEBUG: Após updateCache (individual), tamanho do rouletteData:', this.rouletteData.size);
+        
         this.emit('update', rouletteUpdate);
         EventBus.emit('roulette:data-updated', {
           timestamp: new Date().toISOString(),
@@ -467,7 +478,7 @@ class UnifiedRouletteClient {
 
       } else {
         // Formato desconhecido ou tipo não tratado
-        this.log('Formato de dados JSON não esperado ou tipo não tratado:', parsedData);
+        console.log('DEBUG: Formato de dados JSON não esperado ou tipo não tratado:', parsedData);
       }
       
     } catch (error) {
@@ -656,21 +667,41 @@ class UnifiedRouletteClient {
    * Atualiza o cache com novos dados
    */
   private updateCache(data: any | any[]): void {
-    this.lastUpdateTime = Date.now();
+    console.log('DEBUG: updateCache chamado com:', Array.isArray(data) ? `Array[${data.length}]` : 'Objeto individual');
     
     if (Array.isArray(data)) {
-      // Atualizar múltiplas roletas
-      data.forEach(roulette => {
-        if (roulette && roulette.id) {
-          this.rouletteData.set(roulette.id, roulette);
-        }
-      });
-      
-      this.log(`Cache atualizado com ${data.length} roletas`);
-    } else if (data && data.id) {
+      // Com array de roletas - atualização completa
+      // Limpar o cache existente para dados atualizados
+      if (data.length > 0) {
+        console.log('DEBUG: Atualizando cache com array de dados. Items válidos:', 
+          data.filter(item => item && item.id).length);
+        
+        this.rouletteData.clear(); // Limpar dados antigos
+        
+        // Processar cada item
+        let validItemsCount = 0;
+        data.forEach(item => {
+          if (item && (item.id || item.roleta_id)) {
+            // Usar id prioritariamente, ou roleta_id como fallback
+            const id = item.id || item.roleta_id;
+            this.rouletteData.set(id, item);
+            validItemsCount++;
+          }
+        });
+        
+        console.log(`DEBUG: ${validItemsCount} roletas adicionadas ao cache`);
+        this.lastUpdateTime = Date.now();
+      } else {
+        console.log('DEBUG: Array vazio recebido, cache não atualizado');
+      }
+    } else if (data && (data.id || data.roleta_id)) {
       // Atualizar uma única roleta
-      this.rouletteData.set(data.id, data);
-      this.log(`Cache atualizado para roleta ${data.id}`);
+      const id = data.id || data.roleta_id;
+      this.rouletteData.set(id, data);
+      console.log(`DEBUG: Cache atualizado para roleta individual ${id}`);
+      this.lastUpdateTime = Date.now();
+    } else {
+      console.log('DEBUG: Dados inválidos recebidos em updateCache, nada atualizado');
     }
   }
   
