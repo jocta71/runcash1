@@ -1540,14 +1540,28 @@ export default class RouletteFeedService {
     try {
       // Implementação do método para notificar assinantes sobre atualizações
       if (this.subscribers && this.subscribers.length > 0) {
-        this.subscribers.forEach(callback => {
+        // Criar uma cópia do array para evitar problemas se os callbacks modificarem o array original
+        const currentSubscribers = [...this.subscribers];
+        
+        // Filtrar para remover callbacks inválidos
+        const validSubscribers = currentSubscribers.filter(callback => typeof callback === 'function');
+        
+        // Se encontramos callbacks inválidos, remover do array original
+        if (validSubscribers.length < currentSubscribers.length) {
+          logger.warn(`⚠️ Removidos ${currentSubscribers.length - validSubscribers.length} assinantes inválidos`);
+          this.subscribers = validSubscribers;
+        }
+        
+        // Notificar apenas os assinantes válidos
+        validSubscribers.forEach(callback => {
           try {
             callback(data);
           } catch (error) {
             logger.error('❌ Erro ao notificar assinante:', error);
           }
         });
-        logger.debug(`🔔 Notificados ${this.subscribers.length} assinantes sobre atualização de dados`);
+        
+        logger.debug(`🔔 Notificados ${validSubscribers.length} assinantes sobre atualização de dados`);
       }
     } catch (error) {
       logger.error('❌ Erro ao notificar assinantes:', error);
@@ -1556,6 +1570,12 @@ export default class RouletteFeedService {
 
   // Método para adicionar assinante
   public subscribe(callback: (data: any) => void): void {
+    // Verificar se o callback é uma função válida
+    if (typeof callback !== 'function') {
+      logger.error('❌ Tentativa de adicionar callback inválido (não é uma função)');
+      return;
+    }
+    
     this.subscribers.push(callback);
     logger.debug('➕ Novo assinante adicionado ao serviço RouletteFeedService');
   }

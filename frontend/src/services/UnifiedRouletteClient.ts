@@ -709,9 +709,19 @@ class UnifiedRouletteClient {
       return;
     }
     
-    for (const callback of this.eventCallbacks.get(event)!) {
+    // Criar uma cópia dos callbacks para evitar problemas se a coleção for modificada durante a iteração
+    const callbacks = Array.from(this.eventCallbacks.get(event)!);
+    
+    for (const callback of callbacks) {
       try {
-        callback(data);
+        // Verificar se o callback é realmente uma função
+        if (typeof callback === 'function') {
+          callback(data);
+        } else {
+          // Registrar erro e remover o callback inválido
+          this.error(`Callback inválido encontrado para evento ${event}. Removendo...`);
+          this.eventCallbacks.get(event)!.delete(callback);
+        }
       } catch (error) {
         this.error(`Erro em callback para evento ${event}:`, error);
       }
@@ -1332,11 +1342,19 @@ class UnifiedRouletteClient {
    * @param callback Função a ser chamada quando novos dados chegarem
    */
   public subscribe(callback: (data: any) => void): void {
+    // Validar se o callback é uma função
+    if (typeof callback !== 'function') {
+      this.error('Tentativa de adicionar callback inválido (não é uma função)');
+      return;
+    }
+    
     this.log('Adicionando assinante via método de compatibilidade');
+    
     // Adicionar ao conjunto de callbacks para o evento 'update'
     if (!this.eventCallbacks.has('update')) {
       this.eventCallbacks.set('update', new Set());
     }
+    
     this.eventCallbacks.get('update')?.add(callback);
     
     // Também notifica imediatamente com os dados atuais, se disponíveis
