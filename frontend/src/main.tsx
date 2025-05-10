@@ -92,58 +92,98 @@ function getRouletteFeedInstance() {
   // Informa ao usuário que a conexão está sendo estabelecida
   logger.info('Conexão com o servidor sendo estabelecida em background...');
 
-  // Inicializar o cliente de roletas no início para estabelecer conexão antecipada
-  logger.info('Inicializando UnifiedRouletteClient antes do render...');
-  const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
-  const unifiedClient = UnifiedRouletteClient.getInstance({
-    streamingEnabled: true,
-    autoConnect: true
-  }); // Inicia a conexão
-
-  // Inicializar o sistema de roletas como parte do carregamento da aplicação
-  logger.info('Inicializando sistema de roletas de forma centralizada...');
-  const rouletteSystem = await initializeRoulettesSystem();
-
-  // Configuração global para requisições fetch
-  const originalFetch = window.fetch;
-  window.fetch = function(input, init) {
-    const headers = init?.headers ? new Headers(init.headers) : new Headers();
-    
-    // Adicionar header para ignorar lembrete do túnel
-    if (!headers.has('bypass-tunnel-reminder')) {
-      headers.append('bypass-tunnel-reminder', 'true');
+  try {
+    // Inicializar o EventService
+    logger.info('Verificando disponibilidade do EventService...');
+    if (!EventService) {
+      logger.error('EventService não disponível. Criando fallback interno.');
+      // Não fazer nada, o sistema continuará com a inicialização
+    } else {
+      logger.info('EventService disponível e inicializado.');
     }
-    
-    const newInit = {
-      ...init,
-      headers
+
+    // Inicializar o cliente de roletas no início para estabelecer conexão antecipada
+    logger.info('Inicializando UnifiedRouletteClient antes do render...');
+    try {
+      const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
+      if (typeof UnifiedRouletteClient?.getInstance !== 'function') {
+        throw new Error('UnifiedRouletteClient não possui método getInstance');
+      }
+      
+      const unifiedClient = UnifiedRouletteClient.getInstance({
+        streamingEnabled: true,
+        autoConnect: true
+      }); // Inicia a conexão
+      
+      // Verificar saúde da API, mas não bloquear a inicialização se falhar
+      if (typeof unifiedClient.checkAPIHealth === 'function') {
+        unifiedClient.checkAPIHealth().catch(error => {
+          logger.warn('Verificação de saúde da API falhou, mas continuando inicialização:', error);
+        });
+      }
+      
+      logger.info('UnifiedRouletteClient inicializado com sucesso.');
+    } catch (error) {
+      logger.error('Falha ao inicializar UnifiedRouletteClient:', error);
+      // Continuar com a inicialização mesmo com erro
+    }
+
+    // Inicializar o sistema de roletas como parte do carregamento da aplicação
+    logger.info('Inicializando sistema de roletas de forma centralizada...');
+    try {
+      const rouletteSystem = await initializeRoulettesSystem();
+      // Expor globalmente a função para verificar se o sistema foi inicializado
+      window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
+      window.getRouletteSystem = () => rouletteSystem;
+      logger.info('Sistema de roletas inicializado com sucesso.');
+    } catch (error) {
+      logger.error('Falha ao inicializar sistema de roletas, continuando sem ele:', error);
+      // Definir função fallback
+      window.isRouletteSystemInitialized = () => false;
+      window.getRouletteSystem = () => null;
+    }
+
+    // Configuração global para requisições fetch
+    const originalFetch = window.fetch;
+    window.fetch = function(input, init) {
+      const headers = init?.headers ? new Headers(init.headers) : new Headers();
+      
+      // Adicionar header para ignorar lembrete do túnel
+      if (!headers.has('bypass-tunnel-reminder')) {
+        headers.append('bypass-tunnel-reminder', 'true');
+      }
+      
+      const newInit = {
+        ...init,
+        headers
+      };
+      
+      return originalFetch(input, newInit);
     };
-    
-    return originalFetch(input, newInit);
-  };
 
-  // Iniciar pré-carregamento de dados históricos
-  logger.info('Iniciando pré-carregamento de dados históricos...');
-  unifiedClient.fetchRouletteData().catch(err => {
-    logger.error('Erro ao pré-carregar dados históricos:', err);
-  });
+    // Inicializar serviço de descriptografia
+    console.log('[Main] Configurando chave de acesso para descriptografia...');
+    try {
+      if (typeof cryptoService?.setupAccessKey === 'function') {
+        cryptoService.setupAccessKey();
+        
+        // Tentar inicializar as chaves comuns para descriptografia
+        console.log('[App] Inicializando sistema de criptografia');
+        const keyFound = false; // tryCommonKeys removido
 
-  // Expor globalmente a função para verificar se o sistema foi inicializado
-  window.isRouletteSystemInitialized = () => window.ROULETTE_SYSTEM_INITIALIZED;
-  window.getRouletteSystem = () => rouletteSystem;
-
-  // Inicializar serviço de descriptografia
-  console.log('[Main] Configurando chave de acesso para descriptografia...');
-  cryptoService.setupAccessKey();
-
-  // Tentar inicializar as chaves comuns para descriptografia
-  console.log('[App] Inicializando sistema de criptografia');
-  const keyFound = false; // tryCommonKeys removido
-
-  // Se nenhuma chave funcionar, ativar o modo de desenvolvimento
-  if (!keyFound) {
-    console.warn('[App] Nenhuma chave de descriptografia funcionou, ativando modo de desenvolvimento');
-    cryptoService.enableDevMode(true);
+        // Se nenhuma chave funcionar, ativar o modo de desenvolvimento
+        if (!keyFound && typeof cryptoService?.enableDevMode === 'function') {
+          console.warn('[App] Nenhuma chave de descriptografia funcionou, ativando modo de desenvolvimento');
+          cryptoService.enableDevMode(true);
+        }
+      } else {
+        console.warn('[Main] cryptoService.setupAccessKey não é uma função válida.');
+      }
+    } catch (error) {
+      console.error('[Main] Erro ao configurar chave de acesso para descriptografia:', error);
+    }
+  } catch (error) {
+    logger.error('Erro crítico durante inicialização:', error);
   }
 })();
 

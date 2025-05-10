@@ -58,4 +58,14 @@ export interface RouletteNumberEvent {
   roulette_name: string;
   number: number;
   timestamp: number;
+}
+
+export interface RouletteClientOptions {
+  pollingInterval?: number;
+  pollingEnabled?: boolean;
+  streamingEnabled?: boolean;
+  autoConnect?: boolean;
+  enableLogging?: boolean;
+  cacheTTL?: number;
+  baseUrl?: string;
 } 

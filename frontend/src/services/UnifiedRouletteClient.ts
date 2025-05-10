@@ -13,6 +13,7 @@ import { ENDPOINTS, getFullUrl } from './api/endpoints';
 import { EventService, EventBus } from './EventService';
 import cryptoService from '../utils/crypto-service';
 import axios from 'axios';
+import { systemEndpoints } from '@/api/endpoints';
 
 // Tipos para callbacks de eventos
 type EventCallback = (data: any) => void;
@@ -33,6 +34,7 @@ interface RouletteClientOptions {
   // Opções gerais
   enableLogging?: boolean;
   cacheTTL?: number;
+  baseUrl?: string;
 }
 
 // Interface para resposta da API
@@ -54,7 +56,7 @@ interface RouletteNumber {
  * Cliente unificado para dados de roletas
  */
 class UnifiedRouletteClient {
-  private static instance: UnifiedRouletteClient;
+  private static instance: UnifiedRouletteClient | null = null;
   
   // Estado
   private isInitialized = false;
@@ -103,11 +105,23 @@ class UnifiedRouletteClient {
   private webSocketReconnectAttempts = 0;
   private readonly maxWebSocketReconnectAttempts = 5;
   
+  private baseUrl: string = '';
+  
   /**
    * Construtor privado para garantir singleton
    */
   private constructor(options: RouletteClientOptions = {}) {
     this.log('Inicializando cliente unificado de dados de roletas');
+    
+    this.baseUrl = '';  // Inicializar com string vazia como fallback
+    
+    if (options.baseUrl) {
+      this.baseUrl = options.baseUrl;
+    } else if (typeof window !== 'undefined') {
+      // Se estiver no navegador, usar a URL atual como base
+      const location = window.location;
+      this.baseUrl = `${location.protocol}//${location.host}`;
+    }
     
     // Aplicar opções
     this.streamingEnabled = options.streamingEnabled !== false;
@@ -1580,6 +1594,57 @@ class UnifiedRouletteClient {
     this.lastCacheUpdateTime = Date.now();
     
     console.log(`[UnifiedRouletteClient] Cache atualizado para roleta ${roulette.nome || rouletteId}`);
+  }
+
+  /**
+   * Verifica se a API está disponível através de uma requisição ao endpoint de health check
+   * @returns Promise<boolean> Indicando se a API está online
+   */
+  public async checkAPIHealth(): Promise<boolean> {
+    try {
+      // Verificar se o endpoint está configurado
+      if (!systemEndpoints?.healthCheck) {
+        console.log('[UnifiedRouletteClient] Endpoint de health check não configurado, assumindo que API está online');
+        return true;
+      }
+
+      // Configurar um timeout para a requisição
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      // Tentar fazer a requisição ao endpoint de health
+      const baseUrl = this.baseUrl || '';
+      const response = await fetch(`${baseUrl}${systemEndpoints.healthCheck}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      });
+      
+      // Limpar o timeout
+      clearTimeout(timeoutId);
+      
+      // Verificar o status da resposta
+      if (response.status === 200) {
+        console.log('[UnifiedRouletteClient] API está online (status 200)');
+        return true;
+      } else if (response.status === 404) {
+        // Se retornar 404, ainda consideramos que o servidor está respondendo
+        console.log('[UnifiedRouletteClient] Endpoint de health check não encontrado (404), mas servidor está respondendo');
+        return true;
+      } else {
+        console.warn(`[UnifiedRouletteClient] API respondeu com status inesperado: ${response.status}`);
+        return false;
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.warn('[UnifiedRouletteClient] Timeout ao verificar saúde da API');
+      } else {
+        console.error('[UnifiedRouletteClient] Erro ao verificar saúde da API:', error);
+      }
+      return false;
+    }
   }
 }
 
