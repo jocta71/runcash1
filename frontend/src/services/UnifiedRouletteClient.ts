@@ -180,37 +180,64 @@ class UnifiedRouletteClient {
     // Marcar que estamos tentando conectar (flag global)
     UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = true;
     this.isStreamConnecting = true;
-    this.log(`Conectando ao stream SSE: ${ENDPOINTS.STREAM.ROULETTES}`);
     
-    try {
-      // Parar polling se estiver ativo, já que vamos usar o streaming
-      this.stopPolling();
-      
-      // Construir URL com query params para autenticação, se necessário
-      let streamUrl = ENDPOINTS.STREAM.ROULETTES;
-      if (cryptoService.hasAccessKey()) {
-        const accessKey = cryptoService.getAccessKey();
-        if (accessKey) {
-          streamUrl += `?key=${encodeURIComponent(accessKey)}`;
+    // Importar a URL SSE_STREAM_URL e ENDPOINTS
+    import('./api/endpoints').then(({ SSE_STREAM_URL, ENDPOINTS }) => {
+      try {
+        // Usar a URL completa do SSE obtida dos endpoints
+        const streamUrl = SSE_STREAM_URL || getFullUrl(ENDPOINTS.STREAM.ROULETTES);
+        
+        this.log(`Conectando ao stream SSE: ${streamUrl}`);
+        console.log('🌊 Tentando conectar ao SSE stream:', streamUrl);
+        
+        // Parar polling se estiver ativo, já que vamos usar o streaming
+        this.stopPolling();
+        
+        // Construir URL com query params para autenticação, se necessário
+        let fullStreamUrl = streamUrl;
+        if (cryptoService.hasAccessKey()) {
+          const accessKey = cryptoService.getAccessKey();
+          if (accessKey) {
+            fullStreamUrl += `?key=${encodeURIComponent(accessKey)}`;
+          }
         }
+        
+        // Criar conexão SSE
+        this.eventSource = new EventSource(fullStreamUrl);
+        
+        // Configurar handlers de eventos
+        this.eventSource.onopen = this.handleStreamOpen.bind(this);
+        this.eventSource.onerror = this.handleStreamError.bind(this);
+        
+        // Eventos específicos
+        this.eventSource.addEventListener('message', this.handleStreamUpdate.bind(this));
+        this.eventSource.addEventListener('update', this.handleStreamUpdate.bind(this));
+        this.eventSource.addEventListener('connected', this.handleStreamConnected.bind(this));
+        
+        // Diagóstico: tentar detectar eventos disponíveis
+        setTimeout(() => {
+          if (this.eventSource) {
+            console.log('📊 Status da conexão SSE após tentativa:', {
+              readyState: this.eventSource.readyState,
+              // 0 = CONNECTING, 1 = OPEN, 2 = CLOSED
+              status: ['CONNECTING', 'OPEN', 'CLOSED'][this.eventSource.readyState] || 'UNKNOWN',
+              isConnected: this.isStreamConnected,
+              isConnecting: this.isStreamConnecting,
+              lastReceived: this.lastReceivedAt ? new Date(this.lastReceivedAt).toISOString() : 'nunca'
+            });
+          }
+        }, 3000);
+      } catch (error) {
+        this.error('Erro ao conectar ao stream:', error);
+        this.isStreamConnecting = false;
+        UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+        this.reconnectStream();
       }
-      
-      // Criar conexão SSE
-      this.eventSource = new EventSource(streamUrl);
-      
-      // Configurar handlers de eventos
-      this.eventSource.onopen = this.handleStreamOpen.bind(this);
-      this.eventSource.onerror = this.handleStreamError.bind(this);
-      
-      // Eventos específicos
-      this.eventSource.addEventListener('update', this.handleStreamUpdate.bind(this));
-      this.eventSource.addEventListener('connected', this.handleStreamConnected.bind(this));
-    } catch (error) {
-      this.error('Erro ao conectar ao stream:', error);
+    }).catch(error => {
+      this.error('Erro ao importar endpoints:', error);
       this.isStreamConnecting = false;
       UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
-      this.reconnectStream();
-    }
+    });
   }
   
   /**
@@ -391,7 +418,12 @@ class UnifiedRouletteClient {
     this.lastReceivedAt = Date.now();
     
     try {
-      this.log(`Evento SSE recebido: ${event.type}`);
+      // Log detalhado do evento recebido para diagnóstico
+      console.log(`🔄 Evento SSE recebido:`, {
+        type: event.type,
+        id: event.lastEventId,
+        data: event.data ? event.data.substring(0, 100) + '...' : 'vazio'
+      });
       
       // Tentar extrair dados do evento
       let data = null;
@@ -429,6 +461,7 @@ class UnifiedRouletteClient {
       // Processo específico para dados de tipo all_roulettes_update
       if (data.type === 'all_roulettes_update' && data.data && Array.isArray(data.data)) {
         this.log(`Atualizando cache com ${data.data.length} roletas do stream SSE (evento all_roulettes_update)`);
+        console.log(`📊 Recebido all_roulettes_update com ${data.data.length} roletas`);
         
         // Processar diretamente os dados do formato do SSE
         const processedData = data.data.map((roleta: any) => {
@@ -455,6 +488,18 @@ class UnifiedRouletteClient {
           timestamp: new Date().toISOString() 
         });
         
+        return;
+      }
+      
+      // Processo específico para heartbeat
+      if (data.type === 'heartbeat') {
+        this.log(`Heartbeat recebido: ${data.message || 'Conexão ativa'}`);
+        // Emitir evento de heartbeat para indicar que a conexão está viva
+        this.emit('heartbeat', { timestamp: new Date().toISOString() });
+        EventBus.emit('roulette:heartbeat', {
+          timestamp: new Date().toISOString(),
+          message: data.message || 'Conexão ativa'
+        });
         return;
       }
       
