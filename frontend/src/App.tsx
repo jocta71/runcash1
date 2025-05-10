@@ -3,8 +3,7 @@ import { BrowserRouter, Route, Routes, useNavigate, useLocation } from "react-ro
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
-import { RouletteDataProvider } from "./context/RouletteDataContext";
-import { useEffect, lazy, Suspense, useRef, useState } from "react";
+import { useEffect, lazy, Suspense, useRef, useState, createContext, useContext } from "react";
 import LoadingScreen from './components/LoadingScreen';
 import './App.css';
 import { ThemeProvider } from './components/theme-provider';
@@ -16,6 +15,73 @@ import GoogleAuthHandler from './components/GoogleAuthHandler';
 import ProtectedRoute from './components/ProtectedRoute';
 import SoundManager from "./components/SoundManager";
 import { LoginModalProvider, useLoginModal } from "./context/LoginModalContext";
+import UnifiedRouletteClient from './services/UnifiedRouletteClient';
+
+// Contexto para o carregamento de dados
+interface DataLoadingContextProps {
+  isDataLoaded: boolean;
+  rouletteData: any[];
+  error: string | null;
+}
+
+const DataLoadingContext = createContext<DataLoadingContextProps>({
+  isDataLoaded: false,
+  rouletteData: [],
+  error: null
+});
+
+// Hook para facilitar o uso do contexto
+export const useDataLoading = () => useContext(DataLoadingContext);
+
+// Provider para centralizar o carregamento de dados
+const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [rouletteData, setRouletteData] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Inicializar o cliente de roletas e carregar dados
+  useEffect(() => {
+    const initializeData = async () => {
+      try {
+        console.log('Inicializando carregamento de dados centralizado...');
+        setIsLoading(true);
+        
+        // Obter a instância do cliente unificado
+        const client = UnifiedRouletteClient.getInstance({
+          autoConnect: true,
+          streamingEnabled: true
+        });
+        
+        // Forçar uma atualização para garantir que temos os dados mais recentes
+        const data = await client.forceUpdate();
+        console.log(`Dados carregados com sucesso: ${data.length} roletas encontradas`);
+        
+        // Atualizar o estado
+        setRouletteData(data);
+        setIsDataLoaded(true);
+      } catch (err) {
+        console.error('Erro ao carregar dados iniciais:', err);
+        setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    initializeData();
+  }, []);
+  
+  // Se estiver carregando, mostrar a tela de carregamento
+  if (isLoading) {
+    return <LoadingScreen message="Carregando dados da roleta..." />;
+  }
+  
+  return (
+    <DataLoadingContext.Provider value={{ isDataLoaded, rouletteData, error }}>
+      {children}
+    </DataLoadingContext.Provider>
+  );
+};
 
 // Importação de componentes principais com lazy loading
 const Index = lazy(() => import("@/pages/Index"));
@@ -190,10 +256,10 @@ const App = () => {
               <SubscriptionProvider>
                 <NotificationsProvider>
                   <SoundManager>
-                    <BrowserRouter>
-                      <GoogleAuthHandler />
-                      <LoginModalProvider>
-                        <RouletteDataProvider>
+                    <DataLoadingProvider>
+                      <BrowserRouter>
+                        <GoogleAuthHandler />
+                        <LoginModalProvider>
                           <AuthStateManager />
                           <Routes>
                             {/* Remover rota explícita de login e sempre usar o modal */}
@@ -364,10 +430,10 @@ const App = () => {
                               </ProtectedRoute>
                             } />
                           </Routes>
-                        </RouletteDataProvider>
-                      </LoginModalProvider>
-                      <Toaster />
-                    </BrowserRouter>
+                          <Toaster />
+                        </LoginModalProvider>
+                      </BrowserRouter>
+                    </DataLoadingProvider>
                   </SoundManager>
                 </NotificationsProvider>
               </SubscriptionProvider>

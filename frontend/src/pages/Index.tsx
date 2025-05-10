@@ -22,6 +22,7 @@ import {
 } from '@/integrations/asaas/client';
 import { useSubscription } from '@/context/SubscriptionContext';
 import SubscriptionRequired from '@/components/SubscriptionRequired';
+import { useDataLoading } from '@/App';
 
 
 
@@ -176,16 +177,33 @@ const formatPhone = (value: string) => {
 };
 
 const Index = () => {
+  // Obter os dados pré-carregados do contexto
+  const { isDataLoaded, rouletteData, error: dataLoadingError } = useDataLoading();
+  
+  // Estado local
+  const [error, setError] = useState<string | null>(dataLoadingError);
+  const [isLoading, setIsLoading] = useState(!isDataLoaded);
+  
+  // Usar os dados pré-carregados do contexto se disponíveis
+  useEffect(() => {
+    if (isDataLoaded && rouletteData.length > 0) {
+      console.log(`[Index] Usando ${rouletteData.length} roletas pré-carregadas do contexto`);
+      // Os dados já estão carregados, então não precisamos fazer nada além de atualizar o estado
+      setIsLoading(false);
+    } else if (dataLoadingError) {
+      setError(dataLoadingError);
+      setIsLoading(false);
+    }
+  }, [isDataLoaded, rouletteData, dataLoadingError]);
+  
   // Remover o estado de busca
   // const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [roulettes, setRoulettes] = useState<RouletteData[]>(rouletteData);
   const [knownRoulettes, setKnownRoulettes] = useState<RouletteData[]>([]);
-  const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(false);
+  const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(isDataLoaded);
   const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
