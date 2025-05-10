@@ -191,66 +191,78 @@ class UnifiedRouletteClient {
     logger.info(`Buscando dados históricos iniciais de: ${this.historicalDataUrl}`);
 
     try {
-      // Obter token de autenticação, se disponível
       const authToken = localStorage.getItem('auth_token');
-      
-      // Configurar headers
       const headers: HeadersInit = {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'bypass-tunnel-reminder': 'true'
       };
-      
       if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
       
-      // Fazer a requisição
       const response = await fetch(this.historicalDataUrl, { headers });
 
       if (!response.ok) {
-        throw new Error(`Erro HTTP ao buscar dados históricos: ${response.status} ${response.statusText}`);
+        throw new Error(`Erro HTTP ${response.status} ao buscar dados históricos: ${response.statusText}`);
       }
 
       const responseData: ApiResponse = await response.json();
-      
-      // Processar a resposta que pode estar em diferentes formatos
-      let roulettesData: any[] = [];
-      
-      // Verificar se a resposta está criptografada
-      if (responseData.encrypted && responseData.format === 'iron' && responseData.encryptedData) {
-        logger.info('Recebidos dados criptografados. O frontend não pode descriptografar, usando dados vazios.');
-        // Não podemos descriptografar no frontend, mas podemos tentar usar outros campos se existirem
+      let roulettesArray: any[] = [];
+
+      if (responseData.encrypted && responseData.format === 'iron') {
+        logger.info('Recebidos dados históricos criptografados. O frontend não pode descriptografar. Verificando campos de fallback.');
         if (responseData.data && Array.isArray(responseData.data)) {
-          roulettesData = responseData.data;
+          roulettesArray = responseData.data;
         } else if (responseData.roulettes && Array.isArray(responseData.roulettes)) {
-          roulettesData = responseData.roulettes;
+          roulettesArray = responseData.roulettes;
         }
-      } 
-      // Verificar se a resposta é um array direto
-      else if (Array.isArray(responseData)) {
-        roulettesData = responseData;
-      } 
-      // Verificar se a resposta tem um campo data que é array
-      else if (responseData.data && Array.isArray(responseData.data)) {
-        roulettesData = responseData.data;
-      }
-      // Verificar se a resposta tem um campo roulettes que é array
-      else if (responseData.roulettes && Array.isArray(responseData.roulettes)) {
-        roulettesData = responseData.roulettes;
-      }
-      else {
-        throw new Error('Resposta inválida dos dados históricos: formato não reconhecido');
+        if (roulettesArray.length === 0) {
+            logger.warn('Dados criptografados sem fallback de array de roletas utilizável.');
+        }
+      } else if (Array.isArray(responseData)) {
+        roulettesArray = responseData;
+      } else if (typeof responseData === 'object' && responseData !== null) {
+        if (responseData.data && Array.isArray(responseData.data)) {
+          roulettesArray = responseData.data;
+        } else if (responseData.roulettes && Array.isArray(responseData.roulettes)) {
+          roulettesArray = responseData.roulettes;
+        } else {
+          // Tentar encontrar um array em alguma propriedade do objeto
+          let found = false;
+          for (const key in responseData) {
+            if (Object.prototype.hasOwnProperty.call(responseData, key) && Array.isArray(responseData[key])) {
+              // Verificar se os itens do array parecem ser roletas (ex: têm id e nome)
+              const potentialArray = responseData[key] as any[];
+              if (potentialArray.length > 0 && potentialArray[0].id && (potentialArray[0].nome || potentialArray[0].name)) {
+                logger.info(`Encontrado array de roletas na propriedade '${key}' do objeto de resposta.`);
+                roulettesArray = potentialArray;
+                found = true;
+                break;
+              }
+            }
+          }
+          if (!found) {
+            logger.warn('Resposta dos dados históricos é um objeto, mas não foi encontrado um array de roletas nos campos esperados (data, roulettes) ou em outras propriedades. Estrutura recebida:', JSON.stringify(Object.keys(responseData)));
+            // Considerar como lista vazia em vez de erro fatal, a menos que a API deva sempre retornar uma lista.
+            // throw new Error('Resposta inválida dos dados históricos: formato de objeto não reconhecido ou array de roletas não encontrado.');
+          }
+        }
+      } else {
+        logger.error('Formato de resposta completamente inesperado para dados históricos. Resposta recebida:', responseData);
+        throw new Error('Resposta inválida dos dados históricos: formato completamente inesperado.');
       }
 
-      logger.info(`Recebidos dados históricos de ${roulettesData.length} roletas.`);
+      if (roulettesArray.length > 0) {
+        logger.info(`Dados históricos extraídos com sucesso: ${roulettesArray.length} roletas.`);
+      } else {
+        logger.warn('Nenhum dado de roleta foi extraído da resposta histórica. A lista de roletas estará vazia.');
+      }
       
-      // Mapa para armazenar números processados por roleta
       const processedNumbers: Map<string, any[]> = new Map();
       const now = new Date().toISOString();
       
-      // Processar cada roleta
-      roulettesData.forEach((roletaData: any) => {
+      roulettesArray.forEach((roletaData: any) => {
         if (!roletaData || !roletaData.id) {
           logger.warn('Dados de roleta inválidos recebidos:', roletaData);
           return;
