@@ -271,28 +271,16 @@ class UnifiedRouletteClient {
   
   public requestRecentNumbers(): void {
     if (this.isStreamConnected && this.eventSource) {
-      logger.debug('Solicitando números recentes via endpoint POST (se configurado no backend)');
-      // Este fetch é mantido caso o backend tenha um endpoint específico para isso,
-      // que não seja a busca completa de /api/roulettes.
-      // Se este endpoint também não deve ser usado, ele pode ser removido.
-      fetch(`${config.apiBaseUrl}/request-recent-numbers`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'bypass-tunnel-reminder': 'true'
-        },
-        body: JSON.stringify({
-          requestTime: new Date().toISOString()
-        })
-      }).then(response => {
-        if(!response.ok) logger.error(`Falha ao solicitar números recentes: ${response.status}`);
-        else logger.info('Solicitação de números recentes enviada.');
-      }).catch(error => {
-        logger.error('Erro ao solicitar números recentes via POST:', error);
-      });
+      logger.debug('Cliente está conectado ao stream SSE. O servidor deve enviar os dados recentes através do stream.');
+      // Se o backend tiver um mecanismo específico para ser acionado via um evento aqui (ex: via EventService),
+      // ele poderia ser implementado. Por ora, assume-se que o servidor envia dados ativamente.
+      // Exemplo: EventService.emitGlobalEvent('client_requests_recent_numbers_via_sse');
     } else {
       logger.warn('Não é possível solicitar números recentes: Stream SSE não conectado.');
-       if(!this.isStreamConnected) this.connectStream(); // Tenta reconectar se não estiver conectado
+       if(!this.isStreamConnected) {
+        logger.info('Tentando reconectar ao stream para obter dados.');
+        this.connectStream(); 
+       }
     }
   }
   
