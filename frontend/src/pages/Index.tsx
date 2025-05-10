@@ -183,7 +183,6 @@ const Index = () => {
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
-  const [filteredRoulettes, setFilteredRoulettes] = useState<RouletteData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [knownRoulettes, setKnownRoulettes] = useState<RouletteData[]>([]);
   const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(false);
@@ -463,9 +462,6 @@ const Index = () => {
     };
   }, [loadRouletteData, dataFullyLoaded, mergeRoulettes]);
   
-  // Simplificar para usar diretamente as roletas
-  // const filteredRoulettes = roulettes; // Remover esta linha
-  
   // Efeito para inicializar o estado filteredRoulettes com todas as roletas
   useEffect(() => {
     setFilteredRoulettes(roulettes);
@@ -481,17 +477,14 @@ const Index = () => {
 
   // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
-    if (!Array.isArray(filteredRoulettes) || filteredRoulettes.length === 0) {
-      console.log('[DEBUG] Não há roletas para renderizar. Array vazio ou inválido:', filteredRoulettes);
+    if (!Array.isArray(roulettes) || roulettes.length === 0) {
+      console.log('[DEBUG] Não há roletas para renderizar. Array vazio ou inválido:', roulettes);
       return null;
     }
     
-    console.log(`[DEBUG] Renderizando ${filteredRoulettes.length} roletas disponíveis:`, JSON.stringify(filteredRoulettes.map(r => ({id: r.id, nome: r.nome || r.name})), null, 2));
+    console.log(`[DEBUG] Renderizando ${roulettes.length} roletas disponíveis:`, JSON.stringify(roulettes.map(r => ({id: r.id, nome: r.nome || r.name})), null, 2));
     
-    // MODIFICAÇÃO CRÍTICA: Mostrar todas as roletas sem paginação
-    const allRoulettes = filteredRoulettes;
-    
-    return allRoulettes.map(roulette => {
+    return roulettes.map(roulette => {
       // Extrair propriedades básicas com fallbacks
       const id = roulette.id || roulette._id || '';
       const nome = roulette.nome || roulette.name || 'Roleta sem nome';
@@ -564,13 +557,7 @@ const Index = () => {
       return null;
     }
     
-    // Usar todas as roletas diretamente, sem filtro
-    const filteredRoulettes = roulettes;
-    
-    const totalPages = Math.ceil(filteredRoulettes.length / itemsPerPage);
-    
-    // Sempre mostrar a paginação se houver roletas
-    // Removida a condição que ocultava a paginação quando havia apenas uma página
+    const totalPages = Math.ceil(roulettes.length / itemsPerPage);
     
     return (
       <div className="flex justify-center mt-8 gap-2 mb-8 bg-gray-800 p-3 rounded-lg shadow-lg">
@@ -595,34 +582,6 @@ const Index = () => {
         </button>
       </div>
     );
-  };
-
-  // Função para lidar com o filtro de roletas
-  const handleRouletteFilter = (filtered: RouletteData[]) => {
-    setFilteredRoulettes(filtered);
-  };
-
-  // Renderiza skeletons para os cards de roleta
-  const renderRouletteSkeletons = () => {
-    return Array(12).fill(0).map((_, index) => (
-      <div key={index} className="relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border border-gray-800/30 rounded-lg p-4">
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center">
-            <div className="h-6 w-36 bg-gray-800 rounded animate-pulse"></div>
-          </div>
-          <div className="h-5 w-16 bg-gray-800 rounded-full animate-pulse"></div>
-        </div>
-        
-        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/20 bg-[#131111]">
-          {[...Array(8)].map((_, idx) => (
-            <div 
-              key={idx} 
-              className="w-6 h-6 rounded-full bg-gray-800 animate-pulse"
-            ></div>
-          ))}
-        </div>
-      </div>
-    ));
   };
 
   // Atualizar dados do formulário quando o usuário mudar
@@ -823,6 +782,29 @@ const Index = () => {
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
+  };
+
+  // Renderiza skeletons para os cards de roleta
+  const renderRouletteSkeletons = () => {
+    return Array(12).fill(0).map((_, index) => (
+      <div key={index} className="relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border border-gray-800/30 rounded-lg p-4">
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center">
+            <div className="h-6 w-36 bg-gray-800 rounded animate-pulse"></div>
+          </div>
+          <div className="h-5 w-16 bg-gray-800 rounded-full animate-pulse"></div>
+        </div>
+        
+        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/20 bg-[#131111]">
+          {[...Array(8)].map((_, idx) => (
+            <div 
+              key={idx} 
+              className="w-6 h-6 rounded-full bg-gray-800 animate-pulse"
+            ></div>
+          ))}
+        </div>
+      </div>
+    ));
   };
 
   return (
