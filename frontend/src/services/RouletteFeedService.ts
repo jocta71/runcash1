@@ -289,14 +289,23 @@ export default class RouletteFeedService {
     // Criar uma promessa global para a inicialização
     this.GLOBAL_INITIALIZATION_PROMISE = new Promise(async (resolve) => {
       try {
-        // Verificar saúde da API antes de inicializar (mas não bloquear mesmo em caso de falha)
-        await this.checkAPIHealth();
-        
-        // Mesmo que a verificação de saúde falhe, continuamos para permitir
-        // que a aplicação funcione com dados mockados ou em cache
+        // Verificar saúde da API antes de inicializar
+        const isAPIHealthy = await this.checkAPIHealth();
         
         // Registrar ouvintes para eventos do serviço global
         this.registerGlobalEventListeners();
+        
+        // Inicializar UnifiedRouletteClient primeiramente
+        logger.info('Inicializando conexão com UnifiedRouletteClient...');
+        const unifiedClient = UnifiedRouletteClient.getInstance();
+        
+        // Solicitar dados iniciais
+        try {
+          const initialData = await this.fetchInitialData();
+          logger.info(`✅ Dados iniciais carregados: ${Object.keys(initialData).length} roletas`);
+        } catch (dataError) {
+          logger.warn('⚠️ Não foi possível carregar dados iniciais:', dataError);
+        }
         
         // Iniciar o monitoramento de saúde do serviço
         this.startHealthMonitoring();
@@ -304,45 +313,25 @@ export default class RouletteFeedService {
         // Iniciar o ciclo de atualização em segundo plano
         this.startPolling();
         
-        // Buscar dados iniciais
-        try {
-          const data = await this.fetchInitialData();
-          if (data && Object.keys(data).length > 0) {
-            this.hasCachedData = true;
-            this.initialized = true;
-            this.isInitialized = true;
-            this.hasFetchedInitialData = true;
-            
-            // Notificar assinantes sobre os dados iniciais
-            this.notifySubscribers(data);
-            
-            logger.info('✅ Inicialização concluída com sucesso');
-            resolve(data);
-          } else {
-            // Se não conseguimos dados iniciais, ainda podemos continuar
-            // com a aplicação, talvez usando dados simulados
-            logger.warn('⚠️ Nenhum dado inicial recebido, operando em modo limitado');
-            this.initialized = true;
-            this.isInitialized = true;
-            
-            // Mesmo sem dados, resolvemos a promessa para não bloquear a aplicação
-            resolve({});
-          }
-        } catch (error) {
-          // Mesmo em caso de erro na busca inicial de dados, continuamos
-          logger.error('❌ Erro ao buscar dados iniciais:', error);
-          this.initialized = true;
-          this.isInitialized = true;
-          
-          // Resolver com objeto vazio para não quebrar dependências
-          resolve({});
-          
-          // Emitir evento de erro para informar componentes
-          EventService.emit('roulette:initialization-error', {
-            message: 'Falha ao carregar dados iniciais',
-            error: error instanceof Error ? error.message : 'Erro desconhecido'
-          });
-        }
+        // Configurar sincronização entre abas
+        this.initializeInstanceSync();
+        this.startSyncUpdates();
+        
+        // Resolver com informações sobre a inicialização
+        this.initialized = true;
+        this.isInitialized = true;
+        
+        logger.info('✅ RouletteFeedService inicializado e pronto para uso');
+        EventService.emit('roulette:service-ready', {
+          timestamp: new Date().toISOString(),
+          isAPIHealthy: isAPIHealthy
+        });
+        
+        resolve({
+          initialized: true,
+          timestamp: new Date().toISOString(),
+          isAPIHealthy: isAPIHealthy
+        });
       } catch (error) {
         // Tratar erros críticos durante a inicialização
         logger.error('❌ ERRO CRÍTICO durante inicialização:', error);
@@ -350,7 +339,11 @@ export default class RouletteFeedService {
         this.isInitialized = true;
         
         // Mesmo em caso de erro crítico, resolvemos para não bloquear a aplicação
-        resolve({});
+        resolve({
+          initialized: true,
+          error: error instanceof Error ? error.message : String(error),
+          timestamp: new Date().toISOString()
+        });
         
         // Emitir evento de erro para informar componentes
         EventService.emit('roulette:critical-error', {
@@ -1575,73 +1568,141 @@ export default class RouletteFeedService {
     }
   }
 
-  // Método para notificar assinantes
+  /**
+   * Notifica todos os assinantes sobre mudanças nos dados
+   * @param data Dados a serem enviados para os assinantes
+   */
   private notifySubscribers(data: any): void {
-    if (!this.subscribers || this.subscribers.length === 0) {
+    if (!data) {
+      logger.warn('⚠️ Tentativa de notificar com dados vazios ou nulos');
       return;
     }
 
-    // Criar cópia do array para evitar problemas durante iteração
-    const subscribers = [...this.subscribers];
-    
-    subscribers.forEach((callback, index) => {
-      try {
-        if (typeof callback === 'function') {
-          // Executar callback com timeout de segurança
-          const timeoutId = setTimeout(() => {
-            logger.warn(`⚠️ Callback no índice ${index} excedeu tempo limite`);
-            this.unsubscribe(callback);
-          }, 5000);
-
-          callback(data);
-          clearTimeout(timeoutId);
-        } else {
-          logger.warn(`⚠️ Removendo callback inválido no índice ${index}`);
-          this.subscribers = this.subscribers.filter(cb => cb !== callback);
-        }
-      } catch (error) {
-        logger.error(`❌ Erro ao notificar assinante ${index}:`, error);
-        this.unsubscribe(callback);
+    try {
+      // Verificar se existem assinantes antes de continuar
+      if (this.subscribers.length === 0) {
+        logger.debug('Sem assinantes para notificar');
+        return;
       }
-    });
+
+      logger.debug(`Notificando ${this.subscribers.length} assinantes sobre atualização de dados`);
+      
+      // Criar uma cópia dos subscribers para evitar problemas durante a iteração
+      // caso algum callback modifique a lista (ex: unsubscribe)
+      const subscribersSnapshot = [...this.subscribers];
+      
+      // Contador para monitoramento de performance
+      let successCount = 0;
+      let errorCount = 0;
+      
+      // Notificar cada assinante com tratamento de erros
+      subscribersSnapshot.forEach(callback => {
+        try {
+          // Validar novamente que o callback é uma função
+          if (typeof callback === 'function') {
+            // Usar try-catch para cada callback individual
+            try {
+              callback(data);
+              successCount++;
+            } catch (callbackError) {
+              errorCount++;
+              logger.error('❌ Erro ao executar callback de assinante:', callbackError);
+              
+              // Remover callback com erro
+              const index = this.subscribers.indexOf(callback);
+              if (index !== -1) {
+                this.subscribers.splice(index, 1);
+                logger.warn(`⚠️ Assinante com erro removido (restantes: ${this.subscribers.length})`);
+              }
+            }
+          } else {
+            // Remover callbacks inválidos
+            errorCount++;
+            const index = this.subscribers.indexOf(callback);
+            if (index !== -1) {
+              this.subscribers.splice(index, 1);
+              logger.warn(`⚠️ Callback inválido removido (restantes: ${this.subscribers.length})`);
+            }
+          }
+        } catch (error) {
+          errorCount++;
+          logger.error('❌ Erro crítico ao processar callback:', error);
+        }
+      });
+      
+      // Log de performance
+      if (errorCount > 0) {
+        logger.warn(`⚠️ Notificação completada: ${successCount} sucessos, ${errorCount} erros`);
+      } else {
+        logger.debug(`✅ Notificação bem-sucedida para todos os ${successCount} assinantes`);
+      }
+    } catch (error) {
+      logger.error('❌ Erro ao notificar assinantes:', error);
+    }
   }
 
-  // Método para adicionar assinante
+  /**
+   * Adiciona um assinante para atualizações de dados
+   * @param callback Função a ser chamada quando houver dados atualizados
+   */
   public subscribe(callback: (data: any) => void): void {
-    // Validação mais robusta do callback
+    // Validar que o callback é uma função
     if (typeof callback !== 'function') {
       logger.error('❌ Tentativa de adicionar callback inválido:', {
         type: typeof callback,
-        value: callback,
+        value: typeof callback === 'object' ? 'objeto' : String(callback),
         stack: new Error().stack
       });
       return;
     }
 
-    // Verificar se o callback já está registrado
-    if (this.subscribers.includes(callback)) {
-      logger.warn('⚠️ Callback já registrado, ignorando');
-      return;
-    }
-
     try {
-      // Adicionar callback com validação adicional
-      const validatedCallback = (data: any) => {
+      // Verificar se o callback já está registrado para evitar duplicatas
+      const isDuplicate = this.subscribers.some(existingCallback => existingCallback === callback);
+      if (isDuplicate) {
+        logger.warn('⚠️ Callback já registrado, ignorando tentativa duplicada');
+        return;
+      }
+
+      // Criar wrapper que valida o callback antes de cada execução
+      const secureCallback = (data: any) => {
         try {
+          // Verificar novamente se ainda é uma função antes de chamar
           if (typeof callback === 'function') {
+            // Adicionar timeout de segurança para evitar callbacks que travam
+            const timeoutId = setTimeout(() => {
+              logger.warn('⚠️ Callback excedeu timeout de execução de 2 segundos');
+            }, 2000);
+
             callback(data);
+            clearTimeout(timeoutId);
           } else {
-            logger.warn('⚠️ Callback se tornou inválido durante execução');
+            logger.error('❌ Callback se tornou inválido durante execução');
+            // Remover callback inválido
             this.unsubscribe(callback);
           }
         } catch (error) {
           logger.error('❌ Erro ao executar callback:', error);
+          // Se houver erro na execução, removê-lo para evitar problemas futuros
           this.unsubscribe(callback);
         }
       };
 
-      this.subscribers.push(validatedCallback);
-      logger.debug('➕ Novo assinante adicionado ao serviço RouletteFeedService');
+      // Adicionar o callback à lista de assinantes
+      this.subscribers.push(secureCallback);
+      logger.info(`✅ Novo assinante adicionado (total: ${this.subscribers.length})`);
+
+      // Se já temos dados em cache, notificar o novo assinante imediatamente
+      if (this.rouletteDataCache.size > 0) {
+        const cachedData = Array.from(this.rouletteDataCache.values());
+        logger.info(`Notificando novo assinante com dados em cache (${cachedData.length} roletas)`);
+        
+        try {
+          secureCallback(cachedData);
+        } catch (error) {
+          logger.error('❌ Erro ao notificar novo assinante com dados em cache:', error);
+        }
+      }
     } catch (error) {
       logger.error('❌ Erro ao adicionar assinante:', error);
     }
@@ -1680,38 +1741,62 @@ export default class RouletteFeedService {
     logger.info(`🔄 Requisição ${requestId} concluída com sucesso: ${status}`);
   }
 
-  // Adicionar método para verificar a saúde da API
+  /**
+   * Verifica a saúde da API antes de inicializar o serviço
+   * @returns Promise<boolean> Indica se a API está saudável
+   */
   async checkAPIHealth(): Promise<boolean> {
     try {
-      // Tentar estabelecer conexão SSE
+      logger.info('Verificando saúde da API...');
+      
+      // Inicializar a conexão SSE
       this.initializeSSE();
       
-      // Aguardar conexão ser estabelecida
-      const maxWaitTime = 10000; // 10 segundos
-      const startTime = Date.now();
+      // Aguardar até que a conexão seja estabelecida ou atinja o timeout
+      const connectionResult = await Promise.race([
+        // Promise que resolve quando a conexão for estabelecida
+        new Promise<boolean>((resolve) => {
+          const checkInterval = setInterval(() => {
+            if (this.isConnected) {
+              clearInterval(checkInterval);
+              resolve(true);
+            }
+          }, 500);
+        }),
+        
+        // Promise que rejeita após o timeout
+        new Promise<boolean>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('Timeout ao verificar conexão SSE'));
+          }, 10000); // 10 segundos de timeout
+        })
+      ]).catch((error) => {
+        logger.warn(`⚠️ Timeout ao verificar conexão SSE: ${error.message}`);
+        return false;
+      });
       
-      while (!this.isConnected && (Date.now() - startTime) < maxWaitTime) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      
-      if (this.isConnected) {
+      if (connectionResult) {
         logger.info('✅ Conexão SSE estabelecida com sucesso');
         return true;
+      } else {
+        logger.warn('⚠️ Falha ao estabelecer conexão SSE, operando com dados em cache');
+        
+        // Emitir evento de falha na conexão
+        EventBus.emit('roulette:connection-failed', {
+          timestamp: new Date().toISOString(),
+          url: 'https://starfish-app-fubxw.ondigitalocean.app/api/stream/roulettes',
+          error: 'Timeout ao verificar conexão'
+        });
+        
+        return false;
       }
-      
-      logger.warn('⚠️ Timeout ao aguardar conexão SSE');
-      return false;
     } catch (error) {
-      logger.error('❌ Falha ao verificar conexão SSE:', error);
+      logger.error('❌ Erro ao verificar saúde da API:', error);
       
-      EventService.emit('roulette:api-failure', { 
-        timestamp: Date.now(),
-        error: error instanceof Error ? error.message : 'API inacessível',
-        type: 'sse_connection_failed',
-        details: {
-          url: '/api/stream/roulettes',
-          error: error
-        }
+      // Emitir evento de erro
+      EventBus.emit('roulette:api-health-error', {
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error)
       });
       
       return false;
@@ -1719,73 +1804,99 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Inicializa a conexão SSE
+   * Inicializa a conexão SSE com suporte a reconexão automática
    */
   private initializeSSE(): void {
     if (this.sseConnection) {
-      logger.info('🔄 Reconectando stream SSE...');
+      logger.info('🔄 Fechando conexão SSE existente antes de reconectar');
       this.sseConnection.close();
+      this.sseConnection = null;
     }
 
     try {
       const sseUrl = 'https://starfish-app-fubxw.ondigitalocean.app/api/stream/roulettes';
+      logger.info(`🔌 Inicializando conexão SSE com ${sseUrl}`);
+      
+      // Adicionar cabeçalhos para melhorar a conexão
+      const requestInit: RequestInit = {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive'
+        },
+        credentials: 'include', // Incluir cookies para autenticação se necessário
+        mode: 'cors' // Permitir CORS
+      };
+
+      // Criar a conexão SSE
       this.sseConnection = new EventSource(sseUrl);
       
+      // Configurar handlers de eventos
       this.sseConnection.onopen = () => {
         logger.info('✅ Conexão SSE estabelecida');
-        this.reconnectAttempts = 0;
         this.isConnected = true;
+        this.reconnectAttempts = 0;
+        this.lastReceivedTime = Date.now();
         
-        // Emitir evento de conexão bem-sucedida
-        EventService.emit('roulette:sse-connected', {
-          timestamp: Date.now(),
+        // Notificar sobre conexão estabelecida
+        EventBus.emit('roulette:sse-connected', {
+          timestamp: new Date().toISOString(),
           url: sseUrl
         });
       };
-
+      
       this.sseConnection.onmessage = (event) => {
         try {
+          this.lastReceivedTime = Date.now();
           const data = JSON.parse(event.data);
           this.handleRouletteData(data);
-          
-          // Atualizar timestamp do último recebimento
-          this.lastReceivedTime = Date.now();
         } catch (error) {
           logger.error('❌ Erro ao processar mensagem SSE:', error);
         }
       };
-
-      this.sseConnection.onerror = (error) => {
-        logger.error('❌ Erro na conexão SSE:', error);
+      
+      this.sseConnection.onerror = (event) => {
+        logger.error('❌ Erro na conexão SSE:', event);
         this.isConnected = false;
         
+        // Tentar reconectar com backoff exponencial
         if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
           this.reconnectAttempts++;
           const delay = this.SSE_RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts - 1);
-          logger.info(`🔄 Tentativa de reconexão ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS} em ${delay}ms`);
+          const maxDelay = 30000; // 30 segundos no máximo
+          const actualDelay = Math.min(delay, maxDelay);
           
-          setTimeout(() => this.initializeSSE(), delay);
+          logger.info(`🔄 Tentativa de reconexão ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS} em ${actualDelay}ms`);
+          
+          setTimeout(() => this.initializeSSE(), actualDelay);
         } else {
-          logger.error('❌ Máximo de tentativas de reconexão atingido');
-          EventService.emit('roulette:sse-connection-failed', {
+          logger.error('❌ Máximo de tentativas de reconexão SSE atingido');
+          
+          // Emitir evento de falha na reconexão
+          EventBus.emit('roulette:sse-reconnect-failed', {
+            timestamp: new Date().toISOString(),
             attempts: this.reconnectAttempts,
-            lastError: error,
             url: sseUrl
           });
           
-          // Tentar reconexão após um tempo maior
+          // Tentar novamente após um intervalo maior
           setTimeout(() => {
+            logger.info('🔄 Reiniciando tentativas de conexão SSE após pausa');
             this.reconnectAttempts = 0;
             this.initializeSSE();
-          }, 30000); // 30 segundos
+          }, 60000); // 1 minuto
         }
       };
-
     } catch (error) {
       logger.error('❌ Erro ao inicializar conexão SSE:', error);
       this.isConnected = false;
       
-      // Tentar reconexão após erro
+      // Emitir evento de erro
+      EventBus.emit('roulette:sse-initialization-error', {
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error)
+      });
+      
+      // Tentar novamente após um intervalo
       setTimeout(() => this.initializeSSE(), this.SSE_RECONNECT_DELAY);
     }
   }
@@ -1796,26 +1907,36 @@ export default class RouletteFeedService {
    */
   private registerGlobalEventListeners(): void {
     logger.info('Registrando ouvintes para eventos globais');
-    // Ouvinte para atualizações globais de dados
-    const globalDataUpdateHandler = () => {
-      logger.info('Recebida atualização do UnifiedRouletteClient');
-      this.fetchLatestData();
-    };
-    // Inscrever no UnifiedRouletteClient
-    const unifiedClient = UnifiedRouletteClient.getInstance();
-    unifiedClient.on('update', globalDataUpdateHandler);
-    // Ouvinte para mudanças na visibilidade da página
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', this.handleVisibilityChange);
-    }
-    // Ouvinte para quando novos números são recebidos
-    EventService.on('roulette:new-number', (event) => {
-      logger.debug('Novo número recebido via evento:', event);
-      if (event && event.roleta_id) {
-        this.updateCacheWithNewNumber(event);
+    
+    try {
+      // Ouvinte para atualizações globais de dados
+      const globalDataUpdateHandler = () => {
+        logger.info('Recebida atualização do UnifiedRouletteClient');
+        this.fetchLatestData();
+      };
+      
+      // Inscrever no UnifiedRouletteClient - corrigindo de 'on' para 'subscribe'
+      const unifiedClient = UnifiedRouletteClient.getInstance();
+      unifiedClient.subscribe('update', globalDataUpdateHandler);
+      
+      // Ouvinte para mudanças na visibilidade da página
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', this.handleVisibilityChange);
       }
-    });
-    logger.info('Ouvintes de eventos globais registrados');
+      
+      // Ouvinte para quando novos números são recebidos
+      EventService.on('roulette:new-number', (event) => {
+        logger.debug('Novo número recebido via evento:', event);
+        if (event && event.roleta_id) {
+          this.updateCacheWithNewNumber(event);
+        }
+      });
+      
+      logger.info('Ouvintes de eventos globais registrados com sucesso');
+    } catch (error) {
+      logger.error('Erro ao registrar ouvintes para eventos globais:', error);
+      // Não interromper a inicialização do serviço se falhar ao registrar eventos
+    }
   }
 
   /**
