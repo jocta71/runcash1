@@ -1,14 +1,14 @@
 /**
  * SocketAdapter.ts
  * 
- * Este adaptador permite a troca entre implementações de socket (WebSocket e REST API)
- * dependendo do ambiente ou configuração
+ * Este adaptador permite a troca entre implementações de socket
+ * Agora utiliza UnifiedRouletteClient que combina streaming e REST API
  */
 
-import RESTSocketService from './RESTSocketService';
+import UnifiedRouletteClient from './UnifiedRouletteClient';
 
-// Exportar o serviço REST como implementação padrão
-export default RESTSocketService;
+// Exportar o serviço UnifiedRouletteClient como implementação padrão
+export default UnifiedRouletteClient;
 
-// Nota: Este arquivo serve como ponto de entrada único para substituir o WebSocket.
-// Importe este arquivo em vez de SocketService ou RESTSocketService. 
+// Nota: Este arquivo serve como ponto de entrada único para os serviços de roleta.
+// Importe este arquivo em vez de acessar UnifiedRouletteClient diretamente. 

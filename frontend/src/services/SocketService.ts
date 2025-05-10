@@ -1,17 +1,26 @@
 /**
- * Este arquivo agora apenas reexporta o RESTSocketService
+ * Este arquivo agora reexporta o UnifiedRouletteClient
  * para manter compatibilidade com o código existente
  * 
- * Isso nos permite remover a dependência do WebSocket e usar apenas a API REST
+ * Isso nos permite usar um único cliente unificado para todos os dados de roleta
  */
 
-import RESTSocketService from "./RESTSocketService";
+import UnifiedRouletteClient from "./UnifiedRouletteClient";
 
-// Re-exportar como SocketService para manter compatibilidade
-export default RESTSocketService;
+// Re-exportar UnifiedRouletteClient como SocketService para manter compatibilidade
+export default UnifiedRouletteClient;
 
-// Re-exportar também os tipos
-export type {
-  HistoryRequest,
-  HistoryData
-} from "./RESTSocketService";
+// Reexportar tipos compatíveis para manter retrocompatibilidade
+// Criando interfaces compatíveis com o antigo SocketService/RESTSocketService
+export interface HistoryRequest {
+  roleId: string;
+  limit?: number;
+}
+
+export interface HistoryData {
+  numbers: number[];
+  timestamps?: string[];
+}
+
+// Note: Os tipos HistoryRequest e HistoryData são mantidos para retrocompatibilidade
+// com o antigo SocketService/RESTSocketService

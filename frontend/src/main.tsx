@@ -37,15 +37,7 @@ window.ROULETTE_SYSTEM_INITIALIZED = false;
 async function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
-  // Inicializar os serviços em ordem
-  const socketService = SocketService.getInstance();
-  const eventService = EventService.getInstance();
-  const rouletteFeedService = RouletteFeedService.getInstance();
-  
-  // Registrar o SocketService no RouletteFeedService
-  rouletteFeedService.registerSocketService(socketService);
-  
-  // Inicializar o UnifiedRouletteClient diretamente para garantir conexão SSE
+  // Inicializar o UnifiedRouletteClient diretamente
   const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
   const unifiedClient = UnifiedRouletteClient.getInstance({
     streamingEnabled: true,
@@ -54,6 +46,13 @@ async function initializeRoulettesSystem() {
   
   // Forçar conexão com stream SSE
   unifiedClient.connectStream();
+  
+  // Inicializar outros serviços
+  const eventService = EventService.getInstance();
+  const rouletteFeedService = RouletteFeedService.getInstance();
+  
+  // Registrar o UnifiedRouletteClient no RouletteFeedService (compatibilidade)
+  rouletteFeedService.registerSocketService(unifiedClient);
   
   // Inicializar o serviço global e buscar dados iniciais uma única vez
   logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
@@ -97,7 +96,6 @@ async function initializeRoulettesSystem() {
   });
   
   return {
-    socketService,
     rouletteFeedService,
     eventService,
     globalRouletteDataService,
@@ -105,14 +103,18 @@ async function initializeRoulettesSystem() {
   };
 }
 
-// Inicializar o SocketService logo no início para estabelecer conexão antecipada
-logger.info('Inicializando SocketService antes do render...');
-const socketService = SocketService.getInstance(); // Inicia a conexão
-
 // Encapsular código com await em uma função auto-invocável
 (async function() {
   // Informa ao usuário que a conexão está sendo estabelecida
   logger.info('Conexão com o servidor sendo estabelecida em background...');
+
+  // Inicializar o cliente de roletas no início para estabelecer conexão antecipada
+  logger.info('Inicializando UnifiedRouletteClient antes do render...');
+  const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
+  const unifiedClient = UnifiedRouletteClient.getInstance({
+    streamingEnabled: true,
+    autoConnect: true
+  }); // Inicia a conexão
 
   // Inicializar o sistema de roletas como parte do carregamento da aplicação
   logger.info('Inicializando sistema de roletas de forma centralizada...');
@@ -138,7 +140,7 @@ const socketService = SocketService.getInstance(); // Inicia a conexão
 
   // Iniciar pré-carregamento de dados históricos
   logger.info('Iniciando pré-carregamento de dados históricos...');
-  socketService.loadHistoricalRouletteNumbers().catch(err => {
+  unifiedClient.fetchRouletteData().catch(err => {
     logger.error('Erro ao pré-carregar dados históricos:', err);
   });
 
