@@ -10,10 +10,13 @@
  */
 
 import { ENDPOINTS, getFullUrl } from './api/endpoints';
-import { EventService, EventBus } from './EventService';
+import EventBus from './EventBus';
 import cryptoService from '../utils/crypto-service';
 import axios from 'axios';
-import { systemEndpoints } from '@/api/endpoints';
+import eventService from './EventService';
+const EventService = eventService;
+import config from '@/config/env';
+import { toast } from '@/components/ui/use-toast';
 
 // Tipos para callbacks de eventos
 type EventCallback = (data: any) => void;
@@ -34,7 +37,6 @@ interface RouletteClientOptions {
   // Opções gerais
   enableLogging?: boolean;
   cacheTTL?: number;
-  baseUrl?: string;
 }
 
 // Interface para resposta da API
@@ -56,7 +58,7 @@ interface RouletteNumber {
  * Cliente unificado para dados de roletas
  */
 class UnifiedRouletteClient {
-  private static instance: UnifiedRouletteClient | null = null;
+  private static instance: UnifiedRouletteClient;
   
   // Estado
   private isInitialized = false;
@@ -105,23 +107,11 @@ class UnifiedRouletteClient {
   private webSocketReconnectAttempts = 0;
   private readonly maxWebSocketReconnectAttempts = 5;
   
-  private baseUrl: string = '';
-  
   /**
    * Construtor privado para garantir singleton
    */
   private constructor(options: RouletteClientOptions = {}) {
     this.log('Inicializando cliente unificado de dados de roletas');
-    
-    this.baseUrl = '';  // Inicializar com string vazia como fallback
-    
-    if (options.baseUrl) {
-      this.baseUrl = options.baseUrl;
-    } else if (typeof window !== 'undefined') {
-      // Se estiver no navegador, usar a URL atual como base
-      const location = window.location;
-      this.baseUrl = `${location.protocol}//${location.host}`;
-    }
     
     // Aplicar opções
     this.streamingEnabled = options.streamingEnabled !== false;
@@ -254,11 +244,7 @@ class UnifiedRouletteClient {
     
     // Notificar sobre a desconexão
     this.emit('disconnect', { timestamp: Date.now() });
-    if (EventService && typeof EventService.emit === 'function') {
-      EventService.emit('roulette:stream-disconnected', { timestamp: new Date().toISOString() });
-    } else {
-      console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:stream-disconnected');
-    }
+    EventService.emit('roulette:stream-disconnected', { timestamp: new Date().toISOString() });
     
     // Iniciar polling como fallback se estiver habilitado
     if (this.pollingEnabled && !this.pollingTimer) {
@@ -282,14 +268,10 @@ class UnifiedRouletteClient {
       
       // Emitir evento
       this.emit('max-reconnect', { attempts: this.streamReconnectAttempts });
-      if (EventService && typeof EventService.emit === 'function') {
-        EventService.emit('roulette:stream-max-reconnect', { 
-          attempts: this.streamReconnectAttempts,
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:stream-max-reconnect');
-      }
+      EventService.emit('roulette:stream-max-reconnect', { 
+        attempts: this.streamReconnectAttempts,
+        timestamp: new Date().toISOString()
+      });
       
       // Iniciar polling como fallback se não estiver ativo
       if (this.pollingEnabled && !this.pollingTimer) {
@@ -331,11 +313,7 @@ class UnifiedRouletteClient {
     
     // Notificar sobre conexão
     this.emit('connect', { timestamp: Date.now() });
-    if (EventService && typeof EventService.emit === 'function') {
-      EventService.emit('roulette:stream-connected', { timestamp: new Date().toISOString() });
-    } else {
-      console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:stream-connected');
-    }
+    EventService.emit('roulette:stream-connected', { timestamp: new Date().toISOString() });
     
     // Se polling estiver ativo como fallback, parar
     if (this.pollingTimer) {
@@ -396,14 +374,10 @@ class UnifiedRouletteClient {
       
       // Notificar
       this.emit('connected', data);
-      if (EventService && typeof EventService.emit === 'function') {
-        EventService.emit('roulette:stream-ready', { 
-          timestamp: new Date().toISOString(),
-          data
-        });
-      } else {
-        console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:stream-ready');
-      }
+      EventService.emit('roulette:stream-ready', { 
+        timestamp: new Date().toISOString(),
+        data
+      });
       
       // Se recebemos o evento connected, solicitar dados imediatamente
       // para garantir que temos os dados mais recentes
@@ -479,18 +453,12 @@ class UnifiedRouletteClient {
         // Atualizar cache
         this.updateCache(processedData);
         
-        // Notificar componentes sobre a atualização - usando verificação defensiva
-        if (EventService && typeof EventService.emit === 'function') {
-          EventService.emit('roulette:data-updated', { 
-            roulettes: processedData, 
-            source: 'stream-update',
-            timestamp: Date.now()
-          });
-        } else {
-          console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:data-updated');
-          // Fallback para emissão de evento interno
-          this.emit('update', processedData);
-        }
+        // Notificar componentes sobre a atualização
+        this.emitEvent('roulette:data-updated', { 
+          roulettes: processedData, 
+          source: 'stream-update',
+          timestamp: Date.now()
+        });
         
         return;
       }
@@ -525,18 +493,12 @@ class UnifiedRouletteClient {
         // Atualizar cache para esta roleta específica
         this.updateSingleRouletteCache(processedRoulette);
         
-        // Notificar sobre o novo número - usando verificação defensiva
-        if (EventService && typeof EventService.emit === 'function') {
-          EventService.emit('roulette:new-number', {
-            roulette: processedRoulette,
-            source: 'stream-update',
-            timestamp: Date.now()
-          });
-        } else {
-          console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:new-number');
-          // Fallback para emissão de evento interno
-          this.emit('new-number', processedRoulette);
-        }
+        // Notificar sobre o novo número
+        this.emitEvent('roulette:new-number', {
+          roulette: processedRoulette,
+          source: 'stream-update',
+          timestamp: Date.now()
+        });
         
         return;
       }
@@ -564,17 +526,11 @@ class UnifiedRouletteClient {
           // Atualizar cache com dados simulados e notificar
           this.updateCache(simulatedData);
           this.emit('update', simulatedData);
-          if (EventService && typeof EventService.emit === 'function') {
-            EventService.emit('roulette:data-updated', {
-              timestamp: new Date().toISOString(),
-              data: simulatedData,
-              source: 'simulation-from-crypto-service'
-            });
-          } else {
-            console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:data-updated');
-            // Fallback para emissão de evento interno
-            this.emit('update', simulatedData);
-          }
+          EventService.emit('roulette:data-updated', {
+            timestamp: new Date().toISOString(),
+            data: simulatedData,
+            source: 'simulation-from-crypto-service'
+          });
         } else {
           this.error('Formato de dados simulados inesperado do crypto-service');
           
@@ -592,17 +548,11 @@ class UnifiedRouletteClient {
           // Atualizar cache com dados simulados e notificar
           this.updateCache(manualSimulatedData);
           this.emit('update', manualSimulatedData);
-          if (EventService && typeof EventService.emit === 'function') {
-            EventService.emit('roulette:data-updated', {
-              timestamp: new Date().toISOString(),
-              data: manualSimulatedData,
-              source: 'manual-simulation-fallback'
-            });
-          } else {
-            console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:data-updated');
-            // Fallback para emissão de evento interno
-            this.emit('update', manualSimulatedData);
-          }
+          EventService.emit('roulette:data-updated', {
+            timestamp: new Date().toISOString(),
+            data: manualSimulatedData,
+            source: 'manual-simulation-fallback'
+          });
         }
       })
       .catch(error => {
@@ -622,17 +572,11 @@ class UnifiedRouletteClient {
         // Atualizar cache com dados simulados e notificar
         this.updateCache(fallbackData);
         this.emit('update', fallbackData);
-        if (EventService && typeof EventService.emit === 'function') {
-          EventService.emit('roulette:data-updated', {
-            timestamp: new Date().toISOString(),
-            data: fallbackData,
-            source: 'fallback-after-simulation-error'
-          });
-        } else {
-          console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:data-updated');
-          // Fallback para emissão de evento interno
-          this.emit('update', fallbackData);
-        }
+        EventService.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          data: fallbackData,
+          source: 'fallback-after-simulation-error'
+        });
       });
   }
   
@@ -1013,17 +957,13 @@ class UnifiedRouletteClient {
     this.log('Recebida mensagem de erro ou notificação:', JSON.stringify(data).substring(0, 100));
     
     // Emitir evento de erro
-    if (EventService && typeof EventService.emit === 'function') {
-      EventService.emit('roulette:api-message', {
-        timestamp: new Date().toISOString(),
-        type: data.error ? 'error' : 'notification',
-        message: data.message || 'Mensagem sem detalhes',
-        code: data.code,
-        data
-      });
-    } else {
-      console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:api-message');
-    }
+    EventService.emit('roulette:api-message', {
+      timestamp: new Date().toISOString(),
+      type: data.error ? 'error' : 'notification',
+      message: data.message || 'Mensagem sem detalhes',
+      code: data.code,
+      data
+    });
     
     // Notificar assinantes
     this.emit('message', data);
@@ -1077,17 +1017,11 @@ class UnifiedRouletteClient {
         
         // Emitir evento de atualização
         this.emit('update', Array.from(this.rouletteData.values()));
-        if (EventService && typeof EventService.emit === 'function') {
-          EventService.emit('roulette:data-updated', {
-            timestamp: new Date().toISOString(),
-            data: Array.from(this.rouletteData.values()),
-            source: 'decrypted-data'
-          });
-        } else {
-          console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:data-updated');
-          // Fallback para emissão de evento interno
-          this.emit('update', Array.from(this.rouletteData.values()));
-        }
+        EventService.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          data: Array.from(this.rouletteData.values()),
+          source: 'decrypted-data'
+        });
       } else {
         console.warn('[UnifiedRouletteClient] Dados descriptografados não contêm array de roletas');
       }
@@ -1096,14 +1030,10 @@ class UnifiedRouletteClient {
         console.warn('[UnifiedRouletteClient] Dados descriptografados sem estrutura esperada');
         // Tentar extrair metadados ou outras informações úteis
         if (data && typeof data === 'object') {
-          if (EventService && typeof EventService.emit === 'function') {
-            EventService.emit('roulette:metadata', {
-              timestamp: new Date().toISOString(),
-              data
-            });
-          } else {
-            console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:metadata');
-          }
+          EventService.emit('roulette:metadata', {
+            timestamp: new Date().toISOString(),
+            data
+          });
         }
         
         // Tentar reconectar via SSE 
@@ -1125,15 +1055,11 @@ class UnifiedRouletteClient {
     console.log(`[UnifiedRouletteClient] Notificação (${type}): ${message}`);
     
     // Emitir evento de notificação
-    if (EventService && typeof EventService.emit === 'function') {
-      EventService.emit('notification', {
-        type,
-        message,
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:notification');
-    }
+    EventService.emit('notification', {
+      type,
+      message,
+      timestamp: new Date().toISOString()
+    });
   }
   
   /**
@@ -1194,13 +1120,9 @@ class UnifiedRouletteClient {
     
     // Notificar sobre a conexão
     this.emit('websocket-connected', { timestamp: new Date().toISOString() });
-    if (EventService && typeof EventService.emit === 'function') {
-      EventService.emit('roulette:websocket-connected', {
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:websocket-connected');
-    }
+    EventService.emit('roulette:websocket-connected', {
+      timestamp: new Date().toISOString()
+    });
   }
   
   /**
@@ -1248,34 +1170,22 @@ class UnifiedRouletteClient {
         
         // Emitir evento de atualização
         this.emit('update', rouletteData);
-        if (EventService && typeof EventService.emit === 'function') {
-          EventService.emit('roulette:data-updated', {
-            timestamp: new Date().toISOString(),
-            data: rouletteData,
-            source: 'websocket'
-          });
-        } else {
-          console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:data-updated');
-          // Fallback para emissão de evento interno
-          this.emit('update', rouletteData);
-        }
+        EventService.emit('roulette:data-updated', {
+          timestamp: new Date().toISOString(),
+          data: rouletteData,
+          source: 'websocket'
+        });
       } else if (message.type === 'roulettes' || message.type === 'roletas' || message.type === 'list') {
         // Lista completa de roletas
         if (Array.isArray(message.data)) {
           this.log(`Recebida lista com ${message.data.length} roletas do WebSocket`);
           this.updateCache(message.data);
           this.emit('update', message.data);
-          if (EventService && typeof EventService.emit === 'function') {
-            EventService.emit('roulette:all-data-updated', {
-              timestamp: new Date().toISOString(),
-              data: message.data,
-              source: 'websocket'
-            });
-          } else {
-            console.warn('[UnifiedRouletteClient] EventService.emit não disponível para roulette:all-data-updated');
-            // Fallback para emissão de evento interno
-            this.emit('update', message.data);
-          }
+          EventService.emit('roulette:all-data-updated', {
+            timestamp: new Date().toISOString(),
+            data: message.data,
+            source: 'websocket'
+          });
         }
       } else if (message.type === 'auth-result') {
         // Resultado de autenticação
@@ -1597,53 +1507,21 @@ class UnifiedRouletteClient {
   }
 
   /**
-   * Verifica se a API está disponível através de uma requisição ao endpoint de health check
-   * @returns Promise<boolean> Indicando se a API está online
+   * Emite um evento de forma segura
+   * @param eventName Nome do evento
+   * @param data Dados do evento
    */
-  public async checkAPIHealth(): Promise<boolean> {
-    try {
-      // Verificar se o endpoint está configurado
-      if (!systemEndpoints?.healthCheck) {
-        console.log('[UnifiedRouletteClient] Endpoint de health check não configurado, assumindo que API está online');
-        return true;
+  protected emitEvent(eventName: string, data: any): void {
+    // Emitir evento próprio internamente
+    this.emit(eventName, data);
+    
+    // Emitir através do EventService se disponível
+    if (EventService && typeof EventService.emit === 'function') {
+      try {
+        EventService.emit(eventName, data);
+      } catch (error) {
+        console.error(`[UnifiedRouletteClient] Erro ao emitir evento ${eventName}:`, error);
       }
-
-      // Configurar um timeout para a requisição
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
-      // Tentar fazer a requisição ao endpoint de health
-      const baseUrl = this.baseUrl || '';
-      const response = await fetch(`${baseUrl}${systemEndpoints.healthCheck}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        signal: controller.signal
-      });
-      
-      // Limpar o timeout
-      clearTimeout(timeoutId);
-      
-      // Verificar o status da resposta
-      if (response.status === 200) {
-        console.log('[UnifiedRouletteClient] API está online (status 200)');
-        return true;
-      } else if (response.status === 404) {
-        // Se retornar 404, ainda consideramos que o servidor está respondendo
-        console.log('[UnifiedRouletteClient] Endpoint de health check não encontrado (404), mas servidor está respondendo');
-        return true;
-      } else {
-        console.warn(`[UnifiedRouletteClient] API respondeu com status inesperado: ${response.status}`);
-        return false;
-      }
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        console.warn('[UnifiedRouletteClient] Timeout ao verificar saúde da API');
-      } else {
-        console.error('[UnifiedRouletteClient] Erro ao verificar saúde da API:', error);
-      }
-      return false;
     }
   }
 }

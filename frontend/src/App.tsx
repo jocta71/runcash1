@@ -54,23 +54,33 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
     console.log('Forçando reconexão do stream...');
     
     if (clientRef.current) {
-      clientRef.current.forceReconnectStream();
-      
-      // Após reconectar, tentar buscar dados novos
-      setTimeout(async () => {
-        try {
-          const newData = await clientRef.current?.forceUpdate();
-          if (newData && newData.length > 0) {
-            console.log(`Reconexão bem-sucedida. ${newData.length} roletas carregadas`);
-            setRouletteData(newData);
-            setIsDataLoaded(true);
+      try {
+        clientRef.current.forceReconnectStream();
+        
+        // Após reconectar, tentar buscar dados novos
+        setTimeout(async () => {
+          try {
+            // Verificação defensiva
+            if (clientRef.current && typeof clientRef.current.forceUpdate === 'function') {
+              const newData = await clientRef.current.forceUpdate();
+              if (newData && newData.length > 0) {
+                console.log(`Reconexão bem-sucedida. ${newData.length} roletas carregadas`);
+                setRouletteData(newData);
+                setIsDataLoaded(true);
+              }
+            } else {
+              console.warn('Método forceUpdate não disponível no cliente');
+            }
+          } catch (err) {
+            console.error('Erro ao recarregar dados após reconexão:', err);
+          } finally {
+            setReconnecting(false);
           }
-        } catch (err) {
-          console.error('Erro ao recarregar dados após reconexão:', err);
-        } finally {
-          setReconnecting(false);
-        }
-      }, 2000);
+        }, 2000);
+      } catch (error) {
+        console.error('Erro ao forçar reconexão:', error);
+        setReconnecting(false);
+      }
     } else {
       console.error('Cliente não inicializado');
       setReconnecting(false);

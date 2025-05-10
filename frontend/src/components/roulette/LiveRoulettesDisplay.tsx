@@ -8,8 +8,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ExtendedRouletteData, RouletteTable } from "@/types/roulette";
 import { useLocationContext } from "@/context/LocationContext";
-import { EventService } from "@/services/EventService";
 import { RouletteStatsInline } from '@/components/roulette/RouletteStatsInline';
+
+// Importar EventService de forma segura
+import eventService from '@/services/EventService';
+const EventService = eventService;
 
 interface LiveRoulettesDisplayProps {
   roulettesData?: ExtendedRouletteData[]; // Opcional para manter compatibilidade retroativa
@@ -104,21 +107,21 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     }
     
     // Verificar cache do feedService (terceira prioridade)
-    const cachedRoulettes = feedService.getAllRoulettes();
-    if (cachedRoulettes && cachedRoulettes.length > 0) {
-      console.log(`[LiveRoulettesDisplay] Usando ${cachedRoulettes.length} roletas do cache centralizado`);
+      const cachedRoulettes = feedService.getAllRoulettes();
+      if (cachedRoulettes && cachedRoulettes.length > 0) {
+        console.log(`[LiveRoulettesDisplay] Usando ${cachedRoulettes.length} roletas do cache centralizado`);
       const formattedData = formatRouletteData(cachedRoulettes as ExtendedRouletteData[]);
       setRoulettes(formattedData);
-      setIsLoading(false);
+        setIsLoading(false);
       return; // Encerrar aqui
     }
-    
+        
     // Timeout mais curto para fallback (última opção)
-    console.log('[LiveRoulettesDisplay] Aguardando dados serem carregados pela inicialização central');
+        console.log('[LiveRoulettesDisplay] Aguardando dados serem carregados pela inicialização central');
     const delayTimeout = setTimeout(() => {
-      const delayedRoulettes = feedService.getAllRoulettes();
-      if (delayedRoulettes && delayedRoulettes.length > 0) {
-        console.log(`[LiveRoulettesDisplay] Dados recebidos após espera: ${delayedRoulettes.length} roletas`);
+          const delayedRoulettes = feedService.getAllRoulettes();
+          if (delayedRoulettes && delayedRoulettes.length > 0) {
+            console.log(`[LiveRoulettesDisplay] Dados recebidos após espera: ${delayedRoulettes.length} roletas`);
         const formattedData = formatRouletteData(delayedRoulettes as ExtendedRouletteData[]);
         setRoulettes(formattedData);
       }
@@ -150,41 +153,45 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       
       // Pequeno delay para mostrar o indicador de atualização
       setTimeout(() => {
-        // Obter dados atualizados do cache
-        const updatedRoulettes = feedService.getAllRoulettes();
-        
-        if (updatedRoulettes && updatedRoulettes.length > 0) {
-          console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
+        try {
+          // Obter dados atualizados do cache
+          const updatedRoulettes = feedService.getAllRoulettes();
           
-          // Formatar dados para garantir consistência
-          const formattedData = formatRouletteData(updatedRoulettes as ExtendedRouletteData[]);
-          
-          // Atualizar o estado com os dados formatados
-          setRoulettes(formattedData);
-          setIsLoading(false);
-          
-          // Se ainda não houver roleta selecionada, selecionar a segunda
-          if (!selectedRoulette && formattedData.length > 1) {
-            setSelectedRoulette(formattedData[1]);
-            setShowStatsInline(true);
-          } else if (selectedRoulette) {
-            // Atualizar a roleta selecionada com dados mais recentes
-            const updatedSelectedRoulette = formattedData.find(r => 
-              r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
-            );
+          if (updatedRoulettes && updatedRoulettes.length > 0) {
+            console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
             
-            if (updatedSelectedRoulette) {
-              setSelectedRoulette(updatedSelectedRoulette);
+            // Formatar dados para garantir consistência
+            const formattedData = formatRouletteData(updatedRoulettes as ExtendedRouletteData[]);
+            
+            // Atualizar o estado com os dados formatados
+            setRoulettes(formattedData);
+            setIsLoading(false);
+            
+            // Se ainda não houver roleta selecionada, selecionar a segunda
+            if (!selectedRoulette && formattedData.length > 1) {
+              setSelectedRoulette(formattedData[1]);
+              setShowStatsInline(true);
+            } else if (selectedRoulette) {
+              // Atualizar a roleta selecionada com dados mais recentes
+              const updatedSelectedRoulette = formattedData.find(r => 
+                r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
+              );
+              
+              if (updatedSelectedRoulette) {
+                setSelectedRoulette(updatedSelectedRoulette);
+              }
             }
           }
+        } catch (error) {
+          console.error('[LiveRoulettesDisplay] Erro ao processar dados atualizados:', error);
+        } finally {
+          // Sempre terminar a atualização
+          setUpdatingData(false);
         }
-        
-        // Terminar a atualização
-        setUpdatingData(false);
       }, 300);
     };
     
-    // Inscrever-se nos eventos de maneira segura
+    // Verificação defensiva antes de inscrever nos eventos
     if (EventService && typeof EventService.on === 'function') {
       // Inscrever-se no evento de atualização de dados
       EventService.on('roulette:data-updated', handleDataUpdated);
@@ -199,10 +206,10 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
           EventService.off('roulette:new-number', handleDataUpdated);
         }
       };
-    } else {
-      console.warn('[LiveRoulettesDisplay] EventService não disponível para inscrição em eventos');
-      return () => {}; // Retornar uma função de limpeza vazia
     }
+    
+    // Se EventService não estiver disponível, retornar noop
+    return () => {};
   }, [feedService, selectedRoulette]);
 
   // Função para selecionar uma roleta e mostrar estatísticas ao lado
@@ -233,26 +240,26 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
                 <span>Atualizando...</span>
               </div>
             )}
-            <div className="relative w-64">
-              <input 
-                type="text" 
-                placeholder="Buscar roleta..." 
-                className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-              <svg 
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
-                width="16" 
-                height="16" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
+          <div className="relative w-64">
+            <input 
+              type="text" 
+              placeholder="Buscar roleta..." 
+              className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            <svg 
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+              width="16" 
+              height="16" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
             </div>
           </div>
         </div>
