@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { AlertCircle, PackageOpen, Loader2, Copy } from 'lucide-react';
-import RouletteCard from '@/components/RouletteCard';
 import Layout from '@/components/Layout';
+import RouletteCard from '@/components/RouletteCard';
 import { RouletteRepository } from '../services/data/rouletteRepository';
 import { RouletteData } from '@/types';
 import EventService, { RouletteNumberEvent, StrategyUpdateEvent } from '@/services/EventService';
@@ -24,8 +24,10 @@ import { useSubscription } from '@/context/SubscriptionContext';
 import SubscriptionRequired from '@/components/SubscriptionRequired';
 import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
 import UnifiedRouletteClient from '@/services/UnifiedRouletteClient';
-import EventBus from '@/services/EventBus';
+import EventBus from '../services/EventBus';
 import { Helmet } from 'react-helmet-async';
+import { Spinner } from '@/components/ui/spinner';
+import NavigationBar from '@/components/NavigationBar';
 
 
 
@@ -993,11 +995,59 @@ const Index = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 pt-4 md:pt-8 min-h-[80vh] relative">
+        {/* Barra de navegação com ícones para diferentes seções */}
+        <NavigationBar />
+        
+        {/* Cabeçalho com título da página */}
+        <h1 className="text-2xl font-bold mb-4">
+          Dashboard de Roletas
+        </h1>
+        
+        {/* Mensagem de carregamento */}
+        {isLoading && (
+          <div className="flex justify-center items-center p-4">
+            <div className="animate-spin h-6 w-6 border-2 border-blue-500 rounded-full border-t-transparent"></div>
+            <span className="ml-2">Carregando dados das roletas...</span>
+          </div>
+        )}
+        
         {/* Mensagem de erro */}
         {error && (
-          <div className="bg-red-900/30 border border-red-500 p-4 mb-6 rounded-lg flex items-center z-50 relative">
-            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-            <p className="text-red-100">{error}</p>
+          <div className="p-4 mb-4 bg-red-100 border border-red-300 rounded-md text-red-800">
+            <p className="font-semibold">Erro ao carregar dados:</p>
+            <p>{error}</p>
+            <button 
+              className="mt-2 px-3 py-1 bg-red-200 hover:bg-red-300 rounded-md"
+              onClick={() => window.location.reload()}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
+        
+        {/* Mensagem de nenhum dado disponível */}
+        {!isLoading && !error && roulettes.length === 0 && (
+          <div className="p-4 mb-4 bg-yellow-100 border border-yellow-300 rounded-md text-yellow-800">
+            <p className="font-semibold">Nenhuma roleta disponível no momento.</p>
+            <p>Estamos tentando conectar aos servidores. Por favor, aguarde alguns instantes ou tente novamente mais tarde.</p>
+            <p className="mt-2 text-sm">Se o problema persistir, verifique sua conexão à internet.</p>
+            <button 
+              className="mt-2 px-3 py-1 bg-yellow-200 hover:bg-yellow-300 rounded-md"
+              onClick={() => {
+                setIsLoading(true);
+                setError(null);
+                // Forçar nova tentativa de conexão
+                const client = UnifiedRouletteClient.getInstance();
+                client.connectStream();
+                // Tentar novamente após um breve atraso
+                setTimeout(() => {
+                  setIsLoading(false);
+                  loadRouletteData();
+                }, 3000);
+              }}
+            >
+              Tentar novamente
+            </button>
           </div>
         )}
         

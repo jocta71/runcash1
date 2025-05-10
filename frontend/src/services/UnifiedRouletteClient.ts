@@ -11,8 +11,8 @@
 
 import { ENDPOINTS, getFullUrl } from './api/endpoints';
 import EventBus from './EventBus';
-import cryptoService from '../utils/crypto-service';
 import axios from 'axios';
+import { mockRouletteData } from '../utils/mock/roulette-data';
 
 // Tipos para callbacks de eventos
 type EventCallback = (data: any) => void;
@@ -47,7 +47,20 @@ interface ApiResponse<T> {
 // Interface para dados históricos (adaptar se necessário)
 interface RouletteNumber {
   numero: number;
-  timestamp: string; // ou Date
+  cor: string;
+  timestamp: string;
+}
+
+interface Roulette {
+  roleta_id: string;
+  casa_de_aposta: string;
+  tipo_de_roleta: string;
+  status: string;
+  numeros: RouletteNumber[];
+  ultima_atualizacao: string;
+  estrategias: any[];
+  connected: boolean;
+  is_simulated?: boolean;
 }
 
 /**
@@ -185,25 +198,67 @@ class UnifiedRouletteClient {
     this.isStreamConnecting = true;
     this.log(`Conectando ao stream SSE: ${ENDPOINTS.STREAM.ROULETTES}`);
     
+    // Usar dados simulados se o cache estiver vazio
+    if (this.rouletteData.size === 0) {
+      setTimeout(() => {
+        this.log('Usando dados simulados enquanto conecta ao stream');
+        this.useSimulatedData();
+      }, 500);
+    }
+    
     try {
+      // Criar um timeout para cancelar a tentativa de conectar se demorar muito
+      const connectionTimeoutId = setTimeout(() => {
+        this.log('Timeout ao tentar conectar ao stream. Usando dados simulados.');
+        if (this.isStreamConnecting) {
+          this.isStreamConnecting = false;
+          UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+          
+          if (this.eventSource) {
+            this.eventSource.close();
+            this.eventSource = null;
+          }
+          
+          // Usar dados simulados como fallback
+          this.useSimulatedData();
+          
+          // Iniciar polling como fallback
+          this.startPolling();
+        }
+      }, 5000); // 5 segundos de timeout
+      
       // Parar polling se estiver ativo, já que vamos usar o streaming
       this.stopPolling();
       
       // Construir URL com query params para autenticação, se necessário
       let streamUrl = ENDPOINTS.STREAM.ROULETTES;
-      if (cryptoService.hasAccessKey()) {
-        const accessKey = cryptoService.getAccessKey();
-        if (accessKey) {
-          streamUrl += `?key=${encodeURIComponent(accessKey)}`;
+      
+      // Tentar carregar chave de acesso se disponível
+      try {
+        // Verificar se existe uma chave de acesso no localStorage
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const accessKey = window.localStorage.getItem('roulette_access_key');
+          if (accessKey) {
+            streamUrl += `?key=${encodeURIComponent(accessKey)}`;
+          }
         }
+      } catch (error) {
+        this.error('Erro ao tentar obter chave de acesso:', error);
       }
       
       // Criar conexão SSE
       this.eventSource = new EventSource(streamUrl);
       
       // Configurar handlers de eventos
-      this.eventSource.onopen = this.handleStreamOpen.bind(this);
-      this.eventSource.onerror = this.handleStreamError.bind(this);
+      this.eventSource.onopen = (event) => {
+        clearTimeout(connectionTimeoutId);
+        this.handleStreamOpen();
+      };
+      
+      this.eventSource.onerror = (event) => {
+        clearTimeout(connectionTimeoutId);
+        this.handleStreamError(event);
+      };
       
       // Eventos específicos
       this.eventSource.addEventListener('update', this.handleStreamUpdate.bind(this));
@@ -213,6 +268,11 @@ class UnifiedRouletteClient {
       this.isStreamConnecting = false;
       UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
       this.reconnectStream();
+      
+      // Usar dados simulados como fallback
+      setTimeout(() => {
+        this.useSimulatedData();
+      }, 500);
     }
   }
   
@@ -361,7 +421,7 @@ class UnifiedRouletteClient {
       
       // Tentar extrair a chave de acesso do evento connected
       try {
-        const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(data);
+        const keyExtracted = this.extractAndSetAccessKeyFromEvent(data);
         if (keyExtracted) {
           this.log('✅ Chave de acesso extraída e configurada a partir do evento connected');
         } else {
@@ -424,8 +484,8 @@ class UnifiedRouletteClient {
       }
       
       // Tentar extrair chave de acesso se ainda não tivermos
-      if (!cryptoService.hasAccessKey()) {
-        const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(parsedData);
+      if (!this.hasAccessKey()) {
+        const keyExtracted = this.extractAndSetAccessKeyFromEvent(parsedData);
         if (keyExtracted) {
           this.log('✅ Chave de acesso extraída e configurada a partir do evento update');
         }
@@ -487,73 +547,33 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Gera e utiliza dados simulados como fallback quando a descriptografia falha
+   * Usa dados simulados quando a API não está disponível
+   * Usado como fallback
    */
   private useSimulatedData(): void {
-    this.log('Usando dados simulados do crypto-service como fallback');
+    this.log('Gerando dados simulados de roleta para fallback');
     
-    // Usar os dados simulados do crypto-service em vez de criar manualmente
-    cryptoService.decryptData('dummy')
-      .then(simulatedResponse => {
-        if (simulatedResponse && simulatedResponse.data && simulatedResponse.data.roletas) {
-          const simulatedData = simulatedResponse.data.roletas;
-          this.log(`Usando ${simulatedData.length} roletas simuladas do crypto-service`);
-          
-          // Atualizar cache com dados simulados e notificar
-          this.updateCache(simulatedData);
-          this.emit('update', simulatedData);
-          EventBus.emit('roulette:data-updated', {
-            timestamp: new Date().toISOString(),
-            data: simulatedData,
-            source: 'simulation-from-crypto-service'
-          });
-        } else {
-          this.error('Formato de dados simulados inesperado do crypto-service');
-          
-          // Criar roletas simuladas manualmente como fallback
-          const manualSimulatedData = [{
-            id: 'simulated_recovery_' + Date.now(),
-            nome: 'Roleta Simulada Fallback',
-            provider: 'Fallback de Simulação',
-            status: 'online',
-            numeros: Array.from({length: 20}, () => Math.floor(Math.random() * 37)),
-            ultimoNumero: Math.floor(Math.random() * 37),
-            horarioUltimaAtualizacao: new Date().toISOString()
-          }];
-          
-          // Atualizar cache com dados simulados e notificar
-          this.updateCache(manualSimulatedData);
-          this.emit('update', manualSimulatedData);
-          EventBus.emit('roulette:data-updated', {
-            timestamp: new Date().toISOString(),
-            data: manualSimulatedData,
-            source: 'manual-simulation-fallback'
-          });
-        }
-      })
-      .catch(error => {
-        this.error('Erro ao obter dados simulados do crypto-service:', error);
-        
-        // Fallback para dados simulados manualmente em caso de erro
-        const fallbackData = [{
-          id: 'fallback_' + Date.now(),
-          nome: 'Roleta Fallback',
-          provider: 'Erro de Simulação',
-          status: 'online',
-          numeros: Array.from({length: 20}, () => Math.floor(Math.random() * 37)),
-          ultimoNumero: Math.floor(Math.random() * 37),
-          horarioUltimaAtualizacao: new Date().toISOString()
-        }];
-        
-        // Atualizar cache com dados simulados e notificar
-        this.updateCache(fallbackData);
-        this.emit('update', fallbackData);
-        EventBus.emit('roulette:data-updated', {
-          timestamp: new Date().toISOString(),
-          data: fallbackData,
-          source: 'fallback-after-simulation-error'
-        });
-      });
+    // Usar os dados simulados pré-gerados
+    const roletasSimuladas = mockRouletteData;
+    
+    // Atualizar o cache com os dados simulados
+    roletasSimuladas.forEach(roleta => {
+      this.rouletteData.set(roleta.roleta_id, roleta);
+    });
+    
+    // Emitir evento de que os dados foram carregados
+    this.emitEvent('roulettes_loaded', Array.from(this.rouletteData.values()));
+    this.log(`${roletasSimuladas.length} roletas simuladas foram carregadas`);
+  }
+  
+  /**
+   * Retorna a cor para um número da roleta
+   */
+  private getColorForNumber(number: number): string {
+    if (number === 0) return "verde";
+    
+    const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    return redNumbers.includes(number) ? "vermelho" : "preto";
   }
   
   /**
@@ -728,9 +748,24 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Obtém todos os dados de roletas
+   * Retorna todas as roletas disponíveis
+   * Método seguro para uso externo que nunca retorna nulo
    */
   public getAllRoulettes(): any[] {
+    // Se não tivermos dados, tentar buscar
+    if (this.rouletteData.size === 0) {
+      // Tentar buscar dados de forma assíncrona, mas não esperar
+      this.fetchData().then(() => {
+        this.log('Dados carregados com sucesso');
+      }).catch(error => {
+        this.error('Erro ao carregar dados:', error);
+      });
+      
+      // Enquanto isso, retornar dados simulados para não bloquear a UI
+      this.useSimulatedData();
+    }
+    
+    // Retornar o que temos no cache
     return Array.from(this.rouletteData.values());
   }
   
@@ -975,6 +1010,176 @@ class UnifiedRouletteClient {
       isCacheValid: this.isCacheValid(),
       hasHistoricalData: this.initialHistoricalDataCache.size > 0
     };
+  }
+
+  /**
+   * Emite um evento para os assinantes
+   */
+  private emitEvent(eventName: string, data: any): void {
+    try {
+      // Emitir através do EventBus
+      EventBus.emit(eventName, data);
+      
+      // Emitir através do sistema de eventos interno
+      this.emit(eventName, data);
+    } catch (error) {
+      this.error(`Erro ao emitir evento ${eventName}:`, error);
+    }
+  }
+
+  /**
+   * Tenta extrair chave de acesso de um evento
+   * @private
+   */
+  private extractAndSetAccessKeyFromEvent(data: any): boolean {
+    try {
+      let parsedData = data;
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          // Ignorar, não é um JSON válido
+          return false;
+        }
+      }
+      
+      // Verificar campos comuns que podem conter a chave
+      let accessKey = null;
+      if (parsedData?.key) accessKey = parsedData.key;
+      if (parsedData?.accessKey) accessKey = parsedData.accessKey;
+      if (parsedData?.data?.key) accessKey = parsedData.data.key;
+      if (parsedData?.data?.accessKey) accessKey = parsedData.data.accessKey;
+      
+      if (accessKey) {
+        this.log(`Chave de acesso encontrada no evento: ${accessKey.substring(0, 5)}...`);
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('roulette_access_key', accessKey);
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      this.error('Erro ao extrair chave de acesso do evento:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Verifica se existe uma chave de acesso
+   * @private
+   */
+  private hasAccessKey(): boolean {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return !!window.localStorage.getItem('roulette_access_key');
+    }
+    return false;
+  }
+
+  /**
+   * Processa dados criptografados recebidos
+   * NOTA: Esta implementação simples apenas retorna os dados como estão
+   */
+  private async processEncryptedData(data: any): Promise<any> {
+    // Esta é uma versão simplificada que apenas retorna os dados recebidos
+    // Em uma implementação real, aqui seria feita a descriptografia
+    try {
+      return data;
+    } catch (error) {
+      this.error('Erro ao processar dados criptografados:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Busca dados das roletas
+   * @param forceRefresh Força uma atualização dos dados
+   * @returns Dados das roletas
+   */
+  public async fetchData(forceRefresh: boolean = false): Promise<any[]> {
+    try {
+      this.log('Buscando dados das roletas...');
+      
+      // Se já temos dados em cache e não foi solicitado forceRefresh, retornar cache
+      if (!forceRefresh && this.rouletteData.size > 0) {
+        this.log(`Retornando ${this.rouletteData.size} roletas do cache`);
+        return Array.from(this.rouletteData.values());
+      }
+      
+      // Tentar conectar ao stream se ainda não estiver conectado
+      if (!this.isStreamConnected && !this.isStreamConnecting) {
+        this.log('Stream não está conectado, tentando conectar');
+        this.connectStream();
+        
+        // Aguardar um pouco para dar tempo de conectar
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Se temos dados após a conexão, retornar
+      if (this.rouletteData.size > 0) {
+        this.log(`Stream conectado, retornando ${this.rouletteData.size} roletas`);
+        return Array.from(this.rouletteData.values());
+      }
+      
+      // Tentar buscar dados da API REST como fallback
+      this.log('Tentando buscar dados da API REST como fallback');
+      try {
+        const url = getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          this.error(`Erro na API REST: ${response.status} ${response.statusText}`);
+          throw new Error(`Erro na requisição: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (Array.isArray(data) && data.length > 0) {
+          this.log(`Recebidas ${data.length} roletas da API REST`);
+          
+          // Atualizar cache com os dados recebidos
+          data.forEach(roleta => {
+            if (roleta && roleta.roleta_id) {
+              this.rouletteData.set(roleta.roleta_id, roleta);
+            }
+          });
+          
+          return data;
+        } else {
+          this.error('API REST retornou dados inválidos ou vazios');
+          throw new Error('Dados inválidos recebidos da API');
+        }
+      } catch (apiError) {
+        this.error('Erro ao buscar dados da API REST:', apiError);
+        
+        // Se ainda não temos dados após todas as tentativas, usar dados simulados
+        if (this.rouletteData.size === 0) {
+          this.log('Usando dados simulados como último recurso');
+          this.useSimulatedData();
+          return Array.from(this.rouletteData.values());
+        }
+      }
+      
+      // Se chegamos aqui e ainda temos dados no cache, retornar o cache
+      if (this.rouletteData.size > 0) {
+        return Array.from(this.rouletteData.values());
+      }
+      
+      // Se tudo falhar, retornar dados simulados
+      this.useSimulatedData();
+      return Array.from(this.rouletteData.values());
+    } catch (error) {
+      this.error('Erro ao buscar dados:', error);
+      
+      // Garantir que sempre retornamos alguma coisa
+      if (this.rouletteData.size > 0) {
+        return Array.from(this.rouletteData.values());
+      }
+      
+      // Último recurso: dados simulados
+      this.useSimulatedData();
+      return Array.from(this.rouletteData.values());
+    }
   }
 }
 
