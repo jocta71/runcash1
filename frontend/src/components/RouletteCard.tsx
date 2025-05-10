@@ -492,22 +492,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
       </CardHeader>
 
       <CardContent className="p-4 relative z-10">
-        {/* Cabeçalho */}
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold truncate text-white flex items-center">
-            <span className="w-2 h-2 rounded-full bg-vegas-green mr-2"></span>
-            {safeData.name}
-          </h3>
-          <div className="flex gap-1 items-center">
-            <Badge 
-              variant={rouletteData ? "secondary" : "default"} 
-              className={`text-xs ${rouletteData ? 'text-vegas-green border border-vegas-green/30' : 'bg-gray-700/50 text-gray-300'}`}
-            >
-              {rouletteData ? "Online" : "Sem dados"}
-            </Badge>
-          </div>
-        </div>
-        
         {/* Números recentes */}
         <div className="flex justify-center items-center space-x-1 min-h-[40px]">
           {lastNumbersToDisplay.slice(0, 5).map((num, index) => (
