@@ -203,6 +203,9 @@ export default class RouletteFeedService {
   // Adicionar propriedade isConnected
   private isConnected: boolean = false;
 
+  // Adicionar propriedade lastReceivedTime
+  private lastReceivedTime: number = 0;
+
   /**
    * O construtor configura os parâmetros iniciais e inicia o serviço
    * @param options Opções de configuração para o serviço
@@ -1725,18 +1728,28 @@ export default class RouletteFeedService {
     }
 
     try {
-      this.sseConnection = new EventSource('/api/stream/roulettes');
+      const sseUrl = 'https://starfish-app-fubxw.ondigitalocean.app/api/stream/roulettes';
+      this.sseConnection = new EventSource(sseUrl);
       
       this.sseConnection.onopen = () => {
         logger.info('✅ Conexão SSE estabelecida');
         this.reconnectAttempts = 0;
         this.isConnected = true;
+        
+        // Emitir evento de conexão bem-sucedida
+        EventService.emit('roulette:sse-connected', {
+          timestamp: Date.now(),
+          url: sseUrl
+        });
       };
 
       this.sseConnection.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           this.handleRouletteData(data);
+          
+          // Atualizar timestamp do último recebimento
+          this.lastReceivedTime = Date.now();
         } catch (error) {
           logger.error('❌ Erro ao processar mensagem SSE:', error);
         }
@@ -1748,20 +1761,32 @@ export default class RouletteFeedService {
         
         if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
           this.reconnectAttempts++;
-          logger.info(`🔄 Tentativa de reconexão ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS}`);
-          setTimeout(() => this.initializeSSE(), this.SSE_RECONNECT_DELAY);
+          const delay = this.SSE_RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts - 1);
+          logger.info(`🔄 Tentativa de reconexão ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS} em ${delay}ms`);
+          
+          setTimeout(() => this.initializeSSE(), delay);
         } else {
           logger.error('❌ Máximo de tentativas de reconexão atingido');
           EventService.emit('roulette:sse-connection-failed', {
             attempts: this.reconnectAttempts,
-            lastError: error
+            lastError: error,
+            url: sseUrl
           });
+          
+          // Tentar reconexão após um tempo maior
+          setTimeout(() => {
+            this.reconnectAttempts = 0;
+            this.initializeSSE();
+          }, 30000); // 30 segundos
         }
       };
 
     } catch (error) {
       logger.error('❌ Erro ao inicializar conexão SSE:', error);
       this.isConnected = false;
+      
+      // Tentar reconexão após erro
+      setTimeout(() => this.initializeSSE(), this.SSE_RECONNECT_DELAY);
     }
   }
 
