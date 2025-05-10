@@ -22,6 +22,9 @@ import {
 } from '@/integrations/asaas/client';
 import { useSubscription } from '@/context/SubscriptionContext';
 import SubscriptionRequired from '@/components/SubscriptionRequired';
+import { EmptyState } from '@/components/ui/empty-state';
+import { DatabaseIcon } from 'lucide-react';
+import UnifiedRouletteClient from '@/services/UnifiedRouletteClient';
 
 
 
@@ -472,7 +475,28 @@ const Index = () => {
 
   // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
+    console.log("[DEBUG] Chamando renderRouletteCards");
+    console.log("[DEBUG] roulettes:", roulettes);
+    
     if (!Array.isArray(roulettes) || roulettes.length === 0) {
+      console.log("[DEBUG] Não há roletas para renderizar. Array vazio ou inválido:", roulettes);
+      
+      // Verificar se há roletas disponíveis, independente do filtro
+      try {
+        // Tentar obter todas as roletas do UnifiedClient diretamente
+        const client = UnifiedRouletteClient.getInstance();
+        const allRouletteData = client.getAllRoulettes();
+        console.log("[DEBUG] AllRoulettes do UnifiedClient:", allRouletteData?.length || 0);
+        
+        if (allRouletteData.length > 0) {
+          console.log("[DEBUG] Existem roletas no UnifiedClient, mas o array roulettes está vazio.");
+          console.log("[DEBUG] Isso pode indicar que os eventos não estão sendo processados corretamente.");
+        }
+      } catch (error) {
+        console.error("[DEBUG] Erro ao buscar todas as roletas:", error);
+      }
+      
+      // Retorne o conteúdo original quando não houver roletas
       console.log('[DEBUG] Não há roletas para renderizar. Array vazio ou inválido:', roulettes);
       return null;
     }
@@ -533,7 +557,7 @@ const Index = () => {
         derrotas: typeof roulette.derrotas === 'number' ? roulette.derrotas : 0,
         estado_estrategia: roulette.estado_estrategia || ''
       };
-      
+
       return (
         <div 
           key={id} 
