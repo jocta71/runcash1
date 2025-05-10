@@ -346,7 +346,7 @@ class UnifiedRouletteClient {
     this.log(`Agendando reconexão em ${delay}ms (tentativa ${this.streamReconnectAttempts + 1})`);
     
     setTimeout(() => {
-      this.reconnectStream();
+    this.reconnectStream();
     }, delay);
     
     // Iniciar polling como fallback
@@ -470,7 +470,7 @@ class UnifiedRouletteClient {
         
         // Notificar sobre a atualização dos dados
         this.emit('update', { roulettes: processedData, timestamp: new Date().toISOString() });
-        EventBus.emit('roulette:data-updated', { 
+        EventBus.emit('roulette:data-updated', {
           roulettes: processedData, 
           source: 'stream-sse', 
           timestamp: new Date().toISOString() 
@@ -853,7 +853,7 @@ class UnifiedRouletteClient {
     if (!this.eventCallbacks.has(event)) {
       this.eventCallbacks.set(event, new Set());
     }
-
+    
     // Verificar se o callback já está registrado
     if (this.eventCallbacks.get(event)!.has(callback)) {
       this.warn('⚠️ Callback já registrado para evento:', event);
@@ -891,11 +891,11 @@ class UnifiedRouletteClient {
       this.error('❌ Tentativa de remover callback inválido');
       return;
     }
-
+    
     try {
       if (this.eventCallbacks.has(event)) {
         const initialSize = this.eventCallbacks.get(event)!.size;
-        this.eventCallbacks.get(event)!.delete(callback);
+    this.eventCallbacks.get(event)!.delete(callback);
         
         if (this.eventCallbacks.get(event)!.size < initialSize) {
           this.log(`➖ Callback removido do evento: ${event}`);
@@ -1640,7 +1640,7 @@ class UnifiedRouletteClient {
           
           // Atualizar timestamp do último recebimento
           this.lastReceivedAt = Date.now();
-        } catch (error) {
+      } catch (error) {
           this.error('❌ Erro ao processar mensagem SSE:', error);
         }
       };

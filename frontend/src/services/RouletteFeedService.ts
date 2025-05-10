@@ -318,9 +318,9 @@ export default class RouletteFeedService {
         this.startSyncUpdates();
         
         // Resolver com informações sobre a inicialização
-        this.initialized = true;
-        this.isInitialized = true;
-        
+            this.initialized = true;
+            this.isInitialized = true;
+            
         logger.info('✅ RouletteFeedService inicializado e pronto para uso');
         EventService.emit('roulette:service-ready', {
           timestamp: new Date().toISOString(),
@@ -429,8 +429,8 @@ export default class RouletteFeedService {
         if (this.isConnected) {
           const unifiedClient = UnifiedRouletteClient.getInstance();
           const globalRoulettes = await unifiedClient.fetchRouletteData();
-          
-          if (globalRoulettes && globalRoulettes.length > 0) {
+      
+    if (globalRoulettes && globalRoulettes.length > 0) {
             logger.info(`📋 Recebidos ${globalRoulettes.length} roletas via SSE`);
             return this.processRouletteData(globalRoulettes);
           }
@@ -491,29 +491,29 @@ export default class RouletteFeedService {
    * Processa os dados das roletas recebidos
    */
   private processRouletteData(data: any[]): { [key: string]: any } {
-    const liveTables: { [key: string]: any } = {};
+      const liveTables: { [key: string]: any } = {};
     
     data.forEach(roleta => {
-      if (roleta && roleta.id) {
-        const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-        liveTables[roleta.id] = {
-          GameID: roleta.id,
-          Name: roleta.name || roleta.nome,
-          ativa: roleta.ativa,
-          numero: numeroArray,
-          ...roleta
-        };
-      }
-    });
-    
-    this.lastUpdateTime = Date.now();
-    this.hasCachedData = true;
-    this.roulettes = liveTables;
-    RouletteFeedService.INITIAL_DATA_FETCHED = true;
-    
+        if (roleta && roleta.id) {
+          const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+          liveTables[roleta.id] = {
+            GameID: roleta.id,
+            Name: roleta.name || roleta.nome,
+            ativa: roleta.ativa,
+            numero: numeroArray,
+            ...roleta
+          };
+        }
+      });
+      
+      this.lastUpdateTime = Date.now();
+      this.hasCachedData = true;
+      this.roulettes = liveTables;
+      RouletteFeedService.INITIAL_DATA_FETCHED = true;
+      
     // Notificar assinantes sobre os dados iniciais
-    this.notifySubscribers(liveTables);
-    
+      this.notifySubscribers(liveTables);
+      
     return liveTables;
   }
 
@@ -1601,8 +1601,8 @@ export default class RouletteFeedService {
           // Validar novamente que o callback é uma função
           if (typeof callback === 'function') {
             // Usar try-catch para cada callback individual
-            try {
-              callback(data);
+          try {
+            callback(data);
               successCount++;
             } catch (callbackError) {
               errorCount++;
@@ -1624,7 +1624,7 @@ export default class RouletteFeedService {
               logger.warn(`⚠️ Callback inválido removido (restantes: ${this.subscribers.length})`);
             }
           }
-        } catch (error) {
+          } catch (error) {
           errorCount++;
           logger.error('❌ Erro crítico ao processar callback:', error);
         }
@@ -1655,7 +1655,7 @@ export default class RouletteFeedService {
       });
       return;
     }
-
+    
     try {
       // Verificar se o callback já está registrado para evitar duplicatas
       const isDuplicate = this.subscribers.some(existingCallback => existingCallback === callback);
@@ -1717,10 +1717,10 @@ export default class RouletteFeedService {
 
     try {
       const initialLength = this.subscribers.length;
-      this.subscribers = this.subscribers.filter(cb => cb !== callback);
+    this.subscribers = this.subscribers.filter(cb => cb !== callback);
       
       if (this.subscribers.length < initialLength) {
-        logger.debug('➖ Assinante removido do serviço RouletteFeedService');
+    logger.debug('➖ Assinante removido do serviço RouletteFeedService');
       } else {
         logger.warn('⚠️ Callback não encontrado para remoção');
       }
@@ -1778,7 +1778,7 @@ export default class RouletteFeedService {
       if (connectionResult) {
         logger.info('✅ Conexão SSE estabelecida com sucesso');
         return true;
-      } else {
+          } else {
         logger.warn('⚠️ Falha ao estabelecer conexão SSE, operando com dados em cache');
         
         // Emitir evento de falha na conexão
@@ -1909,29 +1909,29 @@ export default class RouletteFeedService {
     logger.info('Registrando ouvintes para eventos globais');
     
     try {
-      // Ouvinte para atualizações globais de dados
-      const globalDataUpdateHandler = () => {
+    // Ouvinte para atualizações globais de dados
+    const globalDataUpdateHandler = () => {
         logger.info('Recebida atualização do UnifiedRouletteClient');
-        this.fetchLatestData();
-      };
-      
+      this.fetchLatestData();
+    };
+    
       // Inscrever no UnifiedRouletteClient - corrigindo de 'on' para 'subscribe'
       const unifiedClient = UnifiedRouletteClient.getInstance();
       unifiedClient.subscribe('update', globalDataUpdateHandler);
-      
-      // Ouvinte para mudanças na visibilidade da página
-      if (typeof document !== 'undefined') {
-        document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    
+    // Ouvinte para mudanças na visibilidade da página
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    }
+    
+    // Ouvinte para quando novos números são recebidos
+    EventService.on('roulette:new-number', (event) => {
+      logger.debug('Novo número recebido via evento:', event);
+      if (event && event.roleta_id) {
+        this.updateCacheWithNewNumber(event);
       }
-      
-      // Ouvinte para quando novos números são recebidos
-      EventService.on('roulette:new-number', (event) => {
-        logger.debug('Novo número recebido via evento:', event);
-        if (event && event.roleta_id) {
-          this.updateCacheWithNewNumber(event);
-        }
-      });
-      
+    });
+    
       logger.info('Ouvintes de eventos globais registrados com sucesso');
     } catch (error) {
       logger.error('Erro ao registrar ouvintes para eventos globais:', error);

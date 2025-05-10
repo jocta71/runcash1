@@ -4,7 +4,7 @@ import ChatUI from './ChatUI';
 import AIFloatingBar from './AIFloatingBar';
 import { LogOut, Menu, MessageSquare, LogIn, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { RouletteRepository } from '../services/data/rouletteRepository';
+import UnifiedRouletteClient from '../services/UnifiedRouletteClient';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from './ui/button';
 import ProfileDropdown from './ProfileDropdown';
@@ -51,31 +51,94 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
 
   // Pré-carregar dados das roletas se preloadData for verdadeiro
   useEffect(() => {
-    const preloadRouletteData = async () => {
-      if (!preloadData) return;
-      
-      try {
-        setIsLoading(true);
-        console.log('[Layout] Pré-carregando dados da API...');
-        
-        // Buscar todas as roletas usando o novo repositório
-        const data = await RouletteRepository.fetchAllRoulettesWithNumbers();
-        
-        if (!data || !Array.isArray(data)) {
-          throw new Error('Dados inválidos retornados pela API');
-        }
-        
-        console.log(`[Layout] Dados pré-carregados com sucesso (${data.length} roletas)`);
-      } catch (err) {
-        console.error('[Layout] Erro ao pré-carregar dados:', err);
-        setError('Não foi possível carregar os dados. Tente novamente.');
-      } finally {
+    if (!preloadData) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Se preloadData é true, queremos garantir que o UnifiedRouletteClient esteja ativo
+    // e esperar pelos primeiros dados antes de remover o loader.
+    const client = UnifiedRouletteClient.getInstance();
+    
+    console.log('[Layout] Lógica de pré-carregamento ativada. UnifiedRouletteClient deve ser inicializado centralmente.');
+
+    // Função para verificar dados e atualizar o estado de carregamento
+    const checkInitialDataAndSetLoading = () => {
+      const currentData = client.getAllRoulettes();
+      if (currentData.length > 0) {
+        console.log(`[Layout] Dados encontrados no UnifiedRouletteClient (${currentData.length} roletas). Removendo loader.`);
         setIsLoading(false);
+        return true; // Dados encontrados
+      }
+      // Se não encontrou, mas o cliente não está nem conectando/conectado ao stream, não adianta esperar por 'update' ainda.
+      // A inicialização central deve tratar disso. Por segurança, manter isLoading true.
+      const status = client.getStatus();
+      if (!status.isStreamConnected && !status.isStreamConnecting) {
+        console.log('[Layout] UnifiedRouletteClient não está conectado/conectando ao stream. Tentando forçar update/conexão.');
+        client.forceUpdate().catch(err => {
+            console.warn('[Layout] Chamada a forceUpdate no UnifiedRouletteClient durante o preload falhou (não crítico aqui):', err);
+        });
+      }
+      return false; // Sem dados ainda
+    };
+
+    // Verificar imediatamente
+    if (checkInitialDataAndSetLoading()) {
+      return; // Dados já disponíveis ou erro, loader removido ou erro exibido
+    }
+    
+    // Se não há dados, continuar mostrando isLoading (que já está true)
+    // e ouvir o primeiro evento 'update' ou 'initialHistoryLoaded' com dados.
+    const handleDataReceived = (eventData: any) => {
+      let roulettes = [];
+      if (eventData?.roulettes && Array.isArray(eventData.roulettes)) {
+        roulettes = eventData.roulettes;
+      } else if (Array.isArray(eventData)) { // Caso o evento 'update' envie o array diretamente
+        roulettes = eventData;
+      } else if (eventData instanceof Map && eventData.size > 0) { // Caso de 'initialHistoryLoaded'
+         // Se initialHistoryLoaded emite um Map, precisamos convertê-lo ou verificar se o 'update' subsequente trará a lista.
+         // Por ora, vamos considerar que o 'update' é o principal para a lista completa.
+         // Se for necessário, pode-se chamar client.getAllRoulettes() aqui após o 'initialHistoryLoaded'.
+         // Vamos simplificar e focar no 'update' para a lista principal de roletas.
+         // Se o 'initialHistoryLoaded' já popula o rouletteData e dispara 'update', está coberto.
+         // Se não, uma lógica mais específica seria necessária aqui para o initialHistoryLoaded.
+         // Revisitando: client.getAllRoulettes() após o evento initialHistoryLoaded se este não popular client.rouletteData
+         const allData = client.getAllRoulettes();
+         if (allData.length > 0) roulettes = allData;
+      }
+
+
+      if (roulettes.length > 0) {
+        console.log('[Layout] Evento com dados recebido do UnifiedRouletteClient. Removendo loader.');
+        setIsLoading(false);
+        // Cancelar inscrições após o primeiro recebimento de dados
+        client.unsubscribe('update', handleDataReceived);
+        client.unsubscribe('initialHistoryLoaded', handleDataReceived);
       }
     };
-    
-    preloadRouletteData();
-  }, [preloadData]);
+
+    client.subscribe('update', handleDataReceived);
+    client.subscribe('initialHistoryLoaded', handleDataReceived); // Ouvir também o histórico inicial
+
+    // Timeout de segurança para remover o loader caso algo dê muito errado e nenhum evento chegue.
+    // Evita que o usuário fique preso na tela de carregamento indefinidamente.
+    const safetyTimeout = setTimeout(() => {
+      if (isLoading) { // Verifica se isLoading ainda é true
+        console.warn('[Layout] Timeout de segurança atingido para pré-carregamento de dados. Removendo loader.');
+        setIsLoading(false);
+        client.unsubscribe('update', handleDataReceived);
+        client.unsubscribe('initialHistoryLoaded', handleDataReceived);
+      }
+    }, 15000); // 15 segundos de timeout
+
+    // Cleanup: cancelar inscrições e timeout se o componente for desmontado
+    return () => {
+      clearTimeout(safetyTimeout);
+      client.unsubscribe('update', handleDataReceived);
+      client.unsubscribe('initialHistoryLoaded', handleDataReceived);
+    };
+
+  }, [preloadData, isLoading]); // Adicionado isLoading para reavaliar o timeout de segurança se ele mudar externamente.
 
   const handleLoginClick = () => {
     resetModalClosed();

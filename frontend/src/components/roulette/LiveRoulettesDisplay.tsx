@@ -117,7 +117,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       // Não precisamos desconectar, pois outros componentes podem estar usando o cliente
     };
   }, []);
-  
+
   // Handler para eventos de heartbeat
   const handleHeartbeat = useCallback((data: any) => {
     console.log('❤️ Heartbeat recebido:', data);
@@ -185,7 +185,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     
     // Timeout de segurança para evitar tela de carregamento infinita
     const safetyTimeout = setTimeout(() => {
-      setIsLoading(false);
+            setIsLoading(false);
       // Verificar se ainda não temos dados após timeout
       if (roulettes.length === 0) {
         setConnectionStatus(prev => ({
@@ -233,9 +233,9 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       // Obter dados atualizados do cliente unificado
       if (clientRef.current) {
         const updatedRoulettes = clientRef.current.getAllRoulettes();
-        
-        if (updatedRoulettes && updatedRoulettes.length > 0) {
-          console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
+      
+      if (updatedRoulettes && updatedRoulettes.length > 0) {
+        console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
           
           // Formatar dados para garantir consistência
           const formattedData = formatRouletteData(updatedRoulettes as ExtendedRouletteData[]);
@@ -243,20 +243,20 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
           // Atualizar o estado com os dados formatados
           setRoulettes(formattedData);
           setIsLoading(false);
-          
-          // Se ainda não houver roleta selecionada, selecionar a segunda
+        
+        // Se ainda não houver roleta selecionada, selecionar a segunda
           if (!selectedRoulette && formattedData.length > 1) {
             setSelectedRoulette(formattedData[1]);
-            setShowStatsInline(true);
-          } else if (selectedRoulette) {
-            // Atualizar a roleta selecionada com dados mais recentes
+          setShowStatsInline(true);
+        } else if (selectedRoulette) {
+          // Atualizar a roleta selecionada com dados mais recentes
             const updatedSelectedRoulette = formattedData.find(r => 
-              r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
-            );
-            
-            if (updatedSelectedRoulette) {
-              setSelectedRoulette(updatedSelectedRoulette);
-            }
+            r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
+          );
+          
+          if (updatedSelectedRoulette) {
+            setSelectedRoulette(updatedSelectedRoulette);
+          }
           }
         } else {
           console.warn('[LiveRoulettesDisplay] Nenhum dado recebido na atualização');
@@ -429,28 +429,28 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
               )}
               {updatingData ? 'Reconectando...' : 'Reconectar'}
             </button>
-            <div className="relative w-64">
-              <input 
-                type="text" 
-                placeholder="Buscar roleta..." 
-                className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-              <svg 
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
-                width="16" 
-                height="16" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-            </div>
+          <div className="relative w-64">
+            <input 
+              type="text" 
+              placeholder="Buscar roleta..." 
+              className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            <svg 
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+              width="16" 
+              height="16" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
           </div>
+        </div>
         </div>
         
         {/* Indicador de status da conexão SSE */}
