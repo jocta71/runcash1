@@ -239,16 +239,30 @@ class RouletteStreamClient {
 
   /**
    * Handler para eventos de atualização
+   * Usa um padrão que evita erros com canais de mensagem fechados
    */
-  private async handleUpdateEvent(event: MessageEvent): Promise<void> {
+  private handleUpdateEvent(event: MessageEvent): void {
     this.lastReceivedAt = Date.now();
     this.lastEventId = event.lastEventId;
     
+    // Não usar async/await diretamente no handler para evitar retornar Promise
+    // Usar setTimeout para processar em um microtick separado
+    setTimeout(() => {
+      this.processUpdateEvent(event.data).catch(error => {
+        console.error('[RouletteStream] Erro ao processar evento update em background:', error);
+      });
+    }, 0);
+  }
+  
+  /**
+   * Processa os dados do evento de forma assíncrona, separado do handler de evento
+   * Este método pode usar async/await com segurança
+   */
+  private async processUpdateEvent(rawData: string): Promise<void> {
     try {
-      // Verificar se os dados estão criptografados
-      const rawData = event.data;
       let parsedData;
       
+      // Verificar se os dados estão criptografados
       if (rawData.startsWith('Fe26.2*')) {
         console.log('[RouletteStream] Dados criptografados recebidos');
         
@@ -300,7 +314,7 @@ class RouletteStreamClient {
         data: parsedData
       });
     } catch (error) {
-      console.error('[RouletteStream] Erro ao processar evento update:', error);
+      console.error('[RouletteStream] Erro ao processar dados de evento update:', error);
     }
   }
 

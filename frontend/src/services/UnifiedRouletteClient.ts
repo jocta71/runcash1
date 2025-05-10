@@ -1279,13 +1279,40 @@ class UnifiedRouletteClient {
   
   /**
    * Handler para mensagens recebidas do WebSocket
+   * Importante: Este método não deve retornar Promise para evitar erros de "channel closed"
    */
   private handleWebSocketMessage(event: MessageEvent): void {
+    if (!event.data) {
+      this.log('Mensagem WebSocket vazia recebida, ignorando');
+      return;
+    }
+    
+    // Encapsular todo o processamento em try/catch para evitar erros não tratados
     try {
-      // Processar a mensagem recebida
+      // Processar a mensagem recebida de forma síncrona
       const message = JSON.parse(event.data);
       this.log('Mensagem WebSocket recebida:', message.type || 'sem tipo');
       
+      // Usar um processamento em segundo plano para operações assíncronas
+      // Isso evita que este handler retorne uma Promise
+      setTimeout(() => {
+        this.processWebSocketMessage(message).catch(error => {
+          this.error('Erro ao processar mensagem WebSocket em segundo plano:', error);
+        });
+      }, 0);
+      
+    } catch (error) {
+      // Capturar erros síncronos (como parse de JSON inválido)
+      this.error('Erro ao processar mensagem WebSocket:', error);
+    }
+  }
+  
+  /**
+   * Método interno que processa as mensagens WebSocket de forma assíncrona
+   * Este método pode retornar uma Promise sem problemas
+   */
+  private async processWebSocketMessage(message: any): Promise<void> {
+    try {
       // Verificar tipo de mensagem
       if (message.type === 'numero' || message.type === 'update' || message.type === 'event' || message.type === 'new_number') {
         // Atualização de número de roleta - formato compatível com o scraper
@@ -1304,29 +1331,18 @@ class UnifiedRouletteClient {
         // Log detalhado para depuração
         this.log(`Recebido número ${rouletteData.ultimoNumero} para roleta ${rouletteData.nome} (${rouletteData.id})`);
         
-        // Se recebemos apenas um número, adicioná-lo à sequência
-        if (!rouletteData.numeros.length && rouletteData.ultimoNumero !== undefined) {
-          // Buscar roleta existente para obter a sequência atual
-          const existingRoulette = this.rouletteData.get(rouletteData.id);
-          if (existingRoulette && existingRoulette.numeros && existingRoulette.numeros.length) {
-            // Criar nova sequência com o número mais recente no início
-            rouletteData.numeros = [rouletteData.ultimoNumero, ...existingRoulette.numeros.slice(0, 14)];
-          } else {
-            // Se não temos sequência existente, inicializar com o número atual
-            rouletteData.numeros = [rouletteData.ultimoNumero];
-          }
-        }
-        
-        // Atualizar o cache
+        // Atualizar a roleta específica no cache
         this.updateCache(rouletteData);
         
-        // Emitir evento de atualização
-        this.emit('update', rouletteData);
-        EventBus.emit('roulette:data-updated', {
+        // Emitir evento de novo número
+        EventBus.emit('roulette:new-number', {
           timestamp: new Date().toISOString(),
-          data: rouletteData,
+          roleta_id: rouletteData.id,
+          roleta_nome: rouletteData.nome,
+          numero: rouletteData.ultimoNumero,
           source: 'websocket'
         });
+        
       } else if (message.type === 'roulettes' || message.type === 'roletas' || message.type === 'list') {
         // Lista completa de roletas
         if (Array.isArray(message.data)) {
@@ -1348,7 +1364,7 @@ class UnifiedRouletteClient {
         } else {
           this.error('Falha na autenticação no WebSocket:', message.message || 'Motivo desconhecido');
         }
-      } else if (message.type === 'log' || message.type === 'info') {
+      } else if (message.type === 'log' || message.type === 'message') {
         // Mensagem de log do servidor
         this.log(`Mensagem de log do servidor: ${message.message || JSON.stringify(message)}`);
       } else {
@@ -1378,7 +1394,8 @@ class UnifiedRouletteClient {
         }
       }
     } catch (error) {
-      this.error('Erro ao processar mensagem WebSocket:', error);
+      // Log do erro, mas não propaga para evitar interrupção do processamento
+      this.error('Erro no processamento assíncrono de mensagem WebSocket:', error);
     }
   }
   

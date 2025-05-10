@@ -10,6 +10,17 @@ const loggedErrors = new Set<string>();
 export function setupGlobalErrorHandlers() {
   // Tratamento global de erros de Promise não tratados
   window.addEventListener('unhandledrejection', (event) => {
+    // Tratar o erro específico de canal de mensagem fechado antes de qualquer outra lógica
+    if (event.reason?.message?.includes('message channel closed before a response was received')) {
+      // Este é um erro conhecido e não crítico relacionado ao WebSocket ou EventSource
+      console.warn('Detectado erro de canal de mensagem fechado - erro conhecido e não crítico');
+      
+      // Suprimir o erro completamente
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    
     const errorMessage = event.reason?.message || 'Erro desconhecido';
     const errorStack = event.reason?.stack || '';
     
@@ -31,20 +42,20 @@ export function setupGlobalErrorHandlers() {
     }
     
     console.error('Erro assíncrono não tratado:', errorMessage);
-    
-    // Lidar com erro específico de canal de mensagem
-    if (errorMessage.includes('message channel closed before a response was received')) {
-      console.warn('Detectado erro de canal de mensagem fechado - este é um problema conhecido');
-      
-      // Suprimir o erro no console (opcional, pode ajudar a reduzir o ruído)
-      event.preventDefault();
-    }
   });
   
   // Tratamento global de erros não capturados
   window.addEventListener('error', (event) => {
     // Evitar logar erros de recursos (como imagens que não carregaram)
     if (event.target && (event.target as HTMLElement).tagName) {
+      return;
+    }
+    
+    // Verificar se é o erro específico de canal de mensagem fechado
+    if (event.error?.message?.includes('message channel closed before a response was received')) {
+      console.warn('Detectado erro de canal de mensagem fechado no manipulador global - erro conhecido e não crítico');
+      event.preventDefault();
+      event.stopPropagation();
       return;
     }
     
