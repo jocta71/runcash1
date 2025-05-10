@@ -1570,68 +1570,34 @@ export default class RouletteFeedService {
   // Adicionar método para verificar a saúde da API
   async checkAPIHealth(): Promise<boolean> {
     try {
-      // Array com endpoints alternativos para verificar a saúde da API
-      const healthEndpoints = [
-        '/api/health',
-        '/api/asaas-webhook', // Usar um endpoint existente como fallback
-        '/api' // Tentar apenas o path base como último recurso
-      ];
+      // Verificar diretamente o endpoint SSE
+      const response = await fetch('/api/stream/roulettes', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'text/event-stream',
+        },
+        // Baixo timeout para evitar esperar muito tempo
+        signal: AbortSignal.timeout(3000),
+      });
       
-      let isHealthy = false;
-      let lastError = null;
-      
-      // Tentar cada endpoint até encontrar um que funcione
-      for (const endpoint of healthEndpoints) {
-        try {
-          console.log(`Verificando saúde da API em: ${endpoint}`);
-          const response = await fetch(endpoint, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            // Baixo timeout para evitar esperar muito tempo
-            signal: AbortSignal.timeout(3000),
-          });
-          
-          // Se a resposta foi bem-sucedida (qualquer status 2xx)
-          if (response.ok) {
-            console.log(`✅ API saudável, resposta de ${endpoint}: ${response.status}`);
-            isHealthy = true;
-            break;
-          } else {
-            console.warn(`⚠️ Endpoint ${endpoint} retornou status ${response.status}`);
-          }
-        } catch (err) {
-          lastError = err;
-          console.warn(`❌ Falha ao verificar saúde em ${endpoint}:`, err);
-          // Continuar para o próximo endpoint em caso de erro
-        }
+      // Se a resposta foi bem-sucedida
+      if (response.ok) {
+        console.log('✅ Conexão SSE disponível');
+        return true;
       }
       
-      // Se nenhum endpoint funcionou, assumir que a API está indisponível
-      if (!isHealthy) {
-        console.error('Todos os endpoints de saúde falharam:', lastError);
-        // Emitir evento para todos os observadores sobre a falha
-        EventService.emit('roulette:api-failure', { 
-          timestamp: Date.now(),
-          error: lastError instanceof Error ? lastError.message : 'API inacessível'
-        });
-      }
-      
-      // Mesmo se todos os endpoints falharem, retornar true para não bloquear a inicialização
-      // Apenas logar a falha e permitir que a aplicação continue tentando
-      return true;
+      console.warn('⚠️ Endpoint SSE retornou status:', response.status);
+      return false;
     } catch (error) {
-      console.error('Falha na verificação de saúde da API:', error);
+      console.error('❌ Falha ao verificar conexão SSE:', error);
       // Emitir evento para todos os observadores sobre a falha
       EventService.emit('roulette:api-failure', { 
         timestamp: Date.now(),
         error: error instanceof Error ? error.message : 'API inacessível'
       });
       
-      // Retornar true mesmo em caso de erro para não impedir a inicialização
-      // A aplicação tentará operar mesmo sem a API disponível
-      return true;
+      // Retornar false para indicar que a API está indisponível
+      return false;
     }
   }
 
