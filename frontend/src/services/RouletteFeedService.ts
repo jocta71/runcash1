@@ -412,45 +412,67 @@ export default class RouletteFeedService {
    * Busca os dados iniciais das roletas (se não estiverem em cache)
    */
   public async fetchInitialData(): Promise<{ [key: string]: any }> {
-    // Se já buscamos dados iniciais, retornar os dados em cache
-    if (RouletteFeedService.INITIAL_DATA_FETCHED) {
-      logger.info('📋 Dados iniciais já foram buscados anteriormente, usando cache');
-      return this.roulettes;
+    const MAX_RETRIES = 3;
+    let retryCount = 0;
+    
+    while (retryCount < MAX_RETRIES) {
+      try {
+        logger.info(`🔄 Buscando dados iniciais via UnifiedRouletteClient (tentativa ${retryCount + 1}/${MAX_RETRIES})`);
+        
+        const unifiedClient = UnifiedRouletteClient.getInstance();
+        const globalRoulettes = await unifiedClient.fetchRouletteData();
+        
+        if (globalRoulettes && globalRoulettes.length > 0) {
+          logger.info(`📋 Recebidos ${globalRoulettes.length} roletas do UnifiedRouletteClient`);
+          
+          const liveTables: { [key: string]: any } = {};
+          globalRoulettes.forEach(roleta => {
+            if (roleta && roleta.id) {
+              const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
+              liveTables[roleta.id] = {
+                GameID: roleta.id,
+                Name: roleta.name || roleta.nome,
+                ativa: roleta.ativa,
+                numero: numeroArray,
+                ...roleta
+              };
+            }
+          });
+          
+          this.lastUpdateTime = Date.now();
+          this.hasCachedData = true;
+          this.roulettes = liveTables;
+          RouletteFeedService.INITIAL_DATA_FETCHED = true;
+          
+          // Notificar assinantes sobre os dados iniciais
+          this.notifySubscribers(liveTables);
+          
+          return liveTables;
+        }
+        
+        // Se não recebemos dados, esperar antes de tentar novamente
+        if (retryCount < MAX_RETRIES - 1) {
+          const waitTime = Math.min(1000 * Math.pow(2, retryCount), 5000);
+          logger.warn(`⚠️ Nenhum dado recebido, aguardando ${waitTime}ms antes de tentar novamente...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+        
+        retryCount++;
+      } catch (error) {
+        logger.error(`❌ Erro ao buscar dados iniciais (tentativa ${retryCount + 1}/${MAX_RETRIES}):`, error);
+        
+        if (retryCount < MAX_RETRIES - 1) {
+          const waitTime = Math.min(1000 * Math.pow(2, retryCount), 5000);
+          logger.warn(`⚠️ Aguardando ${waitTime}ms antes de tentar novamente...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+        
+        retryCount++;
+      }
     }
     
-    logger.info('🔄 Buscando dados iniciais via UnifiedRouletteClient');
-    try {
-      // Buscar dados diretamente do UnifiedRouletteClient
-      const unifiedClient = UnifiedRouletteClient.getInstance();
-      const globalRoulettes = await unifiedClient.fetchRouletteData();
-      if (globalRoulettes && globalRoulettes.length > 0) {
-        logger.info(`📋 Recebidos ${globalRoulettes.length} roletas do UnifiedRouletteClient`);
-        // Transformar dados para o formato esperado
-        const liveTables: { [key: string]: any } = {};
-        globalRoulettes.forEach(roleta => {
-          if (roleta && roleta.id) {
-            const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-            liveTables[roleta.id] = {
-              GameID: roleta.id,
-              Name: roleta.name || roleta.nome,
-              ativa: roleta.ativa,
-              numero: numeroArray,
-              ...roleta
-            };
-          }
-        });
-        this.lastUpdateTime = Date.now();
-        this.hasCachedData = true;
-        this.roulettes = liveTables;
-        RouletteFeedService.INITIAL_DATA_FETCHED = true;
-        this.notifySubscribers(liveTables);
-        return liveTables;
-      }
-      return {};
-    } catch (error) {
-      logger.error('Erro ao buscar dados iniciais via UnifiedRouletteClient:', error);
-      return {};
-    }
+    logger.error('❌ Todas as tentativas de buscar dados iniciais falharam');
+    return {};
   }
 
   /**
@@ -1506,53 +1528,71 @@ export default class RouletteFeedService {
 
   // Método para notificar assinantes
   private notifySubscribers(data: any): void {
-    try {
-      // Implementação do método para notificar assinantes sobre atualizações
-      if (this.subscribers && this.subscribers.length > 0) {
-        // Criar uma cópia do array para evitar problemas se os callbacks modificarem o array original
-        const currentSubscribers = [...this.subscribers];
-        
-        // Filtrar para remover callbacks inválidos
-        const validSubscribers = currentSubscribers.filter(callback => typeof callback === 'function');
-        
-        // Se encontramos callbacks inválidos, remover do array original
-        if (validSubscribers.length < currentSubscribers.length) {
-          logger.warn(`⚠️ Removidos ${currentSubscribers.length - validSubscribers.length} assinantes inválidos`);
-          this.subscribers = validSubscribers;
-        }
-        
-        // Notificar apenas os assinantes válidos
-        validSubscribers.forEach(callback => {
-          try {
-            callback(data);
-          } catch (error) {
-            logger.error('❌ Erro ao notificar assinante:', error);
-          }
-        });
-        
-        logger.debug(`🔔 Notificados ${validSubscribers.length} assinantes sobre atualização de dados`);
-      }
-    } catch (error) {
-      logger.error('❌ Erro ao notificar assinantes:', error);
+    if (!this.subscribers || this.subscribers.length === 0) {
+      return;
     }
+
+    // Criar cópia do array para evitar problemas durante iteração
+    const subscribers = [...this.subscribers];
+    
+    subscribers.forEach((callback, index) => {
+      try {
+        if (typeof callback === 'function') {
+          callback(data);
+        } else {
+          logger.warn(`⚠️ Removendo callback inválido no índice ${index}`);
+          this.subscribers = this.subscribers.filter(cb => cb !== callback);
+        }
+      } catch (error) {
+        logger.error(`❌ Erro ao notificar assinante ${index}:`, error);
+      }
+    });
   }
 
   // Método para adicionar assinante
   public subscribe(callback: (data: any) => void): void {
-    // Verificar se o callback é uma função válida
+    // Validação mais robusta do callback
     if (typeof callback !== 'function') {
-      logger.error('❌ Tentativa de adicionar callback inválido (não é uma função)');
+      logger.error('❌ Tentativa de adicionar callback inválido:', {
+        type: typeof callback,
+        value: callback
+      });
       return;
     }
-    
-    this.subscribers.push(callback);
-    logger.debug('➕ Novo assinante adicionado ao serviço RouletteFeedService');
+
+    // Verificar se o callback já está registrado
+    if (this.subscribers.includes(callback)) {
+      logger.warn('⚠️ Callback já registrado, ignorando');
+      return;
+    }
+
+    try {
+      this.subscribers.push(callback);
+      logger.debug('➕ Novo assinante adicionado ao serviço RouletteFeedService');
+    } catch (error) {
+      logger.error('❌ Erro ao adicionar assinante:', error);
+    }
   }
 
   // Método para remover assinante
   public unsubscribe(callback: (data: any) => void): void {
-    this.subscribers = this.subscribers.filter(cb => cb !== callback);
-    logger.debug('➖ Assinante removido do serviço RouletteFeedService');
+    if (typeof callback !== 'function') {
+      logger.error('❌ Tentativa de remover callback inválido');
+      return;
+    }
+
+    try {
+      const initialLength = this.subscribers.length;
+      this.subscribers = this.subscribers.filter(cb => cb !== callback);
+      
+      if (this.subscribers.length < initialLength) {
+        logger.debug('➖ Assinante removido do serviço RouletteFeedService');
+      } else {
+        logger.warn('⚠️ Callback não encontrado para remoção');
+      }
+    } catch (error) {
+      logger.error('❌ Erro ao remover assinante:', error);
+    }
   }
 
   // Função auxiliar para gerar IDs de requisição únicos
@@ -1570,33 +1610,39 @@ export default class RouletteFeedService {
   // Adicionar método para verificar a saúde da API
   async checkAPIHealth(): Promise<boolean> {
     try {
-      // Verificar diretamente o endpoint SSE
+      // Aumentar timeout para 10 segundos
       const response = await fetch('/api/stream/roulettes', {
         method: 'GET',
         headers: {
           'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive'
         },
-        // Baixo timeout para evitar esperar muito tempo
-        signal: AbortSignal.timeout(3000),
+        // Aumentar timeout para 10 segundos
+        signal: AbortSignal.timeout(10000),
       });
       
-      // Se a resposta foi bem-sucedida
       if (response.ok) {
-        console.log('✅ Conexão SSE disponível');
+        logger.info('✅ Conexão SSE disponível');
         return true;
       }
       
-      console.warn('⚠️ Endpoint SSE retornou status:', response.status);
+      logger.warn(`⚠️ Endpoint SSE retornou status: ${response.status}`);
       return false;
     } catch (error) {
-      console.error('❌ Falha ao verificar conexão SSE:', error);
-      // Emitir evento para todos os observadores sobre a falha
+      logger.error('❌ Falha ao verificar conexão SSE:', error);
+      
+      // Emitir evento de falha com mais detalhes
       EventService.emit('roulette:api-failure', { 
         timestamp: Date.now(),
-        error: error instanceof Error ? error.message : 'API inacessível'
+        error: error instanceof Error ? error.message : 'API inacessível',
+        type: 'sse_connection_failed',
+        details: {
+          url: '/api/stream/roulettes',
+          error: error
+        }
       });
       
-      // Retornar false para indicar que a API está indisponível
       return false;
     }
   }
