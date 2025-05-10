@@ -25,6 +25,46 @@ interface LiveRoulettesDisplayProps {
   roulettesData?: ExtendedRouletteData[]; // Opcional para manter compatibilidade retroativa
 }
 
+// Função auxiliar para formatar dados da roleta - colocada fora dos useEffect para reutilização
+const formatRouletteData = (data: ExtendedRouletteData[]) => {
+  return data.map(roleta => {
+    // Garantir que os números sejam tratados corretamente
+    let formattedNumbers = [];
+    
+    // Verificar se o número é um array com objetos que têm a propriedade número
+    if (Array.isArray(roleta.numero) && roleta.numero.length > 0) {
+      // Verificar se os itens têm a propriedade numero
+      const firstItem = roleta.numero[0];
+      if (typeof firstItem === 'object' && firstItem !== null && 'numero' in firstItem) {
+        // Já está no formato correto
+        formattedNumbers = roleta.numero;
+      } else {
+        // Converter para o formato esperado
+        formattedNumbers = roleta.numero.map(n => {
+          if (typeof n === 'number' || typeof n === 'string') {
+            return { numero: Number(n) };
+          }
+          return n;
+        });
+      }
+    } 
+    // Tentar usar lastNumbers se disponível
+    else if (Array.isArray(roleta.lastNumbers) && roleta.lastNumbers.length > 0) {
+      formattedNumbers = roleta.lastNumbers.map(n => ({ numero: Number(n) }));
+    } 
+    // Tentar usar numeros se disponível
+    else if (Array.isArray(roleta.numeros) && roleta.numeros.length > 0) {
+      formattedNumbers = roleta.numeros.map(n => ({ numero: Number(n) }));
+    }
+    
+    return {
+      ...roleta,
+      numero: formattedNumbers,
+      nome: roleta.nome || roleta.name || 'Roleta sem nome'
+    };
+  });
+};
+
 const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesData }) => {
   // Obter dados pré-carregados do contexto, se disponíveis
   const { isDataLoaded, rouletteData: preloadedData } = useDataLoading();
@@ -34,6 +74,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   const [isLoading, setIsLoading] = useState(!isDataLoaded && !roulettesData);
   const [selectedRoulette, setSelectedRoulette] = useState<ExtendedRouletteData | null>(null);
   const [showStatsInline, setShowStatsInline] = useState(false);
+  const [updatingData, setUpdatingData] = useState(false);
   const rouletteCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   
   // Referência ao serviço de feed centralizado, sem iniciar novo polling
@@ -54,26 +95,6 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
 
   // Usar os dados passados como prop ou obter do feedService
   useEffect(() => {
-    // Função auxiliar para formatar dados da roleta
-    const formatRouletteData = (data: ExtendedRouletteData[]) => {
-      return data.map(roleta => {
-        // Garantir que os números sejam tratados corretamente
-        const formattedNumbers = Array.isArray(roleta.numero) && roleta.numero.length > 0
-          ? roleta.numero
-          : Array.isArray(roleta.lastNumbers) && roleta.lastNumbers.length > 0 
-            ? roleta.lastNumbers.map(n => ({ numero: n }))
-            : Array.isArray(roleta.numeros) && roleta.numeros.length > 0
-              ? roleta.numeros.map(n => ({ numero: n }))
-              : [];
-        
-        return {
-          ...roleta,
-          numero: formattedNumbers,
-          nome: roleta.nome || roleta.name || 'Roleta sem nome'
-        };
-      });
-    };
-    
     // Verificar dados da props primeiro (prioridade mais alta)
     if (roulettesData && Array.isArray(roulettesData) && roulettesData.length > 0) {
       console.log(`[LiveRoulettesDisplay] Usando ${roulettesData.length} roletas fornecidas via props`);
@@ -134,39 +155,55 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   // Inscrever-se para atualizações de dados do feed service
   useEffect(() => {
     const handleDataUpdated = (updateData: any) => {
-      console.log('[LiveRoulettesDisplay] Recebida atualização de dados');
+      console.log('[LiveRoulettesDisplay] Recebida atualização de dados:', updateData);
+      setUpdatingData(true);
       
-      // Obter dados atualizados do cache
-      const updatedRoulettes = feedService.getAllRoulettes();
-      
-      if (updatedRoulettes && updatedRoulettes.length > 0) {
-        console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
-        setRoulettes(updatedRoulettes);
-        setIsLoading(false); // Garantir que o loading seja desativado
+      // Pequeno delay para mostrar o indicador de atualização
+      setTimeout(() => {
+        // Obter dados atualizados do cache
+        const updatedRoulettes = feedService.getAllRoulettes();
         
-        // Se ainda não houver roleta selecionada, selecionar a segunda
-        if (!selectedRoulette && updatedRoulettes.length > 1) {
-          setSelectedRoulette(updatedRoulettes[1]);
-          setShowStatsInline(true);
-        } else if (selectedRoulette) {
-          // Atualizar a roleta selecionada com dados mais recentes
-          const updatedSelectedRoulette = updatedRoulettes.find(r => 
-            r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
-          );
+        if (updatedRoulettes && updatedRoulettes.length > 0) {
+          console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
           
-          if (updatedSelectedRoulette) {
-            setSelectedRoulette(updatedSelectedRoulette);
+          // Formatar dados para garantir consistência
+          const formattedData = formatRouletteData(updatedRoulettes as ExtendedRouletteData[]);
+          
+          // Atualizar o estado com os dados formatados
+          setRoulettes(formattedData);
+          setIsLoading(false);
+          
+          // Se ainda não houver roleta selecionada, selecionar a segunda
+          if (!selectedRoulette && formattedData.length > 1) {
+            setSelectedRoulette(formattedData[1]);
+            setShowStatsInline(true);
+          } else if (selectedRoulette) {
+            // Atualizar a roleta selecionada com dados mais recentes
+            const updatedSelectedRoulette = formattedData.find(r => 
+              r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
+            );
+            
+            if (updatedSelectedRoulette) {
+              setSelectedRoulette(updatedSelectedRoulette);
+            }
           }
         }
-      }
+        
+        // Terminar a atualização
+        setUpdatingData(false);
+      }, 300);
     };
     
     // Inscrever-se no evento de atualização de dados
     EventService.on('roulette:data-updated', handleDataUpdated);
     
+    // Inscrever-se também para o evento de novo número
+    EventService.on('roulette:new-number', handleDataUpdated);
+    
     // Limpar ao desmontar
     return () => {
       EventService.off('roulette:data-updated', handleDataUpdated);
+      EventService.off('roulette:new-number', handleDataUpdated);
     };
   }, [feedService, selectedRoulette]);
 
@@ -191,26 +228,34 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
             <h2 className="text-2xl font-bold text-white">Roletas Disponíveis</h2>
             <p className="text-gray-400">Escolha uma roleta para começar a jogar</p>
           </div>
-          <div className="relative w-64">
-            <input 
-              type="text" 
-              placeholder="Buscar roleta..." 
-              className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-            <svg 
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-            >
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
+          <div className="flex items-center gap-2">
+            {updatingData && (
+              <div className="flex items-center gap-1 text-sm text-yellow-400">
+                <div className="animate-spin h-4 w-4 border-2 border-yellow-400 border-t-transparent rounded-full"></div>
+                <span>Atualizando...</span>
+              </div>
+            )}
+            <div className="relative w-64">
+              <input 
+                type="text" 
+                placeholder="Buscar roleta..." 
+                className="w-full bg-gray-800 text-white py-2 px-4 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <svg 
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                width="16" 
+                height="16" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </div>
           </div>
         </div>
         
