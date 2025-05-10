@@ -183,27 +183,10 @@ const Index = () => {
   // Estado local
   const [error, setError] = useState<string | null>(dataLoadingError);
   const [isLoading, setIsLoading] = useState(!isDataLoaded);
-  
-  // Usar os dados pré-carregados do contexto se disponíveis
-  useEffect(() => {
-    if (isDataLoaded && rouletteData.length > 0) {
-      console.log(`[Index] Usando ${rouletteData.length} roletas pré-carregadas do contexto`);
-      // Os dados já estão carregados, então não precisamos fazer nada além de atualizar o estado
-      setIsLoading(false);
-    } else if (dataLoadingError) {
-      setError(dataLoadingError);
-      setIsLoading(false);
-    }
-  }, [isDataLoaded, rouletteData, dataLoadingError]);
-  
-  // Remover o estado de busca
-  // const [search, setSearch] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [showMobileSearch, setShowMobileSearch] = useState(false);
-  const [roulettes, setRoulettes] = useState<RouletteData[]>(rouletteData);
+  const [roulettes, setRoulettes] = useState<RouletteData[]>(rouletteData || []);
   const [knownRoulettes, setKnownRoulettes] = useState<RouletteData[]>([]);
   const [dataFullyLoaded, setDataFullyLoaded] = useState<boolean>(isDataLoaded);
+  const [loadingCards, setLoadingCards] = useState<boolean>(true);
   const [selectedRoulette, setSelectedRoulette] = useState<RouletteData | null>(null);
   const [historicalNumbers, setHistoricalNumbers] = useState<number[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -488,6 +471,29 @@ const Index = () => {
     }).slice(0, 3);
   }, [roulettes]);
 
+  // Renderiza skeletons para os cards de roleta
+  const renderRouletteSkeletons = () => {
+    return Array(12).fill(0).map((_, index) => (
+      <div key={index} className="relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border border-gray-800/30 rounded-lg p-4">
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center">
+            <div className="h-6 w-36 bg-gray-800 rounded animate-pulse"></div>
+          </div>
+          <div className="h-5 w-16 bg-gray-800 rounded-full animate-pulse"></div>
+        </div>
+        
+        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/20 bg-[#131111]">
+          {[...Array(8)].map((_, idx) => (
+            <div 
+              key={idx} 
+              className="w-6 h-6 rounded-full bg-gray-800 animate-pulse"
+            ></div>
+          ))}
+        </div>
+      </div>
+    ));
+  };
+  
   // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
     if (!Array.isArray(roulettes) || roulettes.length === 0) {
@@ -495,70 +501,14 @@ const Index = () => {
       return null;
     }
     
-    console.log(`[DEBUG] Renderizando ${roulettes.length} roletas disponíveis:`, JSON.stringify(roulettes.map(r => ({id: r.id, nome: r.nome || r.name})), null, 2));
-    
     return roulettes.map(roulette => {
-      // Extrair propriedades básicas com fallbacks
-      const id = roulette.id || roulette._id || '';
-      const nome = roulette.nome || roulette.name || 'Roleta sem nome';
-      
-      // Extrair números com segurança
-      let safeNumbers: number[] = [];
-      
-      // Verificar se tem dados em roulette.numero (prioridade 1)
-      if (Array.isArray(roulette.numero) && roulette.numero.length > 0) {
-        safeNumbers = roulette.numero
-          .filter(item => item !== null && item !== undefined)
-          .map(item => {
-            // Usamos type assertion para garantir ao TypeScript que item não é nulo
-            const safeItem = item as any; // depois do filtro, sabemos que não é null/undefined
-            // Se for um objeto com propriedade numero (formato {numero: 12})
-            if (typeof safeItem === 'object' && 'numero' in safeItem) {
-              return Number(safeItem.numero);
-            }
-            // Se for número diretamente
-            return Number(safeItem);
-          })
-          .filter(num => !isNaN(num)); // Filtrar apenas números válidos
-      } 
-      // Verificar se tem dados em roulette.lastNumbers (prioridade 2)
-      else if (Array.isArray(roulette.lastNumbers) && roulette.lastNumbers.length > 0) {
-        safeNumbers = roulette.lastNumbers
-          .filter(n => n !== null && n !== undefined)
-          .map(Number)
-          .filter(num => !isNaN(num));
-      } 
-      // Verificar se tem dados em roulette.numeros (prioridade 3)
-      else if (Array.isArray(roulette.numeros) && roulette.numeros.length > 0) {
-        safeNumbers = roulette.numeros
-          .filter(n => n !== null && n !== undefined)
-          .map(Number)
-          .filter(num => !isNaN(num));
-      }
-      
-      // Log para depuração
-      console.log(`[DEBUG] Números extraídos para roleta ${id}:`, safeNumbers);
-      
-      // Criar objeto de dados padronizado para o RouletteCard
-      const cardData = {
-        id: id,
-        _id: roulette._id || id,
-        name: nome,
-        nome: nome,
-        lastNumbers: safeNumbers,
-        numeros: safeNumbers,
-        vitorias: typeof roulette.vitorias === 'number' ? roulette.vitorias : 0,
-        derrotas: typeof roulette.derrotas === 'number' ? roulette.derrotas : 0,
-        estado_estrategia: roulette.estado_estrategia || ''
-      };
-      
       return (
         <div 
-          key={id} 
-          className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === id ? 'border-2 border-green-500 shadow-lg shadow-green-500/20' : 'p-0.5'}`}
+          key={roulette.id} 
+          className={`cursor-pointer transition-all rounded-xl ${selectedRoulette?.id === roulette.id ? 'border-2 border-green-500 shadow-lg shadow-green-500/20' : 'p-0.5'}`}
           onClick={() => setSelectedRoulette(roulette)}
         >
-          <RouletteCard data={cardData} />
+          <RouletteCard data={roulette} />
         </div>
       );
     });
@@ -797,28 +747,70 @@ const Index = () => {
     }
   };
 
-  // Renderiza skeletons para os cards de roleta
-  const renderRouletteSkeletons = () => {
-    return Array(12).fill(0).map((_, index) => (
-      <div key={index} className="relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border border-gray-800/30 rounded-lg p-4">
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center">
-            <div className="h-6 w-36 bg-gray-800 rounded animate-pulse"></div>
-          </div>
-          <div className="h-5 w-16 bg-gray-800 rounded-full animate-pulse"></div>
-        </div>
+  // Usar os dados pré-carregados do contexto se disponíveis
+  useEffect(() => {
+    if (rouletteData && rouletteData.length > 0) {
+      console.log(`[Index] Usando ${rouletteData.length} roletas do contexto global`);
+      
+      // Transformar os dados para o formato esperado pelos cards
+      const formattedData = rouletteData.map(roleta => {
+        // Extrair números com segurança
+        let safeNumbers: number[] = [];
         
-        <div className="flex flex-wrap gap-1 justify-center my-5 p-3 rounded-xl border border-gray-700/20 bg-[#131111]">
-          {[...Array(8)].map((_, idx) => (
-            <div 
-              key={idx} 
-              className="w-6 h-6 rounded-full bg-gray-800 animate-pulse"
-            ></div>
-          ))}
-        </div>
-      </div>
-    ));
-  };
+        // Verificar se tem dados em roleta.numero (prioridade 1)
+        if (Array.isArray(roleta.numero) && roleta.numero.length > 0) {
+          safeNumbers = roleta.numero
+            .filter(item => item !== null && item !== undefined)
+            .map(item => {
+              // Se for um objeto com propriedade numero (formato {numero: 12})
+              if (typeof item === 'object' && item !== null && 'numero' in item) {
+                return Number(item.numero);
+              }
+              // Se for número diretamente
+              return Number(item);
+            })
+            .filter(num => !isNaN(num)); // Filtrar apenas números válidos
+        } 
+        // Verificar se tem dados em roleta.lastNumbers (prioridade 2)
+        else if (Array.isArray(roleta.lastNumbers) && roleta.lastNumbers.length > 0) {
+          safeNumbers = roleta.lastNumbers
+            .filter(n => n !== null && n !== undefined)
+            .map(Number)
+            .filter(num => !isNaN(num));
+        } 
+        // Verificar se tem dados em roleta.numeros (prioridade 3)
+        else if (Array.isArray(roleta.numeros) && roleta.numeros.length > 0) {
+          safeNumbers = roleta.numeros
+            .filter(n => n !== null && n !== undefined)
+            .map(Number)
+            .filter(num => !isNaN(num));
+        }
+        
+        // Criar objeto padronizado
+        return {
+          id: roleta.id || roleta._id || '',
+          _id: roleta._id || roleta.id || '',
+          nome: roleta.nome || roleta.name || 'Roleta sem nome',
+          name: roleta.nome || roleta.name || 'Roleta sem nome',
+          numeros: safeNumbers,
+          lastNumbers: safeNumbers,
+          numero: Array.isArray(roleta.numero) ? roleta.numero : [],
+          vitorias: typeof roleta.vitorias === 'number' ? roleta.vitorias : 0,
+          derrotas: typeof roleta.derrotas === 'number' ? roleta.derrotas : 0,
+          estado_estrategia: roleta.estado_estrategia || '',
+          online: true
+        };
+      });
+      
+      setRoulettes(formattedData);
+      setIsLoading(false);
+      setLoadingCards(false);
+      setDataFullyLoaded(true);
+    } else if (dataLoadingError) {
+      setError(dataLoadingError);
+      setIsLoading(false);
+    }
+  }, [isDataLoaded, rouletteData, dataLoadingError]);
 
   return (
     <Layout>
@@ -845,6 +837,12 @@ const Index = () => {
                   <div className="text-white font-bold">
                     Roletas Disponíveis
                   </div>
+                  {loadingCards && (
+                    <div className="text-xs bg-yellow-600/20 px-2 py-1 rounded-full text-yellow-400 flex items-center">
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      Atualizando...
+                    </div>
+                  )}
                 </div>
               </div>
               

@@ -42,18 +42,67 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
   
   // Inicializar o cliente de roletas e carregar dados
   useEffect(() => {
-    const initializeData = async () => {
-      try {
-        console.log('Inicializando carregamento de dados centralizado...');
-        setIsLoading(true);
+    // Timeout de segurança para evitar tela de carregamento infinita
+    const safetyTimeout = setTimeout(() => {
+      if (isLoading) {
+        console.log('Timeout de segurança acionado - liberando interface');
+        setIsLoading(false);
         
+        // Se não temos dados ainda, tentar novamente em background
+        if (rouletteData.length === 0) {
+          console.log('Iniciando carregamento em segundo plano');
+          loadDataInBackground();
+        }
+      }
+    }, 5000); // 5 segundos máximos de espera
+    
+    // Função para carregar dados em segundo plano
+    const loadDataInBackground = async () => {
+      try {
         // Obter a instância do cliente unificado
         const client = UnifiedRouletteClient.getInstance({
           autoConnect: true,
           streamingEnabled: true
         });
         
-        // Forçar uma atualização para garantir que temos os dados mais recentes
+        // Não mostramos mais o loading já que estamos em background
+        const data = await client.forceUpdate();
+        console.log(`Dados carregados em background: ${data.length} roletas`);
+        
+        // Atualizar o estado
+        setRouletteData(data);
+        setIsDataLoaded(true);
+      } catch (err) {
+        console.error('Erro ao carregar dados em background:', err);
+        setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
+      }
+    };
+    
+    const initializeData = async () => {
+      try {
+        console.log('Inicializando carregamento de dados centralizado...');
+        
+        // Obter a instância do cliente unificado
+        const client = UnifiedRouletteClient.getInstance({
+          autoConnect: true,
+          streamingEnabled: true,
+          enablePolling: true,
+          pollingInterval: 3000 // Polling a cada 10 segundos como fallback
+        });
+        
+        // Primeiro verificar se já temos dados em cache
+        const cachedData = client.getAllRoulettes();
+        
+        if (cachedData && cachedData.length > 0) {
+          console.log(`Usando ${cachedData.length} roletas do cache`);
+          setRouletteData(cachedData);
+          setIsDataLoaded(true);
+          setIsLoading(false);
+          return; // Encerrar já que temos dados
+        }
+        
+        // Se não temos cache, forçar atualização
+        console.log('Cache vazio, buscando dados atualizados...');
         const data = await client.forceUpdate();
         console.log(`Dados carregados com sucesso: ${data.length} roletas encontradas`);
         
@@ -69,6 +118,11 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
     };
     
     initializeData();
+    
+    // Limpar timeout
+    return () => {
+      clearTimeout(safetyTimeout);
+    };
   }, []);
   
   // Se estiver carregando, mostrar a tela de carregamento
@@ -76,6 +130,8 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
     return <LoadingScreen message="Carregando dados da roleta..." />;
   }
   
+  // Renderizar mesmo se não tiver dados completos,
+  // o contexto vai continuar atualizando em segundo plano
   return (
     <DataLoadingContext.Provider value={{ isDataLoaded, rouletteData, error }}>
       {children}
