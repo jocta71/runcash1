@@ -205,24 +205,20 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-// Importação de componentes principais com lazy loading
-const Index = lazy(() => import("@/pages/Index"));
-const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
-const ProfileSubscription = lazy(() => import("@/pages/ProfileSubscription"));
-const AccountRedirect = lazy(() => import("@/pages/AccountRedirect"));
-const NotFound = lazy(() => import("@/pages/NotFound"));
-const PlansPage = lazy(() => import("@/pages/PlansPage"));
-const PaymentPage = lazy(() => import("@/pages/PaymentPage"));
-const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
-const PaymentCanceled = lazy(() => import("@/pages/PaymentCanceled"));
-const LiveRoulettePage = lazy(() => import("@/pages/LiveRoulettePage"));
-const TestPage = lazy(() => import("@/pages/TestPage"));
-const BillingPage = lazy(() => import("@/pages/BillingPage"));
-const GerenciarChavesPage = lazy(() => import("@/pages/GerenciarChaves"));
-// Comentando a importação da página de checkout, já que agora está integrada nos planos
-// const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
-// Comentando a importação da página de teste do Asaas
-// const AsaasTestPage = lazy(() => import("@/pages/AsaasTestPage"));
+// Substitua os imports de páginas estáticos por lazy loads
+const Index = lazy(() => import('./pages/Index'));
+const LiveRoulettePage = lazy(() => import('./pages/LiveRoulettePage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const PlansPage = lazy(() => import('./pages/PlansPage'));
+const TestPage = lazy(() => import('./pages/TestPage'));
+const PaymentPage = lazy(() => import('./pages/PaymentPage'));
+const PaymentSuccessPage = lazy(() => import('./pages/PaymentSuccessPage'));
+const PaymentCanceled = lazy(() => import('./pages/PaymentCanceled'));
+const BillingPage = lazy(() => import('./pages/BillingPage'));
+const AccountRedirect = lazy(() => import('./pages/AccountRedirect'));
+const ProfileSubscription = lazy(() => import('./pages/ProfileSubscription'));
+const GerenciarChaves = lazy(() => import('./pages/GerenciarChaves'));
 
 // Criação do cliente de consulta
 const createQueryClient = () => new QueryClient({
@@ -335,6 +331,16 @@ const AuthStateManager = () => {
   return null; // Este componente não renderiza nada
 };
 
+// Adicionar fallback de carregamento para rotas
+const PageLoading = () => (
+  <div className="w-full h-screen flex items-center justify-center bg-background">
+    <div className="flex flex-col items-center gap-2">
+      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      <p className="text-sm text-muted-foreground">Carregando...</p>
+    </div>
+  </div>
+);
+
 // Componente principal da aplicação
 const App = () => {
   // Criar uma única instância do QueryClient com useRef para mantê-la durante re-renders
@@ -387,19 +393,22 @@ const App = () => {
                             {/* Remover rota explícita de login e sempre usar o modal */}
                             
                             {/* Páginas principais - Acessíveis mesmo sem login, mas mostram modal se necessário */}
-                            <Route index element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <Index />
+                            <Route 
+                              path="/" 
+                              element={
+                                <Suspense fallback={<PageLoading />}>
+                                  <ProtectedRoute>
+                                    <Index />
+                                  </ProtectedRoute>
                                 </Suspense>
-                              </ProtectedRoute>
-                            } />
+                              } 
+                            />
                             
                             {/* Rota para página de gerenciamento de chaves de acesso API */}
                             <Route path="/gerenciar-chaves" element={
                               <ProtectedRoute requireAuth={true}>
                                 <Suspense fallback={<LoadingScreen />}>
-                                  <GerenciarChavesPage />
+                                  <GerenciarChaves />
                                 </Suspense>
                               </ProtectedRoute>
                             } />

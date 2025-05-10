@@ -154,11 +154,11 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       // Pequeno delay para mostrar o indicador de atualização
       setTimeout(() => {
         try {
-          // Obter dados atualizados do cache
-          const updatedRoulettes = feedService.getAllRoulettes();
-          
-          if (updatedRoulettes && updatedRoulettes.length > 0) {
-            console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
+      // Obter dados atualizados do cache
+      const updatedRoulettes = feedService.getAllRoulettes();
+      
+      if (updatedRoulettes && updatedRoulettes.length > 0) {
+        console.log(`[LiveRoulettesDisplay] Atualizando com ${updatedRoulettes.length} roletas`);
             
             // Formatar dados para garantir consistência
             const formattedData = formatRouletteData(updatedRoulettes as ExtendedRouletteData[]);
@@ -166,22 +166,22 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
             // Atualizar o estado com os dados formatados
             setRoulettes(formattedData);
             setIsLoading(false);
-            
-            // Se ainda não houver roleta selecionada, selecionar a segunda
+        
+        // Se ainda não houver roleta selecionada, selecionar a segunda
             if (!selectedRoulette && formattedData.length > 1) {
               setSelectedRoulette(formattedData[1]);
-              setShowStatsInline(true);
-            } else if (selectedRoulette) {
-              // Atualizar a roleta selecionada com dados mais recentes
+          setShowStatsInline(true);
+        } else if (selectedRoulette) {
+          // Atualizar a roleta selecionada com dados mais recentes
               const updatedSelectedRoulette = formattedData.find(r => 
-                r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
-              );
-              
-              if (updatedSelectedRoulette) {
-                setSelectedRoulette(updatedSelectedRoulette);
-              }
-            }
+            r.id === selectedRoulette.id || r._id === selectedRoulette._id || r.nome === selectedRoulette.nome
+          );
+          
+          if (updatedSelectedRoulette) {
+            setSelectedRoulette(updatedSelectedRoulette);
           }
+        }
+      }
         } catch (error) {
           console.error('[LiveRoulettesDisplay] Erro ao processar dados atualizados:', error);
         } finally {
@@ -193,19 +193,19 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     
     // Verificação defensiva antes de inscrever nos eventos
     if (EventService && typeof EventService.on === 'function') {
-      // Inscrever-se no evento de atualização de dados
-      EventService.on('roulette:data-updated', handleDataUpdated);
+    // Inscrever-se no evento de atualização de dados
+    EventService.on('roulette:data-updated', handleDataUpdated);
       
       // Inscrever-se também para o evento de novo número
       EventService.on('roulette:new-number', handleDataUpdated);
-      
-      // Limpar ao desmontar
-      return () => {
+    
+    // Limpar ao desmontar
+    return () => {
         if (EventService && typeof EventService.off === 'function') {
-          EventService.off('roulette:data-updated', handleDataUpdated);
+      EventService.off('roulette:data-updated', handleDataUpdated);
           EventService.off('roulette:new-number', handleDataUpdated);
         }
-      };
+    };
     }
     
     // Se EventService não estiver disponível, retornar noop

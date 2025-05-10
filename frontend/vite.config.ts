@@ -40,13 +40,66 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: "dist",
     assetsDir: "assets",
+    // Aumentar o limite de aviso para chunks grandes
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       external: ['@rollup/rollup-linux-x64-gnu'],
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          ui: ['@/components/ui'], 
-        },
+        manualChunks: (id) => {
+          // Vendor chunks - bibliotecas principais
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || 
+                id.includes('react-dom') || 
+                id.includes('react-router')) {
+              return 'vendor-react';
+            }
+            
+            if (id.includes('@tanstack') || 
+                id.includes('axios') || 
+                id.includes('date-fns')) {
+              return 'vendor-data';
+            }
+            
+            if (id.includes('tailwind') || 
+                id.includes('class-variance-authority') || 
+                id.includes('lucide-react') ||
+                id.includes('clsx')) {
+              return 'vendor-ui';
+            }
+            
+            // Outros node_modules
+            return 'vendor-misc';
+          }
+          
+          // Componentes de UI
+          if (id.includes('/components/ui/')) {
+            return 'ui-components';
+          }
+          
+          // Componentes específicos de roletas
+          if (id.includes('/components/roulette/')) {
+            return 'roulette-components';
+          }
+          
+          // Páginas
+          if (id.includes('/pages/')) {
+            // Extrair o nome da página do caminho
+            const pageName = id.split('/pages/')[1]?.split('/')[0] || '';
+            if (pageName) {
+              return `page-${pageName}`;
+            }
+          }
+          
+          // Serviços
+          if (id.includes('/services/')) {
+            return 'services';
+          }
+          
+          // Contextos
+          if (id.includes('/context/')) {
+            return 'contexts';
+          }
+        }
       },
     },
   }
