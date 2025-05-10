@@ -462,11 +462,6 @@ const Index = () => {
     };
   }, [loadRouletteData, dataFullyLoaded, mergeRoulettes]);
   
-  // Efeito para inicializar o estado filteredRoulettes com todas as roletas
-  useEffect(() => {
-    setFilteredRoulettes(roulettes);
-  }, [roulettes]);
-  
   const topRoulettes = useMemo(() => {
     return [...roulettes].sort((a, b) => {
       const aWinRate = a.vitorias / (a.vitorias + a.derrotas) * 100 || 0;
