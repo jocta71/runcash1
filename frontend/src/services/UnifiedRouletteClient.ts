@@ -1326,6 +1326,29 @@ class UnifiedRouletteClient {
   //   },
   //   ...
   // };
+
+  /**
+   * Método de compatibilidade com o SocketService antigo
+   * @param callback Função a ser chamada quando novos dados chegarem
+   */
+  public subscribe(callback: (data: any) => void): void {
+    this.log('Adicionando assinante via método de compatibilidade');
+    // Adicionar ao conjunto de callbacks para o evento 'update'
+    if (!this.eventCallbacks.has('update')) {
+      this.eventCallbacks.set('update', new Set());
+    }
+    this.eventCallbacks.get('update')?.add(callback);
+    
+    // Também notifica imediatamente com os dados atuais, se disponíveis
+    if (this.rouletteData.size > 0) {
+      try {
+        const currentData = this.getAllRoulettes();
+        callback(currentData);
+      } catch (error) {
+        this.error('Erro ao enviar dados iniciais para novo assinante:', error);
+      }
+    }
+  }
 }
 
 // Exportar singleton
