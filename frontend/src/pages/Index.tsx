@@ -26,8 +26,11 @@ import RouletteCardSkeleton from '@/components/RouletteCardSkeleton';
 import UnifiedRouletteClient from '@/services/UnifiedRouletteClient';
 import EventBus from '../services/EventBus';
 import { Helmet } from 'react-helmet-async';
-
-
+import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { useThrottledFetch } from '@/hooks/useThrottledFetch';
 
 interface ChatMessage {
   id: string;
@@ -42,15 +45,12 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-
-// Adicionar área do código para persistência de roletas
 interface KnownRoulette {
   id: string;
   nome: string;
   ultima_atualizacao: string;
 }
 
-// Adicionar o estilo CSS inline para o componente radio
 const radioInputStyles = `
 .radio-input input {
   display: none;
@@ -148,12 +148,9 @@ const radioInputStyles = `
 }
 `;
 
-// Função para formatar CPF
 const formatCPF = (value: string) => {
-  // Remove todos os caracteres não numéricos
   const cleanValue = value.replace(/\D/g, '');
   
-  // Aplica a máscara do CPF: XXX.XXX.XXX-XX
   if (cleanValue.length <= 3) {
     return cleanValue;
   } else if (cleanValue.length <= 6) {
@@ -165,9 +162,7 @@ const formatCPF = (value: string) => {
   }
 };
 
-// Função para formatar telefone
 const formatPhone = (value: string) => {
-  // Remove todos os caracteres não numéricos
   const cleanValue = value.replace(/\D/g, '');
   
   if (cleanValue.length <= 2) {
@@ -180,8 +175,6 @@ const formatPhone = (value: string) => {
 };
 
 const Index = () => {
-  // Remover o estado de busca
-  // const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -197,13 +190,11 @@ const Index = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
   
-  // Novos estados para o checkout
   const [showCheckout, setShowCheckout] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   
-  // Estados para o formulário de pagamento
   const [checkoutStep, setCheckoutStep] = useState<'form' | 'pix'>('form');
   const [formData, setFormData] = useState({
     name: '',
@@ -212,7 +203,6 @@ const Index = () => {
     phone: ''
   });
   
-  // Estados para o QR code PIX
   const [pixLoading, setPixLoading] = useState(false);
   const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
   const [qrCodeText, setQrCodeText] = useState<string | null>(null);
@@ -230,21 +220,16 @@ const Index = () => {
            currentSubscription?.status?.toLowerCase() === 'ativo';
   }, [currentSubscription]);
   
-  // Referência para controlar se o componente está montado
   const isMounted = useRef(true);
-
-  // Referência para timeout de atualização
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const navigate = useNavigate();
   
-  // Tempo máximo (em ms) para esperar por dados antes de renderizar mesmo sem eles
   const MAX_WAIT_TIME = 15000;
   const checkDataIntervalId = useRef<number | null>(null);
   const waitTimeoutId = useRef<number | null>(null);
   const unifiedClient = useRef<UnifiedRouletteClient>(UnifiedRouletteClient.getInstance());
   
-  // Escutar eventos de roletas existentes para persistência
   useEffect(() => {
     const handleRouletteExists = (event: RouletteNumberEvent | StrategyUpdateEvent) => {
       if (!event || !event.roleta_id) {
@@ -269,100 +254,88 @@ const Index = () => {
       });
     };
     
-    // Registrar o listener de evento diretamente (sem usar addGlobalListener que pode não estar registrado corretamente)
     EventService.getInstance().subscribe('roleta_exists', handleRouletteExists);
     
     console.log('[Index] Listener para evento roleta_exists registrado');
     
     return () => {
-      // Remover o listener ao desmontar o componente
       EventService.getInstance().unsubscribe('roleta_exists', handleRouletteExists);
       console.log('[Index] Listener para evento roleta_exists removido');
     };
   }, []);
   
-  // Escutar eventos de carregamento de dados históricos
   useEffect(() => {
-    // Função para verificar se temos roletas disponíveis
-    const checkForRoulettes = () => {
+    const checkForRoulettes = async () => {
       try {
-        const allRoulettes = unifiedClient.current && 
-                            unifiedClient.current.getAllRoulettes && 
-                            unifiedClient.current.getAllRoulettes();
-                            
-        console.log('[Index] Verificando roletas disponíveis:', allRoulettes?.length || 0);
+        setIsLoading(true);
+        setError(null);
         
-        if (allRoulettes && allRoulettes.length > 0) {
-          // Temos dados! Vamos usá-los
-          setRoulettes(allRoulettes);
-          setIsLoading(false);
-          
-          // Limpar o intervalo pois encontramos dados
-          if (checkDataIntervalId.current) {
-            window.clearInterval(checkDataIntervalId.current);
-            checkDataIntervalId.current = null;
-          }
-          
-          // Limpar o timeout de segurança, se existir
-          if (waitTimeoutId.current) {
-            window.clearTimeout(waitTimeoutId.current);
-            waitTimeoutId.current = null;
-          }
-          
-          console.log('[Index] Dados de roleta carregados com sucesso:', allRoulettes.length);
+        const unifiedClient = UnifiedRouletteClient.getInstance();
+        
+        if (!unifiedClient) {
+          throw new Error('Cliente de roletas não disponível');
         }
-      } catch (e) {
-        console.error('[Index] Erro ao verificar roletas disponíveis:', e);
+
+        if (typeof unifiedClient.checkStatus === 'function') {
+          const status = unifiedClient.checkStatus();
+          if (!status.isReady) {
+            console.log('Cliente de roletas não está pronto, tentando inicializar...');
+            if (typeof unifiedClient.init === 'function') {
+              await unifiedClient.init();
+            }
+          }
+        }
+
+        console.log('Aguardando dados das roletas...');
+        
+        if (typeof unifiedClient.getAllRoulettes === 'function') {
+          const cachedRoulettes = unifiedClient.getAllRoulettes();
+          if (cachedRoulettes && Array.isArray(cachedRoulettes) && cachedRoulettes.length > 0) {
+            console.log(`Recebidas ${cachedRoulettes.length} roletas do cache do cliente`);
+            processRoulettes(cachedRoulettes);
+            return;
+          }
+        }
+
+        console.log('Buscando roletas via API...');
+        const fetchedRoulettes = await RequestThrottler.scheduleRequest(
+          'index_roulettes',
+          async () => {
+            const response = await RouletteRepository.fetchAllRoulettesWithNumbers();
+            console.log(`✅ ${response.length} roletas encontradas`);
+            return response;
+          }
+        );
+        
+        if (fetchedRoulettes && Array.isArray(fetchedRoulettes) && fetchedRoulettes.length > 0) {
+          console.log(`Recebidas ${fetchedRoulettes.length} roletas via API`);
+          processRoulettes(fetchedRoulettes);
+        } else {
+          throw new Error('Não foi possível obter roletas');
+        }
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido ao buscar roletas';
+        console.error('Erro ao carregar roletas:', errorMsg);
+        setError(`Falha ao carregar roletas: ${errorMsg}`);
+        setIsLoading(false);
       }
     };
     
-    // Inicializar o UnifiedRouletteClient se necessário
-    try {
-      if (!unifiedClient.current) {
-        unifiedClient.current = UnifiedRouletteClient.getInstance();
-      }
-      
-      // Garantir que os dados históricos comecem a ser carregados
-      if (unifiedClient.current.loadHistoricalData) {
-        unifiedClient.current.loadHistoricalData().catch(err => {
-          console.error('[Index] Erro ao carregar dados históricos:', err);
-        });
-      }
-    } catch (e) {
-      console.error('[Index] Erro ao inicializar UnifiedRouletteClient:', e);
-    }
+    checkForRoulettes();
     
-    // Verificar periodicamente pelos dados
-    checkDataIntervalId.current = window.setInterval(checkForRoulettes, 500) as unknown as number;
-    
-    // Definir timeout de segurança para não bloquear indefinidamente
-    waitTimeoutId.current = window.setTimeout(() => {
-      console.log('[Index] Timeout atingido, renderizando mesmo sem dados');
-      setIsLoading(false);
-      
-      // Limpar o intervalo de verificação
-      if (checkDataIntervalId.current) {
-        window.clearInterval(checkDataIntervalId.current);
-        checkDataIntervalId.current = null;
+    const handleRouletteDataUpdate = (eventData: any) => {
+      if (eventData && Array.isArray(eventData.roulettes)) {
+        console.log(`Recebidas ${eventData.roulettes.length} roletas atualizadas`);
+        processRoulettes(eventData.roulettes);
       }
-      
-      // Verificar mais uma vez antes de renderizar sem dados
-      checkForRoulettes();
-    }, MAX_WAIT_TIME) as unknown as number;
-    
-    // Inscrever-se no evento de dados carregados
-    const handleRouletteDataLoaded = () => {
-      console.log('[Index] Evento de dados carregados recebido');
-      checkForRoulettes();
     };
     
     try {
-      EventBus.on('roulettes_loaded', handleRouletteDataLoaded);
+      EventBus.on('roulettes_loaded', handleRouletteDataUpdate);
     } catch (e) {
       console.error('[Index] Erro ao inscrever-se em eventos do EventBus:', e);
     }
     
-    // Cleanup ao desmontar
     return () => {
       try {
         if (checkDataIntervalId.current) {
@@ -375,25 +348,21 @@ const Index = () => {
           waitTimeoutId.current = null;
         }
         
-        EventBus.off('roulettes_loaded', handleRouletteDataLoaded);
+        EventBus.off('roulettes_loaded', handleRouletteDataUpdate);
       } catch (e) {
         console.error('[Index] Erro no cleanup de eventos:', e);
       }
     };
   }, []);
   
-  // Função para mesclar roletas da API com roletas conhecidas
   const mergeRoulettes = useCallback((apiRoulettes: RouletteData[], knownRoulettes: RouletteData[]): RouletteData[] => {
     const merged: Record<string, RouletteData> = {};
     
-    // Primeiro, adicionar todas as roletas da API
     apiRoulettes.forEach(roulette => {
       merged[roulette.id] = roulette;
     });
     
-    // Depois, adicionar ou atualizar com roletas conhecidas
     knownRoulettes.forEach(known => {
-      // Se a roleta já existe na lista da API, não precisamos fazer nada
       if (merged[known.id]) {
         console.log(`[Index] Roleta já existe na API: ${known.nome} (ID: ${known.id})`);
         return;
@@ -401,7 +370,6 @@ const Index = () => {
       
       console.log(`[Index] Adicionando roleta conhecida ausente na API: ${known.nome} (ID: ${known.id})`);
       
-      // Criar uma roleta a partir da roleta conhecida
       merged[known.id] = {
         id: known.id,
         nome: known.name,
@@ -420,13 +388,10 @@ const Index = () => {
     return result;
   }, []);
   
-  // Efeito para atualizar selectedRoulette quando roulettes for carregado ou alterado
   useEffect(() => {
-    // Se já temos roletas carregadas e nenhuma roleta está selecionada, selecione a primeira
     if (roulettes.length > 0 && !selectedRoulette && !isLoading) {
       console.log('[Index] Selecionando uma roleta automaticamente');
       
-      // Tentar encontrar uma roleta que tenha números/dados
       const roletaComDados = roulettes.find(roleta => {
         const temNumeros = (
           (Array.isArray(roleta.numero) && roleta.numero.length > 0) || 
@@ -436,12 +401,10 @@ const Index = () => {
         return temNumeros;
       });
       
-      // Se encontrou uma roleta com dados, selecione-a, caso contrário use a primeira
       setSelectedRoulette(roletaComDados || roulettes[0]);
     }
   }, [roulettes, selectedRoulette, isLoading]);
   
-  // Função para carregar dados da API de forma centralizada
   const loadRouletteData = useCallback(async () => {
     if (!isMounted.current) return;
     
@@ -449,7 +412,6 @@ const Index = () => {
       setIsLoading(true);
       setError(null);
       
-      // Usar o throttler para evitar múltiplas chamadas simultâneas
       const result = await RequestThrottler.scheduleRequest(
         'index_roulettes',
         async () => {
@@ -461,19 +423,15 @@ const Index = () => {
       );
       
       if (result && Array.isArray(result)) {
-        // Mesclar com roletas conhecidas
         const merged = mergeRoulettes(result, knownRoulettes);
         setRoulettes(merged);
         
-        // Atualizar roletas conhecidas se tivermos novos dados
         if (result.length > 0) {
           setKnownRoulettes(prev => mergeRoulettes(prev, result));
         }
         
-        // Definir que os dados foram totalmente carregados
         setDataFullyLoaded(true);
       } else {
-        // Se falhar, usar roletas conhecidas
         if (knownRoulettes.length > 0) {
           console.log('⚠️ Usando roletas conhecidas como fallback');
           setRoulettes(knownRoulettes);
@@ -487,7 +445,6 @@ const Index = () => {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
       setError(`Erro ao buscar roletas: ${errorMessage}`);
       
-      // Fallback para roletas conhecidas
       if (knownRoulettes.length > 0) {
         setRoulettes(knownRoulettes);
         setDataFullyLoaded(true);
@@ -497,31 +454,25 @@ const Index = () => {
     }
   }, [knownRoulettes, mergeRoulettes]);
 
-  // Efeito para inicialização e atualização periódica
   useEffect(() => {
-    // Agendar atualizações periódicas
     const scheduleUpdate = () => {
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
       }
       
       updateTimeoutRef.current = setTimeout(() => {
-        // Recarregar dados
         loadRouletteData();
-      }, 60000); // A cada 60 segundos
+      }, 60000);
     };
     
-    // Inicialização
     loadRouletteData();
     
-    // Timeout de segurança para garantir que a tela será liberada
     const safetyTimeout = setTimeout(() => {
       if (!dataFullyLoaded && isMounted.current) {
         console.log('[Index] 🔄 Liberando tela após timeout de segurança');
         setDataFullyLoaded(true);
         setIsLoading(false);
         
-        // Tentar obter dados do UnifiedRouletteClient diretamente
         const unifiedClient = UnifiedRouletteClient.getInstance();
         const availableRoulettes = unifiedClient.getAllRoulettes();
         
@@ -531,14 +482,12 @@ const Index = () => {
           setFilteredRoulettes(availableRoulettes);
         }
       }
-    }, 10000); // 10 segundos
+    }, 10000);
     
-    // Programar atualização periódica
     const updateInterval = setInterval(() => {
         if (isMounted.current) {
           scheduleUpdate();
           
-          // Verificar se temos dados no UnifiedRouletteClient a cada atualização
           const unifiedClient = UnifiedRouletteClient.getInstance();
           const availableRoulettes = unifiedClient.getAllRoulettes();
           
@@ -551,9 +500,8 @@ const Index = () => {
             setIsLoading(false);
           }
         }
-    }, 30000); // 30 segundos
+    }, 30000);
     
-    // Configurar um ouvinte para eventos de atualização do UnifiedRouletteClient
     const unifiedClient = UnifiedRouletteClient.getInstance();
     const unsubscribe = unifiedClient.on('update', (updateData) => {
       if (Array.isArray(updateData) && updateData.length > 0) {
@@ -565,7 +513,6 @@ const Index = () => {
       }
     });
     
-    // Limpeza ao desmontar
     return () => {
       isMounted.current = false;
       clearTimeout(safetyTimeout);
@@ -578,10 +525,6 @@ const Index = () => {
     };
   }, [loadRouletteData, dataFullyLoaded, mergeRoulettes, roulettes.length]);
   
-  // Simplificar para usar diretamente as roletas
-  // const filteredRoulettes = roulettes; // Remover esta linha
-  
-  // Efeito para inicializar o estado filteredRoulettes com todas as roletas
   useEffect(() => {
     setFilteredRoulettes(roulettes);
   }, [roulettes]);
@@ -594,7 +537,6 @@ const Index = () => {
     }).slice(0, 3);
   }, [roulettes]);
 
-  // Garantir que os dados históricos sejam carregados antes de renderizar os cards
   useEffect(() => {
     let isMounted = true;
     let timeoutId: NodeJS.Timeout | null = null;
@@ -604,11 +546,10 @@ const Index = () => {
       try {
         const unifiedClient = UnifiedRouletteClient.getInstance();
         
-        // Adicionar timeout para evitar bloqueio indefinido
         const timeoutPromise = new Promise<void>((_, reject) => {
           timeoutId = setTimeout(() => {
             reject(new Error('Timeout ao carregar histórico'));
-          }, 10000); // 10 segundos
+          }, 10000);
         });
         
         if (typeof unifiedClient.loadHistoricalData === 'function') {
@@ -619,19 +560,16 @@ const Index = () => {
             ]);
           } catch (err) {
             console.warn('[Index] Timeout ao carregar histórico:', err);
-            // Continuar mesmo com timeout
           } finally {
             if (timeoutId) clearTimeout(timeoutId);
           }
         }
         
-        // Verificar se temos dados de roletas, seja do histórico ou do GlobalRouletteService
         const checkForRoulettes = () => {
           const availableRoulettes = unifiedClient.getAllRoulettes();
           console.log(`[Index] Verificando dados de roletas: ${availableRoulettes.length} roletas disponíveis`);
           
           if (availableRoulettes.length > 0) {
-            // Temos dados! Podemos mostrar os cards
             if (isMounted) {
               setHistoricalDataReady(true);
               if (checkDataIntervalId) clearInterval(checkDataIntervalId);
@@ -639,16 +577,12 @@ const Index = () => {
           }
         };
         
-        // Verificar imediatamente
         checkForRoulettes();
         
-        // E também configurar um intervalo para verificar a cada 1 segundo
-        // se os dados chegaram via GlobalRouletteService
         checkDataIntervalId = setInterval(checkForRoulettes, 1000);
         
       } catch (err) {
         console.error('[Index] Erro ao carregar dados históricos:', err);
-        // Mesmo com erro, permitir a continuação do fluxo para não bloquear a renderização
         if (isMounted) {
           setHistoricalDataReady(true);
         }
@@ -657,15 +591,13 @@ const Index = () => {
     
     loadHistoricalData();
     
-    // Timeout de segurança para garantir que a página não fique bloqueada
     const safetyTimeout = setTimeout(() => {
       if (isMounted) {
         console.log('[Index] Safety timeout acionado, forçando renderização');
         setHistoricalDataReady(true);
       }
-    }, 15000); // 15 segundos de timeout de segurança
+    }, 15000);
     
-    // Cleanup
     return () => {
       isMounted = false;
       if (timeoutId) clearTimeout(timeoutId);
@@ -674,9 +606,7 @@ const Index = () => {
     };
   }, []);
   
-  // Função para renderizar os cards de roleta
   const renderRouletteCards = () => {
-    // Se os dados históricos não estiverem prontos, renderizar skeletons
     if (!historicalDataReady) {
       return renderRouletteSkeletons();
     }
@@ -688,15 +618,12 @@ const Index = () => {
     
     console.log(`[DEBUG] Renderizando ${filteredRoulettes.length} roletas disponíveis`);
     
-    // MODIFICAÇÃO CRÍTICA: Mostrar todas as roletas sem paginação
     const allRoulettes = filteredRoulettes;
 
     return allRoulettes.map(roulette => {
-      // Obter ID seguro da roleta
       const rouletteId = roulette.id || roulette._id || '';
       const rouletteName = roulette.nome || roulette.name || 'Roleta sem nome';
       
-      // Preparar números para exibição, tentando acessar diferentes formatos possíveis
       let numbers: number[] = [];
       
       if (Array.isArray(roulette.numeros)) {
@@ -723,19 +650,14 @@ const Index = () => {
     });
   };
   
-  // Função para renderizar a paginação
   const renderPagination = () => {
     if (!Array.isArray(roulettes) || roulettes.length === 0) {
       return null;
     }
     
-    // Usar todas as roletas diretamente, sem filtro
     const filteredRoulettes = roulettes;
     
     const totalPages = Math.ceil(filteredRoulettes.length / itemsPerPage);
-    
-    // Sempre mostrar a paginação se houver roletas
-    // Removida a condição que ocultava a paginação quando havia apenas uma página
     
     return (
       <div className="flex justify-center mt-8 gap-2 mb-8 bg-gray-800 p-3 rounded-lg shadow-lg">
@@ -762,12 +684,10 @@ const Index = () => {
     );
   };
 
-  // Função para lidar com o filtro de roletas
   const handleRouletteFilter = (filtered: RouletteData[]) => {
     setFilteredRoulettes(filtered);
   };
 
-  // Renderiza skeletons para os cards de roleta
   const renderRouletteSkeletons = () => {
     return Array(12).fill(0).map((_, index) => (
       <div key={index} className="relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border border-gray-800/30 rounded-lg p-4">
@@ -790,7 +710,6 @@ const Index = () => {
     ));
   };
 
-  // Atualizar dados do formulário quando o usuário mudar
   useEffect(() => {
     if (user) {
       setFormData(prev => ({
@@ -801,7 +720,6 @@ const Index = () => {
     }
   }, [user]);
   
-  // Função para processar o pagamento via Asaas
   const handlePayment = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     
@@ -818,7 +736,6 @@ const Index = () => {
       setPixLoading(true);
       setPaymentError(null);
 
-      // Criar ou buscar cliente no Asaas
       const customerData = {
         name: formData.name || user.username || 'Cliente',
         email: formData.email || user.email,
@@ -835,8 +752,7 @@ const Index = () => {
         return;
       }
 
-      // Criar assinatura ou pagamento único
-      const planId = "basic"; // Plano fixo
+      const planId = "basic";
       const userId = user.id;
       const paymentMethod = 'PIX';
 
@@ -853,7 +769,6 @@ const Index = () => {
         return;
       }
 
-      // Obter QR code PIX
       const pixData = await getAsaasPixQrCode(subscription.paymentId);
       
       if (!pixData) {
@@ -862,17 +777,14 @@ const Index = () => {
         return;
       }
 
-      // Atualizar estados com os dados do pagamento
       setQrCodeImage(pixData.qrCodeImage);
       setQrCodeText(pixData.qrCodeText);
       setPaymentId(subscription.paymentId);
       setCheckoutStep('pix');
       
-      // Iniciar verificação periódica do status do pagamento
       const stopChecking = checkPaymentStatus(
         subscription.paymentId,
         (payment) => {
-          // Pagamento confirmado com sucesso
           if (checkStatusInterval) {
             clearInterval(checkStatusInterval);
             setCheckStatusInterval(null);
@@ -887,11 +799,9 @@ const Index = () => {
             description: "Seu pagamento foi confirmado com sucesso."
           });
           
-          // Redirecionar para a página de dashboard
           navigate('/dashboard');
         },
         (error) => {
-          // Erro ao verificar pagamento
           console.error('Erro ao verificar status:', error);
           toast({
             title: "Erro na verificação",
@@ -909,16 +819,14 @@ const Index = () => {
     }
   };
 
-  // Função para verificar manualmente o status do pagamento
   const checkPaymentStatusManually = async (id: string | null) => {
     if (!id) return;
     
     try {
       setVerifyingPayment(true);
-      const payment = await findAsaasPayment(id, true); // Forçar atualização
+      const payment = await findAsaasPayment(id, true);
       
       if (['CONFIRMED', 'RECEIVED', 'AVAILABLE', 'BILLING_AVAILABLE'].includes(payment.status)) {
-        // Pagamento confirmado
         if (checkStatusInterval) {
           clearInterval(checkStatusInterval);
           setCheckStatusInterval(null);
@@ -932,7 +840,6 @@ const Index = () => {
           description: "Seu pagamento foi confirmado com sucesso."
         });
         
-        // Redirecionar para a página de dashboard
         navigate('/dashboard');
       } else {
         toast({
@@ -952,7 +859,6 @@ const Index = () => {
     }
   };
 
-  // Função para copiar o código PIX
   const copyPIXCode = () => {
     if (qrCodeText && toast) {
       navigator.clipboard.writeText(qrCodeText)
@@ -968,7 +874,6 @@ const Index = () => {
     }
   };
 
-  // Limpar intervalos quando o componente for desmontado
   useEffect(() => {
     return () => {
       if (checkStatusInterval) {
@@ -977,7 +882,6 @@ const Index = () => {
     };
   }, [checkStatusInterval]);
 
-  // Handler para mudanças no formulário
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     
@@ -993,12 +897,10 @@ const Index = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 pt-4 md:pt-8 min-h-[80vh] relative">
-        {/* Cabeçalho com título da página */}
         <h1 className="text-2xl font-bold mb-4">
           Dashboard de Roletas
         </h1>
         
-        {/* Mensagem de carregamento */}
         {isLoading && (
           <div className="flex justify-center items-center p-4">
             <div className="animate-spin h-6 w-6 border-2 border-blue-500 rounded-full border-t-transparent"></div>
@@ -1006,7 +908,6 @@ const Index = () => {
           </div>
         )}
         
-        {/* Mensagem de erro */}
         {error && (
           <div className="p-4 mb-4 bg-red-100 border border-red-300 rounded-md text-red-800">
             <p className="font-semibold">Erro ao carregar dados:</p>
@@ -1020,7 +921,6 @@ const Index = () => {
           </div>
         )}
         
-        {/* Mensagem de nenhum dado disponível */}
         {!isLoading && !error && roulettes.length === 0 && (
           <div className="p-4 mb-4 bg-yellow-100 border border-yellow-300 rounded-md text-yellow-800">
             <p className="font-semibold">Nenhuma roleta disponível no momento.</p>
@@ -1031,10 +931,8 @@ const Index = () => {
               onClick={() => {
                 setIsLoading(true);
                 setError(null);
-                // Forçar nova tentativa de conexão
                 const client = UnifiedRouletteClient.getInstance();
                 client.connectStream();
-                // Tentar novamente após um breve atraso
                 setTimeout(() => {
                   setIsLoading(false);
                   loadRouletteData();
@@ -1046,17 +944,12 @@ const Index = () => {
           </div>
         )}
         
-        {/* Modal de assinatura requerida */}
         <SubscriptionRequired />
         
-        {/* Reset de estilo para evitar conflitos */}
         <style>{radioInputStyles}</style>
         
-        {/* Resto do conteúdo... */}
         <div className="relative">
-          {/* Layout principal */}
           <div className={`flex flex-col lg:flex-row gap-6 ${!hasActivePlan ? 'opacity-60' : ''}`}>
-            {/* Cards de roleta à esquerda */}
             <div className="w-full lg:w-1/2">
               <div className="mb-4 p-4 bg-[#131614] rounded-lg border border-gray-800/30">
                 <div className="flex justify-between items-center">
@@ -1071,7 +964,6 @@ const Index = () => {
               </div>
             </div>
             
-            {/* Painel lateral */}
             <div className="w-full lg:w-1/2">
               {selectedRoulette ? (
                 <RouletteSidePanelStats
@@ -1080,7 +972,7 @@ const Index = () => {
                   lastNumbers={Array.isArray(selectedRoulette.lastNumbers) ? selectedRoulette.lastNumbers : []}
                   wins={typeof selectedRoulette.vitorias === 'number' ? selectedRoulette.vitorias : 0}
                   losses={typeof selectedRoulette.derrotas === 'number' ? selectedRoulette.derrotas : 0}
-                  providers={[]} // Se houver uma lista de provedores disponível, passe aqui
+                  providers={[]}
                 />
               ) : isLoading ? (
                 <div className="bg-[#131614] rounded-lg border border-gray-800/30 p-8 flex flex-col items-center justify-center">
