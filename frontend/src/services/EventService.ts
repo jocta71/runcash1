@@ -2,8 +2,8 @@
  * Serviço centralizado para gerenciamento de eventos
  * Facilita a comunicação entre componentes independentes
  */
-class EventService {
-  private static instance: EventService;
+class EventServiceClass {
+  private static instance: EventServiceClass | null = null;
   private events: Map<string, Function[]>;
   
   private constructor() {
@@ -13,11 +13,11 @@ class EventService {
   /**
    * Obtém a instância única do serviço de eventos
    */
-  public static getInstance(): EventService {
-    if (!EventService.instance) {
-      EventService.instance = new EventService();
+  public static getInstance(): EventServiceClass {
+    if (!EventServiceClass.instance) {
+      EventServiceClass.instance = new EventServiceClass();
     }
-    return EventService.instance;
+    return EventServiceClass.instance;
   }
   
   /**
@@ -96,10 +96,12 @@ class EventService {
   }
 }
 
-// Criando uma instância global para facilitar uso
-const eventService = EventService.getInstance();
+// Criando uma instância global
+const EventService = EventServiceClass.getInstance();
 
 // Para compatibilidade com código que usa EventBus
-const EventBus = eventService;
+const EventBus = EventService;
 
-export { eventService as default, eventService as EventService, EventBus }; 
+// Exportações - usando named exports para maior clareza
+export { EventService, EventBus };
+export default EventService; 

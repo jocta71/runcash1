@@ -13,6 +13,9 @@ import { TrendingUp, Zap, CheckCircle, XCircle, AlertTriangle, Info, Gauge } fro
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { format } from 'date-fns';
+import DoubleNumber from './DoubleNumber';
+import { EventService } from '@/services/EventService';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;

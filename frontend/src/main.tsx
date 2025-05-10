@@ -7,16 +7,18 @@ import { initializeLogging } from './services/utils/initLogger'
 import { getLogger } from './services/utils/logger'
 import { setupGlobalErrorHandlers } from './utils/error-handlers'
 import RouletteFeedService from './services/RouletteFeedService'
-import EventService from './services/EventService'
+import { EventService } from './services/EventService'
 import globalRouletteDataService from './services/GlobalRouletteDataService'
 import cryptoService from './utils/crypto-service'
 
-// Declaração global para estender o objeto Window com nossas propriedades
+// Declarar as propriedades globais no window
 declare global {
   interface Window {
     ROULETTE_SYSTEM_INITIALIZED: boolean;
     isRouletteSystemInitialized: () => boolean;
+    initializeRouletteSystem: () => Promise<any>;
     getRouletteSystem: () => any;
+    __rouletteEventService: any;
   }
 }
 
@@ -33,74 +35,56 @@ logger.info('Manipuladores globais de erro configurados');
 // Flag global para controlar a inicialização do sistema de roletas
 window.ROULETTE_SYSTEM_INITIALIZED = false;
 
-// Inicializar o sistema de roletas como parte do carregamento da aplicação
-async function initializeRoulettesSystem() {
-  logger.info('Inicializando sistema centralizado de roletas');
+// Registrar o EventService no window para debugging
+if (typeof window !== 'undefined') {
+  // @ts-ignore
+  window.__rouletteEventService = EventService;
+}
+
+// Registrar um manipulador global de erros para capturar problemas de inicialização
+window.addEventListener('error', (event) => {
+  console.error('Erro global capturado:', event.error);
   
-  // Inicializar o UnifiedRouletteClient diretamente
-  const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
-  const unifiedClient = UnifiedRouletteClient.getInstance({
-    streamingEnabled: true,
-    autoConnect: true
-  });
-  
-  // Forçar conexão com stream SSE
-  unifiedClient.connectStream();
-  
-  // Inicializar outros serviços
-  const eventService = EventService.getInstance();
-  const rouletteFeedService = RouletteFeedService.getInstance();
-  
-  // Registrar o UnifiedRouletteClient no RouletteFeedService (compatibilidade)
-  rouletteFeedService.registerSocketService(unifiedClient);
-  
-  // Inicializar o serviço global e buscar dados iniciais uma única vez
-  logger.info('Inicializando serviço global e realizando única busca de dados de roletas...');
-  
-  // Usar a instância importada diretamente
-  globalRouletteDataService.fetchRouletteData().then(data => {
-    logger.info(`Dados iniciais obtidos pelo serviço global: ${data.length} roletas`);
-    
-    // Em seguida, inicializar o RouletteFeedService que usará os dados do serviço global
-    rouletteFeedService.initialize().then(() => {
-      logger.info('RouletteFeedService inicializado usando dados do serviço global');
-      
-      // Disparar evento para notificar componentes
-      eventService.dispatchEvent({
-        type: 'roulette:data-updated',
-        data: {
-          source: 'initial-load',
-          timestamp: new Date().toISOString()
-        }
-      });
-      
-      // Iniciar polling com intervalo de 10 segundos
-      rouletteFeedService.startPolling();
-      logger.info('Polling de roletas iniciado (intervalo de 10s)');
-    }).catch(error => {
-      logger.error('Erro ao inicializar RouletteFeedService:', error);
+  // Tentar registrar no serviço de eventos se estiver disponível
+  if (EventService && typeof EventService.emit === 'function') {
+    EventService.emit('error:global', {
+      message: event.message,
+      source: event.filename,
+      lineno: event.lineno,
+      colno: event.colno,
+      error: event.error?.toString(),
+      stack: event.error?.stack,
+      timestamp: new Date().toISOString()
     });
-  }).catch(error => {
-    logger.error('Erro ao buscar dados iniciais pelo serviço global:', error);
-  });
+  }
+});
+
+// Inicializar o sistema de roletas
+async function initializeRoulettesSystem() {
+  console.log('Iniciando sistema de roletas...');
   
-  // Marcar como inicializado
-  window.ROULETTE_SYSTEM_INITIALIZED = true;
-  
-  // Adicionar função para limpar recursos quando a página for fechada
-  window.addEventListener('beforeunload', () => {
-    rouletteFeedService.stop();
-    unifiedClient.dispose();
-    window.ROULETTE_SYSTEM_INITIALIZED = false;
-    logger.info('Sistema de roletas finalizado');
-  });
-  
-  return {
-    rouletteFeedService,
-    eventService,
-    globalRouletteDataService,
-    unifiedClient
-  };
+  try {
+    // Usar a inicialização global
+    if (typeof window.initializeRouletteSystem === 'function') {
+      return await window.initializeRouletteSystem();
+    } else {
+      console.error('Função de inicialização não encontrada');
+      return null;
+    }
+  } catch (error) {
+    console.error('Falha ao inicializar sistema de roletas:', error);
+    return null;
+  }
+}
+
+// Definir função helper para verificar se o sistema está inicializado
+window.isRouletteSystemInitialized = () => {
+  return !!window.ROULETTE_SYSTEM_INITIALIZED;
+};
+
+// Função auxiliar para obter a instância do RouletteFeedService
+function getRouletteFeedInstance() {
+  return RouletteFeedService.getInstance();
 }
 
 // Encapsular código com await em uma função auto-invocável
@@ -263,3 +247,46 @@ if (rootElement) {
 } else {
   logger.error('Elemento root não encontrado!');
 }
+
+// Inicializar o sistema de roletas como parte do carregamento da aplicação
+window.initializeRouletteSystem = async () => {
+  try {
+    // Inicializar apenas se ainda não estiver inicializado
+    if (window.ROULETTE_SYSTEM_INITIALIZED) {
+      console.log('Sistema de roletas já inicializado. Ignorando chamada.');
+      return getRouletteFeedInstance();
+    }
+    
+    console.log('Inicializando sistema centralizado de roletas...');
+    
+    // Primeiro confirmar que o EventService está disponível
+    if (!EventService) {
+      console.error('EventService não está disponível. Inicialização abortada.');
+      throw new Error('EventService não está disponível');
+    }
+    
+    // Inicializar singleton do RouletteFeedService
+    const rouletteFeedService = getRouletteFeedInstance();
+    
+    // Inicializar serviço de cache global
+    const rouletteDataService = globalRouletteDataService;
+    
+    console.log('Serviços de roleta inicializados com sucesso.');
+    
+    // Definir função helper para recuperar o sistema
+    window.getRouletteSystem = () => ({
+      rouletteFeedService,
+      rouletteDataService,
+      cryptoService,
+      EventService
+    });
+    
+    // Marcar como inicializado
+    window.ROULETTE_SYSTEM_INITIALIZED = true;
+    
+    return rouletteFeedService;
+  } catch (error) {
+    console.error('Erro ao inicializar sistema de roletas:', error);
+    throw error;
+  }
+};

@@ -184,17 +184,25 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       }, 300);
     };
     
-    // Inscrever-se no evento de atualização de dados
-    EventService.on('roulette:data-updated', handleDataUpdated);
-    
-    // Inscrever-se também para o evento de novo número
-    EventService.on('roulette:new-number', handleDataUpdated);
-    
-    // Limpar ao desmontar
-    return () => {
-      EventService.off('roulette:data-updated', handleDataUpdated);
-      EventService.off('roulette:new-number', handleDataUpdated);
-    };
+    // Inscrever-se nos eventos de maneira segura
+    if (EventService && typeof EventService.on === 'function') {
+      // Inscrever-se no evento de atualização de dados
+      EventService.on('roulette:data-updated', handleDataUpdated);
+      
+      // Inscrever-se também para o evento de novo número
+      EventService.on('roulette:new-number', handleDataUpdated);
+      
+      // Limpar ao desmontar
+      return () => {
+        if (EventService && typeof EventService.off === 'function') {
+          EventService.off('roulette:data-updated', handleDataUpdated);
+          EventService.off('roulette:new-number', handleDataUpdated);
+        }
+      };
+    } else {
+      console.warn('[LiveRoulettesDisplay] EventService não disponível para inscrição em eventos');
+      return () => {}; // Retornar uma função de limpeza vazia
+    }
   }, [feedService, selectedRoulette]);
 
   // Função para selecionar uma roleta e mostrar estatísticas ao lado
