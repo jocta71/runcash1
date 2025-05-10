@@ -1,5 +1,6 @@
 /**
  * EventBus - Serviço simples para comunicação por eventos entre componentes
+ * Versão melhorada com tratamento anti-erro de "channel closed"
  */
 
 type EventCallback = (data: any) => void;
@@ -77,17 +78,24 @@ class EventBus {
       return;
     }
 
-    const callbacks = this.events.get(eventName)!;
+    // Criar uma cópia dos callbacks para evitar problemas durante a iteração
+    const callbacks = Array.from(this.events.get(eventName)!);
+    
+    // Executar os callbacks de forma segura usando setTimeout para evitar problemas com canais de mensagem
     for (const callback of callbacks) {
-      try {
-        callback(data);
-      } catch (error) {
-        console.error(`Erro ao executar callback para evento ${eventName}:`, error);
-      }
+      // Usar setTimeout para garantir que o evento seja processado em um microtick separado
+      // Isso evita problemas com Promise e canais de mensagem fechados
+      setTimeout(() => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`Erro ao executar callback para evento ${eventName}:`, error);
+        }
+      }, 0);
     }
   }
 }
 
-// Exportar instância singleton
-const eventBus = EventBus.getInstance();
-export default eventBus; 
+// Singleton exportado diretamente
+const instance = EventBus.getInstance();
+export default instance; 
