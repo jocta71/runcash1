@@ -42,12 +42,27 @@ interface ClientStatus {
 
 // Tipo para os eventos do EventSource SSE
 type SSEEvent = {
-  roleta_id: string;
+  roleta_id?: string;
   roleta_nome?: string;
   numero?: number;
   timestamp?: string;
+  type?: string;
+  data?: any[];
+  _timestamp?: number;
   [key: string]: any;
 };
+
+// Resposta da API que pode conter dados criptografados
+interface ApiResponse {
+  success?: boolean;
+  encrypted?: boolean;
+  format?: string;
+  encryptedData?: any;
+  data?: any; 
+  roulettes?: any[];
+  limited?: boolean;
+  [key: string]: any;
+}
 
 class UnifiedRouletteClient {
   private static instance: UnifiedRouletteClient;
@@ -155,6 +170,14 @@ class UnifiedRouletteClient {
   }
 
   /**
+   * Alias para fetchInitialRouletteData para compatibilidade com código legado
+   */
+  public fetchRouletteData(): Promise<void> {
+    logger.debug('Chamada de método legado fetchRouletteData() redirecionada para fetchInitialRouletteData()');
+    return this.fetchInitialRouletteData();
+  }
+
+  /**
    * Busca os dados históricos iniciais das roletas via REST API (/api/historical/all-roulettes).
    * Este método é chamado apenas uma vez no início da aplicação.
    */
@@ -189,20 +212,45 @@ class UnifiedRouletteClient {
         throw new Error(`Erro HTTP ao buscar dados históricos: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const responseData: ApiResponse = await response.json();
       
-      if (!Array.isArray(data)) {
-        throw new Error('Resposta inválida dos dados históricos: não é um array.');
+      // Processar a resposta que pode estar em diferentes formatos
+      let roulettesData: any[] = [];
+      
+      // Verificar se a resposta está criptografada
+      if (responseData.encrypted && responseData.format === 'iron' && responseData.encryptedData) {
+        logger.info('Recebidos dados criptografados. O frontend não pode descriptografar, usando dados vazios.');
+        // Não podemos descriptografar no frontend, mas podemos tentar usar outros campos se existirem
+        if (responseData.data && Array.isArray(responseData.data)) {
+          roulettesData = responseData.data;
+        } else if (responseData.roulettes && Array.isArray(responseData.roulettes)) {
+          roulettesData = responseData.roulettes;
+        }
+      } 
+      // Verificar se a resposta é um array direto
+      else if (Array.isArray(responseData)) {
+        roulettesData = responseData;
+      } 
+      // Verificar se a resposta tem um campo data que é array
+      else if (responseData.data && Array.isArray(responseData.data)) {
+        roulettesData = responseData.data;
+      }
+      // Verificar se a resposta tem um campo roulettes que é array
+      else if (responseData.roulettes && Array.isArray(responseData.roulettes)) {
+        roulettesData = responseData.roulettes;
+      }
+      else {
+        throw new Error('Resposta inválida dos dados históricos: formato não reconhecido');
       }
 
-      logger.info(`Recebidos dados históricos de ${data.length} roletas.`);
+      logger.info(`Recebidos dados históricos de ${roulettesData.length} roletas.`);
       
       // Mapa para armazenar números processados por roleta
       const processedNumbers: Map<string, any[]> = new Map();
       const now = new Date().toISOString();
       
       // Processar cada roleta
-      data.forEach((roletaData: any) => {
+      roulettesData.forEach((roletaData: any) => {
         if (!roletaData || !roletaData.id) {
           logger.warn('Dados de roleta inválidos recebidos:', roletaData);
           return;
@@ -394,6 +442,16 @@ class UnifiedRouletteClient {
         }
       });
       
+      // Escutar evento de atualização em massa de todas as roletas
+      this.eventSource.addEventListener('all_roulettes_update', (event) => {
+        try {
+          const data = JSON.parse((event as MessageEvent).data);
+          this.handleAllRoulettesUpdate(data);
+        } catch (error) {
+          logger.error('Erro ao processar evento de atualização em massa:', error);
+        }
+      });
+      
       return true;
     } catch (error) {
       logger.error('Erro crítico ao iniciar conexão com o stream SSE:', error);
@@ -561,6 +619,74 @@ class UnifiedRouletteClient {
       roleta_nome: roulette.nome,
       timestamp: roulette.ultima_atualizacao,
       ...data
+    });
+  }
+  
+  /**
+   * Manipula eventos de atualização em massa de todas as roletas
+   */
+  private handleAllRoulettesUpdate(data: SSEEvent): void {
+    if (!data || !data.data || !Array.isArray(data.data)) {
+      logger.warn('Evento de atualização em massa inválido:', data);
+      return;
+    }
+    
+    logger.info(`Recebida atualização em massa com ${data.data.length} roletas`);
+    const timestamp = data._timestamp ? new Date(data._timestamp).toISOString() : new Date().toISOString();
+    
+    // Processar cada roleta na atualização em massa
+    data.data.forEach((roletaData: any) => {
+      if (!roletaData || !roletaData.id) return;
+      
+      const roletaId = roletaData.id.toString();
+      
+      // Verificar se a roleta está na lista de permitidas (se houver filtragem)
+      if (ROLETAS_PERMITIDAS.length > 0 && !ROLETAS_PERMITIDAS.includes(roletaId)) {
+        return;
+      }
+      
+      // Obter roleta existente ou criar nova
+      const existingRoulette = this.roulettes.get(roletaId);
+      let numerosArray: number[] = [];
+      
+      // Processar números da roleta
+      if (roletaData.numeros && Array.isArray(roletaData.numeros)) {
+        numerosArray = this.normalizeNumbersArray(roletaData.numeros);
+      } else if (roletaData.numero && Array.isArray(roletaData.numero)) {
+        numerosArray = this.normalizeNumbersArray(roletaData.numero);
+      } else if (existingRoulette?.numeros) {
+        numerosArray = [...existingRoulette.numeros];
+      }
+      
+      // Criar ou atualizar roleta
+      const updatedRoulette: RouletteData = {
+        ...roletaData,
+        id: roletaId,
+        nome: roletaData.nome || roletaData.name || `Roleta ${roletaId}`,
+        numeros: numerosArray,
+        ultima_atualizacao: roletaData.timestamp || timestamp
+      };
+      
+      // Salvar roleta atualizada
+      this.roulettes.set(roletaId, updatedRoulette);
+      
+      // Emitir evento individual para cada roleta atualizada
+      this.emit('update', {
+        type: 'update',
+        roleta_id: roletaId,
+        roleta_nome: updatedRoulette.nome,
+        timestamp: updatedRoulette.ultima_atualizacao
+      });
+    });
+    
+    // Atualizar timestamp global
+    this.lastUpdate = timestamp;
+    
+    // Emitir evento global de atualização em massa
+    EventService.emitGlobalEvent('roulettes_updated', {
+      count: data.data.length,
+      timestamp: this.lastUpdate,
+      source: 'stream'
     });
   }
 
