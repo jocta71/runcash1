@@ -13,6 +13,7 @@ import { ENDPOINTS, getFullUrl } from './api/endpoints';
 import EventBus from './EventBus';
 import cryptoService from '../utils/crypto-service';
 import axios from 'axios';
+import EventService from './EventService';
 
 // Tipos para callbacks de eventos
 type EventCallback = (data: any) => void;
@@ -59,7 +60,7 @@ class UnifiedRouletteClient {
   // Estado
   private isInitialized = false;
   private rouletteData: Map<string, any> = new Map();
-  private lastUpdateTime = 0;
+  private lastCacheUpdateTime = 0;
   private isFetching = false;
   private fetchPromise: Promise<any[]> | null = null;
   
@@ -240,7 +241,7 @@ class UnifiedRouletteClient {
     
     // Notificar sobre a desconexão
     this.emit('disconnect', { timestamp: Date.now() });
-    EventBus.emit('roulette:stream-disconnected', { timestamp: new Date().toISOString() });
+    EventService.emit('roulette:stream-disconnected', { timestamp: new Date().toISOString() });
     
     // Iniciar polling como fallback se estiver habilitado
     if (this.pollingEnabled && !this.pollingTimer) {
@@ -264,7 +265,7 @@ class UnifiedRouletteClient {
       
       // Emitir evento
       this.emit('max-reconnect', { attempts: this.streamReconnectAttempts });
-      EventBus.emit('roulette:stream-max-reconnect', { 
+      EventService.emit('roulette:stream-max-reconnect', { 
         attempts: this.streamReconnectAttempts,
         timestamp: new Date().toISOString()
       });
@@ -309,7 +310,7 @@ class UnifiedRouletteClient {
     
     // Notificar sobre conexão
     this.emit('connect', { timestamp: Date.now() });
-    EventBus.emit('roulette:stream-connected', { timestamp: new Date().toISOString() });
+    EventService.emit('roulette:stream-connected', { timestamp: new Date().toISOString() });
     
     // Se polling estiver ativo como fallback, parar
     if (this.pollingTimer) {
@@ -370,7 +371,7 @@ class UnifiedRouletteClient {
       
       // Notificar
       this.emit('connected', data);
-      EventBus.emit('roulette:stream-ready', { 
+      EventService.emit('roulette:stream-ready', { 
         timestamp: new Date().toISOString(),
         data
       });
@@ -387,166 +388,122 @@ class UnifiedRouletteClient {
   /**
    * Handler para eventos de atualização do stream
    */
-  private async handleStreamUpdate(event: MessageEvent): Promise<void> {
-    this.lastReceivedAt = Date.now();
-    
+  protected handleStreamUpdate(event: MessageEvent): void {
     try {
-      // Tentar extrair dados do evento
-      let data = null;
+      // Registrar que recebemos dados
+      this.lastReceivedAt = Date.now();
       
+      // Tentar parsear o JSON
+      let data: any;
       try {
-        if (typeof event.data === 'string') {
-          data = JSON.parse(event.data);
-        } else if (event.data && typeof event.data === 'object') {
-          data = event.data;
-        }
-      } catch (parseError) {
-        this.error('Erro ao analisar dados do evento SSE:', parseError);
+        data = JSON.parse(event.data);
+        console.log(`[UnifiedRouletteClient] Evento recebido: ${event.type}`, { eventType: data?.type });
+      } catch (e) {
+        console.error('[UnifiedRouletteClient] Falha ao parsear dados do stream:', e);
         return;
       }
       
-      // Verificação de segurança
-      if (!data) {
-        this.error('Dados de atualização inválidos recebidos do stream');
+      // Se for heartbeat, apenas registrar e retornar
+      if (data?.type === 'heartbeat') {
+        console.log('[UnifiedRouletteClient] Heartbeat recebido do servidor');
         return;
       }
       
-      // Tratamento de dados criptografados
-      if (data.encrypted === true && data.payload) {
-        try {
-          const decryptedData = cryptoService.decryptData(data.payload);
-          this.handleDecryptedData(decryptedData);
-          return;
-        } catch (decryptError) {
-          this.error('Erro ao descriptografar dados:', decryptError);
-          return;
-        }
+      // Se for mensagem de conexão, registrar
+      if (data?.message && data.message.includes('Conectado')) {
+        console.log('[UnifiedRouletteClient] Conexão estabelecida com o servidor de stream');
+        this.isStreamConnected = true;
+        return;
       }
       
-      // Atualizar cache com novos dados, garantindo o formato correto
-      console.log('[UnifiedRouletteClient] Recebendo atualização de stream:', data);
-      
-      // Se é um array de roletas (atualização completa)
-      if (Array.isArray(data)) {
-        // Processar cada roleta para garantir o formato consistente
-        const processedData = data.map(roleta => {
-          // Garantir que número seja um array, mesmo que vazio
-          if (!roleta.numero || !Array.isArray(roleta.numero)) {
-            roleta.numero = [];
+      // Processar dados completos do tipo all_roulettes_update
+      if (data?.type === 'all_roulettes_update' && Array.isArray(data.data)) {
+        console.log(`[UnifiedRouletteClient] Recebido update completo com ${data.data.length} roletas`);
+        
+        // Processar dados para o formato esperado pela UI
+        const processedData = data.data.map(roleta => {
+          // Garantir formato consistente de números
+          let formattedNumbers = [];
+          
+          // Verificar onde estão os números: numeros ou numero
+          if (Array.isArray(roleta.numeros) && roleta.numeros.length > 0) {
+            formattedNumbers = roleta.numeros.map(num => ({ numero: Number(num) }));
+          } else if (Array.isArray(roleta.numero) && roleta.numero.length > 0) {
+            // Verificar se já está no formato correto
+            const firstItem = roleta.numero[0];
+            if (typeof firstItem === 'object' && firstItem !== null && 'numero' in firstItem) {
+              formattedNumbers = roleta.numero;
+            } else {
+              formattedNumbers = roleta.numero.map(num => ({ numero: Number(num) }));
+            }
           }
           
-          // Garantir que cada número esteja no formato esperado pelos cards
-          roleta.numero = roleta.numero.map((num: any) => {
-            // Se for um objeto com propriedade numero, manter
-            if (num && typeof num === 'object' && 'numero' in num) {
-              return num;
-            }
-            
-            // Se for um número diretamente, converter para o formato esperado
-            if (typeof num === 'number' || (typeof num === 'string' && !isNaN(Number(num)))) {
-              return { numero: Number(num) };
-            }
-            
-            // Caso não seja possível determinar, retornar um objeto vazio
-            return { numero: 0 };
-          });
-          
-          return roleta;
+          // Retornar dados formatados
+          return {
+            ...roleta,
+            numero: formattedNumbers,
+            // Garantir que tenha um campo nome
+            nome: roleta.nome || roleta.roleta_nome || `Roleta ${roleta.id}`
+          };
         });
         
-        // Atualizar o cache com dados processados
+        // Atualizar cache
         this.updateCache(processedData);
         
-        // Notificar sobre a atualização dos dados
-        this.emit('update', { roulettes: processedData, timestamp: new Date().toISOString() });
-        EventBus.emit('roulette:data-updated', { roulettes: processedData, source: 'stream' });
-        
-        // Log para depuração
-        console.log(`[UnifiedRouletteClient] Cache atualizado com ${processedData.length} roletas do stream`);
-      }
-      // Se é um objeto de roleta única (atualização parcial)
-      else if (data && typeof data === 'object' && (data.id || data._id || data.nome)) {
-        // Processar para garantir o formato consistente
-        if (!data.numero || !Array.isArray(data.numero)) {
-          data.numero = [];
-        }
-        
-        // Garantir que cada número esteja no formato esperado pelos cards
-        data.numero = data.numero.map((num: any) => {
-          // Se for um objeto com propriedade numero, manter
-          if (num && typeof num === 'object' && 'numero' in num) {
-            return num;
-          }
-          
-          // Se for um número diretamente, converter para o formato esperado
-          if (typeof num === 'number' || (typeof num === 'string' && !isNaN(Number(num)))) {
-            return { numero: Number(num) };
-          }
-          
-          // Caso não seja possível determinar, retornar um objeto vazio
-          return { numero: 0 };
+        // Notificar componentes sobre a atualização
+        EventService.emit('roulette:data-updated', { 
+          roulettes: processedData, 
+          source: 'stream-update',
+          timestamp: Date.now()
         });
         
-        // Obter dados existentes
-        const currentRoulettes = this.getAllRoulettes();
-        
-        // Encontrar e atualizar apenas a roleta específica
-        const updatedRoulettes = currentRoulettes.map(existingRoulette => {
-          // Verificar se é a mesma roleta por id ou nome
-          if (
-            existingRoulette.id === data.id || 
-            existingRoulette._id === data._id || 
-            existingRoulette.nome === data.nome
-          ) {
-            return { ...existingRoulette, ...data };
-          }
-          return existingRoulette;
-        });
-        
-        // Atualizar cache
-        this.updateCache(updatedRoulettes);
-        
-        // Notificar sobre a atualização
-        this.emit('update', { roulette: data, roulettes: updatedRoulettes, timestamp: new Date().toISOString() });
-        EventBus.emit('roulette:data-updated', { roulette: data, roulettes: updatedRoulettes, source: 'stream' });
-        
-        console.log(`[UnifiedRouletteClient] Cache atualizado com dados da roleta ${data.nome || data.id}`);
-      }
-      // Evento específico (como novo número)
-      else if (data && typeof data === 'object' && data.type === 'new_number') {
-        // Processar novo número
-        console.log(`[UnifiedRouletteClient] Recebido novo número para roleta ${data.roleta_nome || data.roleta_id}:`, data.numero);
-        
-        // Aqui podemos atualizar a roleta específica com o novo número
-        const currentRoulettes = this.getAllRoulettes();
-        const updatedRoulettes = currentRoulettes.map(existingRoulette => {
-          // Verificar se é a mesma roleta
-          if (
-            existingRoulette.id === data.roleta_id || 
-            existingRoulette._id === data.roleta_id || 
-            existingRoulette.nome === data.roleta_nome
-          ) {
-            // Adicionar o novo número ao início do array
-            const newNumero = { numero: Number(data.numero) };
-            return {
-              ...existingRoulette,
-              numero: [newNumero, ...(existingRoulette.numero || [])]
-            };
-          }
-          return existingRoulette;
-        });
-        
-        // Atualizar cache
-        this.updateCache(updatedRoulettes);
-        
-        // Notificar sobre o novo número
-        this.emit('new_number', { ...data, timestamp: new Date().toISOString() });
-        EventBus.emit('roulette:new-number', { ...data, timestamp: new Date().toISOString() });
-        EventBus.emit('roulette:data-updated', { roulettes: updatedRoulettes, source: 'new-number' });
+        return;
       }
       
-    } catch (e) {
-      this.error('Erro ao processar atualização do stream:', e);
+      // Processar atualizações individuais
+      if (data?.type === 'roulette_update' && data.roulette) {
+        console.log('[UnifiedRouletteClient] Atualização de roleta individual recebida:', data.roulette.nome);
+        
+        // Processar dados para o formato esperado pela UI
+        const roleta = data.roulette;
+        let formattedNumbers = [];
+        
+        // Verificar onde estão os números
+        if (Array.isArray(roleta.numeros) && roleta.numeros.length > 0) {
+          formattedNumbers = roleta.numeros.map(num => ({ numero: Number(num) }));
+        } else if (Array.isArray(roleta.numero) && roleta.numero.length > 0) {
+          // Verificar se já está no formato correto
+          const firstItem = roleta.numero[0];
+          if (typeof firstItem === 'object' && firstItem !== null && 'numero' in firstItem) {
+            formattedNumbers = roleta.numero;
+          } else {
+            formattedNumbers = roleta.numero.map(num => ({ numero: Number(num) }));
+          }
+        }
+        
+        const processedRoulette = {
+          ...roleta,
+          numero: formattedNumbers,
+          nome: roleta.nome || roleta.roleta_nome || `Roleta ${roleta.id}`
+        };
+        
+        // Atualizar cache para esta roleta específica
+        this.updateSingleRouletteCache(processedRoulette);
+        
+        // Notificar sobre o novo número
+        EventService.emit('roulette:new-number', {
+          roulette: processedRoulette,
+          source: 'stream-update',
+          timestamp: Date.now()
+        });
+        
+        return;
+      }
+      
+      // Se chegou aqui, é um formato não reconhecido
+      console.warn('[UnifiedRouletteClient] Evento de stream em formato não reconhecido:', data);
+    } catch (error) {
+      console.error('[UnifiedRouletteClient] Erro ao processar evento do stream:', error);
     }
   }
   
@@ -566,7 +523,7 @@ class UnifiedRouletteClient {
           // Atualizar cache com dados simulados e notificar
           this.updateCache(simulatedData);
           this.emit('update', simulatedData);
-          EventBus.emit('roulette:data-updated', {
+          EventService.emit('roulette:data-updated', {
             timestamp: new Date().toISOString(),
             data: simulatedData,
             source: 'simulation-from-crypto-service'
@@ -588,7 +545,7 @@ class UnifiedRouletteClient {
           // Atualizar cache com dados simulados e notificar
           this.updateCache(manualSimulatedData);
           this.emit('update', manualSimulatedData);
-          EventBus.emit('roulette:data-updated', {
+          EventService.emit('roulette:data-updated', {
             timestamp: new Date().toISOString(),
             data: manualSimulatedData,
             source: 'manual-simulation-fallback'
@@ -612,7 +569,7 @@ class UnifiedRouletteClient {
         // Atualizar cache com dados simulados e notificar
         this.updateCache(fallbackData);
         this.emit('update', fallbackData);
-        EventBus.emit('roulette:data-updated', {
+        EventService.emit('roulette:data-updated', {
           timestamp: new Date().toISOString(),
           data: fallbackData,
           source: 'fallback-after-simulation-error'
@@ -723,7 +680,7 @@ class UnifiedRouletteClient {
   private isCacheValid(): boolean {
     return (
       this.rouletteData.size > 0 && 
-      Date.now() - this.lastUpdateTime < this.cacheTTL
+      Date.now() - this.lastCacheUpdateTime < this.cacheTTL
     );
   }
   
@@ -754,7 +711,7 @@ class UnifiedRouletteClient {
         });
         
         console.log(`DEBUG: ${validItemsCount} roletas adicionadas ao cache`);
-        this.lastUpdateTime = Date.now();
+        this.lastCacheUpdateTime = Date.now();
       } else {
         console.log('DEBUG: Array vazio recebido, cache não atualizado');
       }
@@ -763,7 +720,7 @@ class UnifiedRouletteClient {
       const id = data.id || data.roleta_id;
       this.rouletteData.set(id, data);
       console.log(`DEBUG: Cache atualizado para roleta individual ${id}`);
-      this.lastUpdateTime = Date.now();
+      this.lastCacheUpdateTime = Date.now();
     } else {
       console.log('DEBUG: Dados inválidos recebidos em updateCache, nada atualizado');
     }
@@ -906,7 +863,7 @@ class UnifiedRouletteClient {
       isPollingActive: !!this.pollingTimer,
       lastEventId: this.lastEventId,
       lastReceivedAt: this.lastReceivedAt,
-      lastUpdateTime: this.lastUpdateTime,
+      lastCacheUpdateTime: this.lastCacheUpdateTime,
       cacheSize: this.rouletteData.size,
       isCacheValid: this.isCacheValid()
     };
@@ -997,7 +954,7 @@ class UnifiedRouletteClient {
     this.log('Recebida mensagem de erro ou notificação:', JSON.stringify(data).substring(0, 100));
     
     // Emitir evento de erro
-    EventBus.emit('roulette:api-message', {
+    EventService.emit('roulette:api-message', {
       timestamp: new Date().toISOString(),
       type: data.error ? 'error' : 'notification',
       message: data.message || 'Mensagem sem detalhes',
@@ -1057,7 +1014,7 @@ class UnifiedRouletteClient {
         
         // Emitir evento de atualização
         this.emit('update', Array.from(this.rouletteData.values()));
-        EventBus.emit('roulette:data-updated', {
+        EventService.emit('roulette:data-updated', {
           timestamp: new Date().toISOString(),
           data: Array.from(this.rouletteData.values()),
           source: 'decrypted-data'
@@ -1070,7 +1027,7 @@ class UnifiedRouletteClient {
         console.warn('[UnifiedRouletteClient] Dados descriptografados sem estrutura esperada');
         // Tentar extrair metadados ou outras informações úteis
         if (data && typeof data === 'object') {
-          EventBus.emit('roulette:metadata', {
+          EventService.emit('roulette:metadata', {
             timestamp: new Date().toISOString(),
             data
           });
@@ -1095,7 +1052,7 @@ class UnifiedRouletteClient {
     console.log(`[UnifiedRouletteClient] Notificação (${type}): ${message}`);
     
     // Emitir evento de notificação
-    EventBus.emit('notification', {
+    EventService.emit('notification', {
       type,
       message,
       timestamp: new Date().toISOString()
@@ -1160,7 +1117,7 @@ class UnifiedRouletteClient {
     
     // Notificar sobre a conexão
     this.emit('websocket-connected', { timestamp: new Date().toISOString() });
-    EventBus.emit('roulette:websocket-connected', {
+    EventService.emit('roulette:websocket-connected', {
       timestamp: new Date().toISOString()
     });
   }
@@ -1210,7 +1167,7 @@ class UnifiedRouletteClient {
         
         // Emitir evento de atualização
         this.emit('update', rouletteData);
-        EventBus.emit('roulette:data-updated', {
+        EventService.emit('roulette:data-updated', {
           timestamp: new Date().toISOString(),
           data: rouletteData,
           source: 'websocket'
@@ -1221,7 +1178,7 @@ class UnifiedRouletteClient {
           this.log(`Recebida lista com ${message.data.length} roletas do WebSocket`);
           this.updateCache(message.data);
           this.emit('update', message.data);
-          EventBus.emit('roulette:all-data-updated', {
+          EventService.emit('roulette:all-data-updated', {
             timestamp: new Date().toISOString(),
             data: message.data,
             source: 'websocket'
@@ -1509,7 +1466,43 @@ class UnifiedRouletteClient {
       }, 1000);
     }, 500);
   }
+
+  /**
+   * Atualiza o cache para uma única roleta
+   * @param roulette Dados da roleta a ser atualizada ou adicionada ao cache
+   */
+  protected updateSingleRouletteCache(roulette: any): void {
+    if (!roulette || (!roulette.id && !roulette._id && !roulette.roleta_id)) {
+      console.warn('[UnifiedRouletteClient] Tentativa de atualizar roleta sem ID:', roulette);
+      return;
+    }
+    
+    // Identificar ID da roleta (pode estar em diferentes campos)
+    const rouletteId = roulette.id || roulette._id || roulette.roleta_id;
+    
+    // Verificar se a roleta já existe no cache
+    if (this.rouletteData.has(rouletteId)) {
+      // Atualizar a roleta existente
+      const existingData = this.rouletteData.get(rouletteId);
+      this.rouletteData.set(rouletteId, {
+        ...existingData,
+        ...roulette,
+        lastUpdated: Date.now()
+      });
+    } else {
+      // Adicionar nova roleta ao cache
+      this.rouletteData.set(rouletteId, {
+        ...roulette,
+        lastUpdated: Date.now()
+      });
+    }
+    
+    // Atualizar a última vez que o cache foi modificado
+    this.lastCacheUpdateTime = Date.now();
+    
+    console.log(`[UnifiedRouletteClient] Cache atualizado para roleta ${roulette.nome || rouletteId}`);
+  }
 }
 
 // Exportar singleton
-export default UnifiedRouletteClient; 
+export default UnifiedRouletteClient;

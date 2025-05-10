@@ -2,24 +2,14 @@ import React, { useEffect, useState, useRef } from 'react';
 import { RouletteData } from '@/integrations/api/rouletteService';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import LastNumbersBar from './LastNumbersBar';
-import EventService from '@/services/EventService';
-import { RouletteStatsInline } from '@/components/roulette/RouletteStatsInline';
 import { useDataLoading } from '@/App';
-
-interface RouletteTable {
-  tableId: string;
-  tableName: string;
-  numbers: string[];
-  dealer?: string;
-  players?: number;
-}
-
-// Estender o tipo RouletteData para incluir propriedades adicionais que usamos
-interface ExtendedRouletteData extends RouletteData {
-  lastNumbers?: number[];
-  numeros?: any[];
-  name?: string;
-}
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { ExtendedRouletteData, RouletteTable } from "@/types/roulette";
+import { useLocationContext } from "@/context/LocationContext";
+import { EventService } from "@/services/EventService";
+import { RouletteStatsInline } from '@/components/roulette/RouletteStatsInline';
 
 interface LiveRoulettesDisplayProps {
   roulettesData?: ExtendedRouletteData[]; // Opcional para manter compatibilidade retroativa
