@@ -101,7 +101,7 @@ class UnifiedRouletteClient {
     
     try {
       // Usar a URL da API do config
-      this.streamUrl = `${config.apiBaseUrl}/sse-roulettes`;
+      this.streamUrl = `${config.apiBaseUrl}/stream/roulettes`;
       
       logger.info(`Conectando ao stream em: ${this.streamUrl}`);
       
