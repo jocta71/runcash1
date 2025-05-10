@@ -9,7 +9,7 @@
  * do aplicativo usem a mesma fonte de dados.
  */
 
-import { ENDPOINTS, getFullUrl } from './api/endpoints';
+import { ENDPOINTS, getFullUrl, SSE_STREAM_URL } from './api/endpoints';
 import EventBus from './EventBus';
 import cryptoService from '../utils/crypto-service';
 import axios from 'axios';
@@ -168,76 +168,59 @@ class UnifiedRouletteClient {
     // Verificar se já existe uma tentativa de conexão global
     if (UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT) {
       this.log('Outra instância já está tentando conectar ao stream, aguardando...');
-      
-      // Aguardar 1 segundo e tentar novamente
-      setTimeout(() => {
-        UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
-        this.connectStream();
-      }, 1000);
       return;
     }
     
-    // Marcar que estamos tentando conectar (flag global)
+    // Marcar que estamos tentando conectar
     UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = true;
     this.isStreamConnecting = true;
     
-    // Importar a URL SSE_STREAM_URL e ENDPOINTS
-    import('./api/endpoints').then(({ SSE_STREAM_URL, ENDPOINTS }) => {
-      try {
-        // Usar a URL completa do SSE obtida dos endpoints
-        const streamUrl = SSE_STREAM_URL || getFullUrl(ENDPOINTS.STREAM.ROULETTES);
-        
-        this.log(`Conectando ao stream SSE: ${streamUrl}`);
-        console.log('🌊 Tentando conectar ao SSE stream:', streamUrl);
-        
-        // Parar polling se estiver ativo, já que vamos usar o streaming
-        this.stopPolling();
-        
-        // Construir URL com query params para autenticação, se necessário
-        let fullStreamUrl = streamUrl;
-        if (cryptoService.hasAccessKey()) {
-          const accessKey = cryptoService.getAccessKey();
-          if (accessKey) {
-            fullStreamUrl += `?key=${encodeURIComponent(accessKey)}`;
-          }
+    try {
+      const streamUrl = SSE_STREAM_URL;
+      this.log(`Conectando ao stream SSE: ${streamUrl}`);
+      
+      // Parar polling se estiver ativo
+      this.stopPolling();
+      
+      // Construir URL com query params para autenticação
+      let fullStreamUrl = streamUrl;
+      if (cryptoService.hasAccessKey()) {
+        const accessKey = cryptoService.getAccessKey();
+        if (accessKey) {
+          fullStreamUrl += `?key=${encodeURIComponent(accessKey)}`;
         }
-        
-        // Criar conexão SSE
-        this.eventSource = new EventSource(fullStreamUrl);
-        
-        // Configurar handlers de eventos
-        this.eventSource.onopen = this.handleStreamOpen.bind(this);
-        this.eventSource.onerror = this.handleStreamError.bind(this);
-        
-        // Eventos específicos
-        this.eventSource.addEventListener('message', this.handleStreamUpdate.bind(this));
-        this.eventSource.addEventListener('update', this.handleStreamUpdate.bind(this));
-        this.eventSource.addEventListener('connected', this.handleStreamConnected.bind(this));
-        
-        // Diagóstico: tentar detectar eventos disponíveis
-        setTimeout(() => {
-          if (this.eventSource) {
-            console.log('📊 Status da conexão SSE após tentativa:', {
-              readyState: this.eventSource.readyState,
-              // 0 = CONNECTING, 1 = OPEN, 2 = CLOSED
-              status: ['CONNECTING', 'OPEN', 'CLOSED'][this.eventSource.readyState] || 'UNKNOWN',
-              isConnected: this.isStreamConnected,
-              isConnecting: this.isStreamConnecting,
-              lastReceived: this.lastReceivedAt ? new Date(this.lastReceivedAt).toISOString() : 'nunca'
-            });
-          }
-        }, 3000);
-      } catch (error) {
-        this.error('Erro ao conectar ao stream:', error);
-        this.isStreamConnecting = false;
-        UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
-        this.reconnectStream();
       }
-    }).catch(error => {
-      this.error('Erro ao importar endpoints:', error);
+      
+      // Criar conexão SSE
+      this.eventSource = new EventSource(fullStreamUrl);
+      
+      // Configurar handlers de eventos
+      this.eventSource.onopen = this.handleStreamOpen.bind(this);
+      this.eventSource.onerror = this.handleStreamError.bind(this);
+      
+      // Eventos específicos
+      this.eventSource.addEventListener('message', this.handleStreamUpdate.bind(this));
+      this.eventSource.addEventListener('update', this.handleStreamUpdate.bind(this));
+      this.eventSource.addEventListener('connected', this.handleStreamConnected.bind(this));
+      
+      // Timeout de segurança para diagnóstico
+      setTimeout(() => {
+        if (this.eventSource) {
+          console.log('📊 Status da conexão SSE após tentativa:', {
+            readyState: this.eventSource.readyState,
+            status: ['CONNECTING', 'OPEN', 'CLOSED'][this.eventSource.readyState] || 'UNKNOWN',
+            isConnected: this.isStreamConnected,
+            isConnecting: this.isStreamConnecting,
+            lastReceived: this.lastReceivedAt ? new Date(this.lastReceivedAt).toISOString() : 'nunca'
+          });
+        }
+      }, 3000);
+    } catch (error) {
+      this.error('Erro ao conectar ao stream:', error);
       this.isStreamConnecting = false;
       UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
-    });
+      this.reconnectStream();
+    }
   }
   
   /**
@@ -358,10 +341,15 @@ class UnifiedRouletteClient {
     // Notificar erro
     this.emit('error', { event, timestamp: Date.now() });
     
-    // Reconectar
-    this.reconnectStream();
+    // Reconectar com backoff exponencial
+    const delay = Math.min(1000 * Math.pow(2, this.streamReconnectAttempts), 30000);
+    this.log(`Agendando reconexão em ${delay}ms (tentativa ${this.streamReconnectAttempts + 1})`);
     
-    // Iniciar polling como fallback se não estiver ativo
+    setTimeout(() => {
+      this.reconnectStream();
+    }, delay);
+    
+    // Iniciar polling como fallback
     if (this.pollingEnabled && !this.pollingTimer) {
       this.log('Iniciando polling como fallback após erro no stream');
       this.startPolling();
@@ -1517,7 +1505,6 @@ class UnifiedRouletteClient {
    * @param callback Função a ser chamada quando novos dados chegarem
    */
   public subscribe(callback: (data: any) => void): void {
-    // Validar se o callback é uma função
     if (typeof callback !== 'function') {
       this.error('Tentativa de adicionar callback inválido (não é uma função)');
       return;
@@ -1532,7 +1519,7 @@ class UnifiedRouletteClient {
     
     this.eventCallbacks.get('update')?.add(callback);
     
-    // Também notifica imediatamente com os dados atuais, se disponíveis
+    // Notificar imediatamente com dados atuais
     if (this.rouletteData.size > 0) {
       try {
         const currentData = this.getAllRoulettes();
