@@ -50,7 +50,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     if (id === 'account-information') {
       navigate('/profile');
     } else if (id === 'billing') {
-      navigate('/billing');
+      navigate('/profile/billing');
     } else if (id === 'plans') {
       navigate('/planos');
     } else if (id === 'api-keys') {
