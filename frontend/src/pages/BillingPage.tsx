@@ -1,6 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { CreditCard, ExternalLink } from 'lucide-react';
-import { useToast } from "@/components/ui/use-toast";
+import { ExternalLink } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useSubscription } from '@/context/SubscriptionContext';
 import ProfileSubscription from './ProfileSubscription';
@@ -8,9 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 
 const BillingPage = () => {
-  const { toast } = useToast();
   const navigate = useNavigate();
-  const { currentPlan, loading } = useSubscription();
+  const { currentPlan } = useSubscription();
 
   const handleViewPlans = () => {
     navigate('/planos');
@@ -18,118 +16,84 @@ const BillingPage = () => {
 
   return (
     <Layout>
-      <div className="py-8 space-y-8">
-        <div className="bg-[#1A191F] rounded-xl p-6 text-white shadow-lg">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-white">Faturamento</h1>
+      <div className="py-6">
+        <div className="border border-[#222] rounded-lg bg-vegas-black overflow-hidden">
+          <div className="flex justify-between items-center p-4 border-b border-[#222]">
+            <h1 className="text-xl font-bold text-white">Assinatura</h1>
             <Button 
               onClick={handleViewPlans} 
-              className="bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+              className="bg-gradient-to-b from-[#00FF00] to-[#A3FFA3] hover:from-[#00FF00]/90 hover:to-[#A3FFA3]/90 text-black"
+              size="sm"
             >
-              Ver todos os planos
-              <ExternalLink className="ml-2 h-4 w-4" />
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Ver planos
             </Button>
           </div>
           
           <Tabs defaultValue="subscription" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-[#111118] border border-[#33333359]">
-              <TabsTrigger value="subscription" className="data-[state=active]:bg-vegas-gold data-[state=active]:text-black">
+            <TabsList className="w-full border-b border-[#222] bg-transparent p-0 h-auto">
+              <TabsTrigger 
+                value="subscription" 
+                className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-[#00FF00] data-[state=active]:bg-transparent data-[state=active]:text-[#00FF00] hover:bg-vegas-black/50 py-3"
+              >
                 Assinatura
               </TabsTrigger>
-              <TabsTrigger value="payment-methods" className="data-[state=active]:bg-vegas-gold data-[state=active]:text-black">
-                Métodos de Pagamento
+              <TabsTrigger 
+                value="payment-methods" 
+                className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-[#00FF00] data-[state=active]:bg-transparent data-[state=active]:text-[#00FF00] hover:bg-vegas-black/50 py-3"
+              >
+                Pagamentos
               </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="subscription" className="mt-6">
+            <TabsContent value="subscription" className="p-0 mt-0">
               <ProfileSubscription />
             </TabsContent>
             
-            {/* Histórico de Pagamentos */}
-            <TabsContent value="payment-methods" className="mt-6">
-              <div className="space-y-6">
-                <div className="p-4 bg-[#111118] border border-[#33333359] rounded-lg">
-                  <h3 className="text-lg font-bold mb-4">Métodos de Pagamento</h3>
-                  
-                  <div className="space-y-4">
-                    <div className="p-4 bg-vegas-black/60 border border-gray-700 rounded-lg">
-                      <p className="mb-4">Esta plataforma utiliza o sistema de pagamento PIX através do Asaas.</p>
-                      <div className="flex items-center p-3 border border-[#33333359] rounded-lg bg-[#1A191F]">
-                        <div className="h-10 w-10 bg-[#111118] rounded-md mr-3 flex items-center justify-center">
-                          <span className="text-green-500 font-bold">PIX</span>
-                        </div>
-                        <div>
-                          <p className="font-medium">Pagamento via PIX</p>
-                          <p className="text-xs text-gray-400">Processado por Asaas</p>
-                        </div>
-                      </div>
+            <TabsContent value="payment-methods" className="p-4">
+              <div className="space-y-4">
+                <div className="p-4 border border-[#222] rounded-lg bg-vegas-black/50">
+                  <h3 className="text-base font-medium text-white mb-3">Forma de pagamento</h3>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 rounded-md bg-[#143814] flex items-center justify-center text-xs font-bold text-[#00FF00]">PIX</div>
+                    <div className="flex-1">
+                      <p className="text-sm text-white">Pagamento via PIX</p>
+                      <p className="text-xs text-gray-400">Processado por Asaas</p>
                     </div>
                   </div>
                 </div>
                 
-                {/* Histórico de Faturamento */}
-                <div className="p-4 bg-[#111118] border border-[#33333359] rounded-lg">
-                  <h3 className="text-lg font-bold mb-4">Histórico de Faturamento</h3>
-                  <div className="space-y-4">
-                    {currentPlan ? (
-                      <>
-                        <div className="flex justify-between items-center text-sm pb-2 border-b border-[#33333359]">
-                          <div className="flex items-center">
-                            <CreditCard className="mr-2 text-green-500" size={16} />
-                            <span>Abril 13, 2025</span>
-                          </div>
-                          <div>
-                            <span className="bg-green-900/30 text-green-400 text-xs px-2 py-1 rounded-full mr-2">Pago</span>
-                            <span>R$ {currentPlan.price.toFixed(2)}</span>
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center text-sm pb-2 border-b border-[#33333359]">
-                          <div className="flex items-center">
-                            <CreditCard className="mr-2 text-green-500" size={16} />
-                            <span>Março 13, 2025</span>
-                          </div>
-                          <div>
-                            <span className="bg-green-900/30 text-green-400 text-xs px-2 py-1 rounded-full mr-2">Pago</span>
-                            <span>R$ {currentPlan.price.toFixed(2)}</span>
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center text-sm pb-2 border-b border-[#33333359]">
-                          <div className="flex items-center">
-                            <CreditCard className="mr-2 text-green-500" size={16} />
-                            <span>Fevereiro 13, 2025</span>
-                          </div>
-                          <div>
-                            <span className="bg-green-900/30 text-green-400 text-xs px-2 py-1 rounded-full mr-2">Pago</span>
-                            <span>R$ {currentPlan.price.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-gray-400 text-center py-4">
-                        Nenhum histórico de pagamento disponível.
-                      </p>
-                    )}
+                {currentPlan && (
+                  <div className="p-4 border border-[#222] rounded-lg bg-vegas-black/50">
+                    <h3 className="text-base font-medium text-white mb-3">Informações importantes</h3>
+                    <ul className="space-y-1.5 text-sm text-gray-300">
+                      <li className="flex items-start">
+                        <span className="text-[#00FF00] mr-2">•</span>
+                        <span>Processamento via PIX (pagamento instantâneo)</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="text-[#00FF00] mr-2">•</span>
+                        <span>Cobrança mensal de R$ {currentPlan.price?.toFixed(2)}</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="text-[#00FF00] mr-2">•</span>
+                        <span>Cancelamento disponível a qualquer momento</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="text-[#00FF00] mr-2">•</span>
+                        <span>Suporte prioritário para assinantes</span>
+                      </li>
+                    </ul>
                   </div>
-                </div>
+                )}
                 
-                {/* Notas de Faturamento */}
-                <div className="p-4 bg-[#111118] border border-[#33333359] rounded-lg">
-                  <h3 className="text-lg font-bold mb-4">Informações de Pagamento</h3>
-                  
-                  <div className="space-y-2 mb-4">
-                    <p className="text-sm text-gray-300">• Os pagamentos são processados via PIX através da plataforma Asaas</p>
-                    <p className="text-sm text-gray-300">• As cobranças são realizadas a cada período de acordo com seu plano</p>
-                    <p className="text-sm text-gray-300">• Você pode cancelar sua assinatura a qualquer momento</p>
-                    <p className="text-sm text-gray-300">• Em caso de dúvidas, entre em contato com o suporte</p>
-                  </div>
-                  
-                  <Button 
-                    onClick={handleViewPlans} 
-                    className="mt-2 border border-vegas-gold text-vegas-gold hover:bg-vegas-gold/10"
-                  >
-                    Gerenciar Plano
-                  </Button>
-                </div>
+                <Button 
+                  onClick={handleViewPlans} 
+                  variant="outline"
+                  className="w-full border-[#00FF00]/30 text-[#00FF00] hover:bg-[#143814] hover:text-[#00FF00] mt-2"
+                >
+                  Gerenciar Plano
+                </Button>
               </div>
             </TabsContent>
           </Tabs>
