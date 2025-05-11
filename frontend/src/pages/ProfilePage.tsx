@@ -3,14 +3,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
-import { Pencil, X, CreditCard, ChevronRight } from 'lucide-react';
+import { Pencil, Upload, Trash2 } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/Layout';
-import { useSubscription } from '@/context/SubscriptionContext';
-import { Link } from 'react-router-dom';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Textarea } from '@/components/ui/textarea';
 
 // Estendendo o tipo User para evitar erros de lint
 interface ExtendedUser {
@@ -34,59 +32,45 @@ const ProfilePage = () => {
   const { user } = useAuth();
   const [avatar, setAvatar] = useState<string | null>(null);
   const [profileData, setProfileData] = useState({
-    firstName: '',
-    lastName: '',
+    fullName: '',
     email: '',
-    username: '',
-    country: 'Brasil',
-    language: 'Português',
+    role: '',
+    location: '',
+    company: '',
+    bio: '',
   });
-  const { currentSubscription, currentPlan } = useSubscription();
 
   useEffect(() => {
     if (user) {
       // Cast para o tipo estendido para acessar as propriedades adicionais
       const extUser = user as unknown as ExtendedUser;
       
-      // Tentar obter nome/sobrenome de várias possíveis propriedades
-      let firstName = '';
-      let lastName = '';
+      // Tentar obter nome completo
+      let fullName = '';
       
-      // Verificar se temos firstName/lastName diretamente
       if (extUser.firstName && extUser.lastName) {
-        firstName = extUser.firstName;
-        lastName = extUser.lastName;
+        fullName = `${extUser.firstName} ${extUser.lastName}`;
       } 
-      // Verificar se temos givenName/familyName (comum em autenticação Google)
       else if (extUser.givenName && extUser.familyName) {
-        firstName = extUser.givenName;
-        lastName = extUser.familyName;
+        fullName = `${extUser.givenName} ${extUser.familyName}`;
       }
-      // Tentar separar a partir de displayName
       else if (extUser.displayName) {
-        const nameParts = extUser.displayName.split(' ');
-        firstName = nameParts[0] || '';
-        lastName = nameParts.slice(1).join(' ') || '';
+        fullName = extUser.displayName;
       }
-      // Último recurso: tentar separar do username
-      else if (extUser.username && extUser.username.includes(' ')) {
-        const nameParts = extUser.username.split(' ');
-        firstName = nameParts[0] || '';
-        lastName = nameParts.slice(1).join(' ') || '';
+      else if (extUser.username) {
+        fullName = extUser.username;
       }
       
       setAvatar(extUser.profilePicture || null);
       
-      setProfileData(prev => ({
-        ...prev,
-        firstName,
-        lastName, 
+      setProfileData({
+        fullName,
         email: extUser.email || '',
-        username: extUser.username || '',
-      }));
-      
-      // Logging para debug - verificar o que está vindo do objeto user
-      console.log('Dados do usuário:', extUser);
+        role: 'Usuário',
+        location: 'Brasil',
+        company: '',
+        bio: '',
+      });
     }
   }, [user]);
 
@@ -98,30 +82,23 @@ const ProfilePage = () => {
     }));
   };
 
-  const handleSelectChange = (name: string, value: string) => {
-    setProfileData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleChangeAvatar = () => {
-    // In a real app, this would open a file picker
+  const handleFileUpload = () => {
+    // Em uma aplicação real, isso abriria um seletor de arquivos
     toast({
-      title: "Feature coming soon",
-      description: "Avatar upload functionality will be available soon."
+      title: "Upload em breve",
+      description: "A funcionalidade de upload de avatar estará disponível em breve."
     });
   };
 
-  const handleRemoveAvatar = () => {
+  const handleDeleteAvatar = () => {
     setAvatar(null);
     toast({
-      title: "Avatar removed",
-      description: "Your profile avatar has been removed."
+      title: "Avatar removido",
+      description: "Seu avatar de perfil foi removido com sucesso."
     });
   };
 
-  const handleSave = () => {
+  const handleUpdateProfile = () => {
     toast({
       title: "Perfil atualizado",
       description: "Suas informações de perfil foram salvas com sucesso.",
@@ -132,182 +109,185 @@ const ProfilePage = () => {
     console.log('Dados a serem salvos:', profileData);
   };
 
-  // Cast para o tipo estendido para acessar as propriedades adicionais
-  const extendedUser = user as unknown as ExtendedUser;
-
-  // Verificar se o usuário tem uma assinatura ativa
-  const hasActivePlan = currentSubscription && 
-    (currentSubscription.status?.toLowerCase() === 'active' || 
-     currentSubscription.status?.toLowerCase() === 'ativo' || 
-     currentSubscription.status?.toLowerCase() === 'confirmed');
-
-  // Formatar data para exibição
-  const formatDate = (date: Date | string | null) => {
-    if (!date) return "N/A";
-    return new Date(date).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
-
   return (
     <Layout>
-      <div className="container max-w-4xl py-8 space-y-8">
-        <div className="max-w-4xl mx-auto bg-[#1A191F] rounded-xl p-6 text-white shadow-lg">
-          <h1 className="text-2xl font-bold mb-6 text-vegas-gold">Meu Perfil</h1>
-          
-          <div className="mb-8 pb-6 border-b border-[#33333359]">
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                {avatar ? 
-                  <img src={avatar} alt="Profile" className="w-20 h-20 rounded-full object-cover border-2 border-[#ffad33]" /> : 
-                  <div className="w-20 h-20 rounded-full bg-[#33333359] flex items-center justify-center text-[#ffad33] text-2xl">
-                    {profileData.firstName ? profileData.firstName[0] : 
-                     (profileData.username ? profileData.username[0].toUpperCase() : 'U')}
-                  </div>
-                }
-              </div>
-              
-              <div>
-                <h2 className="text-xl font-semibold mb-1">{user?.username || 'Não autenticado'}</h2>
-                <p className="text-gray-400 text-sm">{user?.email || 'Faça login para ver suas informações'}</p>
-                <p className="text-gray-400 text-sm mt-1">ID: {user?.id || 'N/A'}</p>
-                {user?.isAdmin && <p className="text-[#ffad33] text-sm mt-1">Administrador</p>}
-              </div>
-              
-              <div className="flex gap-3 ml-auto">
-                <Button variant="outline" onClick={handleChangeAvatar} className="border-[#ffad33] text-[#ffad33] hover:bg-[#ffad33] hover:text-black">
-                  <Pencil size={16} className="mr-2" />
-                  Alterar avatar
-                </Button>
-                
-                <Button variant="outline" onClick={handleRemoveAvatar} className="border-[#33333359] text-white hover:bg-[#33333359]">
-                  <X size={16} className="mr-2" />
-                  Remover avatar
-                </Button>
-              </div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="username" className="text-white mb-2 block">Nome de usuário</Label>
-                <Input id="username" name="username" value={profileData.username} onChange={handleInputChange} className="bg-[#111118] border-[#33333359] text-white" />
-              </div>
-              
-              <div>
-                <Label htmlFor="firstName" className="text-white mb-2 block">Nome</Label>
-                <Input id="firstName" name="firstName" value={profileData.firstName} onChange={handleInputChange} placeholder="Seu nome" className="bg-[#111118] border-[#33333359] text-white" />
-              </div>
-              
-              <div>
-                <Label htmlFor="email" className="text-white mb-2 block">Email</Label>
-                <Input id="email" name="email" type="email" value={profileData.email} onChange={handleInputChange} readOnly className="bg-[#111118] border-[#33333359] text-white opacity-70" />
-                <p className="text-xs text-gray-400 mt-1">O email não pode ser alterado</p>
-              </div>
-            </div>
+      <div className="container py-6 space-y-6">
+        <div className="rounded-lg border border-border bg-vegas-black p-6">
+          <Tabs defaultValue="profile" className="w-full">
+            <TabsList className="bg-vegas-black border border-border mb-6">
+              <TabsTrigger value="profile" className="data-[state=active]:bg-vegas-green data-[state=active]:text-black">
+                Perfil
+              </TabsTrigger>
+              <TabsTrigger value="password" className="data-[state=active]:bg-vegas-green data-[state=active]:text-black">
+                Senha
+              </TabsTrigger>
+              <TabsTrigger value="email" className="data-[state=active]:bg-vegas-green data-[state=active]:text-black">
+                Email
+              </TabsTrigger>
+              <TabsTrigger value="notification" className="data-[state=active]:bg-vegas-green data-[state=active]:text-black">
+                Notificações
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="data-[state=active]:bg-vegas-green data-[state=active]:text-black">
+                Configurações
+              </TabsTrigger>
+            </TabsList>
             
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="lastName" className="text-white mb-2 block">Sobrenome</Label>
-                <Input id="lastName" name="lastName" value={profileData.lastName} onChange={handleInputChange} placeholder="Seu sobrenome" className="bg-[#111118] border-[#33333359] text-white" />
-              </div>
-              
-              <div>
-                <Label htmlFor="country" className="text-white mb-2 block">País</Label>
-                <CustomSelect id="country" options={["Brasil", "EUA", "Canadá", "Reino Unido", "Austrália"]} defaultValue={profileData.country} onChange={value => handleSelectChange("country", value)} className="bg-[#111118] border-[#33333359] text-white" />
-              </div>
-              
-              <div>
-                <Label htmlFor="language" className="text-white mb-2 block">Idioma</Label>
-                <CustomSelect id="language" options={["Português", "Inglês", "Espanhol", "Francês", "Alemão"]} defaultValue={profileData.language} onChange={value => handleSelectChange("language", value)} className="bg-[#111118] border-[#33333359] text-white" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-8 flex justify-end gap-4">
-            <Button variant="outline" className="border-[#33333359] text-white hover:bg-[#33333359]">
-              Cancelar
-            </Button>
-            <Button onClick={handleSave} className="bg-[#ffad33] text-black hover:bg-[#cc8a29]">
-              Salvar
-            </Button>
-          </div>
-          
-          <div className="mt-8 pt-6 border-t border-[#33333359]">
-            <h2 className="text-lg font-bold mb-4 text-vegas-gold">Informações da conta</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-[#111118] p-4 rounded-lg">
-                <p className="text-gray-400 text-sm">ID da conta</p>
-                <p className="text-white font-mono">{extendedUser?.id || 'N/A'}</p>
-              </div>
-              <div className="bg-[#111118] p-4 rounded-lg">
-                <p className="text-gray-400 text-sm">Google ID</p>
-                <p className="text-white font-mono">{extendedUser?.googleId || 'N/A'}</p>
-              </div>
-              <div className="bg-[#111118] p-4 rounded-lg">
-                <p className="text-gray-400 text-sm">Conta criada em</p>
-                <p className="text-white">{extendedUser?.createdAt ? new Date(extendedUser.createdAt).toLocaleDateString('pt-BR') : 'N/A'}</p>
-              </div>
-              <div className="bg-[#111118] p-4 rounded-lg">
-                <p className="text-gray-400 text-sm">Último acesso</p>
-                <p className="text-white">{extendedUser?.lastLogin ? new Date(extendedUser.lastLogin).toLocaleDateString('pt-BR') : 'N/A'}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Seção de Assinatura */}
-        <div className="mt-8">
-          <h2 className="text-lg font-bold mb-4 text-vegas-gold">Sua Assinatura</h2>
-          
-          <Card className="border-gray-700 bg-[#111118]">
-            <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                <div className="flex items-center gap-3 mb-4 sm:mb-0">
-                  <div className="w-12 h-12 rounded-full bg-vegas-gold/10 flex items-center justify-center">
-                    <CreditCard className="w-6 h-6 text-vegas-gold" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      {hasActivePlan 
-                        ? `Plano ${currentPlan?.name || 'Premium'}` 
-                        : 'Sem plano ativo'}
-                    </h3>
+            <TabsContent value="profile" className="space-y-6">
+              {/* Avatar Section */}
+              <div className="mb-6">
+                <h3 className="text-md font-medium mb-4">Seu Avatar</h3>
+                <div className="flex items-start gap-4">
+                  {avatar ? (
+                    <img 
+                      src={avatar} 
+                      alt="Avatar"
+                      className="w-16 h-16 rounded-full object-cover border border-border"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-vegas-black/40 border border-border flex items-center justify-center">
+                      {profileData.fullName ? profileData.fullName[0].toUpperCase() : 'U'}
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <div className="flex space-x-2">
+                      <Button
+                        onClick={handleFileUpload}
+                        className="bg-vegas-green hover:bg-vegas-green/90 text-black"
+                        size="sm"
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload Novo
+                      </Button>
+                      
+                      <Button
+                        onClick={handleDeleteAvatar}
+                        variant="outline"
+                        size="sm"
+                        className="border-border hover:bg-vegas-black/40"
+                      >
+                        Deletar Avatar
+                      </Button>
+                    </div>
                     <p className="text-sm text-gray-400">
-                      {hasActivePlan 
-                        ? `Próxima cobrança: ${formatDate(currentSubscription.nextBillingDate)}`
-                        : 'Assine um plano para acessar recursos premium'}
+                      Avatar ajuda seus colegas a reconhecerem você no sistema.
                     </p>
                   </div>
                 </div>
+              </div>
+              
+              {/* Profile Form */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Label htmlFor="fullName" className="text-sm font-medium text-gray-400 mb-1.5 block">
+                    Nome Completo
+                  </Label>
+                  <Input
+                    id="fullName"
+                    name="fullName"
+                    value={profileData.fullName}
+                    onChange={handleInputChange}
+                    className="bg-vegas-black/30 border-border"
+                  />
+                </div>
                 
-                <div className="flex items-center">
-                  {hasActivePlan && (
-                    <Badge variant="secondary" className="mr-2">
-                      {currentSubscription.status?.toLowerCase() === 'active' || 
-                       currentSubscription.status?.toLowerCase() === 'ativo' || 
-                       currentSubscription.status?.toLowerCase() === 'confirmed' 
-                        ? 'Ativo' 
-                        : currentSubscription.status?.toLowerCase() === 'pending' ||
-                          currentSubscription.status?.toLowerCase() === 'pendente'
-                          ? 'Pendente'
-                          : currentSubscription.status}
-                    </Badge>
-                  )}
-                  <Link 
-                    to="/billing" 
-                    className="flex items-center text-sm text-vegas-gold hover:underline"
-                  >
-                    {hasActivePlan ? 'Gerenciar assinatura' : 'Ver planos disponíveis'}
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Link>
+                <div>
+                  <Label htmlFor="role" className="text-sm font-medium text-gray-400 mb-1.5 block">
+                    Cargo
+                  </Label>
+                  <Input
+                    id="role"
+                    name="role"
+                    value={profileData.role}
+                    onChange={handleInputChange}
+                    className="bg-vegas-black/30 border-border"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="location" className="text-sm font-medium text-gray-400 mb-1.5 block">
+                    Localização
+                  </Label>
+                  <Input
+                    id="location"
+                    name="location"
+                    value={profileData.location}
+                    onChange={handleInputChange}
+                    className="bg-vegas-black/30 border-border"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="company" className="text-sm font-medium text-gray-400 mb-1.5 block">
+                    Empresa
+                  </Label>
+                  <Input
+                    id="company"
+                    name="company"
+                    value={profileData.company}
+                    onChange={handleInputChange}
+                    className="bg-vegas-black/30 border-border"
+                  />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <Label htmlFor="bio" className="text-sm font-medium text-gray-400 mb-1.5 block">
+                    Bio
+                  </Label>
+                  <Textarea
+                    id="bio"
+                    name="bio"
+                    placeholder="Descreva sobre você e sua experiência..."
+                    value={profileData.bio}
+                    onChange={handleInputChange}
+                    className="bg-vegas-black/30 border-border h-32"
+                  />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+              
+              {/* Update Button */}
+              <div className="pt-4">
+                <Button 
+                  onClick={handleUpdateProfile}
+                  className="bg-vegas-green hover:bg-vegas-green/90 text-black"
+                >
+                  Atualizar Perfil
+                </Button>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="password">
+              <div className="p-4 text-center">
+                <p className="text-gray-400">
+                  Configurações de senha estarão disponíveis em breve.
+                </p>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="email">
+              <div className="p-4 text-center">
+                <p className="text-gray-400">
+                  Configurações de email estarão disponíveis em breve.
+                </p>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="notification">
+              <div className="p-4 text-center">
+                <p className="text-gray-400">
+                  Configurações de notificações estarão disponíveis em breve.
+                </p>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="settings">
+              <div className="p-4 text-center">
+                <p className="text-gray-400">
+                  Configurações gerais estarão disponíveis em breve.
+                </p>
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </Layout>
