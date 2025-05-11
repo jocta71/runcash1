@@ -73,9 +73,9 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     navigate('/');
   };
   
-  const sidebarClasses = isMobile
-    ? "h-full w-full mobile-sidebar-inner animate-slide-right"
-    : "h-screen fixed top-0 left-0 w-64 hidden md:flex flex-col animate-slide-right z-40 bg-[#131614] border-r border-border";
+  const sidebarClassName = isMobile
+    ? "h-screen fixed top-0 left-0 w-full md:w-64 flex flex-col z-40 bg-vegas-darkbg border-r border-border overflow-auto"
+    : "h-screen fixed top-0 left-0 w-64 hidden md:flex flex-col animate-slide-right z-40 bg-vegas-darkbg border-r border-border";
   
   const content = (
     <div className="p-3 flex flex-col h-full justify-between">
@@ -172,7 +172,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     
     return (
       <div className="mobile-sidebar" onClick={onClose}>
-        <div className={sidebarClasses} onClick={e => e.stopPropagation()}>
+        <div className={sidebarClassName} onClick={e => e.stopPropagation()}>
           {content}
         </div>
       </div>
@@ -180,7 +180,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   }
   
   return (
-    <div className={sidebarClasses}>
+    <div className={sidebarClassName}>
       {content}
     </div>
   );

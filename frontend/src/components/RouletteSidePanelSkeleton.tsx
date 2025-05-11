@@ -36,7 +36,7 @@ const RouletteSidePanelSkeleton: React.FC = () => {
       {/* Cards de estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
         {/* Card de histórico de números */}
-        <Card className="md:col-span-2 backdrop-filter bg-opacity-40 bg-[#131614] border border-gray-800/30">
+        <Card className="md:col-span-2 backdrop-filter bg-opacity-40 bg-vegas-darkbg border border-gray-800/30">
           <CardHeader className="p-2 pb-0 flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded-full bg-gray-700 animate-pulse"></div>
@@ -60,7 +60,7 @@ const RouletteSidePanelSkeleton: React.FC = () => {
         </Card>
         
         {/* Card de distribuição por cor */}
-        <Card className="backdrop-filter bg-opacity-40 bg-[#131614] border border-gray-800/30">
+        <Card className="backdrop-filter bg-opacity-40 bg-vegas-darkbg border border-gray-800/30">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded-full bg-gray-700 animate-pulse"></div>
@@ -76,7 +76,7 @@ const RouletteSidePanelSkeleton: React.FC = () => {
         </Card>
         
         {/* Card de mapa de calor */}
-        <Card className="backdrop-filter bg-opacity-40 bg-[#131614] border border-gray-800/30">
+        <Card className="backdrop-filter bg-opacity-40 bg-vegas-darkbg border border-gray-800/30">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded-full bg-gray-700 animate-pulse"></div>

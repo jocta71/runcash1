@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
  */
 const RouletteCardSkeleton: React.FC = () => {
   return (
-    <Card className="relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-[#131614] border border-gray-800/30 hover:border-gray-700/50">
+    <Card className="relative overflow-visible transition-all duration-300 backdrop-filter bg-opacity-40 bg-vegas-darkbg border border-gray-800/30 hover:border-gray-700/50">
       {/* Efeito de pulse para simular carregamento */}
       <CardContent className="p-4 relative z-10">
         {/* Cabeçalho skeleton */}
