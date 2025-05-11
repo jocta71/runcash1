@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { RouletteData } from '@/integrations/api/rouletteService';
 import RouletteFeedService from '@/services/RouletteFeedService';
 import LastNumbersBar from './LastNumbersBar';
@@ -76,6 +76,20 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   const [selectedRoulette, setSelectedRoulette] = useState<ExtendedRouletteData | null>(null);
   const [showStatsInline, setShowStatsInline] = useState(false);
   const [updatingData, setUpdatingData] = useState(false);
+  // Novo estado para armazenar informações de diagnóstico
+  const [connectionStatus, setConnectionStatus] = useState<{
+    lastUpdate: string;
+    lastHeartbeat: string;
+    totalUpdates: number;
+    connectionState: string;
+    error: string | null;
+  }>({
+    lastUpdate: 'Nunca',
+    lastHeartbeat: 'Nunca',
+    totalUpdates: 0,
+    connectionState: 'Desconectado',
+    error: null
+  });
   const rouletteCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   
   // Referência ao cliente de roletas unificado
@@ -90,14 +104,19 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     
     // Diagnóstico de conexão
     console.log('[LiveRoulettesDisplay] Status inicial da conexão:');
-    clientRef.current.diagnoseConnectionState();
+    const diagInfo = clientRef.current.diagnoseConnectionState();
+    setConnectionStatus(prev => ({
+      ...prev,
+      connectionState: diagInfo.isConnected ? 'Conectado' : 
+                       diagInfo.isConnecting ? 'Conectando...' : 'Desconectado',
+      error: null
+    }));
     
     // Limpar
     return () => {
       // Não precisamos desconectar, pois outros componentes podem estar usando o cliente
     };
   }, []);
-<<<<<<< HEAD
 
   // Handler para eventos de heartbeat
   const handleHeartbeat = useCallback((data: any) => {
@@ -119,8 +138,6 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       EventService.off('roulette:heartbeat', handleHeartbeat);
     };
   }, [handleHeartbeat]);
-=======
->>>>>>> parent of e6720b9e (jhjk)
   
   // Usar os dados passados como prop ou obter do clientRef
   useEffect(() => {
@@ -157,11 +174,17 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       // Se não temos dados em cache, forçar uma conexão direta com o stream
       console.log('[LiveRoulettesDisplay] Sem dados em cache, forçando conexão com o stream...');
       clientRef.current.forceUpdate();
+      
+      // Atualizar status da conexão
+      setConnectionStatus(prev => ({
+        ...prev,
+        connectionState: 'Conectando...',
+        error: null
+      }));
     }
     
     // Timeout de segurança para evitar tela de carregamento infinita
     const safetyTimeout = setTimeout(() => {
-<<<<<<< HEAD
             setIsLoading(false);
       // Verificar se ainda não temos dados após timeout
       if (roulettes.length === 0) {
@@ -171,13 +194,10 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
           error: 'Tempo esgotado aguardando dados'
         }));
       }
-=======
-      setIsLoading(false);
->>>>>>> parent of e6720b9e (jhjk)
     }, 5000); // 5 segundos máximos de espera
     
     return () => clearTimeout(safetyTimeout);
-  }, [clientRef, roulettesData, isDataLoaded, preloadedData]);
+  }, [clientRef, roulettesData, isDataLoaded, preloadedData, roulettes.length]);
   
   // Efeito para simular clique automático quando os dados são carregados
   useEffect(() => {
@@ -200,6 +220,15 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
         updateData.source || 'desconhecido');
       
       setUpdatingData(true);
+      
+      // Atualizar o estado de diagnóstico
+      setConnectionStatus(prev => ({
+        ...prev,
+        lastUpdate: new Date().toLocaleTimeString(),
+        totalUpdates: prev.totalUpdates + 1,
+        connectionState: 'Conectado (dados recebidos)',
+        error: null
+      }));
       
       // Obter dados atualizados do cliente unificado
       if (clientRef.current) {
@@ -229,6 +258,8 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
             setSelectedRoulette(updatedSelectedRoulette);
           }
           }
+        } else {
+          console.warn('[LiveRoulettesDisplay] Nenhum dado recebido na atualização');
         }
       }
       
@@ -238,16 +269,30 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       }, 300);
     };
     
+    // Handler para erros de conexão
+    const handleConnectionError = (error: any) => {
+      console.error('[LiveRoulettesDisplay] Erro de conexão:', error);
+      setConnectionStatus(prev => ({
+        ...prev,
+        connectionState: 'Erro',
+        error: error.message || 'Erro de conexão'
+      }));
+    };
+    
     // Inscrever-se no evento de atualização de dados
     EventService.on('roulette:data-updated', handleDataUpdated);
     
     // Inscrever-se também para o evento de novo número
     EventService.on('roulette:new-number', handleDataUpdated);
     
+    // Inscrever-se para erros de conexão
+    EventService.on('roulette:connection-error', handleConnectionError);
+    
     // Limpar ao desmontar
     return () => {
       EventService.off('roulette:data-updated', handleDataUpdated);
       EventService.off('roulette:new-number', handleDataUpdated);
+      EventService.off('roulette:connection-error', handleConnectionError);
     };
   }, [selectedRoulette]);
 
@@ -268,6 +313,13 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
     console.log('[LiveRoulettesDisplay] Forçando reconexão manual do stream...');
     setUpdatingData(true);
     
+    // Atualizar estado de conexão
+    setConnectionStatus(prev => ({
+      ...prev,
+      connectionState: 'Reconectando...',
+      error: null
+    }));
+    
     if (clientRef.current) {
       clientRef.current.forceReconnectStream();
       
@@ -275,17 +327,76 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
       setTimeout(() => {
         if (clientRef.current) {
           console.log('[LiveRoulettesDisplay] Status após tentativa de reconexão:');
-          clientRef.current.diagnoseConnectionState();
+          const diagInfo = clientRef.current.diagnoseConnectionState();
+          setConnectionStatus(prev => ({
+            ...prev,
+            connectionState: diagInfo.isConnected ? 'Conectado' : 
+                            diagInfo.isConnecting ? 'Conectando...' : 'Desconectado',
+            error: diagInfo.isConnected ? null : 'Falha na conexão, tente novamente'
+          }));
         }
         setUpdatingData(false);
       }, 2000);
     } else if (forceReconnect) {
       // Fallback para a função de reconexão do contexto global
       forceReconnect();
-      setTimeout(() => setUpdatingData(false), 2000);
+      setTimeout(() => {
+        setUpdatingData(false);
+        setConnectionStatus(prev => ({
+          ...prev,
+          connectionState: 'Reconexão solicitada',
+          error: null
+        }));
+      }, 2000);
     } else {
       setUpdatingData(false);
+      setConnectionStatus(prev => ({
+        ...prev,
+        connectionState: 'Falha',
+        error: 'Cliente não inicializado'
+      }));
     }
+  };
+
+  // Renderizar indicador de status da conexão SSE
+  const renderConnectionStatus = () => {
+    const { connectionState, lastUpdate, lastHeartbeat, totalUpdates, error } = connectionStatus;
+    
+    // Determinar cor com base no estado da conexão
+    let statusColor = 'text-gray-500';
+    let statusIcon = '⚪';
+    
+    if (connectionState.includes('Conectado')) {
+      statusColor = 'text-green-500';
+      statusIcon = '🟢';
+    } else if (connectionState === 'Conectando...') {
+      statusColor = 'text-yellow-500';
+      statusIcon = '🟡';
+    } else if (connectionState === 'Erro' || connectionState === 'Falha' || connectionState === 'Timeout') {
+      statusColor = 'text-red-500';
+      statusIcon = '🔴';
+    }
+    
+    return (
+      <div className="flex flex-col items-start mb-2 p-2 bg-gray-800 rounded-md text-xs w-full">
+        <div className="flex justify-between w-full">
+          <span className={`font-semibold ${statusColor}`}>
+            {statusIcon} Stream SSE: {connectionState}
+          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-gray-400">Updates: {totalUpdates}</span>
+            {updatingData && (
+              <div className="animate-spin h-3 w-3 border-2 border-yellow-400 border-t-transparent rounded-full ml-1"></div>
+            )}
+          </div>
+        </div>
+        <div className="flex justify-between w-full mt-1 text-gray-400">
+          <span>Último update: {lastUpdate}</span>
+          <span>Último heartbeat: {lastHeartbeat}</span>
+        </div>
+        {error && <div className="text-red-400 mt-1">Erro: {error}</div>}
+      </div>
+    );
   };
 
   // Se temos dados passados por props, mostrar eles diretamente
@@ -341,6 +452,9 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
           </div>
         </div>
         </div>
+        
+        {/* Indicador de status da conexão SSE */}
+        {renderConnectionStatus()}
         
         {/* Layout flexbox: roletas à esquerda, estatísticas à direita */}
         <div className="flex flex-col md:flex-row gap-4">
@@ -479,17 +593,22 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
   
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center p-8 h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-        <span className="ml-2 text-white">Carregando mesas de roleta...</span>
+      <div className="flex flex-col justify-center items-center p-8 h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-4"></div>
+        <span className="text-white mb-4">Carregando mesas de roleta...</span>
+        {renderConnectionStatus()}
       </div>
     );
   }
 
   if (roulettes.length === 0) {
     return (
-      <div className="text-center p-4 text-gray-400">
-        <div className="mb-4">Nenhuma mesa de roleta ativa no momento.</div>
+      <div className="text-center p-4">
+        <div className="mb-4 text-gray-400">Nenhuma mesa de roleta ativa no momento.</div>
+        
+        {/* Adicionar o indicador de status da conexão */}
+        <div className="max-w-md mx-auto mb-4">{renderConnectionStatus()}</div>
+        
         <button
           onClick={handleManualReconnect}
           className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm flex items-center gap-2 mx-auto"
@@ -505,7 +624,7 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-white">Roletas ao Vivo</h2>
         <button
           onClick={handleManualReconnect}
@@ -522,6 +641,9 @@ const LiveRoulettesDisplay: React.FC<LiveRoulettesDisplayProps> = ({ roulettesDa
           {updatingData ? 'Reconectando...' : 'Reconectar Stream'}
         </button>
       </div>
+      
+      {/* Indicador de status da conexão SSE */}
+      {renderConnectionStatus()}
       
       {/* Grid de roletas com exatamente 3 cards por linha */}
       <div className="grid grid-cols-3 gap-6">

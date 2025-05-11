@@ -1,1 +1,0 @@
-web: cd backend/scraper && python run_real_scraper.py 
