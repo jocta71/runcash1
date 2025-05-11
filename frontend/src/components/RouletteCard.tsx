@@ -9,11 +9,10 @@ import { useRouletteSettingsStore } from '@/stores/rouletteSettingsStore';
 import { cn } from '@/lib/utils';
 import UnifiedRouletteClient from '../services/UnifiedRouletteClient';
 import EventBus from '../services/EventBus';
-import { TrendingUp, Zap, CheckCircle, XCircle, AlertTriangle, Info, Gauge, BarChart3 } from 'lucide-react';
+import { TrendingUp, Zap, CheckCircle, XCircle, AlertTriangle, Info, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import RouletteSidePanelStats from './RouletteSidePanelStats';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;
@@ -211,7 +210,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   const [isNewNumber, setIsNewNumber] = useState(false);
   const [updateCount, setUpdateCount] = useState(0);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
-  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Refs
@@ -370,36 +368,20 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   // Log para verificar o estado antes de renderizar
   console.log(`[${componentId}] Renderizando. Estado rouletteData:`, rouletteData); // Log 7: Estado na renderização
 
-  // Função para abrir o modal de estatísticas
-  const handleOpenStatsModal = (e: React.MouseEvent) => {
-    // Evitar que o clique propague para o card inteiro
+  // Função para selecionar esta roleta para exibir estatísticas
+  const handleShowStats = (e: React.MouseEvent) => {
+    // Evitar que o clique se propague para outros elementos
     e.stopPropagation();
-    // Abrir o modal de estatísticas
-    setIsStatsModalOpen(true);
-  };
-  
-  // Função para fechar o modal de estatísticas
-  const handleCloseStatsModal = () => {
-    setIsStatsModalOpen(false);
-  };
-  
-  // Adicionar o botão de estatísticas e o modal
-  const renderStatsButton = () => {
-    if (!rouletteData || !rouletteData.numeros || rouletteData.numeros.length === 0) {
-      return null;
-    }
     
-    return (
-      <Button 
-        onClick={handleOpenStatsModal}
-        variant="ghost" 
-        size="sm" 
-        className="flex items-center gap-1 text-xs font-medium hover:bg-green-600/10 hover:text-green-500 transition-colors"
-      >
-        <BarChart3 className="h-3.5 w-3.5" />
-        <span>Estatísticas</span>
-      </Button>
-    );
+    // Criar e disparar um evento personalizado com os dados da roleta
+    const event = new CustomEvent('rouletteSelected', {
+      detail: { roulette: rouletteData }
+    });
+    
+    // Disparar o evento para que o Layout possa capturá-lo
+    window.dispatchEvent(event);
+    
+    console.log('[RouletteCard] Evento de seleção de roleta disparado:', rouletteData.nome);
   };
 
   if (isLoading) {
@@ -463,119 +445,94 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   const lastNumbersToDisplay = numeros.map(n => n.numero);
 
   return (
-    <>
-      <Card 
-        ref={cardRef}
-        onClick={handleCardClick}
-        className={cn(
-          "relative h-full w-full transition-all group",
-          {
-            'border-primary border-2': isSelected,
-            'cursor-pointer hover:border-primary hover:shadow-md': !isDetailView,
-            'shadow-inner bg-muted/40': isDetailView,
-            'animate-shake': isNewNumber,
-            'border-amber-300 border-dashed border-2': rouletteData?.isHistorical
-          }
-        )}
-      >
-        {rouletteData?.isHistorical && (
-          <div className="absolute top-0 right-0 bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-bl">
-            Histórico
-          </div>
-        )}
-
-        {loadingTimeout && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <span className="ml-2 text-sm font-medium">Carregando dados...</span>
-          </div>
-        )}
-
-        <CardHeader className="p-3 pb-0">
-          {rouletteData && <CardTitle className="text-lg font-semibold flex items-center justify-between">
-            <span className="truncate">{rouletteData.nome}</span>
-            <Badge variant={rouletteData.status === 'online' ? 'default' : 'destructive'} className={`ml-auto ${rouletteData.status === 'online' ? 'bg-green-500 hover:bg-green-600' : ''}`}>
-              {rouletteData.status === 'online' ? 'Online' : 'Offline'}
-            </Badge>
-          </CardTitle>}
-          <CardDescription className="text-xs flex justify-between items-center mt-1">
-            <span className="opacity-70">{rouletteData?.provider || 'Provedor desconhecido'}</span>
-            <span className="text-xs flex items-center gap-1">
-              {rouletteData && (
-                <span>{getTimeAgo()}</span>
-              )}
-            </span>
-          </CardDescription>
-          
-          {rouletteData && rouletteData.status !== 'online' && (
-            <div className="mt-2 flex justify-end">
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="text-xs py-1 px-2"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  unifiedClient.forceReconnectStream();
-                  console.log(`[${componentId}] Tentando reconectar com o servidor SSE...`);
-                }}
-              >
-                Reconectar
-              </Button>
-            </div>
-          )}
-        </CardHeader>
-
-        <CardContent className="p-4 relative z-10">
-          {/* Números recentes */}
-          <div className="flex justify-center items-center space-x-1 min-h-[40px]">
-            {lastNumbersToDisplay.slice(0, 5).map((num, index) => (
-              <NumberDisplay 
-                key={`${componentId}-num-${index}-${num}`} 
-                number={num} 
-                size="medium" 
-                highlight={index === 0 && isNewNumber}
-              />
-            ))}
-            {lastNumbersToDisplay.length === 0 && <span className="text-xs text-muted-foreground">Nenhum número recente</span>}
-          </div>
-        </CardContent>
-
-        <CardFooter className="flex justify-between items-center p-3 pt-2 bg-card/30">
-          <div className="text-xs text-muted-foreground">
-            {getTimeAgo()}
-          </div>
-          {renderStatsButton()}
-        </CardFooter>
-      </Card>
-      
-      {/* Modal de estatísticas */}
-      {isStatsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="bg-gray-900 w-11/12 max-w-6xl h-[90vh] rounded-lg overflow-y-auto">
-            <div className="flex justify-between items-center p-4 border-b border-gray-800">
-              <h2 className="text-green-500 text-xl font-bold">Estatísticas da {rouletteData?.nome}</h2>
-              <button 
-                onClick={handleCloseStatsModal}
-                className="text-gray-400 hover:text-white"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-4">
-              <RouletteSidePanelStats
-                roletaId={rouletteData?.id || ''}
-                roletaNome={rouletteData?.nome || ''}
-                lastNumbers={rouletteData?.numeros.map(n => n.numero) || []}
-                wins={0}
-                losses={0}
-              />
-            </div>
-          </div>
+    <Card 
+      ref={cardRef}
+      onClick={handleShowStats}
+      className={cn(
+        "relative h-full w-full transition-all group",
+        {
+          'border-primary border-2': isSelected,
+          'cursor-pointer hover:border-primary hover:shadow-md': !isDetailView,
+          'shadow-inner bg-muted/40': isDetailView,
+          'animate-shake': isNewNumber,
+          'border-amber-300 border-dashed border-2': rouletteData?.isHistorical
+        }
+      )}
+    >
+      {rouletteData?.isHistorical && (
+        <div className="absolute top-0 right-0 bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-bl">
+          Histórico
         </div>
       )}
-    </>
+
+      {loadingTimeout && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2 text-sm font-medium">Carregando dados...</span>
+        </div>
+      )}
+
+      <CardHeader className="p-3 pb-0">
+        {rouletteData && <CardTitle className="text-lg font-semibold flex items-center justify-between">
+          <span className="truncate">{rouletteData.nome}</span>
+          <Badge variant={rouletteData.status === 'online' ? 'default' : 'destructive'} className={`ml-auto ${rouletteData.status === 'online' ? 'bg-green-500 hover:bg-green-600' : ''}`}>
+            {rouletteData.status === 'online' ? 'Online' : 'Offline'}
+          </Badge>
+        </CardTitle>}
+        <CardDescription className="text-xs flex justify-between items-center mt-1">
+          <span className="opacity-70">{rouletteData?.provider || 'Provedor desconhecido'}</span>
+          <span className="text-xs flex items-center gap-1">
+            {rouletteData && (
+              <span>{getTimeAgo()}</span>
+            )}
+          </span>
+        </CardDescription>
+        
+        {rouletteData && rouletteData.status !== 'online' && (
+          <div className="mt-2 flex justify-end">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="text-xs py-1 px-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                unifiedClient.forceReconnectStream();
+                console.log(`[${componentId}] Tentando reconectar com o servidor SSE...`);
+              }}
+            >
+              Reconectar
+            </Button>
+          </div>
+        )}
+      </CardHeader>
+
+      <CardContent className="p-4 relative z-10">
+        {/* Números recentes */}
+        <div className="flex justify-center items-center space-x-1 min-h-[40px]">
+          {lastNumbersToDisplay.slice(0, 5).map((num, index) => (
+            <NumberDisplay 
+              key={`${componentId}-num-${index}-${num}`} 
+              number={num} 
+              size="medium" 
+              highlight={index === 0 && isNewNumber}
+            />
+          ))}
+          {lastNumbersToDisplay.length === 0 && <span className="text-xs text-muted-foreground">Nenhum número recente</span>}
+        </div>
+      </CardContent>
+
+      <CardFooter className="p-4 bg-muted/50 flex justify-between items-center text-xs text-muted-foreground">
+        <span>{provider}</span>
+        <Tooltip>
+          <TooltipTrigger>
+            <span>Atualizado: {new Date(lastUpdateTime).toLocaleTimeString()}</span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{new Date(lastUpdateTime).toLocaleString()}</p>
+          </TooltipContent>
+        </Tooltip>
+      </CardFooter>
+    </Card>
   );
 };
 

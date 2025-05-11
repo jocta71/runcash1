@@ -12,6 +12,7 @@ import AnimatedInsights from './AnimatedInsights';
 import Footer from './Footer';
 import GlowingCubeLoader from './GlowingCubeLoader';
 import { useLoginModal } from '@/context/LoginModalContext';
+import RouletteSidePanelStats from './RouletteSidePanelStats';
 
 // Interface estendida para o usuário com firstName e lastName
 interface ExtendedUser {
@@ -37,6 +38,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [selectedRoulette, setSelectedRoulette] = useState<any>(null);
 
   // Cast para o tipo estendido para acessar firstName e lastName
   const extUser = user as unknown as ExtendedUser;
@@ -144,6 +146,33 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
     resetModalClosed();
     showLoginModal();
   };
+
+  // Função para selecionar uma roleta e exibir suas estatísticas
+  const handleSelectRoulette = (roulette: any) => {
+    setSelectedRoulette(roulette);
+  };
+
+  // Obter dados da roleta selecionada para estatísticas
+  useEffect(() => {
+    if (!selectedRoulette) return;
+    
+    // Aqui você pode adicionar lógica para carregar números históricos, etc.
+    console.log('[Layout] Roleta selecionada para estatísticas:', selectedRoulette.nome);
+    
+    // Configurar um listener global para eventos de seleção de roleta
+    const handleGlobalRouletteSelect = (evt: CustomEvent) => {
+      if (evt.detail && evt.detail.roulette) {
+        setSelectedRoulette(evt.detail.roulette);
+      }
+    };
+    
+    // Registrar o event listener global
+    window.addEventListener('rouletteSelected' as any, handleGlobalRouletteSelect);
+    
+    return () => {
+      window.removeEventListener('rouletteSelected' as any, handleGlobalRouletteSelect);
+    };
+  }, [selectedRoulette]);
 
   // Renderizar tela de carregamento se estiver carregando
   if (isLoading) {
@@ -355,6 +384,33 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
       
       {/* Barra flutuante da IA */}
       <AIFloatingBar />
+
+      {/* Conteúdo principal com grid/flex */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Barra lateral */}
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        
+        {/* Área principal + painel de estatísticas */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Conteúdo principal */}
+          <main className="flex-1 overflow-auto">
+            {children}
+          </main>
+          
+          {/* Painel lateral de estatísticas (quando uma roleta está selecionada) */}
+          {selectedRoulette && (
+            <div className="w-[350px] border-l border-[#2A2B31] overflow-auto hidden lg:block">
+              <RouletteSidePanelStats
+                roletaId={selectedRoulette.id || selectedRoulette._id}
+                roletaNome={selectedRoulette.nome || selectedRoulette.name}
+                lastNumbers={selectedRoulette.lastNumbers || []}
+                wins={0}
+                losses={0}
+              />
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
