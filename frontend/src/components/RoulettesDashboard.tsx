@@ -294,7 +294,7 @@ const RoulettesDashboard = () => {
       ) : (
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Lista de roletas à esquerda */}
-          <div className="lg:w-4/5">
+          <div className="lg:w-1/2">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               {roulettes.map((roulette: any) => {
                 const rouletteId = roulette.id || roulette.roleta_id;
@@ -325,7 +325,7 @@ const RoulettesDashboard = () => {
           </div>
           
           {/* Estatísticas da roleta à direita */}
-          <div className="lg:w-1/5 mt-4 lg:mt-0">
+          <div className="lg:w-1/2 mt-4 lg:mt-0">
             {selectedRoulette ? (
               <RouletteSidePanelStats
                 roletaId={selectedRoulette.id || selectedRoulette.roleta_id || ''}
