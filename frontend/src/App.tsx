@@ -429,6 +429,15 @@ const App = () => {
                               </ProtectedRoute>
                             } />
                             
+                            {/* Adicionada rota /profile/billing */}
+                            <Route path="/profile/billing" element={
+                              <ProtectedRoute>
+                                <Suspense fallback={<LoadingScreen />}>
+                                  <BillingPage />
+                                </Suspense>
+                              </ProtectedRoute>
+                            } />
+                            
                             {/* Página de detalhes da assinatura - agora redirecionando para /billing */}
                             <Route path="/minha-conta/assinatura" element={
                               <ProtectedRoute>
