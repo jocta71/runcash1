@@ -493,7 +493,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
           )}
         </CardHeader>
 
-        <CardContent className="p-4 relative z-10">
+        <CardContent className="py-4 px-[0.20rem] relative z-10">
           {/* Números recentes */}
           <div className="flex flex-wrap justify-center items-center gap-1 min-h-[40px] p-1">
             {lastNumbersToDisplay.map((num, index) => (
