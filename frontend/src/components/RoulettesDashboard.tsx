@@ -96,19 +96,22 @@ const RoulettesDashboard = () => {
       if (newRoulettes.length > 0) {
         setRoulettes(newRoulettes);
         
-        // Manter a roleta selecionada atualizada se existir
+        // Somente atualizar a referência da roleta selecionada, não mudar a seleção
         if (selectedRoulette) {
           const updatedSelected = newRoulettes.find(
             (r: any) => r.id === selectedRoulette.id || r.roleta_id === selectedRoulette.id
           );
           if (updatedSelected) {
+            // Apenas atualizar a referência do objeto selecionado para manter os dados atualizados
             setSelectedRoulette(updatedSelected);
-          } else if (newRoulettes.length > 0) {
-            // Se a roleta selecionada não existe mais, selecionar a primeira
+          }
+          // Se a roleta selecionada não existe mais, só então selecionar a primeira
+          else if (newRoulettes.length > 0) {
             setSelectedRoulette(newRoulettes[0]);
           }
-        } else if (newRoulettes.length > 0) {
-          // Se não há roleta selecionada, selecionar a primeira
+        } 
+        // Apenas inicializar a seleção se não houver nenhuma roleta selecionada
+        else if (newRoulettes.length > 0 && !selectedRoulette) {
           setSelectedRoulette(newRoulettes[0]);
         }
         
