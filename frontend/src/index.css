@@ -97,6 +97,14 @@
     @apply bg-[rgb(25,31,27)] text-[#00FF00];
   }
 
+  .menu-item-sub {
+    @apply flex items-center gap-2 px-2 py-1 rounded-lg text-[#C8E9C8] hover:text-[#00FF00] hover:bg-[rgb(25,31,27)] transition-all duration-200 cursor-pointer text-sm;
+  }
+  
+  .menu-item-sub.active {
+    @apply bg-[rgb(25,31,27)] text-[#00FF00];
+  }
+
   .hover-scale {
     @apply transition-all duration-200 hover:scale-105;
   }

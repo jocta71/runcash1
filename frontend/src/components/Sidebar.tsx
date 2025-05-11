@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LifeBuoy, ChevronDown, Gamepad2, Globe, Send, X, Settings, CreditCard, Package, Key } from 'lucide-react';
+import { LifeBuoy, ChevronDown, Gamepad2, Globe, Send, X, Settings, CreditCard, Package, Key, ChevronRight } from 'lucide-react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 interface SidebarProps {
@@ -12,6 +12,7 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
   const [otherExpanded, setOtherExpanded] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState('account-information');
   const [isRoulettesActive, setIsRoulettesActive] = useState(true);
+  const [contaExpanded, setContaExpanded] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -26,33 +27,53 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
     }
     
     // Atualiza a tab de configurações ativa
-    if (pathname.includes('/profile')) {
+    if (pathname.includes('/profile') && !pathname.includes('/billing')) {
       setActiveSettingsTab('account-information');
+      setContaExpanded(true);
     } else if (pathname.includes('/billing')) {
       setActiveSettingsTab('billing');
+      setContaExpanded(true);
     } else if (pathname.includes('/planos')) {
       setActiveSettingsTab('plans');
     } else if (pathname.includes('/gerenciar-chaves')) {
       setActiveSettingsTab('api-keys');
+      setContaExpanded(true);
     }
   }, [location.pathname]);
   
-  const settingsOptions = [
-    { id: 'account-information', label: 'Conta', icon: Settings },
+  const contaSubitems = [
+    { id: 'account-information', label: 'Meu Perfil', icon: Settings },
     { id: 'billing', label: 'Pagamentos', icon: CreditCard },
-    { id: 'plans', label: 'Planos', icon: Package },
     { id: 'api-keys', label: 'Chaves API', icon: Key },
   ];
   
+  const settingsOptions = [
+    { id: 'conta', label: 'Conta', icon: Settings, hasSubitems: true },
+    { id: 'plans', label: 'Planos', icon: Package },
+  ];
+  
   const handleSettingsItemClick = (id: string) => {
+    if (id === 'conta') {
+      setContaExpanded(!contaExpanded);
+      return;
+    }
+    
     setActiveSettingsTab(id);
     setIsRoulettesActive(false);
+    
+    if (id === 'plans') {
+      navigate('/planos');
+    }
+  };
+  
+  const handleContaSubitemClick = (id: string) => {
+    setActiveSettingsTab(id);
+    setIsRoulettesActive(false);
+    
     if (id === 'account-information') {
       navigate('/profile');
     } else if (id === 'billing') {
       navigate('/profile/billing');
-    } else if (id === 'plans') {
-      navigate('/planos');
     } else if (id === 'api-keys') {
       navigate('/gerenciar-chaves');
     }
@@ -113,15 +134,36 @@ const Sidebar = ({ isOpen = false, onClose, isMobile = false }: SidebarProps) =>
           <h3 className="text-gray-500 text-xs font-medium px-4 mb-2">Configurações</h3>
           <div className="space-y-1">
             {settingsOptions.map((option) => (
-              <div 
-                key={option.id}
-                className={`menu-item ${activeSettingsTab === option.id ? 'active' : ''}`}
-                onClick={() => handleSettingsItemClick(option.id)}
-              >
-                <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
-                  <option.icon size={18} className={activeSettingsTab === option.id ? "text-[#00FF00]" : "text-white"} />
+              <div key={option.id}>
+                <div 
+                  className={`menu-item ${option.id === 'conta' && contaExpanded ? 'active' : ''}`}
+                  onClick={() => handleSettingsItemClick(option.id)}
+                >
+                  <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
+                    <option.icon size={18} className={option.id === 'conta' && contaExpanded ? "text-[#00FF00]" : "text-white"} />
+                  </div>
+                  <span className="truncate">{option.label}</span>
+                  {option.hasSubitems && (
+                    <ChevronRight size={16} className={`ml-auto transform transition-transform ${contaExpanded ? 'rotate-90' : ''}`} />
+                  )}
                 </div>
-                <span className="truncate">{option.label}</span>
+                
+                {option.id === 'conta' && contaExpanded && (
+                  <div className="ml-8 space-y-1 mt-1">
+                    {contaSubitems.map(subitem => (
+                      <div 
+                        key={subitem.id}
+                        className={`menu-item-sub ${activeSettingsTab === subitem.id ? 'active' : ''}`}
+                        onClick={() => handleContaSubitemClick(subitem.id)}
+                      >
+                        <div className="bg-[#1A191F] p-1.5 rounded-md flex-shrink-0">
+                          <subitem.icon size={16} className={activeSettingsTab === subitem.id ? "text-[#00FF00]" : "text-white"} />
+                        </div>
+                        <span className="truncate text-sm">{subitem.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
