@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import RouletteCard from './RouletteCard';
+import RouletteSidePanelStats from './RouletteSidePanelStats';
 import UnifiedRouletteClient from '../services/UnifiedRouletteClient';
 import { Button } from './ui/button';
 import { AlertCircle, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
@@ -11,6 +12,7 @@ const RoulettesDashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
   const [reconnecting, setReconnecting] = useState(false);
+  const [selectedRoulette, setSelectedRoulette] = useState<any>(null);
 
   // Instância de UnifiedRouletteClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
@@ -44,6 +46,8 @@ const RoulettesDashboard = () => {
         if (data && data.length > 0) {
           console.log(`Dados iniciais recebidos: ${data.length} roletas`);
           setRoulettes(data);
+          // Selecionar a primeira roleta por padrão
+          setSelectedRoulette(data[0]);
           setLoading(false);
           setError(null);
         } else {
@@ -68,6 +72,19 @@ const RoulettesDashboard = () => {
       if (data && data.roulettes && Array.isArray(data.roulettes)) {
         console.log(`Atualizando com ${data.roulettes.length} roletas do evento.roulettes`);
         setRoulettes(data.roulettes);
+        
+        // Manter a roleta selecionada atualizada se existir
+        if (selectedRoulette) {
+          const updatedSelected = data.roulettes.find(
+            (r: any) => r.id === selectedRoulette.id || r.roleta_id === selectedRoulette.id
+          );
+          if (updatedSelected) {
+            setSelectedRoulette(updatedSelected);
+          }
+        } else if (data.roulettes.length > 0) {
+          setSelectedRoulette(data.roulettes[0]);
+        }
+        
         setLoading(false);
         setError(null);
       } 
@@ -75,6 +92,19 @@ const RoulettesDashboard = () => {
       else if (data && data.type === 'all_roulettes_update' && Array.isArray(data.data)) {
         console.log(`Atualizando com ${data.data.length} roletas do evento all_roulettes_update`);
         setRoulettes(data.data);
+        
+        // Manter a roleta selecionada atualizada se existir
+        if (selectedRoulette) {
+          const updatedSelected = data.data.find(
+            (r: any) => r.id === selectedRoulette.id || r.roleta_id === selectedRoulette.id
+          );
+          if (updatedSelected) {
+            setSelectedRoulette(updatedSelected);
+          }
+        } else if (data.data.length > 0) {
+          setSelectedRoulette(data.data[0]);
+        }
+        
         setLoading(false);
         setError(null);
       }
@@ -85,6 +115,19 @@ const RoulettesDashboard = () => {
         if (allRoulettes && allRoulettes.length > 0) {
           console.log(`Obtidas ${allRoulettes.length} roletas do cache do UnifiedClient`);
           setRoulettes(allRoulettes);
+          
+          // Manter a roleta selecionada atualizada se existir
+          if (selectedRoulette) {
+            const updatedSelected = allRoulettes.find(
+              (r: any) => r.id === selectedRoulette.id || r.roleta_id === selectedRoulette.id
+            );
+            if (updatedSelected) {
+              setSelectedRoulette(updatedSelected);
+            }
+          } else if (allRoulettes.length > 0) {
+            setSelectedRoulette(allRoulettes[0]);
+          }
+          
           setLoading(false);
           setError(null);
         }
@@ -104,6 +147,10 @@ const RoulettesDashboard = () => {
     if (cachedRoulettes && cachedRoulettes.length > 0) {
       console.log(`Usando ${cachedRoulettes.length} roletas do cache existente`);
       setRoulettes(cachedRoulettes);
+      // Selecionar a primeira roleta por padrão, se ainda não houver uma selecionada
+      if (!selectedRoulette) {
+        setSelectedRoulette(cachedRoulettes[0]);
+      }
       setLoading(false);
       setError(null);
     }
@@ -121,7 +168,13 @@ const RoulettesDashboard = () => {
       unifiedClient.unsubscribe('update', handleRouletteUpdate);
       clearInterval(statusInterval);
     };
-  }, []);
+  }, [selectedRoulette]);
+
+  // Função para selecionar uma roleta
+  const handleSelectRoulette = (roulette: any) => {
+    console.log('Roleta selecionada:', roulette);
+    setSelectedRoulette(roulette);
+  };
 
   // Função para forçar reconexão de todos os serviços
   const handleReconnect = async () => {
@@ -240,45 +293,73 @@ const RoulettesDashboard = () => {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {roulettes.map((roulette: any) => (
-            <RouletteCard 
-              key={roulette.id || roulette._id || roulette.roleta_id} 
-              data={roulette} 
-            />
-          ))}
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Lista de roletas à esquerda */}
+          <div className="lg:w-3/5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
+              {roulettes.map((roulette: any) => (
+                <div 
+                  key={roulette.id || roulette._id || roulette.roleta_id}
+                  onClick={() => handleSelectRoulette(roulette)}
+                  className={cn("cursor-pointer transition-all", {
+                    "ring-2 ring-primary ring-offset-2 ring-offset-background": 
+                      selectedRoulette && (selectedRoulette.id === roulette.id || selectedRoulette.roleta_id === roulette.roleta_id)
+                  })}
+                >
+                  <RouletteCard 
+                    data={roulette}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Estatísticas da roleta à direita */}
+          <div className="lg:w-2/5 mt-4 lg:mt-0">
+            {selectedRoulette ? (
+              <RouletteSidePanelStats
+                roletaId={selectedRoulette.id || selectedRoulette.roleta_id || ''}
+                roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
+                lastNumbers={selectedRoulette.numero?.map((n: any) => Number(n.numero)) || []}
+                wins={0}
+                losses={0}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center border border-dashed border-gray-700 rounded-lg p-8">
+                <p className="text-gray-500">Selecione uma roleta para ver as estatísticas</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 };
 
-// Componente para indicador de status
+// Componente para mostrar status de conexão
 const StatusIndicator = ({ status }: { status: 'connected' | 'connecting' | 'disconnected' }) => {
-  const statusConfig = {
-    connected: {
-      icon: <CheckCircle className="h-4 w-4 text-green-500" />,
-      text: 'Conectado',
-      color: 'text-green-500'
-    },
-    connecting: {
-      icon: <RefreshCw className="h-4 w-4 text-amber-500 animate-spin" />,
-      text: 'Conectando',
-      color: 'text-amber-500'
-    },
-    disconnected: {
-      icon: <AlertCircle className="h-4 w-4 text-red-500" />,
-      text: 'Desconectado',
-      color: 'text-red-500'
-    }
-  };
-
-  const config = statusConfig[status];
-
+  if (status === 'connected') {
+    return (
+      <div className="flex items-center gap-1">
+        <CheckCircle className="h-4 w-4 text-green-500" />
+        <span className="text-sm font-medium text-green-500">Conectado</span>
+      </div>
+    );
+  }
+  
+  if (status === 'connecting') {
+    return (
+      <div className="flex items-center gap-1">
+        <div className="h-4 w-4 rounded-full border-2 border-t-transparent border-yellow-500 animate-spin"></div>
+        <span className="text-sm font-medium text-yellow-500">Conectando...</span>
+      </div>
+    );
+  }
+  
   return (
-    <div className={`flex items-center gap-1 ${config.color} text-xs`}>
-      {config.icon}
-      <span>{config.text}</span>
+    <div className="flex items-center gap-1">
+      <AlertCircle className="h-4 w-4 text-red-500" />
+      <span className="text-sm font-medium text-red-500">Desconectado</span>
     </div>
   );
 };
