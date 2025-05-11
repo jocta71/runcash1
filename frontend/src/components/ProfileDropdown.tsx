@@ -125,7 +125,7 @@ const ProfileDropdown = () => {
         </DropdownMenuItem>
         
         <DropdownMenuItem asChild>
-          <Link to="/billing" className="flex items-center cursor-pointer">
+          <Link to="/profile/billing" className="flex items-center cursor-pointer">
             <Star className="mr-2 h-4 w-4" />
             <span>Minha Assinatura</span>
           </Link>

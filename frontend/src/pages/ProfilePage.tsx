@@ -113,7 +113,7 @@ const ProfilePage = () => {
     { id: 'security', label: 'Segurança', icon: <Shield size={18} /> },
     { id: 'teams', label: 'Equipes', icon: <Users size={18} /> },
     { id: 'notifications', label: 'Notificações', icon: <Bell size={18} /> },
-    { id: 'billing', label: 'Faturamento', icon: <CreditCard size={18} /> },
+    { id: 'billing', label: 'Faturamento', icon: <CreditCard size={18} />, path: '/profile/billing' },
     { id: 'data-export', label: 'Exportar Dados', icon: <Database size={18} /> },
     { id: 'delete-account', label: 'Excluir Conta', icon: <Trash size={18} className="text-red-500" /> },
   ];
@@ -130,7 +130,7 @@ const ProfilePage = () => {
                 {menuItems.map(item => (
                   <Link
                     key={item.id}
-                    to={`/profile/${item.id}`}
+                    to={item.path || `/profile/${item.id}`}
                     className={`flex items-center gap-2 p-2 rounded-md transition-colors hover:bg-vegas-black/60 ${activeTab === item.id ? 'bg-vegas-black/60 text-vegas-green' : 'text-gray-400'}`}
                     onClick={() => setActiveTab(item.id)}
                   >
