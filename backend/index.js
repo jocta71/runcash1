@@ -10,7 +10,6 @@ const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
 const { encryptRouletteData, verifyAccessKey } = require('./middlewares/encryptionMiddleware');
 
 // Carregar variáveis de ambiente
@@ -19,7 +18,6 @@ dotenv.config();
 // Configuração
 const PORT = process.env.PORT;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
-const JWT_SECRET = process.env.JWT_SECRET || "runcash_jwt_secret_key_2023";
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "runcash_default_encryption_key_2024";
 
 // Definir chave de criptografia no ambiente caso não exista

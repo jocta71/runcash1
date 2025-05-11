@@ -1,27 +1,30 @@
 /**
- * Serviço para buscar dados de roletas e alimentar o stream em tempo real usando Change Streams
+ * Serviço para buscar dados de roletas e alimentar o stream
  */
 
 const { MongoClient } = require('mongodb');
 const rouletteStreamService = require('./rouletteStreamService');
+// const axios = require('axios'); // Remover dependência não utilizada
 
 // Configuração do banco de dados
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
+// Usar o novo banco de dados roletas_db
 const DB_NAME = process.env.ROLETAS_MONGODB_DB_NAME || "roletas_db";
 
 // Cliente MongoDB
 let client;
 let db;
 
-// Intervalos de tempo (em ms)
-const HEARTBEAT_INTERVAL = 30000; // 30 segundos para heartbeat
+// Intervalo para busca de dados (em ms)
+const FETCH_INTERVAL = 8000; // ALTERADO: 8 segundos
+const HEARTBEAT_INTERVAL = 30000; // 30 segundos
 
-// Active change streams
-let activeChangeStreams = [];
+// Remover URL do Scraper - Leremos apenas do MongoDB
+// const SCRAPER_URL = process.env.SCRAPER_URL || "https://backendscraper-production-ccda.up.railway.app/api/roulettes";
 
-// Mapeamento de IDs de roleta para formato padronizado
-const MAPEAMENTO_ROLETAS = {
-  // UUID para ID numérico
+// Mapeamento de UUIDs para IDs numéricos conhecidos
+const UUID_PARA_ID_NUMERICO = {
+  // Mapeamento principal baseado nos logs e arquivos existentes
   "a8a1f746-6002-eabf-b14d-d78d13877599": "2010097", // VIP Roulette
   "ab0ab995-bb00-9b42-57fe-856838109c3d": "2010440", // XXXtreme Lightning Roulette
   "0b8fdb47-e536-6f43-bf53-96b9a34af3b7": "2010099", // Football Studio Roulette
@@ -52,8 +55,10 @@ const MAPEAMENTO_ROLETAS = {
   "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2330048", // Brazilian Mega Roulette
   "f27dd03e-5282-fc78-961c-6375cef91565": "2010183", // Ruleta Automática
   "5403e259-2f6c-cd2d-324c-63f0a00dee05": "2010184", // Jawhara Roulette
-  
-  // Nome para ID numérico
+};
+
+// Mapeamento de nomes para IDs numéricos (backup)
+const NOME_PARA_ID_NUMERICO = {
   "Speed Roulette": "2330046",
   "Immersive Roulette": "2330047",
   "Brazilian Mega Roulette": "2330048",
@@ -68,21 +73,20 @@ const MAPEAMENTO_ROLETAS = {
   "Ruleta en Vivo": "2330057"
 };
 
-// Números vermelhos na roleta europeia (formato padrão para backend e frontend)
-const NUMEROS_VERMELHOS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-
 class RouletteDataService {
   constructor() {
     this.isRunning = false;
+    this.intervalId = null;
     this.heartbeatIntervalId = null;
+    this.lastFetchTime = 0;
     this.fetchCounter = 0;
-    this.lastEventTime = 0;
-    this.colecoesMonitoradas = new Set();
-    this.roletasAtivas = [];
+    // REMOVIDO: Não precisamos mais rastrear o último número enviado por roleta
+    // this.latestNumbers = {}; 
+    // this.lastDataTime = 0;
   }
 
   /**
-   * Inicia o serviço de monitoramento e streaming de dados usando Change Streams
+   * Inicia o serviço de busca e streaming de dados
    */
   async start() {
     if (this.isRunning) {
@@ -93,23 +97,23 @@ class RouletteDataService {
     try {
       await this.connectToDatabase();
       this.isRunning = true;
-      console.log('[RouletteData] Iniciando serviço de monitoramento em tempo real...');
-      
-      // Carregar metadados das roletas ativas
-      await this.carregarMetadados();
-      
-      // Configurar monitoramento de change streams
-      await this.configureChangeStreams();
+      console.log('[RouletteData] Iniciando serviço de busca e envio de todas as roletas...');
       
       // Realizar busca inicial
       await this.fetchAndBroadcastAllRouletteData();
+      
+      // Configurar intervalo para buscas regulares
+      this.intervalId = setInterval(() => {
+        this.fetchAndBroadcastAllRouletteData()
+          .catch(err => console.error('[RouletteData] Erro ao buscar e enviar todos os dados:', err));
+      }, FETCH_INTERVAL);
       
       // Configurar heartbeat periódico
       this.heartbeatIntervalId = setInterval(() => {
         this.sendHeartbeat();
       }, HEARTBEAT_INTERVAL);
       
-      console.log('[RouletteData] Serviço iniciado com monitoramento em tempo real via Change Streams');
+      console.log(`[RouletteData] Serviço iniciado. Intervalo: ${FETCH_INTERVAL}ms, Heartbeat: ${HEARTBEAT_INTERVAL}ms`);
 
     } catch (error) {
       console.error('[RouletteData] Erro ao iniciar serviço:', error);
@@ -118,25 +122,19 @@ class RouletteDataService {
   }
 
   /**
-   * Para o serviço de monitoramento e streaming
+   * Para o serviço de busca e streaming
    */
-  async stop() {
+  stop() {
     if (!this.isRunning) {
       return;
     }
     
     console.log('[RouletteData] Parando serviço de streaming...');
     
-    // Fechar todos os change streams ativos
-    for (const stream of activeChangeStreams) {
-      try {
-        await stream.close();
-        console.log('[RouletteData] Change stream fechado');
-      } catch (err) {
-        console.error('[RouletteData] Erro ao fechar change stream:', err);
-      }
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
     }
-    activeChangeStreams = [];
     
     if (this.heartbeatIntervalId) {
       clearInterval(this.heartbeatIntervalId);
@@ -144,200 +142,7 @@ class RouletteDataService {
     }
     
     this.isRunning = false;
-    this.colecoesMonitoradas.clear();
     console.log('[RouletteData] Serviço parado');
-  }
-
-  /**
-   * Carrega metadados das roletas ativas
-   */
-  async carregarMetadados() {
-    try {
-      // Obter roletas ativas da coleção metadados
-      this.roletasAtivas = await db.collection('metadados').find({
-        ativa: true
-      }).toArray();
-      
-      console.log(`[RouletteData] Carregados metadados de ${this.roletasAtivas.length} roletas ativas`);
-      return this.roletasAtivas;
-    } catch (error) {
-      console.error('[RouletteData] Erro ao carregar metadados:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Configura change streams para monitorar coleções de roletas
-   */
-  async configureChangeStreams() {
-    try {
-      // 1. Configurar change stream para coleção comum roleta_numeros
-      const commonCollectionExists = await db.listCollections({name: 'roleta_numeros'}).toArray();
-      if (commonCollectionExists.length > 0) {
-        await this.monitorarColecaoComum();
-      }
-      
-      // 2. Monitorar coleções numéricas (uma por roleta)
-      const todasColecoes = await db.listCollections().toArray();
-      const colecoesNumericas = todasColecoes.filter(col => /^\d+$/.test(col.name)).map(col => col.name);
-      
-      for (const colecaoId of colecoesNumericas) {
-        await this.monitorarColecaoIndividual(colecaoId);
-      }
-      
-      // 3. Monitorar coleções com UUID
-      for (const roleta of this.roletasAtivas) {
-        const roletaId = roleta.roleta_id;
-        if (!roletaId || /^\d+$/.test(roletaId)) continue; // Pular se for numérico ou nulo
-        
-        const collections = await db.listCollections({name: roletaId}).toArray();
-        if (collections.length > 0 && !this.colecoesMonitoradas.has(roletaId)) {
-          await this.monitorarColecaoIndividual(roletaId, roleta);
-        }
-      }
-      
-      console.log(`[RouletteData] Change Streams configurados para ${this.colecoesMonitoradas.size} coleções`);
-      
-    } catch (error) {
-      console.error('[RouletteData] Erro ao configurar Change Streams:', error);
-    }
-  }
-  
-  /**
-   * Monitora a coleção comum roleta_numeros
-   */
-  async monitorarColecaoComum() {
-    try {
-      const collection = db.collection('roleta_numeros');
-      const changeStream = collection.watch([], { fullDocument: 'updateLookup' });
-      
-      changeStream.on('change', async (change) => {
-        if (change.operationType === 'insert' || change.operationType === 'update') {
-          const documento = change.fullDocument;
-          
-          if (!documento) return;
-          
-          const roletaId = documento.roleta_id;
-          const roletaNome = documento.roleta_nome;
-          
-          if (!roletaId && !roletaNome) return;
-          
-          // Buscar metadados da roleta
-          const roleta = this.roletasAtivas.find(r => 
-            r.roleta_id === roletaId || r.roleta_nome === roletaNome);
-          
-          if (!roleta) return;
-          
-          // Processar e enviar atualização
-          await this.processarAtualizacaoRoleta(roleta);
-        }
-      });
-      
-      changeStream.on('error', (error) => {
-        console.error('[RouletteData] Erro no change stream da coleção comum:', error);
-      });
-      
-      activeChangeStreams.push(changeStream);
-      this.colecoesMonitoradas.add('roleta_numeros');
-      console.log('[RouletteData] Monitorando coleção comum roleta_numeros');
-      
-    } catch (error) {
-      console.error('[RouletteData] Erro ao monitorar coleção comum:', error);
-    }
-  }
-  
-  /**
-   * Monitora uma coleção individual de roleta
-   */
-  async monitorarColecaoIndividual(colecaoId, roletaMetadata = null) {
-    if (this.colecoesMonitoradas.has(colecaoId)) return;
-    
-    try {
-      const collection = db.collection(colecaoId);
-      const changeStream = collection.watch([], { fullDocument: 'updateLookup' });
-      
-      // Identificar metadados da roleta correspondente
-      let roleta = roletaMetadata;
-      
-      if (!roleta) {
-        // Buscar roleta associada a esta coleção
-        roleta = this.roletasAtivas.find(r => {
-          // Verificar ID direto
-          if (r.roleta_id === colecaoId) return true;
-          
-          // Verificar ID mapeado
-          const idNumerico = this.getIdNumericoPorIdentificador(r.roleta_id, r.roleta_nome);
-          return idNumerico === colecaoId;
-        });
-      }
-      
-      if (!roleta) {
-        console.log(`[RouletteData] Não foi possível identificar a roleta para coleção ${colecaoId}`);
-        return;
-      }
-      
-      changeStream.on('change', async (change) => {
-        if (change.operationType === 'insert' || change.operationType === 'update') {
-          await this.processarAtualizacaoRoleta(roleta);
-        }
-      });
-      
-      changeStream.on('error', (error) => {
-        console.error(`[RouletteData] Erro no change stream da coleção ${colecaoId}:`, error);
-      });
-      
-      activeChangeStreams.push(changeStream);
-      this.colecoesMonitoradas.add(colecaoId);
-      console.log(`[RouletteData] Monitorando coleção individual ${colecaoId} para roleta ${roleta.roleta_nome}`);
-      
-    } catch (error) {
-      console.error(`[RouletteData] Erro ao monitorar coleção ${colecaoId}:`, error);
-    }
-  }
-  
-  /**
-   * Processa uma atualização de roleta e envia para os clientes
-   */
-  async processarAtualizacaoRoleta(roleta) {
-    try {
-      const roletaId = roleta.roleta_id;
-      const roletaNome = roleta.roleta_nome;
-      
-      // Verificar se há clientes conectados
-      const clientCount = rouletteStreamService.getClientCount();
-      if (clientCount === 0) return;
-      
-      // Obter ID numérico
-      const idNumerico = this.getIdNumericoPorIdentificador(roletaId, roletaNome);
-      
-      // Buscar os últimos números desta roleta
-      const numerosEncontrados = await this.buscarNumerosRoleta(roletaId, roletaNome, idNumerico);
-      
-      if (numerosEncontrados && numerosEncontrados.length > 0) {
-        // Formatar os dados
-        const roletaInfo = {
-          id: roletaId,
-          nome: roletaNome,
-          provider: roleta.provider || 'Desconhecido',
-          status: roleta.status || 'online'
-        };
-        
-        const eventData = this.formatRouletteEvent(roletaInfo, numerosEncontrados);
-        
-        // Enviar atualização individual em tempo real
-        rouletteStreamService.broadcastUpdate({
-          type: 'roulette_update',
-          data: eventData.data
-        });
-        
-        this.lastEventTime = Date.now();
-        this.fetchCounter++;
-        
-        console.log(`[RouletteData] Atualização em tempo real enviada para roleta ${roletaNome}`);
-      }
-    } catch (error) {
-      console.error(`[RouletteData] Erro ao processar atualização da roleta:`, error);
-    }
   }
 
   /**
@@ -375,131 +180,46 @@ class RouletteDataService {
   }
 
   /**
-   * Obtém o ID numérico conhecido para um UUID ou nome de roleta
-   * @param {string} uuid - UUID ou nome da roleta
-   * @param {string} nome - Nome alternativo da roleta
+   * Obtém o ID numérico conhecido para um UUID de roleta
+   * @param {string} uuid - UUID da roleta
+   * @param {string} nome - Nome da roleta (caso não encontre pelo UUID)
    * @returns {string|null} - ID numérico ou null se não encontrado
    */
-  getIdNumericoPorIdentificador(uuid, nome) {
-    // Verificar diretamente no mapeamento unificado
-    if (MAPEAMENTO_ROLETAS[uuid]) {
-      return MAPEAMENTO_ROLETAS[uuid];
+  getIdNumericoPorUUID(uuid, nome) {
+    // Verificar diretamente no mapeamento
+    if (UUID_PARA_ID_NUMERICO[uuid]) {
+      return UUID_PARA_ID_NUMERICO[uuid];
     }
     
-    // Verificar pelo nome
-    if (nome && MAPEAMENTO_ROLETAS[nome]) {
-      return MAPEAMENTO_ROLETAS[nome];
+    // Se não encontrar pelo UUID, procurar pelo nome
+    if (nome && NOME_PARA_ID_NUMERICO[nome]) {
+      return NOME_PARA_ID_NUMERICO[nome];
     }
     
-    // Se o uuid já for numérico, retornar ele mesmo
-    if (uuid && /^\d+$/.test(uuid)) {
-      return uuid;
-    }
-    
-    // Tentar extrair dígitos do UUID como último recurso
+    // Tentar extrair dígitos do UUID
     if (uuid && uuid.includes('-')) {
       const digits = uuid.replace(/\D/g, '');
       if (digits && digits.length > 0) {
+        // Limitar tamanho para evitar problemas
         return digits.substring(0, 10);
       }
+    }
+    
+    // Se o UUID já for numérico, retornar ele mesmo
+    if (uuid && /^\d+$/.test(uuid)) {
+      return uuid;
     }
     
     return null;
   }
 
   /**
-   * Busca números de uma roleta específica no banco de dados
-   * @param {string} roletalId - ID da roleta
-   * @param {string} roletaNome - Nome da roleta
-   * @param {string} idNumerico - ID numérico da roleta
-   * @returns {Array} - Array de números encontrados
-   */
-  async buscarNumerosRoleta(roletaId, roletaNome, idNumerico) {
-    try {
-      let numerosEncontrados = null;
-      
-      // Estratégia 1: Verificar coleção com ID numérico
-      if (idNumerico) {
-        const colecoesDisponiveis = await db.listCollections().toArray();
-        const colecoes = colecoesDisponiveis.map(c => c.name);
-        
-        if (colecoes.includes(idNumerico)) {
-          numerosEncontrados = await db.collection(idNumerico)
-            .find({})
-            .sort({ timestamp: -1 })
-            .limit(20)
-            .toArray();
-            
-          if (numerosEncontrados && numerosEncontrados.length > 0) {
-            return numerosEncontrados;
-          }
-        }
-      }
-      
-      // Estratégia 2: Usar UUID original como nome da coleção
-      if (roletaId && !/^\d+$/.test(roletaId)) {
-        const collections = await db.listCollections({name: roletaId}).toArray();
-        
-        if (collections.length > 0) {
-          numerosEncontrados = await db.collection(roletaId)
-            .find({})
-            .sort({ timestamp: -1 })
-            .limit(20)
-            .toArray();
-            
-          if (numerosEncontrados && numerosEncontrados.length > 0) {
-            return numerosEncontrados;
-          }
-        }
-      }
-      
-      // Estratégia 3: Buscar na coleção comum 'roleta_numeros'
-      const colecaoComumExiste = await db.listCollections({name: 'roleta_numeros'}).toArray();
-      
-      if (colecaoComumExiste.length > 0) {
-        // Queries a tentar em ordem de prioridade
-        const queries = [];
-        
-        if (idNumerico) {
-          queries.push({ roleta_id: idNumerico });
-        }
-        
-        if (roletaId) {
-          queries.push({ roleta_id: roletaId });
-        }
-        
-        if (roletaNome) {
-          queries.push({ roleta_nome: roletaNome });
-        }
-        
-        // Tentar cada query em sequência
-        for (const query of queries) {
-          const numerosQuery = await db.collection('roleta_numeros')
-            .find(query)
-            .sort({ timestamp: -1 })
-            .limit(20)
-            .toArray();
-            
-          if (numerosQuery && numerosQuery.length > 0) {
-            return numerosQuery;
-          }
-        }
-      }
-      
-      return [];
-    } catch (error) {
-      console.error(`[RouletteData] Erro ao buscar números para roleta ${roletaNome}:`, error);
-      return [];
-    }
-  }
-
-  /**
    * Busca dados de TODAS as roletas do banco de dados e envia UM ÚNICO evento para o stream
-   * Usado principalmente para a inicialização
    */
   async fetchAndBroadcastAllRouletteData() {
     this.fetchCounter++;
     const startTime = Date.now();
+    this.lastFetchTime = startTime;
     
     try {
       const clientCount = rouletteStreamService.getClientCount();
@@ -507,32 +227,153 @@ class RouletteDataService {
         return; // Pular se não houver clientes
       }
       
-      console.log(`[RouletteData] Buscando dados iniciais de todas as roletas...`);
+      console.log(`[RouletteData] Buscando dados de TODAS as roletas (execução #${this.fetchCounter})...`);
       
-      if (!this.roletasAtivas || this.roletasAtivas.length === 0) {
-        await this.carregarMetadados();
+      const { db } = await this.connectToDatabase();
+      
+      // 1. Obter roletas da coleção metadados
+      const roletasMetadados = await db.collection('metadados').find({
+        ativa: true
+      }).toArray();
+      
+      if (!roletasMetadados || roletasMetadados.length === 0) {
+        console.log('[RouletteData] Nenhuma roleta encontrada na coleção metadados.');
+        return;
       }
       
-      // Para cada roleta, buscar seus últimos números
-      const allRouletteData = [];
+      console.log(`[RouletteData] Encontradas ${roletasMetadados.length} roletas ativas.`);
       
-      for (const roletaMetadata of this.roletasAtivas) {
+      // Verificar se a coleção comum existe
+      const colecaoComumExiste = await db.listCollections({name: 'roleta_numeros'}).toArray();
+      const temColecaoComum = colecaoComumExiste.length > 0;
+      
+      // Obter lista de todas as coleções numéricas disponíveis
+      const todasColecoes = await db.listCollections().toArray();
+      const colecoesNumericas = todasColecoes
+        .filter(col => /^\d+$/.test(col.name))
+        .map(col => col.name);
+      
+      if (colecoesNumericas.length > 0) {
+        console.log(`[RouletteData] Encontradas ${colecoesNumericas.length} coleções numéricas no banco de dados`);
+      }
+      
+      // 2. Para cada roleta, buscar seus últimos 5 números
+      const allRouletteData = [];
+      for (const roletaMetadata of roletasMetadados) {
         const roleta_id = roletaMetadata.roleta_id;
         const roleta_nome = roletaMetadata.roleta_nome;
         
         try {
-          // Obter ID numérico da roleta
-          const id_numerico = this.getIdNumericoPorIdentificador(roleta_id, roleta_nome);
+          // Verificar se a roleta já tem ID numérico
+          const roleta_id_eh_numerico = /^\d+$/.test(roleta_id);
+          let id_numerico = null;
+          let colecao_id = null;
+          let numerosEncontrados = null;
           
-          // Buscar números para esta roleta
-          const numerosEncontrados = await this.buscarNumerosRoleta(
-            roleta_id, 
-            roleta_nome, 
-            id_numerico
-          );
+          // CASO 1: Roleta já tem ID numérico
+          if (roleta_id_eh_numerico) {
+            id_numerico = roleta_id;
+            console.log(`[RouletteData] Roleta ${roleta_nome} já tem ID numérico: ${id_numerico}`);
+          } 
+          // CASO 2: Roleta tem UUID e precisamos do mapeamento
+          else {
+            // Obter ID numérico mapeado para esta roleta
+            id_numerico = this.getIdNumericoPorUUID(roleta_id, roleta_nome);
+            
+            // Usar mapeamento direto em vez de tentar extrair ID da string
+            if (id_numerico) {
+              console.log(`[RouletteData] Usando mapeamento: ${roleta_nome} (${roleta_id}) -> ID numérico: ${id_numerico}`);
+            } else {
+              console.log(`[RouletteData] Nenhum mapeamento encontrado para: ${roleta_nome} (${roleta_id})`);
+            }
+          }
           
-          // Se encontrou números, formatar e adicionar ao array de resultado
+          // Estratégia 1: Verificar se existe a coleção com ID numérico (mapeado ou direto)
+          if (id_numerico && colecoesNumericas.includes(id_numerico)) {
+            colecao_id = id_numerico;
+            console.log(`[RouletteData] Usando coleção numérica ${colecao_id} para roleta ${roleta_nome}`);
+            
+            // Buscar números na coleção específica
+            numerosEncontrados = await db.collection(colecao_id)
+              .find({})
+              .sort({ timestamp: -1 })
+              .limit(20)
+              .toArray();
+              
+            if (numerosEncontrados && numerosEncontrados.length > 0) {
+              console.log(`[RouletteData] Encontrados ${numerosEncontrados.length} números na coleção ${colecao_id} para roleta ${roleta_nome}`);
+            } else {
+              console.log(`[RouletteData] Coleção ${colecao_id} existe, mas não contém números para roleta ${roleta_nome}`);
+            }
+          }
+          // Estratégia 2: Se roleta não tiver ID numérico ou não encontrar coleção, tentar UUID original
+          else if (!roleta_id_eh_numerico) {
+            // Verificar se a coleção UUID existe
+            const collections = await db.listCollections({name: roleta_id}).toArray();
+            
+            if (collections.length > 0) {
+              colecao_id = roleta_id;
+              console.log(`[RouletteData] Usando coleção UUID original ${colecao_id} para roleta ${roleta_nome}`);
+              
+              // Buscar números na coleção específica
+              numerosEncontrados = await db.collection(colecao_id)
+                .find({})
+                .sort({ timestamp: -1 })
+                .limit(20)
+                .toArray();
+                
+              if (numerosEncontrados && numerosEncontrados.length > 0) {
+                console.log(`[RouletteData] Encontrados ${numerosEncontrados.length} números na coleção UUID para roleta ${roleta_nome}`);
+              } else {
+                console.log(`[RouletteData] Coleção UUID existe, mas não contém números para roleta ${roleta_nome}`);
+              }
+            }
+          }
+          
+          // Estratégia 3: Tentar na coleção comum 'roleta_numeros' usando o ID como filtro
+          if ((!numerosEncontrados || numerosEncontrados.length === 0) && temColecaoComum) {
+            console.log(`[RouletteData] Tentando buscar na coleção comum para roleta ${roleta_nome}`);
+            
+            // Queries a serem tentadas, em ordem de prioridade
+            const queries = [];
+            
+            // 1. Tentar com ID numérico (se disponível)
+            if (id_numerico) {
+              queries.push({ roleta_id: id_numerico });
+            }
+            
+            // 2. Tentar com UUID original (se não for numérico)
+            if (!roleta_id_eh_numerico) {
+              queries.push({ roleta_id: roleta_id });
+            }
+            
+            // 3. Tentar com nome da roleta
+            queries.push({ roleta_nome: roleta_nome });
+            
+            // Tentar cada query em sequência
+            for (let i = 0; i < queries.length; i++) {
+              const query = queries[i];
+              const queryDesc = JSON.stringify(query);
+              
+              console.log(`[RouletteData] Tentando query ${i+1}/${queries.length}: ${queryDesc}`);
+              
+              const numerosQuery = await db.collection('roleta_numeros')
+                .find(query)
+                .sort({ timestamp: -1 })
+                .limit(20)
+                .toArray();
+                
+              if (numerosQuery && numerosQuery.length > 0) {
+                numerosEncontrados = numerosQuery;
+                console.log(`[RouletteData] Encontrados ${numerosEncontrados.length} números na coleção comum com query ${queryDesc}`);
+                break; // Sair do loop se encontrou
+              }
+            }
+          }
+          
+          // Se encontrou números em qualquer uma das estratégias
           if (numerosEncontrados && numerosEncontrados.length > 0) {
+            // Criar objeto da roleta
             const roletaInfo = {
               id: roleta_id,
               nome: roleta_nome,
@@ -540,10 +381,18 @@ class RouletteDataService {
               status: roletaMetadata.status || 'online'
             };
             
-            const formattedData = this.formatRouletteEvent(roletaInfo, numerosEncontrados).data;
+            // Formatar dados da roleta
+            const formattedEvent = this.formatRouletteEvent(roletaInfo, numerosEncontrados);
+            if (formattedEvent && formattedEvent.data) {
+               allRouletteData.push(formattedEvent.data);
+            }
+          } else {
+            console.log(`[RouletteData] Nenhum número encontrado para roleta ${roleta_nome} (ID: ${roleta_id}).`);
             
-            if (formattedData) {
-              allRouletteData.push(formattedData);
+            // Para depuração: verificar se a roleta com ID numérico existe mas está vazia
+            if (id_numerico && colecoesNumericas.includes(id_numerico)) {
+              const contagem = await db.collection(id_numerico).countDocuments();
+              console.log(`[RouletteData] A coleção numérica ${id_numerico} existe mas contém apenas ${contagem} documentos`);
             }
           }
         } catch (err) {
@@ -551,59 +400,59 @@ class RouletteDataService {
         }
       }
 
-      // Enviar o array completo em um único evento SSE
+      // 3. Enviar o array completo em um único evento SSE
       if (allRouletteData.length > 0) {
-        console.log(`[RouletteData] Enviando dados iniciais de ${allRouletteData.length} roletas em um único evento.`);
-        
+        console.log(`[RouletteData] Enviando dados de ${allRouletteData.length} roletas em um único evento.`);
         rouletteStreamService.broadcastUpdate({
           type: 'all_roulettes_update',
           data: allRouletteData
         });
+      } else {
+        console.log('[RouletteData] Nenhum dado de roleta para enviar.');
       }
       
       const endTime = Date.now();
-      console.log(`[RouletteData] Carga inicial concluída em ${endTime - startTime}ms`);
+      console.log(`[RouletteData] Ciclo completo de busca e envio concluído em ${endTime - startTime}ms`);
       
     } catch (error) {
-      console.error('[RouletteData] Erro ao buscar/processar dados iniciais:', error);
+      console.error('[RouletteData] Erro fatal ao buscar/processar todos os dados:', error);
     }
   }
 
   /**
    * Formata os dados da roleta e seus números para o evento SSE
-   * @param {Object} roleta - Objeto da roleta
-   * @param {Array} numeros - Array dos últimos números
-   * @returns {Object} - Objeto formatado para o evento SSE
+   * @param {Object} roleta - Objeto da roleta (com id=string_numerica, nome, provider?, status?)
+   * @param {Array} numeros - Array dos últimos 5 números
+   * @returns {Object} - Objeto formatado para o evento SSE (incluindo type)
    */
   formatRouletteEvent(roleta, numeros) {
     const ultimoNumeroObj = numeros.length > 0 ? numeros[0] : null;
     
+    // Retorna a estrutura COMPLETA do evento para uma roleta
+    // A função chamadora pegará apenas o campo 'data'
     return {
-      type: 'update',
+      type: 'update', // Tipo individual, será agrupado em 'all_roulettes_update'
       data: {
         id: roleta.id,
-        nome: roleta.nome || 'Nome Desconhecido',
+        roleta_id: roleta.id,
+        nome: roleta.nome || 'Nome Desconhecido', 
+        roleta_nome: roleta.nome || 'Nome Desconhecido',
         provider: roleta.provider || 'Desconhecido', 
         status: roleta.status || 'online',
-        numeros: numeros.map(n => n.numero),
+        numeros: numeros.map(n => n.numero), 
         ultimoNumero: ultimoNumeroObj ? ultimoNumeroObj.numero : null,
-        timestamp: ultimoNumeroObj ? 
-          (ultimoNumeroObj.timestamp instanceof Date ? 
-            ultimoNumeroObj.timestamp.getTime() : 
-            Date.now()) 
-          : Date.now(),
+        timestamp: ultimoNumeroObj ? ultimoNumeroObj.timestamp.getTime() : Date.now(),
       }
     };
   }
 
   /**
    * Determina a cor de um número da roleta
-   * @param {number} numero - Número da roleta
-   * @returns {string} - Cor do número (vermelho, preto ou verde)
    */
   determinarCor(numero) {
     if (numero === 0) return 'verde';
-    return NUMEROS_VERMELHOS.includes(numero) ? 'vermelho' : 'preto';
+    const pretos = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
+    return pretos.includes(numero) ? 'preto' : 'vermelho';
   }
 
   /**
@@ -612,11 +461,9 @@ class RouletteDataService {
   getStats() {
     return {
       isRunning: this.isRunning,
-      lastEventTime: this.lastEventTime,
+      lastFetchTime: this.lastFetchTime,
       fetchCounter: this.fetchCounter,
-      clientCount: rouletteStreamService.getClientCount(),
-      collectionsMonitored: Array.from(this.colecoesMonitoradas),
-      activeStreams: activeChangeStreams.length
+      // lastDataTime não é mais relevante da mesma forma
     };
   }
 }

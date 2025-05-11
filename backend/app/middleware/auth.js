@@ -1,4 +1,36 @@
-const database = require('../../services/database');const jwt = require('jsonwebtoken');
+const database = require('../../services/database');
+// JWT mantido apenas para compatibilidade
+const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'seu_segredo_super_secreto';
-// Adicionando funÁ„o de autenticaÁ„o
-module.exports = { authenticate: function(req, res, next) { next(); }, requirePremium: function(req, res, next) { next(); }, requireAdmin: function(req, res, next) { next(); } };
+
+// Middleware de autentica√ß√£o desativado para reduzir consumo de mem√≥ria
+module.exports = { 
+  authenticate: function(req, res, next) {
+    // Adicionar usu√°rio padr√£o
+    req.user = {
+      id: 'system-default',
+      email: 'default@system.local',
+      role: 'admin',
+      isPremium: true
+    };
+    next(); 
+  }, 
+  requirePremium: function(req, res, next) {
+    req.user = {
+      id: 'system-default',
+      email: 'default@system.local',
+      role: 'admin',
+      isPremium: true
+    };
+    next(); 
+  }, 
+  requireAdmin: function(req, res, next) {
+    req.user = {
+      id: 'system-default',
+      email: 'default@system.local',
+      role: 'admin',
+      isPremium: true
+    };
+    next(); 
+  } 
+};
