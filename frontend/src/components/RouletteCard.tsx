@@ -500,7 +500,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
               <NumberDisplay 
                 key={`${componentId}-num-${index}-${num}`} 
                 number={num} 
-                size="medium" 
+                size="tiny" 
                 highlight={index === 0 && isNewNumber}
               />
             ))}

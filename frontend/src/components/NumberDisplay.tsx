@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 
 interface NumberDisplayProps {
   number: number | null;
-  size?: 'small' | 'medium' | 'large';
+  size?: 'small' | 'medium' | 'large' | 'tiny';
   highlight?: boolean;
 }
 
@@ -56,9 +56,10 @@ const NumberDisplay: React.FC<NumberDisplayProps> = ({
 }) => {
   // Definir classes de tamanho
   const sizeClasses = {
+    tiny: 'w-5 h-5 text-[10px]',
     small: 'w-6 h-6 text-xs',
-    medium: 'w-8 h-8 text-sm',
-    large: 'w-16 h-16 text-2xl font-bold'
+    medium: 'w-7 h-7 text-xs',
+    large: 'w-12 h-12 text-xl font-bold'
   };
 
   // Obter estilos de destaque específicos para o número
