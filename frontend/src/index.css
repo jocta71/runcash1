@@ -7,7 +7,7 @@
 
 @layer base {
   :root {
-    --background: 225 22% 6%;
+    --background: 222 22% 10%; /* #14161F */
     --foreground: 210 20% 98%;
 
     --card: 140 7% 8%;
@@ -123,11 +123,11 @@
   }
   
   .mobile-sidebar-inner {
-    @apply w-3/4 max-w-xs h-full bg-[#131614] overflow-auto border-r border-border;
+    @apply w-3/4 max-w-xs h-full bg-vegas-black overflow-auto border-r border-border;
   }
   
   .mobile-header {
-    @apply fixed top-0 left-0 right-0 z-40 flex items-center justify-between p-4 h-16 bg-[#100f13] border-b border-border md:hidden;
+    @apply fixed top-0 left-0 right-0 z-40 flex items-center justify-between p-4 h-16 bg-vegas-black border-b border-border md:hidden;
   }
   
   .mobile-chat-toggle {

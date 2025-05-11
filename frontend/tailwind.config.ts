@@ -56,7 +56,7 @@ export default {
 					foreground: 'hsl(var(--card-foreground))'
 				},
 				vegas: {
-					black: '#050505',
+					black: '#14161F',
 					darkgray: '#161A26',
 					green: {
 						DEFAULT: '#00FF00',
