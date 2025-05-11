@@ -62,12 +62,32 @@ const RoulettesDashboard = () => {
 
     // Handler para atualizações
     const handleRouletteUpdate = (data: any) => {
-      console.log('Atualização de roletas recebida');
+      console.log('Atualização de roletas recebida:', data);
       
+      // Verificar se os dados são um array diretamente ou estão em data.roulettes
       if (data && data.roulettes && Array.isArray(data.roulettes)) {
+        console.log(`Atualizando com ${data.roulettes.length} roletas do evento.roulettes`);
         setRoulettes(data.roulettes);
         setLoading(false);
         setError(null);
+      } 
+      // Verificar se temos dados diretamente no objeto all_roulettes_update
+      else if (data && data.type === 'all_roulettes_update' && Array.isArray(data.data)) {
+        console.log(`Atualizando com ${data.data.length} roletas do evento all_roulettes_update`);
+        setRoulettes(data.data);
+        setLoading(false);
+        setError(null);
+      }
+      // Se o evento não tem os dados, buscamos diretamente do cache do cliente
+      else {
+        console.log('Evento sem dados estruturados, buscando diretamente do UnifiedClient');
+        const allRoulettes = unifiedClient.getAllRoulettes();
+        if (allRoulettes && allRoulettes.length > 0) {
+          console.log(`Obtidas ${allRoulettes.length} roletas do cache do UnifiedClient`);
+          setRoulettes(allRoulettes);
+          setLoading(false);
+          setError(null);
+        }
       }
       
       updateConnectionStatus();
@@ -76,8 +96,17 @@ const RoulettesDashboard = () => {
     // Registrar para atualizações
     unifiedClient.subscribe('update', handleRouletteUpdate);
     
-    // Fetch inicial
+    // Buscar roletas iniciais imediatamente após o useEffect ser executado
     fetchInitialRoulettes();
+    
+    // Além disso, verificar se já temos os dados no cache
+    const cachedRoulettes = unifiedClient.getAllRoulettes();
+    if (cachedRoulettes && cachedRoulettes.length > 0) {
+      console.log(`Usando ${cachedRoulettes.length} roletas do cache existente`);
+      setRoulettes(cachedRoulettes);
+      setLoading(false);
+      setError(null);
+    }
     
     // Status inicial 
     updateConnectionStatus();

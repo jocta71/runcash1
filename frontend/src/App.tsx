@@ -19,6 +19,8 @@ import UnifiedRouletteClient from './services/UnifiedRouletteClient';
 import { Button } from "./components/ui/button";
 import { RefreshCw } from "lucide-react";
 import EventService from './services/EventService';
+// Importar o dashboard diretamente para debug
+const RoulettesDashboard = lazy(() => import("@/components/RoulettesDashboard"));
 
 // Contexto para o carregamento de dados
 interface DataLoadingContextProps {
@@ -541,6 +543,15 @@ const App = () => {
                               <ProtectedRoute>
                                 <Suspense fallback={<LoadingScreen />}>
                                   <TestPage />
+                                </Suspense>
+                              </ProtectedRoute>
+                            } />
+                            
+                            {/* Rota direta para o Dashboard de Roletas para facilitar testes */}
+                            <Route path="/dashboard" element={
+                              <ProtectedRoute>
+                                <Suspense fallback={<LoadingScreen />}>
+                                  <RoulettesDashboard />
                                 </Suspense>
                               </ProtectedRoute>
                             } />
