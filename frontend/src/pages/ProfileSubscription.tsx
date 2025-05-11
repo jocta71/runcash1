@@ -3,8 +3,9 @@ import { useSubscription } from '@/context/SubscriptionContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Loader2, CreditCard, AlertTriangle, CheckCircle2, CalendarIcon, RefreshCw, ArrowRight } from 'lucide-react';
+import { Loader2, AlertTriangle, RefreshCw, ArrowRight } from 'lucide-react';
 import axios from 'axios';
 import { API_URL } from '@/config/constants';
 import { useAuth } from '@/context/AuthContext';
@@ -22,7 +23,7 @@ interface Payment {
 }
 
 const ProfileSubscription = () => {
-  const { currentSubscription, currentPlan, loading, cancelSubscription, error, loadUserSubscription } = useSubscription();
+  const { currentSubscription, currentPlan, loading, cancelSubscription, loadUserSubscription } = useSubscription();
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -32,6 +33,13 @@ const ProfileSubscription = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   
+  // Carregar histórico de pagamentos quando a assinatura mudar
+  useEffect(() => {
+    if (currentSubscription) {
+      fetchPaymentHistory();
+    }
+  }, [currentSubscription?.id]);
+  
   // Obter histórico de pagamentos
   const fetchPaymentHistory = async () => {
     if (!user || !currentSubscription) return;
@@ -39,7 +47,9 @@ const ProfileSubscription = () => {
     setLoadingPayments(true);
     try {
       const response = await axios.get(`${API_URL}/api/asaas-find-subscription`, {
-        params: { subscriptionId: currentSubscription.id }
+        params: { 
+          subscriptionId: currentSubscription.id 
+        }
       });
       
       if (response.data.success && response.data.payments) {
@@ -52,13 +62,6 @@ const ProfileSubscription = () => {
     }
   };
   
-  // Carregar histórico de pagamentos quando a assinatura mudar
-  useEffect(() => {
-    if (currentSubscription) {
-      fetchPaymentHistory();
-    }
-  }, [currentSubscription?.id]);
-  
   // Atualizar dados da assinatura
   const refreshSubscriptionData = async () => {
     setIsRefreshing(true);
@@ -67,13 +70,13 @@ const ProfileSubscription = () => {
       await fetchPaymentHistory();
       toast({
         title: "Dados atualizados",
-        description: "Informações atualizadas com sucesso.",
+        description: "Informações de assinatura atualizadas com sucesso.",
       });
     } catch (error) {
       console.error("Erro ao atualizar dados:", error);
       toast({
         title: "Erro ao atualizar",
-        description: "Tente novamente mais tarde.",
+        description: "Não foi possível atualizar os dados. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -88,13 +91,13 @@ const ProfileSubscription = () => {
       await cancelSubscription();
       toast({
         title: "Assinatura cancelada",
-        description: "Você terá acesso até o final do período pago.",
+        description: "Sua assinatura foi cancelada com sucesso. Você ainda terá acesso até o final do período pago.",
       });
     } catch (error) {
       console.error("Erro ao cancelar assinatura:", error);
       toast({
         title: "Erro ao cancelar",
-        description: "Tente novamente ou contate o suporte.",
+        description: "Ocorreu um erro ao cancelar sua assinatura. Por favor, tente novamente ou contate o suporte.",
         variant: "destructive",
       });
     } finally {
@@ -112,227 +115,180 @@ const ProfileSubscription = () => {
     });
   };
   
-  // Calcular progresso do ciclo atual (em termos de dias)
+  // Calcular progresso do ciclo de cobrança
   const calculateCycleProgress = () => {
-    if (!currentSubscription?.startDate || !currentSubscription?.nextBillingDate) {
-      return 0;
-    }
+    if (!currentSubscription || !currentSubscription.nextBillingDate) return 0;
     
-    const now = new Date();
-    const start = new Date(currentSubscription.startDate);
-    const end = new Date(currentSubscription.nextBillingDate);
+    const nextDueDate = new Date(currentSubscription.nextBillingDate);
+    const currentDate = new Date();
     
-    if (now > end) return 100;
+    // Para calcular o início do ciclo, subtraímos o período de um mês da próxima data de vencimento
+    const cycleStartDate = new Date(nextDueDate);
+    cycleStartDate.setMonth(cycleStartDate.getMonth() - 1);
     
-    const totalDays = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    const daysElapsed = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    // Duração total do ciclo em milissegundos
+    const cycleDuration = nextDueDate.getTime() - cycleStartDate.getTime();
     
-    return Math.min(Math.max(Math.floor((daysElapsed / totalDays) * 100), 0), 100);
+    // Tempo decorrido desde o início do ciclo
+    const timeElapsed = currentDate.getTime() - cycleStartDate.getTime();
+    
+    // Calcular porcentagem
+    let progressPercent = Math.floor((timeElapsed / cycleDuration) * 100);
+    
+    // Garantir que está dentro dos limites de 0-100
+    progressPercent = Math.max(0, Math.min(100, progressPercent));
+    
+    return progressPercent;
   };
 
-  // Estados de carregamento e erro
-  if (loading) {
+  if (loading || loadingPayments) {
     return (
-      <div className="p-6 flex flex-col items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#00FF00] mb-2" />
-        <p className="text-sm text-gray-400">Carregando informações...</p>
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-vegas-green" />
       </div>
     );
   }
 
-  if (error) {
+  if (!currentPlan || !currentSubscription) {
     return (
-      <div className="p-6 border border-[#222] rounded-lg bg-vegas-black/50 text-center">
-        <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-        <h3 className="text-base font-medium mb-2">Erro ao carregar dados</h3>
-        <p className="text-sm text-gray-400 mb-4">{error}</p>
-        <Button 
-          onClick={() => refreshSubscriptionData()}
-          disabled={isRefreshing}
-          variant="outline"
-          size="sm"
-          className="mx-auto"
-        >
-          {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-          Tentar novamente
-        </Button>
-      </div>
-    );
-  }
-
-  if (!currentSubscription) {
-    return (
-      <div className="p-6 border border-[#222] rounded-lg bg-vegas-black/50 text-center">
-        <CreditCard className="h-8 w-8 text-gray-500 mx-auto mb-2" />
-        <h3 className="text-base font-medium mb-2">Nenhuma assinatura ativa</h3>
-        <p className="text-sm text-gray-400 mb-4">Assine um plano para acessar recursos premium.</p>
+      <div className="flex flex-col items-center justify-center p-6 border border-vegas-darkbg rounded-lg space-y-4">
+        <AlertTriangle className="h-12 w-12 text-vegas-gold mb-2" />
+        <h3 className="text-xl font-bold text-white">Sem assinatura ativa</h3>
+        <p className="text-center text-gray-400 mb-4">
+          Você não possui uma assinatura ativa no momento.
+        </p>
         <Button 
           onClick={() => navigate('/planos')}
-          className="bg-gradient-to-b from-[#00FF00] to-[#A3FFA3] hover:from-[#00FF00]/90 hover:to-[#A3FFA3]/90 text-black"
-          size="sm"
+          className="bg-vegas-green hover:bg-vegas-green/90 text-black w-full md:w-auto"
         >
-          Ver planos disponíveis
+          Ver planos disponíveis <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
     );
   }
 
-  // Verificar se há pagamento pendente
-  const pendingPayment = payments.find(p => 
-    p.status.toLowerCase() === 'pending' || 
-    p.status.toLowerCase() === 'pendente'
-  );
-
-  // Verificar status da assinatura
-  const isActive = currentSubscription.status?.toLowerCase() === 'active' || 
-                 currentSubscription.status?.toLowerCase() === 'ativo';
-  
-  const isCanceled = currentSubscription.status?.toLowerCase() === 'canceled' || 
-                   currentSubscription.status?.toLowerCase() === 'cancelado';
-  
   return (
-    <div className="divide-y divide-[#222]">
-      {/* Cabeçalho com status e refresh */}
-      <div className="p-4 flex justify-between items-center">
-        <div className="flex items-center space-x-2">
-          <div className={`w-3 h-3 rounded-full ${isActive ? 'bg-[#00FF00]' : isCanceled ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
-          <span className="text-sm font-medium">
-            {isActive ? 'Ativo' : isCanceled ? 'Cancelado' : 'Pendente'}
-          </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => refreshSubscriptionData()}
-          disabled={isRefreshing}
-          className="h-8 w-8 p-0"
-        >
-          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-[#00FF00]' : 'text-gray-400'}`} />
-        </Button>
-      </div>
-
-      {/* Alerta de pagamento pendente */}
-      {pendingPayment && (
-        <div className="p-4 bg-[#332b00] border-y border-[#554700]">
-          <div className="flex items-start">
-            <AlertTriangle className="h-5 w-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-yellow-500">Aguardando confirmação de pagamento</p>
-              <p className="text-xs text-yellow-400/80 mt-0.5 mb-2">
-                Sua assinatura será ativada após a confirmação do pagamento.
-              </p>
-              {pendingPayment.invoiceUrl && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="mt-1 border-yellow-500/30 hover:bg-yellow-500/20 text-yellow-500"
-                  onClick={() => window.open(pendingPayment.invoiceUrl, '_blank')}
-                >
-                  <ArrowRight className="h-4 w-4 mr-1" />
-                  Pagar agora
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Detalhes do plano */}
-      <div className="p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-medium">{currentPlan?.name || 'Plano'}</h3>
-            <p className="text-sm text-gray-400 mt-1">
-              {`R$ ${currentPlan?.price?.toFixed(2) || '0,00'}/mês`}
-            </p>
-          </div>
-          <div className="flex items-center">
-            <CreditCard className="text-[#00FF00] mr-2 h-5 w-5" />
-            <span className="text-sm">PIX</span>
-          </div>
-        </div>
-        
-        {/* Progresso do ciclo */}
-        {isActive && (
-          <div className="mt-4">
-            <div className="flex justify-between mb-1.5 items-center">
-              <span className="text-xs text-gray-400">Ciclo atual</span>
-              <span className="text-xs font-medium">{calculateCycleProgress()}%</span>
-            </div>
-            <Progress value={calculateCycleProgress()} className="h-1.5 bg-[#222]" indicatorClassName="bg-[#00FF00]" />
-            <div className="flex justify-between mt-1.5">
-              <div className="flex items-center">
-                <CalendarIcon className="h-3 w-3 mr-1 text-gray-400" />
-                <span className="text-xs text-gray-400">{formatDate(currentSubscription.startDate)}</span>
-              </div>
-              <div className="flex items-center">
-                <CalendarIcon className="h-3 w-3 mr-1 text-gray-400" />
-                <span className="text-xs text-gray-400">{formatDate(currentSubscription.nextBillingDate)}</span>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Lista de recursos */}
-        <div className="mt-5 space-y-1.5">
-          {currentPlan?.features?.slice(0, 4).map((feature, index) => (
-            <div key={index} className="flex items-start">
-              <CheckCircle2 className="h-4 w-4 mr-1.5 text-[#00FF00] flex-shrink-0 mt-0.5" />
-              <span className="text-sm">{feature}</span>
-            </div>
-          ))}
-          {currentPlan?.features?.length > 4 && (
-            <div className="flex items-center">
-              <span className="text-xs text-gray-400 ml-5.5">+{currentPlan.features.length - 4} recursos incluídos</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Botões de ação */}
-      <div className="p-4 flex flex-col sm:flex-row gap-2">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-bold">Sua Assinatura</h3>
         <Button 
           variant="outline" 
-          className="sm:flex-1 border-[#222] hover:bg-vegas-black text-white"
-          onClick={() => navigate('/planos')}
+          size="sm" 
+          onClick={refreshSubscriptionData}
+          disabled={isRefreshing}
+          className="h-8 border-vegas-green text-vegas-green hover:bg-vegas-green/10"
         >
-          Gerenciar plano
+          {isRefreshing ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-2" />
+          )}
+          Atualizar
         </Button>
-        
-        {isActive && (
+      </div>
+
+      <div className="p-4 border border-border rounded-lg bg-vegas-black">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
+          <div>
+            <h4 className="text-xl font-bold text-white">{currentPlan.name || 'Profissional'}</h4>
+            <p className="text-vegas-gold">{`R$ ${(currentPlan.price || 0).toFixed(2)}/mês`}</p>
+          </div>
+          <Badge className="mt-2 md:mt-0 px-3 py-1 bg-yellow-500/20 text-yellow-500 border-yellow-500">
+            {currentSubscription.status === 'active' ? 'Ativo' : 'Pagamento Pendente'}
+          </Badge>
+        </div>
+
+        <div className="mb-6">
+          <div className="flex justify-between mb-1 text-sm">
+            <span>Progresso do ciclo atual</span>
+            <span>{calculateCycleProgress()}%</span>
+          </div>
+          <Progress value={calculateCycleProgress()} className="h-2 bg-vegas-darkbg">
+            <div className="h-full bg-gradient-to-r from-vegas-green to-vegas-green-light rounded-full" />
+          </Progress>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <p className="text-sm text-gray-400">Data de início</p>
+            <p className="text-white">{formatDate(currentSubscription.startDate)}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400">Próxima cobrança</p>
+            <p className="text-white">{formatDate(currentSubscription.nextBillingDate)}</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-3 mt-4">
+          <Button
+            variant="outline"
+            className="border-vegas-green text-vegas-green hover:bg-vegas-green/10"
+            onClick={() => navigate('/planos')}
+          >
+            Gerenciar plano
+          </Button>
+
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button 
-                variant="outline" 
-                className="sm:flex-1 border-red-500/30 text-red-500 hover:bg-red-500/10"
+              <Button
+                variant="outline"
+                className="border-red-500 text-red-500 hover:bg-red-500/10"
                 disabled={isCanceling}
               >
-                {isCanceling ? (
-                  <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Cancelando...</>
-                ) : (
-                  "Cancelar assinatura"
-                )}
+                {isCanceling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Cancelar assinatura
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent className="bg-vegas-black border border-[#222]">
+            <AlertDialogContent className="bg-vegas-black border-border">
               <AlertDialogHeader>
-                <AlertDialogTitle>Confirmar cancelamento?</AlertDialogTitle>
+                <AlertDialogTitle>Cancelar assinatura?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Você continuará com acesso até o final do período atual.
+                  Ao cancelar, sua assinatura permanecerá ativa até o fim do período atual.
+                  Após esse período, você perderá acesso aos recursos premium.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel className="bg-transparent border border-[#222] hover:bg-vegas-black text-white">Voltar</AlertDialogCancel>
+                <AlertDialogCancel className="bg-vegas-darkbg text-white border-border hover:bg-vegas-darkbg/80">Cancelar</AlertDialogCancel>
                 <AlertDialogAction 
-                  className="bg-red-500 hover:bg-red-600 text-white"
                   onClick={handleCancelSubscription}
+                  className="bg-red-500 text-white hover:bg-red-600"
                 >
-                  Cancelar assinatura
+                  Confirmar
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        )}
+        </div>
+      </div>
+
+      {/* Lista simplificada de recursos */}
+      <div className="p-4 border border-border rounded-lg bg-vegas-black">
+        <h4 className="text-lg font-bold mb-4">Recursos incluídos</h4>
+        <ul className="space-y-2">
+          {currentPlan.features?.map((feature: string, index: number) => (
+            <li key={index} className="flex items-center">
+              <div className="h-4 w-4 rounded-full bg-vegas-green/20 flex items-center justify-center mr-3">
+                <div className="h-2 w-2 rounded-full bg-vegas-green"></div>
+              </div>
+              <span>{feature}</span>
+            </li>
+          )) || [
+            "Acesso a estatísticas avançadas",
+            "Visualização de roletas ilimitadas",
+            "Visualização completa dos cartões de roleta",
+            "Acesso ao painel lateral de estatísticas",
+            "Atualizações a cada 1 minuto",
+            "Suporte prioritário",
+            "Alertas personalizados"
+          ].map((feature, index) => (
+            <li key={index} className="flex items-center">
+              <div className="h-4 w-4 rounded-full bg-vegas-green/20 flex items-center justify-center mr-3">
+                <div className="h-2 w-2 rounded-full bg-vegas-green"></div>
+              </div>
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
