@@ -9,11 +9,10 @@ import { useRouletteSettingsStore } from '@/stores/rouletteSettingsStore';
 import { cn } from '@/lib/utils';
 import UnifiedRouletteClient from '../services/UnifiedRouletteClient';
 import EventBus from '../services/EventBus';
-import { TrendingUp, Zap, CheckCircle, XCircle, AlertTriangle, Info, Gauge, BarChart3 } from 'lucide-react';
+import { TrendingUp, Zap, CheckCircle, XCircle, AlertTriangle, Info, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import RouletteSidePanelStats from './RouletteSidePanelStats';
 
 // Debug flag - set to false to disable logs in production
 const DEBUG_ENABLED = true;
@@ -212,7 +211,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   const [updateCount, setUpdateCount] = useState(0);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [showStats, setShowStats] = useState(false);
   
   // Refs
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -350,11 +348,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     console.log('Clique no card detectado, mas delegando ao componente pai');
   };
   
-  // Função para mostrar estatísticas
-  const handleShowStats = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowStats(true);
-  };
+  // Função para mostrar estatísticas - removida
   
   // Formatar tempo relativo
   const getTimeAgo = () => {
@@ -467,15 +461,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
           {rouletteData && <CardTitle className="text-lg font-semibold flex items-center justify-between">
             <span className="truncate">{rouletteData.nome}</span>
             <div className="flex items-center gap-2">
-              <Button 
-                onClick={handleShowStats} 
-                variant="ghost" 
-                size="sm" 
-                className="flex items-center gap-1 text-xs font-medium hover:bg-green-600/10 hover:text-green-500 transition-colors"
-              >
-                <BarChart3 className="h-3.5 w-3.5" />
-                <span>Estatísticas</span>
-              </Button>
               <Badge variant={rouletteData.status === 'online' ? 'default' : 'destructive'} className={`${rouletteData.status === 'online' ? 'bg-green-500 hover:bg-green-600' : ''}`}>
                 {rouletteData.status === 'online' ? 'Online' : 'Offline'}
               </Badge>
@@ -535,33 +520,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
           </Tooltip>
         </CardFooter>
       </Card>
-      
-      {showStats && rouletteData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="bg-gray-900 w-11/12 max-w-6xl h-[90vh] rounded-lg overflow-y-auto">
-            <div className="flex justify-between items-center p-4 border-b border-gray-800">
-              <h2 className="text-[#00ff00] text-xl font-bold">Estatísticas da {rouletteData.nome}</h2>
-              <button 
-                onClick={() => setShowStats(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-4">
-              <RouletteSidePanelStats
-                roletaId={rouletteData.id}
-                roletaNome={rouletteData.nome}
-                lastNumbers={rouletteData.numeros.map(n => n.numero)}
-                wins={0}
-                losses={0}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };
