@@ -160,7 +160,7 @@ const ProfilePage = () => {
                     </div>
                   )}
                   
-                  <div>
+                  <div className="text-left">
                     <h2 className="font-medium text-lg">{profileData.firstName} {profileData.lastName}</h2>
                     <p className="text-gray-400 text-sm">{profileData.bio}</p>
                     <p className="text-gray-400 text-sm">{profileData.cityState}, {profileData.country}</p>
@@ -180,7 +180,7 @@ const ProfilePage = () => {
               {/* Personal Information */}
               <div className="p-6 border-b border-border">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-md font-medium">Informações Pessoais</h3>
+                  <h3 className="text-md font-medium text-left">Informações Pessoais</h3>
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -192,27 +192,27 @@ const ProfilePage = () => {
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
+                  <div className="text-left">
                     <p className="text-sm text-gray-400 mb-1">Primeiro Nome</p>
                     <p>{profileData.firstName}</p>
                   </div>
                   
-                  <div>
+                  <div className="text-left">
                     <p className="text-sm text-gray-400 mb-1">Sobrenome</p>
                     <p>{profileData.lastName}</p>
                   </div>
                   
-                  <div>
+                  <div className="text-left">
                     <p className="text-sm text-gray-400 mb-1">Email</p>
                     <p>{profileData.email}</p>
                   </div>
                   
-                  <div>
+                  <div className="text-left">
                     <p className="text-sm text-gray-400 mb-1">Telefone</p>
                     <p>{profileData.phone || '--'}</p>
                   </div>
                   
-                  <div className="md:col-span-2">
+                  <div className="md:col-span-2 text-left">
                     <p className="text-sm text-gray-400 mb-1">Bio</p>
                     <p>{profileData.bio}</p>
                   </div>
@@ -222,7 +222,7 @@ const ProfilePage = () => {
               {/* Address Information */}
               <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-md font-medium">Endereço</h3>
+                  <h3 className="text-md font-medium text-left">Endereço</h3>
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -234,22 +234,22 @@ const ProfilePage = () => {
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
+                  <div className="text-left">
                     <p className="text-sm text-gray-400 mb-1">País</p>
                     <p>{profileData.country}</p>
                   </div>
                   
-                  <div>
+                  <div className="text-left">
                     <p className="text-sm text-gray-400 mb-1">Cidade/Estado</p>
                     <p>{profileData.cityState}</p>
                   </div>
                   
-                  <div>
+                  <div className="text-left">
                     <p className="text-sm text-gray-400 mb-1">CEP</p>
                     <p>{profileData.postalCode || '--'}</p>
                   </div>
                   
-                  <div>
+                  <div className="text-left">
                     <p className="text-sm text-gray-400 mb-1">CPF/CNPJ</p>
                     <p>{profileData.taxId || '--'}</p>
                   </div>
