@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
-import { Pencil, User, CreditCard, Bell, Shield, Users, Database, Trash, ExternalLink, CheckCircle, PlusCircle } from 'lucide-react';
+import { Pencil, User, CreditCard, Bell, Shield, Users, Database, Trash, ExternalLink, CheckCircle, PlusCircle, Package } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/Layout';
@@ -69,6 +69,10 @@ const ProfilePage = () => {
     // Se a URL termina com 'billing', defina a tab como 'billing'
     if (path.endsWith('billing')) {
       setActiveTab('billing');
+    }
+    // Se a URL contém 'planos', defina a tab como 'plans'
+    else if (path.includes('planos')) {
+      setActiveTab('plans');
     }
   }, [location.pathname]);
 
@@ -141,17 +145,18 @@ const ProfilePage = () => {
 
   const menuItems = [
     { id: 'profile', label: 'Meu Perfil', icon: <User size={18} /> },
-    { id: 'security', label: 'Segurança', icon: <Shield size={18} /> },
-    { id: 'teams', label: 'Equipes', icon: <Users size={18} /> },
-    { id: 'notifications', label: 'Notificações', icon: <Bell size={18} /> },
     { id: 'billing', label: 'Faturamento', icon: <CreditCard size={18} /> },
-    { id: 'data-export', label: 'Exportar Dados', icon: <Database size={18} /> },
+    { id: 'plans', label: 'Planos', icon: <Package size={18} /> },
     { id: 'delete-account', label: 'Excluir Conta', icon: <Trash size={18} className="text-red-500" /> },
   ];
 
   // Renderiza o conteúdo com base na tab ativa
   const renderTabContent = () => {
     switch(activeTab) {
+      case 'plans':
+        // Redirecionar para a página de planos
+        navigate('/planos');
+        return null;
       case 'billing':
         return (
           <div className="space-y-8 p-6">
