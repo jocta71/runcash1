@@ -3,12 +3,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
-import { Pencil, User, CreditCard, Bell, Shield, Users, Database, Trash, ChevronRight } from 'lucide-react';
+import { Pencil, User, CreditCard, Bell, Shield, Users, Database, Trash } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/Layout';
 import { Textarea } from '@/components/ui/textarea';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 // Estendendo o tipo User para evitar erros de lint
 interface ExtendedUser {
@@ -22,16 +22,15 @@ interface ExtendedUser {
   lastLogin?: string | Date;
   firstName?: string;
   lastName?: string;
-  displayName?: string;
-  givenName?: string;
-  familyName?: string;
+  displayName?: string; // Nome completo que pode vir do Google
+  givenName?: string;   // Primeiro nome que pode vir do Google
+  familyName?: string;  // Sobrenome que pode vir do Google
 }
 
 const ProfilePage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const [avatar, setAvatar] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('profile');
   const [profileData, setProfileData] = useState({
@@ -48,8 +47,10 @@ const ProfilePage = () => {
 
   useEffect(() => {
     if (user) {
+      // Cast para o tipo estendido para acessar as propriedades adicionais
       const extUser = user as unknown as ExtendedUser;
       
+      // Tentar obter nome/sobrenome
       let firstName = '';
       let lastName = '';
       
@@ -100,8 +101,10 @@ const ProfilePage = () => {
     toast({
       title: "Perfil atualizado",
       description: "Suas informações de perfil foram salvas com sucesso.",
+      variant: "default"
     });
     
+    // Aqui você implementaria a lógica para salvar os dados no backend
     console.log('Dados a serem salvos:', profileData);
   };
 
@@ -112,173 +115,143 @@ const ProfilePage = () => {
     { id: 'notifications', label: 'Notificações', icon: <Bell size={18} /> },
     { id: 'billing', label: 'Faturamento', icon: <CreditCard size={18} /> },
     { id: 'data-export', label: 'Exportar Dados', icon: <Database size={18} /> },
+    { id: 'delete-account', label: 'Excluir Conta', icon: <Trash size={18} className="text-red-500" /> },
   ];
 
   return (
     <Layout>
       <div className="container py-6">
-        <h1 className="text-2xl font-bold mb-6">Minha Conta</h1>
-        
-        {/* Breadcrumb/Navigation */}
-        <div className="mb-6 flex items-center text-sm text-gray-400">
-          <span>Conta</span>
-          <ChevronRight className="h-4 w-4 mx-1" />
-          <span className="text-vegas-green">Perfil</span>
-        </div>
-        
-        {/* Main Content Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Left Sidebar/Navigation */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-6 border border-border rounded-lg overflow-hidden">
-              {/* Profile Card */}
-              <div className="bg-vegas-black/80 p-4 border-b border-border">
-                <div className="flex items-center gap-3 mb-4">
-                  {avatar ? (
-                    <img 
-                      src={avatar} 
-                      alt="Avatar"
-                      className="w-12 h-12 rounded-full object-cover border border-vegas-green/20"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-vegas-green/10 border border-vegas-green/20 flex items-center justify-center text-vegas-green">
-                      {profileData.firstName ? profileData.firstName[0].toUpperCase() : 'U'}
-                    </div>
-                  )}
-                  <div>
-                    <h3 className="font-medium">{profileData.firstName} {profileData.lastName}</h3>
-                    <p className="text-xs text-gray-400">{profileData.email}</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Navigation Menu */}
-              <nav className="bg-vegas-black">
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Sidebar */}
+          <div className="w-full md:w-64 shrink-0">
+            <div className="border border-border rounded-lg bg-vegas-black p-4">
+              <h2 className="text-lg font-bold mb-4">Conta</h2>
+              <nav className="space-y-1">
                 {menuItems.map(item => (
                   <Link
                     key={item.id}
                     to={`/profile/${item.id}`}
-                    className={`flex items-center justify-between px-4 py-3 border-b border-border transition-colors
-                      ${activeTab === item.id 
-                        ? 'bg-vegas-green/10 text-vegas-green border-l-2 border-l-vegas-green' 
-                        : 'text-gray-400 hover:bg-vegas-black/70'}`}
+                    className={`flex items-center gap-2 p-2 rounded-md transition-colors hover:bg-vegas-black/60 ${activeTab === item.id ? 'bg-vegas-black/60 text-vegas-green' : 'text-gray-400'}`}
                     onClick={() => setActiveTab(item.id)}
                   >
-                    <div className="flex items-center">
-                      <span className="w-5 h-5 mr-2 flex items-center justify-center">
-                        {item.icon}
-                      </span>
-                      <span className="text-sm">{item.label}</span>
-                    </div>
-                    {activeTab === item.id && <ChevronRight className="h-4 w-4" />}
+                    {item.icon}
+                    <span className="text-sm">{item.label}</span>
                   </Link>
                 ))}
-                
-                {/* Delete Account (separated visually) */}
-                <div className="p-4 border-t border-border mt-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full justify-start text-red-500 border-red-500/20 hover:bg-red-500/10 hover:text-red-500"
-                  >
-                    <Trash className="h-4 w-4 mr-2" />
-                    Excluir Conta
-                  </Button>
-                </div>
               </nav>
             </div>
           </div>
           
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            <div className="border border-border rounded-lg overflow-hidden">
+          {/* Content */}
+          <div className="flex-1">
+            <div className="border border-border rounded-lg bg-vegas-black overflow-hidden">
               {/* Profile Header */}
-              <div className="bg-vegas-black/80 p-5 border-b border-border">
-                <h2 className="text-xl font-bold">Informações Pessoais</h2>
-                <p className="text-sm text-gray-400 mt-1">
-                  Atualize seus dados pessoais e endereço
-                </p>
+              <div className="p-6 border-b border-border">
+                <div className="flex items-center gap-4">
+                  {avatar ? (
+                    <img 
+                      src={avatar} 
+                      alt="Avatar"
+                      className="w-16 h-16 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-vegas-black/60 border border-border flex items-center justify-center text-xl">
+                      {profileData.firstName ? profileData.firstName[0].toUpperCase() : 'U'}
+                    </div>
+                  )}
+                  
+                  <div>
+                    <h2 className="font-medium text-lg">{profileData.firstName} {profileData.lastName}</h2>
+                    <p className="text-gray-400 text-sm">{profileData.bio}</p>
+                    <p className="text-gray-400 text-sm">{profileData.cityState}, {profileData.country}</p>
+                  </div>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="ml-auto border-border text-gray-400 hover:text-white hover:bg-vegas-black/60"
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1" />
+                    Editar
+                  </Button>
+                </div>
               </div>
               
-              <div className="p-6 bg-vegas-black space-y-8">
-                {/* Personal Information Section */}
-                <div>
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-md font-medium text-vegas-green">Dados Pessoais</h3>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="border-vegas-green/20 text-vegas-green hover:bg-vegas-green/10"
-                    >
-                      <Pencil className="h-3.5 w-3.5 mr-1" />
-                      Editar
-                    </Button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
-                    <div>
-                      <p className="text-sm text-gray-400 mb-1">Primeiro Nome</p>
-                      <p className="font-medium">{profileData.firstName || '--'}</p>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-400 mb-1">Sobrenome</p>
-                      <p className="font-medium">{profileData.lastName || '--'}</p>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-400 mb-1">Email</p>
-                      <p className="font-medium">{profileData.email || '--'}</p>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-400 mb-1">Telefone</p>
-                      <p className="font-medium">{profileData.phone || '--'}</p>
-                    </div>
-                    
-                    <div className="md:col-span-2">
-                      <p className="text-sm text-gray-400 mb-1">Bio</p>
-                      <p className="font-medium">{profileData.bio || '--'}</p>
-                    </div>
-                  </div>
+              {/* Personal Information */}
+              <div className="p-6 border-b border-border">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-md font-medium">Informações Pessoais</h3>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="border-border text-gray-400 hover:text-white hover:bg-vegas-black/60"
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1" />
+                    Editar
+                  </Button>
                 </div>
                 
-                <div className="h-px w-full bg-border"></div>
-                
-                {/* Address Information */}
-                <div>
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-md font-medium text-vegas-green">Endereço</h3>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="border-vegas-green/20 text-vegas-green hover:bg-vegas-green/10"
-                    >
-                      <Pencil className="h-3.5 w-3.5 mr-1" />
-                      Editar
-                    </Button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Primeiro Nome</p>
+                    <p>{profileData.firstName}</p>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
-                    <div>
-                      <p className="text-sm text-gray-400 mb-1">País</p>
-                      <p className="font-medium">{profileData.country || '--'}</p>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-400 mb-1">Cidade/Estado</p>
-                      <p className="font-medium">{profileData.cityState || '--'}</p>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-400 mb-1">CEP</p>
-                      <p className="font-medium">{profileData.postalCode || '--'}</p>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-400 mb-1">CPF/CNPJ</p>
-                      <p className="font-medium">{profileData.taxId || '--'}</p>
-                    </div>
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Sobrenome</p>
+                    <p>{profileData.lastName}</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Email</p>
+                    <p>{profileData.email}</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Telefone</p>
+                    <p>{profileData.phone || '--'}</p>
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <p className="text-sm text-gray-400 mb-1">Bio</p>
+                    <p>{profileData.bio}</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Address Information */}
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-md font-medium">Endereço</h3>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="border-border text-gray-400 hover:text-white hover:bg-vegas-black/60"
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1" />
+                    Editar
+                  </Button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">País</p>
+                    <p>{profileData.country}</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Cidade/Estado</p>
+                    <p>{profileData.cityState}</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">CEP</p>
+                    <p>{profileData.postalCode || '--'}</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">CPF/CNPJ</p>
+                    <p>{profileData.taxId || '--'}</p>
                   </div>
                 </div>
               </div>
