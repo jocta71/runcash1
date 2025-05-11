@@ -46,8 +46,10 @@ const RoulettesDashboard = () => {
         if (data && data.length > 0) {
           console.log(`Dados iniciais recebidos: ${data.length} roletas`);
           setRoulettes(data);
-          // Selecionar a primeira roleta por padrão
-          setSelectedRoulette(data[0]);
+          // Selecionar a primeira roleta por padrão se não houver uma selecionada ainda
+          if (!selectedRoulette) {
+            setSelectedRoulette(data[0]);
+          }
           setLoading(false);
           setError(null);
         } else {
@@ -69,44 +71,16 @@ const RoulettesDashboard = () => {
       console.log('Atualização de roletas recebida:', data);
       
       // Verificar se os dados são um array diretamente ou estão em data.roulettes
+      let newRoulettes: any[] = [];
+      
       if (data && data.roulettes && Array.isArray(data.roulettes)) {
         console.log(`Atualizando com ${data.roulettes.length} roletas do evento.roulettes`);
-        setRoulettes(data.roulettes);
-        
-        // Manter a roleta selecionada atualizada se existir
-        if (selectedRoulette) {
-          const updatedSelected = data.roulettes.find(
-            (r: any) => r.id === selectedRoulette.id || r.roleta_id === selectedRoulette.id
-          );
-          if (updatedSelected) {
-            setSelectedRoulette(updatedSelected);
-          }
-        } else if (data.roulettes.length > 0) {
-          setSelectedRoulette(data.roulettes[0]);
-        }
-        
-        setLoading(false);
-        setError(null);
+        newRoulettes = data.roulettes;
       } 
       // Verificar se temos dados diretamente no objeto all_roulettes_update
       else if (data && data.type === 'all_roulettes_update' && Array.isArray(data.data)) {
         console.log(`Atualizando com ${data.data.length} roletas do evento all_roulettes_update`);
-        setRoulettes(data.data);
-        
-        // Manter a roleta selecionada atualizada se existir
-        if (selectedRoulette) {
-          const updatedSelected = data.data.find(
-            (r: any) => r.id === selectedRoulette.id || r.roleta_id === selectedRoulette.id
-          );
-          if (updatedSelected) {
-            setSelectedRoulette(updatedSelected);
-          }
-        } else if (data.data.length > 0) {
-          setSelectedRoulette(data.data[0]);
-        }
-        
-        setLoading(false);
-        setError(null);
+        newRoulettes = data.data;
       }
       // Se o evento não tem os dados, buscamos diretamente do cache do cliente
       else {
@@ -114,23 +88,32 @@ const RoulettesDashboard = () => {
         const allRoulettes = unifiedClient.getAllRoulettes();
         if (allRoulettes && allRoulettes.length > 0) {
           console.log(`Obtidas ${allRoulettes.length} roletas do cache do UnifiedClient`);
-          setRoulettes(allRoulettes);
-          
-          // Manter a roleta selecionada atualizada se existir
-          if (selectedRoulette) {
-            const updatedSelected = allRoulettes.find(
-              (r: any) => r.id === selectedRoulette.id || r.roleta_id === selectedRoulette.id
-            );
-            if (updatedSelected) {
-              setSelectedRoulette(updatedSelected);
-            }
-          } else if (allRoulettes.length > 0) {
-            setSelectedRoulette(allRoulettes[0]);
-          }
-          
-          setLoading(false);
-          setError(null);
+          newRoulettes = allRoulettes;
         }
+      }
+      
+      // Atualizar o estado apenas se encontramos dados
+      if (newRoulettes.length > 0) {
+        setRoulettes(newRoulettes);
+        
+        // Manter a roleta selecionada atualizada se existir
+        if (selectedRoulette) {
+          const updatedSelected = newRoulettes.find(
+            (r: any) => r.id === selectedRoulette.id || r.roleta_id === selectedRoulette.id
+          );
+          if (updatedSelected) {
+            setSelectedRoulette(updatedSelected);
+          } else if (newRoulettes.length > 0) {
+            // Se a roleta selecionada não existe mais, selecionar a primeira
+            setSelectedRoulette(newRoulettes[0]);
+          }
+        } else if (newRoulettes.length > 0) {
+          // Se não há roleta selecionada, selecionar a primeira
+          setSelectedRoulette(newRoulettes[0]);
+        }
+        
+        setLoading(false);
+        setError(null);
       }
       
       updateConnectionStatus();
@@ -168,7 +151,7 @@ const RoulettesDashboard = () => {
       unifiedClient.unsubscribe('update', handleRouletteUpdate);
       clearInterval(statusInterval);
     };
-  }, [selectedRoulette]);
+  }, []); // Removido selectedRoulette das dependências para evitar loop
 
   // Função para selecionar uma roleta
   const handleSelectRoulette = (roulette: any) => {
@@ -297,20 +280,29 @@ const RoulettesDashboard = () => {
           {/* Lista de roletas à esquerda */}
           <div className="lg:w-3/5">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
-              {roulettes.map((roulette: any) => (
-                <div 
-                  key={roulette.id || roulette._id || roulette.roleta_id}
-                  onClick={() => handleSelectRoulette(roulette)}
-                  className={cn("cursor-pointer transition-all", {
-                    "ring-2 ring-primary ring-offset-2 ring-offset-background": 
-                      selectedRoulette && (selectedRoulette.id === roulette.id || selectedRoulette.roleta_id === roulette.roleta_id)
-                  })}
-                >
-                  <RouletteCard 
-                    data={roulette}
-                  />
-                </div>
-              ))}
+              {roulettes.map((roulette: any) => {
+                const rouletteId = roulette.id || roulette.roleta_id;
+                const isSelected = selectedRoulette && 
+                  (selectedRoulette.id === rouletteId || selectedRoulette.roleta_id === rouletteId);
+                  
+                return (
+                  <div 
+                    key={rouletteId}
+                    className={cn(
+                      "relative cursor-pointer transition-all",
+                      {
+                        "ring-2 ring-primary ring-offset-2 ring-offset-background": isSelected
+                      }
+                    )}
+                    onClick={() => handleSelectRoulette(roulette)}
+                  >
+                    <RouletteCard 
+                      data={roulette}
+                      isSelected={isSelected}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
           

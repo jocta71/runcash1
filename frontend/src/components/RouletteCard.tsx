@@ -347,9 +347,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   
   // Função para abrir detalhes da roleta
   const handleCardClick = () => {
-    if (onSelect && rouletteData) {
-      onSelect(rouletteData.id);
-    }
+    console.log('Clique no card detectado, mas delegando ao componente pai');
   };
   
   // Função para mostrar estatísticas
@@ -441,7 +439,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     <>
       <Card 
         ref={cardRef}
-        onClick={handleCardClick}
         className={cn(
           "relative h-full w-full transition-all group",
           {
