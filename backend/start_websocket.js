@@ -1,90 +1,75 @@
-// Script para iniciar o serviço de websocket com resiliência
-// Compatível com Railway e Windows
+/**
+ * Script para iniciar e monitorar o servidor websocket
+ * Com suporte para reinicialização automática em caso de falha
+ */
 
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
 
-console.log("=== RunCash Websocket Server ===");
-console.log("Iniciando o serviço de websocket...");
+console.log('=== RunCash Websocket Server ===');
+console.log('Iniciando o serviço de websocket...');
+console.log('Diretório atual:', process.cwd());
+console.log('Arquivos no diretório atual:', fs.readdirSync('.'));
 
-// Verificar a estrutura de diretórios
-console.log("Diretório atual:", process.cwd());
-try {
-  const files = fs.readdirSync(process.cwd());
-  console.log("Arquivos no diretório atual:", files);
-} catch (err) {
-  console.error("Erro ao listar diretórios:", err);
-}
-
-// Detectar localização do arquivo websocket_server.js
-let websocketFile = null;
-const possiblePaths = [
-  'websocket_server.js',
-  path.join(process.cwd(), 'websocket_server.js')
-];
-
-for (const filePath of possiblePaths) {
-  try {
-    if (fs.existsSync(filePath)) {
-      websocketFile = filePath;
-      console.log(`Arquivo de websocket encontrado: ${filePath}`);
+// Verificar existência do arquivo
+let websocketFile = 'websocket_server_fix.js';
+if (!fs.existsSync(websocketFile)) {
+  console.log(`ERRO: Não foi possível encontrar o arquivo ${websocketFile}`);
+  console.log('Buscando em diretórios comuns...');
+  
+  // Tentar encontrar o arquivo em locais comuns
+  const possiblePaths = [
+    'websocket_server_fix.js',
+    './websocket_server_fix.js',
+    './websocket/websocket_server_fix.js',
+    './services/websocket_server_fix.js'
+  ];
+  
+  for (const testPath of possiblePaths) {
+    if (fs.existsSync(testPath)) {
+      websocketFile = testPath;
+      console.log(`Arquivo encontrado em: ${testPath}`);
       break;
     }
-  } catch (err) {
-    // Ignorar erros
   }
-}
-
-if (!websocketFile) {
-  console.error("ERRO: Não foi possível encontrar o arquivo websocket_server.js");
-  console.log("Buscando em diretórios comuns...");
   
-  try {
-    // No Railway, o arquivo geralmente está no diretório atual
-    websocketFile = 'websocket_server.js';
-    console.log("Usando caminho padrão:", websocketFile);
-  } catch (err) {
-    console.log("Erro na busca:", err.message);
+  if (!fs.existsSync(websocketFile)) {
+    console.log('Arquivo websocket_server_fix.js não encontrado em nenhum local conhecido');
+    process.exit(1);
   }
 }
 
-if (!websocketFile) {
-  console.error("ERRO FATAL: Não foi possível localizar websocket_server.js");
-  console.log("Verifique se o arquivo existe e tente novamente.");
-  process.exit(1);
-}
+// Obter porta do ambiente ou usar padrão
+const PORT = process.env.WEBSOCKET_PORT || process.env.PORT || 8080;
+console.log(`Porta não definida, usando padrão: ${PORT}`);
 
-// Configurar variáveis de ambiente se necessário
-if (!process.env.PORT) {
-  process.env.PORT = 8080;
-  console.log(`Porta não definida, usando padrão: ${process.env.PORT}`);
-}
-
-// Iniciar o servidor com resiliência
-console.log(`Iniciando o servidor de websocket com arquivo: ${websocketFile}`);
-
-// Função para iniciar o processo Node
-function startNode() {
-  const nodeProcess = spawn('node', [websocketFile], {
+// Função para iniciar o servidor
+function startServer() {
+  console.log(`Iniciando o servidor de websocket com arquivo: ${websocketFile}`);
+  
+  // Definir variáveis de ambiente para o processo filho
+  const env = { ...process.env, WEBSOCKET_PORT: PORT };
+  
+  // Iniciar o processo filho com o arquivo do servidor websocket
+  const serverProcess = spawn('node', [websocketFile], { 
+    env,
     stdio: 'inherit',
-    env: process.env
+    shell: true
   });
-
-  nodeProcess.on('close', (code) => {
+  
+  // Gerenciar eventos do processo
+  serverProcess.on('error', (err) => {
+    console.error('Erro ao iniciar o processo:', err);
+    setTimeout(startServer, 5000);
+  });
+  
+  serverProcess.on('close', (code) => {
     console.log(`Processo finalizado com código: ${code}`);
-    if (code !== 0) {
-      console.log("Tentando reiniciar em 5 segundos...");
-      setTimeout(startNode, 5000);
-    }
-  });
-
-  nodeProcess.on('error', (err) => {
-    console.error("Erro ao iniciar processo:", err);
-    console.log("Tentando reiniciar em 5 segundos...");
-    setTimeout(startNode, 5000);
+    console.log('Tentando reiniciar em 5 segundos...');
+    setTimeout(startServer, 5000);
   });
 }
 
 // Iniciar o servidor
-startNode(); 
+startServer(); 

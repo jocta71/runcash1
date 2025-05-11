@@ -6,7 +6,8 @@
 // Dependências mantidas apenas por compatibilidade
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
-const config = require('../config/config');
+// Configuração substituída por objeto vazio
+const config = {};
 const getDb = require('../services/database');
 const { ObjectId } = require('mongodb');
 const { JWT_SECRET } = require('./jwtAuthMiddleware');

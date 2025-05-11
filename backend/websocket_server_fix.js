@@ -39,16 +39,8 @@ app.use((req, res, next) => {
 });
 
 // Importar middlewares
-const { verifyTokenAndSubscription, requireResourceAccess } = require('./middlewares/asaasAuthMiddleware');
-const requestLogger = require('./middlewares/requestLogger');
-const securityEnforcer = require('./middlewares/securityEnforcer');
-const blockBrowserAccess = require('./middlewares/browserBlockMiddleware');
-const apiProtectionShield = require('./middlewares/apiProtectionShield');
-const { requireFormUrlEncoded, acceptJsonOrForm } = require('./middlewares/contentTypeMiddleware');
+const { verifyAsaasSubscription } = require('./middlewares/asaasAuthMiddleware');
 const { authenticateToken } = require('./middlewares/jwtAuthMiddleware');
-const simpleAuthRoutes = require('./routes/simpleAuthRoutes');
-const ultimateBlocker = require('./middlewares/ultimateBlocker');
-const queryParamBlocker = require('./middlewares/queryParamBlocker');
 
 // Middlewares globais e configurações como no arquivo original
 // ...
@@ -110,6 +102,20 @@ io.on('connection', (socket) => {
   // Funcionalidades do socket para usuário autenticado
   // ...
 });
+
+// Função para conectar ao MongoDB
+async function connectToMongoDB() {
+  try {
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    console.log('[MongoDB] Conectado com sucesso');
+    const db = client.db(DB_NAME);
+    return true;
+  } catch (error) {
+    console.error('[MongoDB] Erro ao conectar:', error);
+    return false;
+  }
+}
 
 // Iniciar servidor
 server.listen(PORT, () => {
