@@ -1,5 +1,5 @@
 /**
- * Serviço para buscar dados de roletas e alimentar o stream
+ * Serviço para buscar dados de roletas e alimentar o stream em tempo real usando Change Streams
  */
 
 const { MongoClient } = require('mongodb');
@@ -14,8 +14,10 @@ let client;
 let db;
 
 // Intervalos de tempo (em ms)
-const FETCH_INTERVAL = 8000;
-const HEARTBEAT_INTERVAL = 30000;
+const HEARTBEAT_INTERVAL = 30000; // 30 segundos para heartbeat
+
+// Active change streams
+let activeChangeStreams = [];
 
 // Mapeamento de IDs de roleta para formato padronizado
 const MAPEAMENTO_ROLETAS = {
@@ -72,14 +74,15 @@ const NUMEROS_VERMELHOS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30
 class RouletteDataService {
   constructor() {
     this.isRunning = false;
-    this.intervalId = null;
     this.heartbeatIntervalId = null;
-    this.lastFetchTime = 0;
     this.fetchCounter = 0;
+    this.lastEventTime = 0;
+    this.colecoesMonitoradas = new Set();
+    this.roletasAtivas = [];
   }
 
   /**
-   * Inicia o serviço de busca e streaming de dados
+   * Inicia o serviço de monitoramento e streaming de dados usando Change Streams
    */
   async start() {
     if (this.isRunning) {
@@ -90,23 +93,23 @@ class RouletteDataService {
     try {
       await this.connectToDatabase();
       this.isRunning = true;
-      console.log('[RouletteData] Iniciando serviço de busca e envio de todas as roletas...');
+      console.log('[RouletteData] Iniciando serviço de monitoramento em tempo real...');
+      
+      // Carregar metadados das roletas ativas
+      await this.carregarMetadados();
+      
+      // Configurar monitoramento de change streams
+      await this.configureChangeStreams();
       
       // Realizar busca inicial
       await this.fetchAndBroadcastAllRouletteData();
-      
-      // Configurar intervalo para buscas regulares
-      this.intervalId = setInterval(() => {
-        this.fetchAndBroadcastAllRouletteData()
-          .catch(err => console.error('[RouletteData] Erro ao buscar e enviar todos os dados:', err));
-      }, FETCH_INTERVAL);
       
       // Configurar heartbeat periódico
       this.heartbeatIntervalId = setInterval(() => {
         this.sendHeartbeat();
       }, HEARTBEAT_INTERVAL);
       
-      console.log(`[RouletteData] Serviço iniciado. Intervalo: ${FETCH_INTERVAL}ms, Heartbeat: ${HEARTBEAT_INTERVAL}ms`);
+      console.log('[RouletteData] Serviço iniciado com monitoramento em tempo real via Change Streams');
 
     } catch (error) {
       console.error('[RouletteData] Erro ao iniciar serviço:', error);
@@ -115,19 +118,25 @@ class RouletteDataService {
   }
 
   /**
-   * Para o serviço de busca e streaming
+   * Para o serviço de monitoramento e streaming
    */
-  stop() {
+  async stop() {
     if (!this.isRunning) {
       return;
     }
     
     console.log('[RouletteData] Parando serviço de streaming...');
     
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
+    // Fechar todos os change streams ativos
+    for (const stream of activeChangeStreams) {
+      try {
+        await stream.close();
+        console.log('[RouletteData] Change stream fechado');
+      } catch (err) {
+        console.error('[RouletteData] Erro ao fechar change stream:', err);
+      }
     }
+    activeChangeStreams = [];
     
     if (this.heartbeatIntervalId) {
       clearInterval(this.heartbeatIntervalId);
@@ -135,7 +144,200 @@ class RouletteDataService {
     }
     
     this.isRunning = false;
+    this.colecoesMonitoradas.clear();
     console.log('[RouletteData] Serviço parado');
+  }
+
+  /**
+   * Carrega metadados das roletas ativas
+   */
+  async carregarMetadados() {
+    try {
+      // Obter roletas ativas da coleção metadados
+      this.roletasAtivas = await db.collection('metadados').find({
+        ativa: true
+      }).toArray();
+      
+      console.log(`[RouletteData] Carregados metadados de ${this.roletasAtivas.length} roletas ativas`);
+      return this.roletasAtivas;
+    } catch (error) {
+      console.error('[RouletteData] Erro ao carregar metadados:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Configura change streams para monitorar coleções de roletas
+   */
+  async configureChangeStreams() {
+    try {
+      // 1. Configurar change stream para coleção comum roleta_numeros
+      const commonCollectionExists = await db.listCollections({name: 'roleta_numeros'}).toArray();
+      if (commonCollectionExists.length > 0) {
+        await this.monitorarColecaoComum();
+      }
+      
+      // 2. Monitorar coleções numéricas (uma por roleta)
+      const todasColecoes = await db.listCollections().toArray();
+      const colecoesNumericas = todasColecoes.filter(col => /^\d+$/.test(col.name)).map(col => col.name);
+      
+      for (const colecaoId of colecoesNumericas) {
+        await this.monitorarColecaoIndividual(colecaoId);
+      }
+      
+      // 3. Monitorar coleções com UUID
+      for (const roleta of this.roletasAtivas) {
+        const roletaId = roleta.roleta_id;
+        if (!roletaId || /^\d+$/.test(roletaId)) continue; // Pular se for numérico ou nulo
+        
+        const collections = await db.listCollections({name: roletaId}).toArray();
+        if (collections.length > 0 && !this.colecoesMonitoradas.has(roletaId)) {
+          await this.monitorarColecaoIndividual(roletaId, roleta);
+        }
+      }
+      
+      console.log(`[RouletteData] Change Streams configurados para ${this.colecoesMonitoradas.size} coleções`);
+      
+    } catch (error) {
+      console.error('[RouletteData] Erro ao configurar Change Streams:', error);
+    }
+  }
+  
+  /**
+   * Monitora a coleção comum roleta_numeros
+   */
+  async monitorarColecaoComum() {
+    try {
+      const collection = db.collection('roleta_numeros');
+      const changeStream = collection.watch([], { fullDocument: 'updateLookup' });
+      
+      changeStream.on('change', async (change) => {
+        if (change.operationType === 'insert' || change.operationType === 'update') {
+          const documento = change.fullDocument;
+          
+          if (!documento) return;
+          
+          const roletaId = documento.roleta_id;
+          const roletaNome = documento.roleta_nome;
+          
+          if (!roletaId && !roletaNome) return;
+          
+          // Buscar metadados da roleta
+          const roleta = this.roletasAtivas.find(r => 
+            r.roleta_id === roletaId || r.roleta_nome === roletaNome);
+          
+          if (!roleta) return;
+          
+          // Processar e enviar atualização
+          await this.processarAtualizacaoRoleta(roleta);
+        }
+      });
+      
+      changeStream.on('error', (error) => {
+        console.error('[RouletteData] Erro no change stream da coleção comum:', error);
+      });
+      
+      activeChangeStreams.push(changeStream);
+      this.colecoesMonitoradas.add('roleta_numeros');
+      console.log('[RouletteData] Monitorando coleção comum roleta_numeros');
+      
+    } catch (error) {
+      console.error('[RouletteData] Erro ao monitorar coleção comum:', error);
+    }
+  }
+  
+  /**
+   * Monitora uma coleção individual de roleta
+   */
+  async monitorarColecaoIndividual(colecaoId, roletaMetadata = null) {
+    if (this.colecoesMonitoradas.has(colecaoId)) return;
+    
+    try {
+      const collection = db.collection(colecaoId);
+      const changeStream = collection.watch([], { fullDocument: 'updateLookup' });
+      
+      // Identificar metadados da roleta correspondente
+      let roleta = roletaMetadata;
+      
+      if (!roleta) {
+        // Buscar roleta associada a esta coleção
+        roleta = this.roletasAtivas.find(r => {
+          // Verificar ID direto
+          if (r.roleta_id === colecaoId) return true;
+          
+          // Verificar ID mapeado
+          const idNumerico = this.getIdNumericoPorIdentificador(r.roleta_id, r.roleta_nome);
+          return idNumerico === colecaoId;
+        });
+      }
+      
+      if (!roleta) {
+        console.log(`[RouletteData] Não foi possível identificar a roleta para coleção ${colecaoId}`);
+        return;
+      }
+      
+      changeStream.on('change', async (change) => {
+        if (change.operationType === 'insert' || change.operationType === 'update') {
+          await this.processarAtualizacaoRoleta(roleta);
+        }
+      });
+      
+      changeStream.on('error', (error) => {
+        console.error(`[RouletteData] Erro no change stream da coleção ${colecaoId}:`, error);
+      });
+      
+      activeChangeStreams.push(changeStream);
+      this.colecoesMonitoradas.add(colecaoId);
+      console.log(`[RouletteData] Monitorando coleção individual ${colecaoId} para roleta ${roleta.roleta_nome}`);
+      
+    } catch (error) {
+      console.error(`[RouletteData] Erro ao monitorar coleção ${colecaoId}:`, error);
+    }
+  }
+  
+  /**
+   * Processa uma atualização de roleta e envia para os clientes
+   */
+  async processarAtualizacaoRoleta(roleta) {
+    try {
+      const roletaId = roleta.roleta_id;
+      const roletaNome = roleta.roleta_nome;
+      
+      // Verificar se há clientes conectados
+      const clientCount = rouletteStreamService.getClientCount();
+      if (clientCount === 0) return;
+      
+      // Obter ID numérico
+      const idNumerico = this.getIdNumericoPorIdentificador(roletaId, roletaNome);
+      
+      // Buscar os últimos números desta roleta
+      const numerosEncontrados = await this.buscarNumerosRoleta(roletaId, roletaNome, idNumerico);
+      
+      if (numerosEncontrados && numerosEncontrados.length > 0) {
+        // Formatar os dados
+        const roletaInfo = {
+          id: roletaId,
+          nome: roletaNome,
+          provider: roleta.provider || 'Desconhecido',
+          status: roleta.status || 'online'
+        };
+        
+        const eventData = this.formatRouletteEvent(roletaInfo, numerosEncontrados);
+        
+        // Enviar atualização individual em tempo real
+        rouletteStreamService.broadcastUpdate({
+          type: 'roulette_update',
+          data: eventData.data
+        });
+        
+        this.lastEventTime = Date.now();
+        this.fetchCounter++;
+        
+        console.log(`[RouletteData] Atualização em tempo real enviada para roleta ${roletaNome}`);
+      }
+    } catch (error) {
+      console.error(`[RouletteData] Erro ao processar atualização da roleta:`, error);
+    }
   }
 
   /**
@@ -293,11 +495,11 @@ class RouletteDataService {
 
   /**
    * Busca dados de TODAS as roletas do banco de dados e envia UM ÚNICO evento para o stream
+   * Usado principalmente para a inicialização
    */
   async fetchAndBroadcastAllRouletteData() {
     this.fetchCounter++;
     const startTime = Date.now();
-    this.lastFetchTime = startTime;
     
     try {
       const clientCount = rouletteStreamService.getClientCount();
@@ -305,24 +507,16 @@ class RouletteDataService {
         return; // Pular se não houver clientes
       }
       
-      console.log(`[RouletteData] Buscando dados de roletas (execução #${this.fetchCounter})...`);
+      console.log(`[RouletteData] Buscando dados iniciais de todas as roletas...`);
       
-      const { db } = await this.connectToDatabase();
-      
-      // 1. Obter roletas ativas da coleção metadados
-      const roletasMetadados = await db.collection('metadados').find({
-        ativa: true
-      }).toArray();
-      
-      if (!roletasMetadados || roletasMetadados.length === 0) {
-        console.log('[RouletteData] Nenhuma roleta encontrada na coleção metadados.');
-        return;
+      if (!this.roletasAtivas || this.roletasAtivas.length === 0) {
+        await this.carregarMetadados();
       }
       
-      // 2. Para cada roleta, buscar seus últimos números
+      // Para cada roleta, buscar seus últimos números
       const allRouletteData = [];
       
-      for (const roletaMetadata of roletasMetadados) {
+      for (const roletaMetadata of this.roletasAtivas) {
         const roleta_id = roletaMetadata.roleta_id;
         const roleta_nome = roletaMetadata.roleta_nome;
         
@@ -357,9 +551,9 @@ class RouletteDataService {
         }
       }
 
-      // 3. Enviar o array completo em um único evento SSE
+      // Enviar o array completo em um único evento SSE
       if (allRouletteData.length > 0) {
-        console.log(`[RouletteData] Enviando dados de ${allRouletteData.length} roletas em um único evento.`);
+        console.log(`[RouletteData] Enviando dados iniciais de ${allRouletteData.length} roletas em um único evento.`);
         
         rouletteStreamService.broadcastUpdate({
           type: 'all_roulettes_update',
@@ -368,10 +562,10 @@ class RouletteDataService {
       }
       
       const endTime = Date.now();
-      console.log(`[RouletteData] Ciclo de busca concluído em ${endTime - startTime}ms`);
+      console.log(`[RouletteData] Carga inicial concluída em ${endTime - startTime}ms`);
       
     } catch (error) {
-      console.error('[RouletteData] Erro ao buscar/processar dados:', error);
+      console.error('[RouletteData] Erro ao buscar/processar dados iniciais:', error);
     }
   }
 
@@ -418,9 +612,11 @@ class RouletteDataService {
   getStats() {
     return {
       isRunning: this.isRunning,
-      lastFetchTime: this.lastFetchTime,
+      lastEventTime: this.lastEventTime,
       fetchCounter: this.fetchCounter,
-      clientCount: rouletteStreamService.getClientCount()
+      clientCount: rouletteStreamService.getClientCount(),
+      collectionsMonitored: Array.from(this.colecoesMonitoradas),
+      activeStreams: activeChangeStreams.length
     };
   }
 }
