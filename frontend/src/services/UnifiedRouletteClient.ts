@@ -838,6 +838,78 @@ class UnifiedRouletteClient {
   }
   
   /**
+   * Adiciona um callback para eventos (alias para subscribe)
+   */
+  public on(event: string, callback: (data: any) => void): Unsubscribe {
+    this.subscribe(event, callback);
+    
+    // Retornar função de limpeza
+    return () => {
+      this.unsubscribe(event, callback);
+    };
+  }
+  
+  /**
+   * Remove um callback de eventos (alias para unsubscribe)
+   */
+  public off(event: string, callback: (data: any) => void): void {
+    this.unsubscribe(event, callback);
+  }
+  
+  /**
+   * Remove um callback de eventos
+   */
+  public unsubscribe(event: string, callback: (data: any) => void): void {
+    if (typeof callback !== 'function') {
+      this.error('❌ Tentativa de remover callback inválido');
+      return;
+    }
+    
+    try {
+      if (this.eventCallbacks.has(event)) {
+        const callbacks = this.eventCallbacks.get(event)!;
+        const initialSize = callbacks.size;
+        
+        // Problema: O callback passado pode não ser a mesma referência que foi usada no subscribe
+        // Solução: Procurar pelo callback inspecionando o código fonte das funções
+        let removed = false;
+        
+        // Primeiro tentar remover diretamente (caso seja a mesma referência)
+        callbacks.delete(callback);
+        
+        // Se não conseguir remover diretamente, comparar o código fonte das funções
+        if (callbacks.size === initialSize) {
+          // Obter a string do callback original
+          const originalCallbackString = callback.toString();
+          
+          // Criar uma nova coleção para não modificar a original durante a iteração
+          const callbacksArray = Array.from(callbacks);
+          
+          for (const registeredCallback of callbacksArray) {
+            // Verificar se é uma função anônima com o mesmo corpo
+            if (registeredCallback.toString() === originalCallbackString) {
+              callbacks.delete(registeredCallback);
+              removed = true;
+              this.log(`➖ Callback removido do evento ${event} por comparação de string`);
+              break;
+            }
+          }
+        } else {
+          removed = true;
+        }
+        
+        if (removed || callbacks.size < initialSize) {
+          this.log(`➖ Callback removido do evento: ${event}`);
+        } else {
+          this.warn('⚠️ Callback não encontrado para remoção');
+        }
+      }
+    } catch (error) {
+      this.error('❌ Erro ao remover callback:', error);
+    }
+  }
+  
+  /**
    * Adiciona um callback para eventos
    */
   public subscribe(event: string, callback: (data: any) => void): void {
@@ -880,31 +952,6 @@ class UnifiedRouletteClient {
       this.log(`➕ Novo callback registrado para evento: ${event}`);
     } catch (error) {
       this.error('❌ Erro ao registrar callback:', error);
-    }
-  }
-  
-  /**
-   * Remove um callback de eventos
-   */
-  public unsubscribe(event: string, callback: (data: any) => void): void {
-    if (typeof callback !== 'function') {
-      this.error('❌ Tentativa de remover callback inválido');
-      return;
-    }
-    
-    try {
-      if (this.eventCallbacks.has(event)) {
-        const initialSize = this.eventCallbacks.get(event)!.size;
-    this.eventCallbacks.get(event)!.delete(callback);
-        
-        if (this.eventCallbacks.get(event)!.size < initialSize) {
-          this.log(`➖ Callback removido do evento: ${event}`);
-        } else {
-          this.warn('⚠️ Callback não encontrado para remoção');
-        }
-      }
-    } catch (error) {
-      this.error('❌ Erro ao remover callback:', error);
     }
   }
   
