@@ -187,7 +187,7 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
     provider: currentProvider,
     status: currentStatus,
     ultimoNumero: ultimoNumero,
-    numeros: numerosComTimestamp.slice(0, 10),
+    numeros: numerosComTimestamp,
     winRate: winRate,
     streak: streak,
     lastUpdateTime: finalUpdateTime,
@@ -495,8 +495,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
 
         <CardContent className="p-4 relative z-10">
           {/* Números recentes */}
-          <div className="flex justify-center items-center space-x-1 min-h-[40px]">
-            {lastNumbersToDisplay.slice(0, 5).map((num, index) => (
+          <div className="flex justify-center items-center space-x-1 min-h-[40px] overflow-x-auto">
+            {lastNumbersToDisplay.map((num, index) => (
               <NumberDisplay 
                 key={`${componentId}-num-${index}-${num}`} 
                 number={num} 
