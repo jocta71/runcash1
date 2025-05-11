@@ -273,302 +273,291 @@ const ProfileSubscription = () => {
     return Math.min(Math.max(Math.floor((daysElapsed / totalDays) * 100), 0), 100);
   };
   
-  // Tela de carregamento
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 bg-vegas-black/30 rounded-lg border border-gray-700 p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-vegas-gold mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Carregando dados da assinatura...</h2>
-        <p className="text-center text-gray-400 mb-6 max-w-md">
-          Estamos buscando as informações mais recentes da sua assinatura. Isso pode levar alguns instantes.
-        </p>
-      </div>
-    );
-  }
-  
-  // Tela de erro
-  if (error) {
-    return (
-      <Card className="border-gray-700 bg-vegas-black/30">
-        <CardHeader>
-          <CardTitle>Erro ao carregar assinatura</CardTitle>
-          <CardDescription>
-            Não foi possível obter os dados da sua assinatura
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center py-8">
-          <AlertTriangle className="h-16 w-16 text-red-500 mb-4" />
-          <p className="text-center text-gray-400 mb-6">
-            {error}
-          </p>
-        </CardContent>
-        <CardFooter>
-          <Button 
-            className="w-full"
-            onClick={() => refreshSubscriptionData(true)}
-            disabled={isRefreshing}
-          >
-            {isRefreshing ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Atualizando...</>
-            ) : (
-              <><RefreshCw className="mr-2 h-4 w-4" /> Tentar novamente</>
-            )}
-          </Button>
-        </CardFooter>
-      </Card>
-    );
-  }
-  
-  // Tela para usuário sem assinatura
-  if (!currentSubscription) {
-    return (
-      <Card className="border-gray-700 bg-vegas-black/30">
-        <CardHeader>
-          <CardTitle>Nenhuma assinatura ativa</CardTitle>
-          <CardDescription>
-            Você não possui nenhuma assinatura ativa no momento
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center py-8">
-          <CreditCard className="h-16 w-16 text-gray-500 mb-4" />
-          <p className="text-center text-gray-400 mb-6">
-            Assine um de nossos planos para ter acesso a recursos premium da plataforma.
-          </p>
-        </CardContent>
-        <CardFooter>
-          <Button 
-            className="w-full bg-vegas-gold hover:bg-vegas-gold/80 text-black"
-            onClick={() => navigate('/planos')}
-          >
-            Ver planos disponíveis
-          </Button>
-        </CardFooter>
-      </Card>
-    );
-  }
-  
-  // Tela principal de assinatura
+  // Renderizar conteúdo da assinatura
   return (
-    <div className="space-y-6">
-      <Card className="border-gray-700 bg-vegas-black/30">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Sua Assinatura</CardTitle>
+    <div className="w-full space-y-6">
+      {loading ? (
+        <div className="flex flex-col items-center justify-center h-64 bg-vegas-black/30 rounded-lg border border-gray-700 p-8">
+          <Loader2 className="h-8 w-8 animate-spin text-vegas-gold mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Carregando dados da assinatura...</h2>
+          <p className="text-center text-gray-400 mb-6 max-w-md">
+            Estamos buscando as informações mais recentes da sua assinatura. Isso pode levar alguns instantes.
+          </p>
+        </div>
+      ) : error ? (
+        <Card className="border-gray-700 bg-vegas-black/30">
+          <CardHeader>
+            <CardTitle>Erro ao carregar assinatura</CardTitle>
             <CardDescription>
-              Detalhes da sua assinatura atual
+              Não foi possível obter os dados da sua assinatura
             </CardDescription>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => refreshSubscriptionData(true)}
-            disabled={isRefreshing}
-            className="h-8 w-8"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </Button>
-        </CardHeader>
-        
-        <CardContent className="space-y-6">
-          {/* Cabeçalho com plano e status */}
-          <div className="flex flex-col md:flex-row md:justify-between gap-4 items-start md:items-center">
-            <div className="flex items-center space-x-3">
-              <div className="rounded-full bg-vegas-gold/10 p-3">
-                <CreditCard className="h-6 w-6 text-vegas-gold" />
-              </div>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center py-8">
+            <AlertTriangle className="h-16 w-16 text-red-500 mb-4" />
+            <p className="text-center text-gray-400 mb-6">
+              {error}
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              className="w-full"
+              onClick={() => refreshSubscriptionData(true)}
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Atualizando...</>
+              ) : (
+                <><RefreshCw className="mr-2 h-4 w-4" /> Tentar novamente</>
+              )}
+            </Button>
+          </CardFooter>
+        </Card>
+      ) : !currentSubscription ? (
+        <Card className="border-gray-700 bg-vegas-black/30">
+          <CardHeader>
+            <CardTitle>Nenhuma assinatura ativa</CardTitle>
+            <CardDescription>
+              Você não possui nenhuma assinatura ativa no momento
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center py-8">
+            <CreditCard className="h-16 w-16 text-gray-500 mb-4" />
+            <p className="text-center text-gray-400 mb-6">
+              Assine um de nossos planos para ter acesso a recursos premium da plataforma.
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              className="w-full bg-vegas-gold hover:bg-vegas-gold/80 text-black"
+              onClick={() => navigate('/planos')}
+            >
+              Ver planos disponíveis
+            </Button>
+          </CardFooter>
+        </Card>
+      ) : (
+        <>
+          <Card className="border-gray-700 bg-vegas-black/30">
+            <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <h3 className="text-xl font-bold">{currentPlan?.name || 'Plano Desconhecido'}</h3>
-                <p className="text-sm text-gray-400">{formatCurrency(currentPlan?.price || 0)}/mês</p>
+                <CardTitle>Sua Assinatura</CardTitle>
+                <CardDescription>
+                  Detalhes da sua assinatura atual
+                </CardDescription>
               </div>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              {getStatusIcon(getEffectiveStatus().status)}
-              <div>
-                <div className="font-semibold">Status</div>
-                <div>{getEffectiveStatus().badge}</div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Alerta de pagamento pendente */}
-          {getEffectiveStatus().status === 'pending' && (
-            <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-start">
-              <AlertTriangle className="h-5 w-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-yellow-500">
-                  Aguardando confirmação de pagamento
-                </p>
-                <p className="text-sm text-yellow-500/80 mt-1">
-                  {getEffectiveStatus().message || "Sua assinatura será ativada assim que o pagamento for confirmado. Isso pode levar alguns minutos."}
-                </p>
-                {payments?.[0]?.invoiceUrl && (
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="mt-2 border-yellow-500/30 hover:bg-yellow-500/20 text-yellow-500"
-                    onClick={() => window.open(payments[0].invoiceUrl, '_blank')}
-                  >
-                    <ArrowRight className="h-4 w-4 mr-1" />
-                    {payments[0].billingType?.toUpperCase() === 'PIX' ? 'Realizar Pagamento' : 'Ver fatura'}
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-          
-          <Separator className="bg-gray-800" />
-          
-          {/* Progresso do ciclo */}
-          <div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-gray-400">Progresso do ciclo atual</span>
-              <span className="text-sm font-medium">{calculateCycleProgress()}%</span>
-            </div>
-            <Progress value={calculateCycleProgress()} className="h-2" />
-          </div>
-          
-          {/* Detalhes da assinatura */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h3 className="font-medium text-gray-400 mb-1">Data de início</h3>
-              <p className="flex items-center">
-                <CalendarIcon className="h-4 w-4 mr-2 text-vegas-gold" />
-                {formatDate(currentSubscription.startDate)}
-              </p>
-            </div>
-            
-            {currentSubscription.nextBillingDate && (
-              <div>
-                <h3 className="font-medium text-gray-400 mb-1">Próxima cobrança</h3>
-                <p className="flex items-center">
-                  <CalendarIcon className="h-4 w-4 mr-2 text-vegas-gold" />
-                  {formatDate(currentSubscription.nextBillingDate)}
-                </p>
-              </div>
-            )}
-            
-            {currentSubscription.paymentMethod && (
-              <div>
-                <h3 className="font-medium text-gray-400 mb-1">Forma de pagamento</h3>
-                <p className="flex items-center">
-                  <CreditCard className="h-4 w-4 mr-2 text-vegas-gold" />
-                  {getPaymentMethodLabel(currentSubscription.paymentMethod)}
-                </p>
-              </div>
-            )}
-          </div>
-          
-          {/* Recursos do plano */}
-          <div>
-            <h3 className="font-medium text-gray-400 mb-2">Recursos incluídos</h3>
-            <ul className="space-y-2">
-              {currentPlan?.features.map((feature, index) => (
-                <li key={index} className="flex items-start">
-                  <CheckCircle2 className="h-4 w-4 mr-2 text-green-500 mt-0.5" />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </CardContent>
-        
-        <CardFooter className="flex flex-col sm:flex-row gap-2">
-          <Button 
-            variant="outline" 
-            className="w-full sm:w-auto"
-            onClick={() => navigate('/planos')}
-          >
-            Gerenciar plano
-          </Button>
-          
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button 
-                variant="destructive" 
-                className="w-full sm:w-auto"
-                disabled={isCanceling || currentSubscription.status?.toLowerCase() === 'canceled'}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => refreshSubscriptionData(true)}
+                disabled={isRefreshing}
+                className="h-8 w-8"
               >
-                {isCanceling ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cancelando...</>
-                ) : (
-                  "Cancelar assinatura"
-                )}
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Cancelar assinatura?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Ao cancelar sua assinatura, você ainda terá acesso aos recursos premium até o final do período pago.
-                  Após esse período, seu acesso será limitado às funcionalidades gratuitas.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Voltar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleCancelSubscription}>
-                  Confirmar cancelamento
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </CardFooter>
-      </Card>
-      
-      {/* Histórico de pagamentos */}
-      <Card className="border-gray-700 bg-vegas-black/30">
-        <CardHeader>
-          <CardTitle>Histórico de Pagamentos</CardTitle>
-          <CardDescription>
-            Seus pagamentos recentes
-          </CardDescription>
-        </CardHeader>
-        
-        <CardContent>
-          {loadingPayments ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-vegas-gold" />
-            </div>
-          ) : payments.length > 0 ? (
-            <div className="space-y-4">
-              {payments.map((payment) => (
-                <div key={payment.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-900/30 rounded-lg">
-                  <div className="space-y-1 mb-2 sm:mb-0">
-                    <div className="flex items-center space-x-2">
-                      <h4 className="font-medium">{formatCurrency(payment.value)}</h4>
-                      {getPaymentStatusBadge(payment.status)}
-                    </div>
-                    <p className="text-sm text-gray-400">
-                      Vencimento: {formatDate(payment.dueDate)}
-                      {payment.paymentDate && ` • Pago em: ${formatDate(payment.paymentDate)}`}
+            </CardHeader>
+            
+            <CardContent className="space-y-6">
+              {/* Cabeçalho com plano e status */}
+              <div className="flex flex-col md:flex-row md:justify-between gap-4 items-start md:items-center">
+                <div className="flex items-center space-x-3">
+                  <div className="rounded-full bg-vegas-gold/10 p-3">
+                    <CreditCard className="h-6 w-6 text-vegas-gold" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold">{currentPlan?.name || 'Plano Desconhecido'}</h3>
+                    <p className="text-sm text-gray-400">{formatCurrency(currentPlan?.price || 0)}/mês</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  {getStatusIcon(getEffectiveStatus().status)}
+                  <div>
+                    <div className="font-semibold">Status</div>
+                    <div>{getEffectiveStatus().badge}</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Alerta de pagamento pendente */}
+              {getEffectiveStatus().status === 'pending' && (
+                <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-start">
+                  <AlertTriangle className="h-5 w-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-yellow-500">
+                      Aguardando confirmação de pagamento
                     </p>
-                    <p className="text-sm text-gray-400">
-                      Método: {getPaymentMethodLabel(payment.billingType)}
+                    <p className="text-sm text-yellow-500/80 mt-1">
+                      {getEffectiveStatus().message || "Sua assinatura será ativada assim que o pagamento for confirmado. Isso pode levar alguns minutos."}
+                    </p>
+                    {payments?.[0]?.invoiceUrl && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="mt-2 border-yellow-500/30 hover:bg-yellow-500/20 text-yellow-500"
+                        onClick={() => window.open(payments[0].invoiceUrl, '_blank')}
+                      >
+                        <ArrowRight className="h-4 w-4 mr-1" />
+                        {payments[0].billingType?.toUpperCase() === 'PIX' ? 'Realizar Pagamento' : 'Ver fatura'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              <Separator className="bg-gray-800" />
+              
+              {/* Progresso do ciclo */}
+              <div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm text-gray-400">Progresso do ciclo atual</span>
+                  <span className="text-sm font-medium">{calculateCycleProgress()}%</span>
+                </div>
+                <Progress value={calculateCycleProgress()} className="h-2" />
+              </div>
+              
+              {/* Detalhes da assinatura */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <h3 className="font-medium text-gray-400 mb-1">Data de início</h3>
+                  <p className="flex items-center">
+                    <CalendarIcon className="h-4 w-4 mr-2 text-vegas-gold" />
+                    {formatDate(currentSubscription.startDate)}
+                  </p>
+                </div>
+                
+                {currentSubscription.nextBillingDate && (
+                  <div>
+                    <h3 className="font-medium text-gray-400 mb-1">Próxima cobrança</h3>
+                    <p className="flex items-center">
+                      <CalendarIcon className="h-4 w-4 mr-2 text-vegas-gold" />
+                      {formatDate(currentSubscription.nextBillingDate)}
                     </p>
                   </div>
-                  
-                  {payment.invoiceUrl && (
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="mt-2 sm:mt-0"
-                      onClick={() => window.open(payment.invoiceUrl, '_blank')}
-                    >
-                      <ArrowRight className="h-4 w-4 mr-1" />
-                      {payment.billingType?.toUpperCase() === 'PIX' ? 'Ver QR Code' : 'Ver fatura'}
-                    </Button>
-                  )}
+                )}
+                
+                {currentSubscription.paymentMethod && (
+                  <div>
+                    <h3 className="font-medium text-gray-400 mb-1">Forma de pagamento</h3>
+                    <p className="flex items-center">
+                      <CreditCard className="h-4 w-4 mr-2 text-vegas-gold" />
+                      {getPaymentMethodLabel(currentSubscription.paymentMethod)}
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Recursos do plano */}
+              <div>
+                <h3 className="font-medium text-gray-400 mb-2">Recursos incluídos</h3>
+                <ul className="space-y-2">
+                  {currentPlan?.features.map((feature, index) => (
+                    <li key={index} className="flex items-start">
+                      <CheckCircle2 className="h-4 w-4 mr-2 text-green-500 mt-0.5" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </CardContent>
+            
+            <CardFooter className="flex flex-col sm:flex-row gap-2">
+              <Button 
+                variant="outline" 
+                className="w-full sm:w-auto"
+                onClick={() => navigate('/planos')}
+              >
+                Gerenciar plano
+              </Button>
+              
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="destructive" 
+                    className="w-full sm:w-auto"
+                    disabled={isCanceling || currentSubscription.status?.toLowerCase() === 'canceled'}
+                  >
+                    {isCanceling ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cancelando...</>
+                    ) : (
+                      "Cancelar assinatura"
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancelar assinatura?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Ao cancelar sua assinatura, você ainda terá acesso aos recursos premium até o final do período pago.
+                      Após esse período, seu acesso será limitado às funcionalidades gratuitas.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Voltar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleCancelSubscription}>
+                      Confirmar cancelamento
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardFooter>
+          </Card>
+          
+          {/* Histórico de pagamentos */}
+          <Card className="border-gray-700 bg-vegas-black/30">
+            <CardHeader>
+              <CardTitle>Histórico de Pagamentos</CardTitle>
+              <CardDescription>
+                Seus pagamentos recentes
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent>
+              {loadingPayments ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-vegas-gold" />
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-400">
-              <Clock className="h-12 w-12 mx-auto mb-3 text-gray-500" />
-              <p>Nenhum pagamento encontrado</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              ) : payments.length > 0 ? (
+                <div className="space-y-4">
+                  {payments.map((payment) => (
+                    <div key={payment.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-900/30 rounded-lg">
+                      <div className="space-y-1 mb-2 sm:mb-0">
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-medium">{formatCurrency(payment.value)}</h4>
+                          {getPaymentStatusBadge(payment.status)}
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          Vencimento: {formatDate(payment.dueDate)}
+                          {payment.paymentDate && ` • Pago em: ${formatDate(payment.paymentDate)}`}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          Método: {getPaymentMethodLabel(payment.billingType)}
+                        </p>
+                      </div>
+                      
+                      {payment.invoiceUrl && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="mt-2 sm:mt-0"
+                          onClick={() => window.open(payment.invoiceUrl, '_blank')}
+                        >
+                          <ArrowRight className="h-4 w-4 mr-1" />
+                          {payment.billingType?.toUpperCase() === 'PIX' ? 'Ver QR Code' : 'Ver fatura'}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <Clock className="h-12 w-12 mx-auto mb-3 text-gray-500" />
+                  <p>Nenhum pagamento encontrado</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 };

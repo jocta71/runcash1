@@ -18,8 +18,8 @@ const BillingPage = () => {
 
   return (
     <Layout>
-      <div className="container max-w-4xl py-8 space-y-8">
-        <div className="max-w-4xl mx-auto bg-[#1A191F] rounded-xl p-6 text-white shadow-lg">
+      <div className="py-8 space-y-8">
+        <div className="bg-[#1A191F] rounded-xl p-6 text-white shadow-lg">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-white">Faturamento</h1>
             <Button 
