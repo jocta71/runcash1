@@ -265,7 +265,7 @@ const RoulettesDashboard = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 pb-20">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Roletas Disponíveis</h1>
         <div className="flex items-center gap-2">
@@ -292,10 +292,10 @@ const RoulettesDashboard = () => {
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Lista de roletas à esquerda */}
-          <div className="lg:w-1/2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="lg:flex">
+          {/* Lista de roletas à esquerda - 50% em desktop */}
+          <div className="lg:w-1/2 lg:pr-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-2">
               {roulettes.map((roulette: any) => {
                 const rouletteId = roulette.id || roulette.roleta_id;
                 const isSelected = selectedRoulette && 
@@ -324,21 +324,23 @@ const RoulettesDashboard = () => {
             </div>
           </div>
           
-          {/* Estatísticas da roleta à direita */}
-          <div className="lg:w-1/2 mt-4 lg:mt-0 lg:sticky lg:top-4">
-            {selectedRoulette ? (
-              <RouletteSidePanelStats
-                roletaId={selectedRoulette.id || selectedRoulette.roleta_id || ''}
-                roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
-                lastNumbers={selectedRoulette.numero?.map((n: any) => Number(n.numero)) || []}
-                wins={0}
-                losses={0}
-              />
-            ) : (
-              <div className="h-full flex items-center justify-center border border-dashed border-gray-700 rounded-lg p-8">
-                <p className="text-gray-500">Selecione uma roleta para ver as estatísticas</p>
-              </div>
-            )}
+          {/* Estatísticas da roleta à direita - 50% em desktop, fixo em scroll */}
+          <div className="lg:w-1/2 mt-4 lg:mt-0 lg:sticky lg:top-2 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
+            <div className="h-full">
+              {selectedRoulette ? (
+                <RouletteSidePanelStats
+                  roletaId={selectedRoulette.id || selectedRoulette.roleta_id || ''}
+                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
+                  lastNumbers={selectedRoulette.numero?.map((n: any) => Number(n.numero)) || []}
+                  wins={0}
+                  losses={0}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center border border-dashed border-gray-700 rounded-lg p-8">
+                  <p className="text-gray-500">Selecione uma roleta para ver as estatísticas</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

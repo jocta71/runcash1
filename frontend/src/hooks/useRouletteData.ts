@@ -9,7 +9,7 @@ import {
   mapToCanonicalRouletteId,
   ROLETAS_CANONICAS,
   fetchRouletteNumbersById,
-  fetchRoulettesWithRealNumbers
+  fetchAllRoulettesWithNumbers
 } from '@/integrations/api/rouletteService';
 import SocketService from '@/services/SocketService';
 import axios from 'axios';
@@ -38,6 +38,9 @@ const api = axios.create({
   timeout: 10000,
 });
 
+// Números vermelhos na roleta europeia (padronizado com o backend)
+const NUMEROS_VERMELHOS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+
 // Função auxiliar para debug
 const debugLog = (...args: any[]) => {
   if (DEBUG) {
@@ -51,7 +54,7 @@ interface RouletteNumber {
   roleta_id?: string;
   roleta_nome?: string;
   timestamp?: string;
-  cor?: string; // Nova propriedade para a cor do número
+  cor?: string; // Cor do número
 }
 
 type RouletteStrategy = ApiRouletteStrategy;
@@ -64,9 +67,6 @@ const rouletteDataCache: Map<string, RouletteNumber[]> = new Map();
 
 // Mapa para armazenar os dados de estratégia mais recentes de cada roleta
 const rouletteStrategyCache: Map<string, RouletteStrategy> = new Map();
-
-// Flag global para controlar a inicialização única do sistema
-const SYSTEM_INITIALIZED = false;
 
 // Interface para definir a estrutura dos dados da roleta
 export interface RouletteDataSummary {
@@ -87,7 +87,11 @@ export interface RouletteDataSummary {
   lastResults: number[];
 }
 
-// Adicionar validação para garantir propriedades obrigatórias nos números da roleta  
+/**
+ * Valida um array de números de roleta
+ * @param numbers Array a ser validado
+ * @returns boolean indicando se é válido
+ */
 const validateRouletteNumbers = (numbers: any[]): boolean => {
   if (!Array.isArray(numbers) || numbers.length === 0) return false;
   
@@ -115,7 +119,7 @@ const fetchRouletteNumbers = async (roletaId: string, nome?: string, limit: numb
   try {
     // Validar parâmetros
     if (!roletaId) {
-      console.error(`[useRouletteData] ID de roleta inválido ou vazio: "${roletaId}"`);
+      logger.error(`ID de roleta inválido ou vazio: "${roletaId}"`);
       return [];
     }
 
@@ -178,7 +182,33 @@ const fetchRouletteNumbers = async (roletaId: string, nome?: string, limit: numb
 };
 
 /**
+ * Determina a cor de um número da roleta
+ * @param numero Número da roleta
+ * @returns Cor correspondente (vermelho, preto ou verde)
+ */
+export const determinarCorNumero = (numero: number): string => {
+  if (numero === 0) return 'verde';
+  return NUMEROS_VERMELHOS.includes(numero) ? 'vermelho' : 'preto';
+};
+
+/**
+ * Converte um número bruto para o formato RouletteNumber
+ * @param numero Número da roleta
+ * @param timestamp Timestamp opcional
+ * @returns Objeto RouletteNumber formatado
+ */
+export const processRouletteNumber = (numero: number, timestamp?: string): RouletteNumber => {
+  return {
+    numero,
+    cor: determinarCorNumero(numero),
+    timestamp: timestamp || new Date().toISOString()
+  };
+};
+
+/**
  * Processa números brutos em formato RouletteNumber
+ * @param numbers Array de números ou objetos
+ * @returns Array de objetos RouletteNumber formatados
  */
 const processRouletteNumbers = (numbers: number[] | any[]): RouletteNumber[] => {
   if (!Array.isArray(numbers)) return [];
@@ -197,7 +227,7 @@ const processRouletteNumbers = (numbers: number[] | any[]): RouletteNumber[] => 
         numeroValue = !isNaN(parsedValue) ? parsedValue : 0;
       } else {
         numeroValue = 0;
-        console.warn(`[useRouletteData] Valor inválido encontrado: ${item.numero}, usando 0 como fallback`);
+        logger.warn(`Valor inválido encontrado: ${item.numero}, usando 0 como fallback`);
       }
       
       return {
@@ -218,16 +248,10 @@ const processRouletteNumbers = (numbers: number[] | any[]): RouletteNumber[] => 
       numeroValue = !isNaN(parsedValue) ? parsedValue : 0;
     } else {
       numeroValue = 0;
-      console.warn(`[useRouletteData] Valor inválido encontrado: ${item}, usando 0 como fallback`);
+      logger.warn(`Valor inválido encontrado: ${item}, usando 0 como fallback`);
     }
     
-    return {
-      numero: numeroValue,
-      roleta_id: undefined,
-      roleta_nome: undefined,
-      cor: determinarCorNumero(numeroValue),
-      timestamp: new Date().toISOString()
-    };
+    return processRouletteNumber(numeroValue);
   });
 };
 
@@ -245,55 +269,36 @@ export interface UseRouletteDataResult {
 }
 
 /**
- * Determina a cor de um número da roleta
- */
-export const determinarCorNumero = (numero: number): string => {
-  if (numero === 0) return 'verde';
-  
-  // Números vermelhos na roleta europeia
-  const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-  return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
-};
-
-/**
- * Converte um número bruto para o formato RouletteNumber
- */
-export const processRouletteNumber = (numero: number, timestamp?: string): RouletteNumber => {
-  return {
-    numero,
-    roleta_id: undefined,
-    roleta_nome: undefined,
-    cor: determinarCorNumero(numero),
-    timestamp: timestamp || new Date().toISOString()
-  };
-};
-
-/**
  * Processa números de uma roleta por ID
  */
 export const fetchRouletteLatestNumbers = async (roletaId: string, limit = 10): Promise<number[]> => {
-  const data = await extractRouletteNumbersById(roletaId, limit);
-  
-  if (data && Array.isArray(data)) {
-    // Extrair apenas os números do array de objetos
-    const numbers = data.map((item: any) => {
-      // Verificar se o item.numero é válido
-      if (typeof item.numero === 'number' && !isNaN(item.numero)) {
-        return item.numero;
-      } else if (typeof item.numero === 'string' && item.numero.trim() !== '') {
-        const parsedValue = parseInt(item.numero, 10);
-        if (!isNaN(parsedValue)) return parsedValue;
-      }
-      // Se chegou aqui, é um valor inválido, retornar 0
-      console.warn(`[API] Valor inválido de número encontrado: ${item.numero}, substituindo por 0`);
-      return 0;
-    });
-    console.log(`[API] Processados ${numbers.length} números para roleta ID ${roletaId}:`, numbers);
-    return numbers;
+  try {
+    const data = await fetchRouletteNumbersById(roletaId, limit);
+    
+    if (data && Array.isArray(data)) {
+      // Extrair apenas os números do array de objetos
+      const numbers = data.map((item: any) => {
+        // Verificar se o item.numero é válido
+        if (typeof item.numero === 'number' && !isNaN(item.numero)) {
+          return item.numero;
+        } else if (typeof item.numero === 'string' && item.numero.trim() !== '') {
+          const parsedValue = parseInt(item.numero, 10);
+          if (!isNaN(parsedValue)) return parsedValue;
+        }
+        // Se chegou aqui, é um valor inválido, retornar 0
+        logger.warn(`Valor inválido de número encontrado: ${item.numero}, substituindo por 0`);
+        return 0;
+      });
+      logger.debug(`Processados ${numbers.length} números para roleta ID ${roletaId}`);
+      return numbers;
+    }
+    
+    logger.warn(`Nenhum número encontrado para roleta ID ${roletaId}`);
+    return [];
+  } catch (error) {
+    logger.error(`Erro ao buscar números para ID ${roletaId}`, error);
+    return [];
   }
-  
-  console.warn(`[API] Nenhum número encontrado para roleta ID ${roletaId}`);
-  return [];
 };
 
 /**
@@ -321,27 +326,13 @@ export function useRouletteData(
   
   // Refs para controle  
   const canonicalId = useMemo(() => mapToCanonicalRouletteId(roletaId), [roletaId]);
-  const pollingRef = useRef<number | null>(null);
-  const isInitialized = useRef<boolean>(false);
   const isMounted = useRef<boolean>(true);
-  const effectRunCount = useRef<number>(0);
   
   // Referência para controle de eventos
-  const eventUnsubscribe = useRef<() => void | null>(null);
+  const eventUnsubscribe = useRef<(() => void) | null>(null);
   
   // Obtém o cliente unificado para roletas
   const unifiedClient = useMemo(() => UnifiedRouletteClient.getInstance(), []);
-  
-  // Função para converter ID da roleta para o formato canônico
-  const getCanonicalIdByName = (name: string) => {
-    // Buscar na lista de roletas canônicas
-    for (const [key, value] of Object.entries(ROLETAS_CANONICAS)) {
-      if (value.toLowerCase() === name.toLowerCase()) {
-        return key;
-      }
-    }
-    return null; // Não encontrou correspondência
-  };
   
   // Função para buscar estratégia da roleta
   const fetchStrategyData = useCallback(async (): Promise<boolean> => {
@@ -360,12 +351,12 @@ export function useRouletteData(
       if (strategyData) {
         setStrategy(strategyData);
         rouletteStrategyCache.set(canonicalId, strategyData);
-          return true;
+        return true;
       }
       
-        return false;
+      return false;
     } catch (e) {
-      console.error(`Erro ao carregar estratégia para ${canonicalId}:`, e);
+      logger.error(`Erro ao carregar estratégia para ${canonicalId}:`, e);
       return false;
     } finally {
       setStrategyLoading(false);
@@ -389,10 +380,10 @@ export function useRouletteData(
         const processedNumbers = processRouletteNumbers(data);
         setNumbers(processedNumbers);
         setHasData(true);
-          return true;
+        return true;
       }
       
-        return false;
+      return false;
     } catch (err: any) {
       logger.error(`❌ Erro ao atualizar roleta ${roletaNome}:`, err.message);
       setError(`Erro ao atualizar dados: ${err.message}`);
@@ -410,29 +401,27 @@ export function useRouletteData(
   // Efeito para inicializar o hook e configurar event listeners
   useEffect(() => {
     isMounted.current = true;
-    effectRunCount.current += 1;
-    const runCount = effectRunCount.current;
     
-    logger.debug(`[${runCount}] Inicializando hook para roleta ${canonicalId} (${roletaNome})`);
+    logger.debug(`Inicializando hook para roleta ${canonicalId} (${roletaNome})`);
     
     // Função para processar novos números da roleta
     const handleNewNumber = (event: RouletteNumberEvent) => {
       // Validar se o evento é para esta roleta
       if (!event || !isMounted.current) return;
       
-      const eventRouletteId = event.roletaId?.toLowerCase();
-      const eventRouteName = event.nome?.toLowerCase();
+      const eventRouletteId = event.roleta_id?.toLowerCase();
+      const eventRouteName = event.roleta_nome?.toLowerCase();
       const currentRouletteId = canonicalId.toLowerCase();
       const currentRouletteName = roletaNome.toLowerCase();
       
-    // Verificar se o evento é para esta roleta
+      // Verificar se o evento é para esta roleta
       const isForThisRoulette = 
         eventRouletteId === currentRouletteId || 
         eventRouteName === currentRouletteName;
       
       if (!isForThisRoulette) return;
       
-      logger.debug(`Recebido novo número ${event.numero} para roleta ${event.nome || event.roletaId}`);
+      logger.debug(`Recebido novo número ${event.numero} para roleta ${event.roleta_nome || event.roleta_id}`);
       
       // Processar o número
       const newNumber = processRouletteNumber(event.numero, event.timestamp);
@@ -448,9 +437,9 @@ export function useRouletteData(
         }
         
         return updatedNumbers;
-    });
+      });
 
-    setHasData(true);
+      setHasData(true);
     };
     
     // Função para processar eventos de estratégia
@@ -470,8 +459,8 @@ export function useRouletteData(
     };
     
     // Conectar aos eventos
-    eventUnsubscribe.current = EventService.subscribe('new-roulette-number', handleNewNumber);
-    EventService.subscribe('strategy-update', handleStrategyEvent);
+    eventUnsubscribe.current = EventService.subscribe?.('new-roulette-number', handleNewNumber);
+    EventService.subscribe?.('strategy-update', handleStrategyEvent);
     
     // Registrar no sistema de eventos global
     EventService.emit('roulette-hook:initialized', {
@@ -487,7 +476,7 @@ export function useRouletteData(
     };
     
     // Subscrever para mudanças de status
-    EventService.subscribe('socket:status-changed', handleConnectionChange);
+    EventService.subscribe?.('socket:status-changed', handleConnectionChange);
     
     // Registrar no UnifiedRouletteClient para receber dados em tempo real
     const unsubscribeFromUnified = unifiedClient.on('update', (data) => {
@@ -557,9 +546,8 @@ export function useRouletteData(
         await fetchStrategyData();
         
         setError(null);
-        isInitialized.current = true;
       } catch (err: any) {
-        console.error(`Erro ao carregar dados da roleta ${roletaNome}:`, err);
+        logger.error(`Erro ao carregar dados da roleta ${roletaNome}:`, err);
         setError(`Falha ao carregar dados: ${err.message}`);
       } finally {
         setLoading(false);
@@ -579,15 +567,9 @@ export function useRouletteData(
         eventUnsubscribe.current();
       }
       
-      EventService.unsubscribe('strategy-update', handleStrategyEvent);
-      EventService.unsubscribe('socket:status-changed', handleConnectionChange);
-      
-      // Cancelar polling se houver
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-      
+      EventService.unsubscribe?.('strategy-update', handleStrategyEvent);
+      EventService.unsubscribe?.('socket:status-changed', handleConnectionChange);
+        
       // Cancelar inscrições no UnifiedRouletteClient
       unsubscribeFromUnified();
       unsubscribeFromStatus();
@@ -616,7 +598,7 @@ export function useRouletteData(
 
 // Hook para obter todas as roletas com números reais
 export function useRoulettesWithRealNumbers() {
-  const [roulettes, setRoulettes] = useState<RouletteData[]>([]);
+  const [roulettes, setRoulettes] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -624,12 +606,12 @@ export function useRoulettesWithRealNumbers() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await fetchRoulettesWithRealNumbers();
+        const data = await fetchAllRoulettesWithNumbers();
         setRoulettes(data);
         setError(null);
       } catch (err: any) {
         setError(err.message || 'Erro ao buscar roletas com números reais');
-        console.error('[useRoulettesWithRealNumbers] Erro:', err);
+        logger.error('Erro:', err);
       } finally {
         setLoading(false);
       }
@@ -643,7 +625,6 @@ export function useRoulettesWithRealNumbers() {
 
 /**
  * Hook para verificar se o sistema de roletas está inicializado
- * agora usando o sistema centralizado no main.tsx
  */
 export function useRouletteSystemStatus(): { isInitialized: boolean; services: any } {
   // Verificar se o sistema global está inicializado
