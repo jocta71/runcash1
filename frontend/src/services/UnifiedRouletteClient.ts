@@ -1560,11 +1560,51 @@ class UnifiedRouletteClient {
           // Popular o cache
           rouletteNames.forEach(name => {
             if (Array.isArray(historicalData[name])) {
-              this.initialHistoricalDataCache.set(name, historicalData[name]);
+              // Verificar e transformar o formato se necessário
+              const processedHistory = historicalData[name].map(item => {
+                // Se for um objeto com a propriedade numero, usar diretamente
+                if (typeof item === 'object' && item !== null && 'numero' in item) {
+                  return {
+                    numero: parseInt(item.numero, 10),
+                    timestamp: item.timestamp || new Date().toISOString()
+                  };
+                } 
+                // Se for apenas um número, criar objeto completo
+                else if (typeof item === 'number') {
+                  return {
+                    numero: item,
+                    timestamp: new Date().toISOString()
+                  };
+                }
+                // Se for string que representa número
+                else if (typeof item === 'string' && !isNaN(parseInt(item, 10))) {
+                  return {
+                    numero: parseInt(item, 10),
+                    timestamp: new Date().toISOString()
+                  };
+                }
+                // Caso contrário, tentar extrair número
+                else {
+                  const num = typeof item === 'object' && item !== null ? 
+                              (item.numero || item.number || 0) : 
+                              (parseInt(String(item), 10) || 0);
+                  
+                  return {
+                    numero: parseInt(String(num), 10),
+                    timestamp: (typeof item === 'object' && item !== null && item.timestamp) || 
+                               new Date().toISOString()
+                  };
+                }
+              }).filter(item => !isNaN(item.numero) && item.numero >= 0 && item.numero <= 36);
+              
+              if (processedHistory.length > 0) {
+                this.initialHistoricalDataCache.set(name, processedHistory);
+                this.log(`Histórico de ${name} processado com ${processedHistory.length} números válidos.`);
+              }
             }
           });
 
-          this.log(`Histórico inicial carregado e cacheado para ${rouletteNames.length} roletas.`);
+          this.log(`Histórico inicial carregado e cacheado para ${this.initialHistoricalDataCache.size} roletas.`);
           
           // Emitir evento (opcional)
           this.emit('initialHistoryLoaded', this.initialHistoricalDataCache);
@@ -1594,19 +1634,45 @@ class UnifiedRouletteClient {
 
   // --- Novo Método Público para Acessar o Cache ---
   public getPreloadedHistory(rouletteName: string): RouletteNumber[] | undefined {
-    return this.initialHistoricalDataCache.get(rouletteName);
+    if (!rouletteName) return undefined;
+    
+    // Tentar encontrar pelo nome exato
+    if (this.initialHistoricalDataCache.has(rouletteName)) {
+      return this.initialHistoricalDataCache.get(rouletteName);
+    }
+    
+    // Se não encontrar pelo nome exato, tentar buscar por correspondência parcial
+    for (const [key, value] of this.initialHistoricalDataCache.entries()) {
+      if (key.toLowerCase().includes(rouletteName.toLowerCase()) || 
+          rouletteName.toLowerCase().includes(key.toLowerCase())) {
+        this.log(`Histórico encontrado por correspondência parcial: '${rouletteName}' -> '${key}'`);
+        return value;
+      }
+    }
+    
+    // Se ainda não encontrou, verificar usando detecção mais inteligente
+    // Exemplo: "Lightning Roleta" pode corresponder a "Lightning Roulette"
+    const simplifiedName = rouletteName.toLowerCase()
+      .replace(/roleta/g, '')
+      .replace(/roulette/g, '')
+      .trim();
+      
+    if (simplifiedName.length > 3) { // Evitar correspondências muito genéricas
+      for (const [key, value] of this.initialHistoricalDataCache.entries()) {
+        const simplifiedKey = key.toLowerCase()
+          .replace(/roleta/g, '')
+          .replace(/roulette/g, '')
+          .trim();
+          
+        if (simplifiedKey.includes(simplifiedName) || simplifiedName.includes(simplifiedKey)) {
+          this.log(`Histórico encontrado por correspondência inteligente: '${rouletteName}' -> '${key}'`);
+          return value;
+        }
+      }
+    }
+    
+    return undefined;
   }
-
-  // --- Garantir que ENDPOINTS.HISTORICAL.ALL_ROULETTES exista ---
-  // (Precisa verificar ou adicionar em frontend/src/services/api/endpoints.ts)
-  // Exemplo de como poderia ser em endpoints.ts:
-  // export const ENDPOINTS = {
-  //   ...
-  //   HISTORICAL: {
-  //     ALL_ROULETTES: '/api/historical/all-roulettes',
-  //   },
-  //   ...
-  // };
 
   /**
    * Verifica e registra o estado atual da conexão e dados

@@ -53,148 +53,109 @@ interface ProcessedRouletteData {
 
 // Função processRouletteData GLOBAL
 const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
-  const rouletteIdForLog = roulette?.id || roulette?.roleta_id || 'ID Desconhecido';
-  const rouletteNameForLog = roulette?.nome || roulette?.name || roulette?.roleta_nome || 'Nome Desconhecido';
-  // Log inicial simplificado para evitar sobrecarga no console com JSON gigante
-  console.log(`[processRouletteData - ${rouletteIdForLog}] Iniciando processamento para '${rouletteNameForLog}'. Keys recebidas:`, roulette ? Object.keys(roulette) : 'null');
-
-  if (!roulette || !(roulette.id || roulette.roleta_id)) {
-    console.warn(`[processRouletteData - ${rouletteIdForLog}] Dados inválidos ou sem ID.`);
-    return null;
-  }
-
-  const currentId = roulette.id || roulette.roleta_id;
-  // Priorizar o nome real da roleta (roleta_nome), apenas construir nome genérico se não existir
-  const currentName = roulette.roleta_nome || roulette.nome || roulette.name || `Roleta ${currentId}`;
-
-  // 1. Identificar a fonte primária dos números
-  let potentialSources = [
-    { key: 'numbers', data: roulette.numbers },
-    { key: 'numero', data: roulette.numero },
-    { key: 'lastNumbers', data: roulette.lastNumbers }, // Adicionado fallback para lastNumbers
-  ];
-
-  let sourceArray: any[] = [];
-  let sourceKey: string = 'none';
-  let itemFormat: 'object_number' | 'object_numero' | 'number' | 'unknown' = 'unknown';
-
-  for (const source of potentialSources) {
-    if (Array.isArray(source.data) && source.data.length > 0) {
-      sourceArray = source.data;
-      sourceKey = source.key;
-      console.log(`[processRouletteData - ${rouletteIdForLog}] Usando '${sourceKey}' como fonte de números.`);
-      
-      // Determinar formato do item dentro do array encontrado
-      const firstItem = sourceArray[0];
-      if (typeof firstItem === 'object' && firstItem !== null) {
-          if (typeof firstItem.number !== 'undefined') {
-              itemFormat = 'object_number'; // formato { number: ..., timestamp: ... }
-          } else if (typeof firstItem.numero !== 'undefined') {
-              itemFormat = 'object_numero'; // formato { numero: ..., timestamp: ... }
-    } else {
-              itemFormat = 'unknown';
-              console.warn(`[processRouletteData - ${rouletteIdForLog}] Array '${sourceKey}' contém objetos, mas sem 'number' ou 'numero'.`);
-          }
-      } else if (typeof firstItem === 'number') {
-          itemFormat = 'number'; // formato [1, 2, 3]
-      } else {
-           itemFormat = 'unknown';
-           console.warn(`[processRouletteData - ${rouletteIdForLog}] Array '${sourceKey}' contém itens de formato não reconhecido:`, typeof firstItem);
-      }
-      break; // Encontrou uma fonte válida, para a busca
-    }
-  }
-
-  if (sourceKey === 'none') {
-    console.log(`[processRouletteData - ${rouletteIdForLog}] Nenhuma fonte de números ('numbers', 'numero', 'lastNumbers') encontrada ou array vazio.`);
-    // Se não achou fonte, retorna null para não sobrescrever dados possivelmente bons
-    console.warn(`[processRouletteData - ${rouletteIdForLog}] Retornando null pois nenhuma fonte de números foi encontrada.`);
-    return null; 
-  }
-  console.log(`[processRouletteData - ${rouletteIdForLog}] Fonte: '${sourceKey}', Formato Item: '${itemFormat}', Total Itens: ${sourceArray.length}`);
-
-  // 2. Mapear o array fonte para o formato { numero: number, timestamp: string }
-  const numerosComTimestamp: RouletteNumber[] = sourceArray.map((item: any) => {
-    let numero: number | null = null;
-    let timestamp: string | null | undefined = null;
-
-    // Extrair número baseado no formato detectado
-    if (itemFormat === 'object_number' && typeof item === 'object') {
-        numero = Number(item.number);
-        timestamp = item.timestamp;
-    } else if (itemFormat === 'object_numero' && typeof item === 'object') {
-        numero = Number(item.numero);
-        timestamp = item.timestamp;
-    } else if (itemFormat === 'number') {
-        numero = Number(item);
-        timestamp = roulette.timestamp; // Tenta usar timestamp global para arrays de números simples
-    }
-
-    // Fallback/Default para timestamp
-    let timeString = "--:--";
-    if (timestamp) {
-        try {
-            const date = new Date(timestamp);
-            if (!isNaN(date.getTime())) {
-                 timeString = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            } else {
-                // Não loga warning para cada timestamp inválido para não poluir muito
-                // console.warn(`[processRouletteData - ${rouletteIdForLog}] Timestamp inválido recebido:`, timestamp);
-            }
-        } catch (e) {
-            // console.error(`[processRouletteData - ${rouletteIdForLog}] Erro ao processar timestamp:`, timestamp, e);
+    console.log('[processRouletteData] Processando dados:', JSON.stringify(roulette).slice(0, 200) + '...');
+    if (!roulette) return null;
+    
+    try {
+        // Resolver campo de ID (pode estar em diferentes propriedades)
+        const id = roulette.id || roulette.roleta_id || roulette._id || ''; 
+        if (!id) {
+            console.warn('[processRouletteData] ID não encontrado:', roulette);
+            return null;
         }
-    } else if ((itemFormat === 'object_number' || itemFormat === 'object_numero') && typeof item === 'object' && item?.timestamp) {
-         // Fallback se timestamp principal falhou mas existe no item
-          try {
-             const date = new Date(item.timestamp);
-             if (!isNaN(date.getTime())) {
-                  timeString = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-             }
-         } catch {} 
+        
+        // Resolver nome da roleta (pode estar em diferentes propriedades)
+        const nome = roulette.nome || roulette.roleta_nome || roulette.name || `Roleta ${id}`;
+        
+        // Identificar campo de números com melhor esforço
+        let numerosArray: RouletteNumber[] = [];
+        
+        // Caso 1: Números no formato de objeto [{numero: 1, timestamp: '123'}, ...]
+        if (Array.isArray(roulette.numeros)) {
+            console.log('[processRouletteData] Formato identificado: roulette.numeros (array)');
+            numerosArray = roulette.numeros.map((num: any) => {
+                if (typeof num === 'object') {
+                    return {
+                        numero: parseInt(num.numero || num.number || 0, 10),
+                        timestamp: num.timestamp || new Date().toISOString()
+                    };
+                } else {
+                    return {
+                        numero: parseInt(num, 10),
+                        timestamp: new Date().toISOString()
+                    };
+                }
+            });
+        } 
+        // Caso 2: Números disponíveis diretamente em .numero como array
+        else if (Array.isArray(roulette.numero)) {
+            console.log('[processRouletteData] Formato identificado: roulette.numero (array)');
+            numerosArray = roulette.numero.map((num: any) => {
+                if (typeof num === 'object') {
+                    return {
+                        numero: parseInt(num.numero || num.number || 0, 10),
+                        timestamp: num.timestamp || new Date().toISOString()
+                    };
+                } else {
+                    return {
+                        numero: parseInt(num, 10),
+                        timestamp: new Date().toISOString()
+                    };
+                }
+            });
+        }
+        // Caso 3: API histórica no formato { rouletteName: [{numero: 1, timestamp: '123'}, ...] }
+        else if (roulette.isHistorical && Array.isArray(roulette.history)) {
+            console.log('[processRouletteData] Formato identificado: roulette.history (histórico)');
+            numerosArray = roulette.history.map((num: any) => {
+                if (typeof num === 'object') {
+                    return {
+                        numero: parseInt(num.numero || num.number || 0, 10),
+                        timestamp: num.timestamp || new Date().toISOString()
+                    };
+                } else {
+                    return {
+                        numero: parseInt(num, 10),
+                        timestamp: new Date().toISOString()
+                    };
+                }
+            });
+        }
+        
+        // Se ainda não tivermos números, verifique o último número como fallback
+        if (numerosArray.length === 0 && roulette.ultimoNumero !== undefined) {
+            console.log('[processRouletteData] Usando ultimoNumero como fallback');
+            numerosArray = [{
+                numero: parseInt(roulette.ultimoNumero, 10),
+                timestamp: roulette.timestamp || new Date().toISOString()
+            }];
+        }
+        
+        // Filtra números inválidos (NaN, null, etc)
+        numerosArray = numerosArray.filter(num => !isNaN(num.numero) && num.numero !== null);
+        
+        // Se ainda não tiver números após todos os esforços, retorne null
+        if (numerosArray.length === 0) {
+            console.warn('[processRouletteData] Nenhum número válido encontrado após processamento.');
+            return null;
+        }
+        
+        return {
+            id,
+            nome,
+            provider: roulette.provider || 'Desconhecido',
+            status: roulette.status || roulette.estado || 'offline',
+            ultimoNumero: numerosArray.length > 0 ? numerosArray[0].numero : null,
+            numeros: numerosArray,
+            winRate: roulette.winRate || 0,
+            streak: roulette.streak || 0,
+            lastUpdateTime: roulette.timestamp || Date.now(),
+            isHistorical: roulette.isHistorical || false
+        };
+    } catch (error) {
+        console.error('[processRouletteData] Erro ao processar dados da roleta:', error);
+        return null;
     }
-
-    const finalNumero = (numero === null || isNaN(numero)) ? -1 : numero;
-
-    return {
-      numero: finalNumero,
-      timestamp: timeString
-    };
-  })
-  // Filtrar números inválidos (incluindo os que não foram extraídos corretamente)
-  .filter(n => n.numero !== -1 && n.numero >= 0 && n.numero <= 36);
-  
-  // Ordenação removida por enquanto, confiando na ordem da API
-
-  console.log(`[processRouletteData - ${rouletteIdForLog}] Números processados válidos (primeiros 10):`, numerosComTimestamp.slice(0, 10));
-
-  // Adicionar verificação extra: Se após processar, não sobrar nenhum número válido
-  // e a fonte original foi encontrada, ainda assim pode ser útil retornar os outros dados.
-  // A decisão de retornar null deve ser apenas se a FONTE não foi encontrada.
-
-  // 3. Obter outros dados (sem alterações aqui)
-  const ultimoNumero = numerosComTimestamp.length > 0 ? numerosComTimestamp[0].numero : null;
-  const winRate = roulette.winRate !== undefined ? roulette.winRate : Math.random() * 100; // Usar valor real se existir
-  const streak = roulette.streak !== undefined ? roulette.streak : Math.floor(Math.random() * 5); // Usar valor real se existir
-  const finalUpdateTime = roulette.lastUpdateTime || roulette.timestamp ? new Date(roulette.lastUpdateTime || roulette.timestamp).getTime() : Date.now();
-  const currentProvider = roulette.provider || 'Desconhecido';
-  const currentStatus = roulette.status || (numerosComTimestamp.length > 0 ? 'online' : 'offline'); // Inferir status se não vier
-  const isHistorical = roulette.isHistorical || false; // Flag para indicar se são dados históricos
-
-  const result: ProcessedRouletteData = {
-    id: currentId,
-    nome: currentName,
-    provider: currentProvider,
-    status: currentStatus,
-    ultimoNumero: ultimoNumero,
-    numeros: numerosComTimestamp,
-    winRate: winRate,
-    streak: streak,
-    lastUpdateTime: finalUpdateTime,
-    isHistorical: isHistorical
-  };
-  console.log(`[processRouletteData - ${rouletteIdForLog}] Objeto final retornado...`);
-  return result;
 };
 
 const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetailView = false, onSelect, isSelected }) => {
@@ -312,16 +273,16 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
             roleta_id: safeData.id,
             nome: safeData.name,
             roleta_nome: safeData.name,
-            provider: "Desconhecido",
+            provider: "Histórico",
             status: "offline",
-            numeros: historicalData.slice(0, 10), // Primeiros 10 números do histórico
-            ultimoNumero: historicalData[0]?.numero,
+            history: historicalData, // Use history em vez de numeros para compatibilidade com o processador
             timestamp: Date.now(),
             isHistorical: true // Marcar que são dados históricos
           };
           
           console.log(`[${componentId}] Objeto sintético criado a partir do histórico:`, syntheticRoulette);
           handleUpdate(syntheticRoulette);
+          setIsLoading(false); // Importante: adicionar isto para garantir que o loading termine
         } else {
           console.log(`[${componentId}] Nenhum histórico encontrado para ${safeData.name}. Aguardando evento 'update'...`);
           // Mantém isLoading true apenas se não houver dados iniciais
