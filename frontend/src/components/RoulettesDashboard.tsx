@@ -4,17 +4,17 @@ import UnifiedRouletteClient from '../services/UnifiedRouletteClient';
 import { Button } from './ui/button';
 import { AlertCircle, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import RouletteSidePanelStats from './RouletteSidePanelStats';
 
-interface RoulettesDashboardProps {
-  onRouletteSelect?: (roulette: any) => void;
-}
-
-const RoulettesDashboard: React.FC<RoulettesDashboardProps> = ({ onRouletteSelect }) => {
+const RoulettesDashboard = () => {
   const [roulettes, setRoulettes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
   const [reconnecting, setReconnecting] = useState(false);
+  // Novos estados para controlar o painel lateral
+  const [selectedRoulette, setSelectedRoulette] = useState<any | null>(null);
+  const [showSidePanel, setShowSidePanel] = useState(false);
 
   // Instância de UnifiedRouletteClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
@@ -95,6 +95,16 @@ const RoulettesDashboard: React.FC<RoulettesDashboardProps> = ({ onRouletteSelec
       }
       
       updateConnectionStatus();
+      
+      // Se temos uma roleta selecionada, atualizar os dados dela
+      if (selectedRoulette) {
+        const updatedSelectedRoulette = roulettes.find(
+          r => r.id === selectedRoulette.id || r._id === selectedRoulette._id
+        );
+        if (updatedSelectedRoulette) {
+          setSelectedRoulette(updatedSelectedRoulette);
+        }
+      }
     };
 
     // Registrar para atualizações
@@ -125,7 +135,7 @@ const RoulettesDashboard: React.FC<RoulettesDashboardProps> = ({ onRouletteSelec
       unifiedClient.unsubscribe('update', handleRouletteUpdate);
       clearInterval(statusInterval);
     };
-  }, []);
+  }, [selectedRoulette]);
 
   // Função para forçar reconexão de todos os serviços
   const handleReconnect = async () => {
@@ -154,13 +164,16 @@ const RoulettesDashboard: React.FC<RoulettesDashboardProps> = ({ onRouletteSelec
       setReconnecting(false);
     }
   };
-
-  // Handler de seleção de roleta
+  
+  // Função para selecionar uma roleta e mostrar o painel
   const handleRouletteSelect = (roulette: any) => {
-    console.log('Roleta selecionada:', roulette);
-    if (onRouletteSelect) {
-      onRouletteSelect(roulette);
-    }
+    setSelectedRoulette(roulette);
+    setShowSidePanel(true);
+  };
+  
+  // Função para fechar o painel
+  const handleCloseSidePanel = () => {
+    setShowSidePanel(false);
   };
 
   // Render loading state
@@ -225,43 +238,63 @@ const RoulettesDashboard: React.FC<RoulettesDashboardProps> = ({ onRouletteSelec
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Roletas Disponíveis</h1>
-        <div className="flex items-center gap-2">
-          <StatusIndicator status={connectionStatus} />
-          <Button 
-            onClick={handleReconnect} 
-            variant="outline" 
-            size="sm"
-            disabled={reconnecting}
-            className="flex gap-1 items-center"
-          >
-            <RefreshCw className={cn("h-4 w-4", { "animate-spin": reconnecting })} />
-            {reconnecting ? 'Reconectando...' : 'Reconectar'}
-          </Button>
+    <div className="flex">
+      <div className={cn("flex-1 p-4", showSidePanel ? "md:w-2/3" : "w-full")}>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Roletas Disponíveis</h1>
+          <div className="flex items-center gap-2">
+            <StatusIndicator status={connectionStatus} />
+            <Button 
+              onClick={handleReconnect} 
+              variant="outline" 
+              size="sm"
+              disabled={reconnecting}
+              className="flex gap-1 items-center"
+            >
+              <RefreshCw className={cn("h-4 w-4", { "animate-spin": reconnecting })} />
+              {reconnecting ? 'Reconectando...' : 'Reconectar'}
+            </Button>
+          </div>
         </div>
+        
+        {roulettes.length === 0 ? (
+          <div className="text-center py-10">
+            <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-4" />
+            <p className="text-gray-600">Nenhuma roleta disponível no momento</p>
+            <Button onClick={handleReconnect} variant="outline" className="mt-4">
+              Tentar Novamente
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {roulettes.map((roulette: any) => (
+              <div 
+                key={roulette.id || roulette._id || roulette.roleta_id}
+                onClick={() => handleRouletteSelect(roulette)}
+                className="cursor-pointer transition-all hover:opacity-90"
+              >
+                <RouletteCard 
+                  data={roulette} 
+                  isSelected={selectedRoulette?.id === roulette.id || selectedRoulette?._id === roulette._id}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       
-      {roulettes.length === 0 ? (
-        <div className="text-center py-10">
-          <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-4" />
-          <p className="text-gray-600">Nenhuma roleta disponível no momento</p>
-          <Button onClick={handleReconnect} variant="outline" className="mt-4">
-            Tentar Novamente
-          </Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {roulettes.map((roulette: any) => (
-            <div key={roulette.id || roulette._id || roulette.roleta_id} 
-                 onClick={() => handleRouletteSelect(roulette)}
-                 className="cursor-pointer transition-transform hover:scale-105">
-              <RouletteCard 
-                data={roulette} 
-              />
-            </div>
-          ))}
+      {showSidePanel && selectedRoulette && (
+        <div className="hidden md:block md:w-1/3 h-screen sticky top-0">
+          <RouletteSidePanelStats
+            roletaId={selectedRoulette.id || selectedRoulette._id || ''}
+            roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
+            lastNumbers={(selectedRoulette.numero || selectedRoulette.numbers || []).map((n: any) => 
+              typeof n === 'object' ? n.numero || n.number : n
+            )}
+            wins={selectedRoulette.wins || 0}
+            losses={selectedRoulette.losses || 0}
+            providers={selectedRoulette.providers || []}
+          />
         </div>
       )}
     </div>
