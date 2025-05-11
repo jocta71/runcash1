@@ -103,6 +103,10 @@ class UnifiedRouletteClient {
   private webSocketReconnectAttempts = 0;
   private readonly maxWebSocketReconnectAttempts = 5;
   
+  // Procure por qualquer constante ou variável que define o tamanho do array 'numeros'
+  // Por exemplo:
+  private readonly MAX_HISTORY_SIZE = 20; // Aumentado para 20 números
+  
   /**
    * Construtor privado para garantir singleton
    */
