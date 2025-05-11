@@ -576,8 +576,16 @@ class UnifiedRouletteClient {
    * Manipula eventos de atualização recebidos pelo stream SSE
    */
   private handleUpdateEvent(data: SSEEvent): void {
+    // Check if this 'update' event is actually an 'all_roulettes_update' in disguise
+    if (data && data.type === 'all_roulettes_update' && Array.isArray(data.data)) {
+      logger.info('Evento \'update\' recebido com payload de \'all_roulettes_update\', redirecionando para handleAllRoulettesUpdate.');
+      this.handleAllRoulettesUpdate(data); // Pass the whole data object as handleAllRoulettesUpdate expects it
+      return;
+    }
+
+    // Original logic for single roulette update
     if (!data || !data.roleta_id) {
-      logger.warn('Evento SSE de atualização inválido:', data);
+      logger.warn('Evento SSE de atualização inválido (esperado roleta_id):', data);
       return;
     }
     
