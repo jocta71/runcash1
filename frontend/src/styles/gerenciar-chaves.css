@@ -29,7 +29,7 @@
   color: #555;
   text-decoration: none;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 16px;
   transition: all 0.2s ease;
 }
 
@@ -71,7 +71,7 @@
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .error-state button:hover {
@@ -193,7 +193,7 @@
   padding: 5px 10px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 16px;
   margin-left: 10px;
 }
 
@@ -202,7 +202,7 @@
 }
 
 .expiration-info {
-  font-size: 14px;
+  font-size: 16px;
   color: #ff4d4f;
   margin: 10px 0;
 }
@@ -218,7 +218,7 @@
   border-radius: 4px;
   border: none;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   transition: all 0.2s ease;
 }
 
@@ -251,7 +251,7 @@
   padding: 10px;
   background-color: #fffbe6;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 16px;
   color: #d4b106;
 }
 
