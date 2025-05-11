@@ -120,10 +120,10 @@ const ProfilePage = () => {
 
   return (
     <Layout>
-      <div className="container py-6">
+      <div className="container max-w-5xl mx-auto py-6">
         <div className="flex flex-col md:flex-row gap-6">
           {/* Sidebar */}
-          <div className="w-full md:w-64 shrink-0">
+          <div className="md:w-64 shrink-0">
             <div className="border border-border rounded-lg bg-vegas-black p-4">
               <h2 className="text-lg font-bold mb-4">Conta</h2>
               <nav className="space-y-1">
