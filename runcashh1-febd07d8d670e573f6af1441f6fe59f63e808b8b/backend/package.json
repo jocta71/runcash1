@@ -1,0 +1,33 @@
+{
+  "name": "runcash-backend",
+  "version": "1.0.0",
+  "description": "Backend unificado do RunCash - API e WebSocket",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "start:websocket": "node websocket_server.js",
+    "dev:websocket": "nodemon websocket_server.js",
+    "test": "node test_insert_number.js"
+  },
+  "dependencies": {
+    "@hapi/iron": "^7.0.1",
+    "axios": "^1.8.3",
+    "compression": "^1.8.0",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "express-async-handler": "^1.2.0",
+    "iron-session": "^8.0.4",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.16.0",
+    "mongoose": "^8.13.3",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

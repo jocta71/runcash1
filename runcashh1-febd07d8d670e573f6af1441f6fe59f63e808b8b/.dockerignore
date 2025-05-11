@@ -1,0 +1,37 @@
+# Node modules
+node_modules
+*/node_modules
+*/*/node_modules
+
+# Python virtual environment
+venv
+*/venv
+*/__pycache__
+*/*/__pycache__
+
+# Logs
+*.log
+*/*.log
+
+# Build files
+dist
+*/dist
+build
+*/build
+
+# Env files (serão criados no deploy)
+.env.local
+.env.development
+.env.test
+
+# Git/IDE files
+.git
+.github
+.vscode
+.idea
+
+# Arquivos temporários
+*.tmp
+*/*.tmp
+tmp/
+*/tmp/ 

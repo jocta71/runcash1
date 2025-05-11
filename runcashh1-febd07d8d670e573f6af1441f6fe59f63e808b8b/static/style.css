@@ -1,0 +1,210 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+header {
+    background-color: #001a33;
+    color: white;
+    padding: 1rem;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+h1 {
+    margin: 0;
+    font-size: 1.8rem;
+}
+
+#contadores {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    gap: 15px;
+}
+
+.contador-container {
+    display: flex;
+    align-items: center;
+    margin: 0 5px;
+}
+
+.contador-label {
+    margin-right: 5px;
+    font-weight: normal;
+}
+
+.contador-destaque {
+    font-weight: bold;
+    color: #f8cd05;
+    font-size: 1.2rem;
+}
+
+#ultima-atualizacao {
+    font-size: 0.85rem;
+    margin-top: 10px;
+    color: #ccc;
+}
+
+.filtros {
+    display: flex;
+    justify-content: center;
+    padding: 1rem;
+    gap: 10px;
+    background-color: #002952;
+}
+
+.filtros input, .filtros select {
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    min-width: 200px;
+}
+
+.section {
+    margin: 1rem;
+}
+
+.section h2 {
+    color: #001a33;
+    border-bottom: 2px solid #001a33;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.section h2::after {
+    content: attr(data-count);
+    font-size: 1rem;
+    color: #666;
+    font-weight: normal;
+}
+
+.mesas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.mesa-card {
+    background-color: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.mesa-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.mesa-img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-bottom: 1px solid #eee;
+}
+
+.mesa-info {
+    padding: 1rem;
+}
+
+.mesa-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.mesa-nome {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin: 0;
+    color: #001a33;
+}
+
+.mesa-aposta {
+    font-size: 0.85rem;
+    padding: 0.2rem 0.5rem;
+    background-color: #eef5ff;
+    border-radius: 4px;
+    color: #0066cc;
+}
+
+.mesa-id {
+    font-size: 0.8rem;
+    color: #888;
+    margin: 0.3rem 0;
+    word-break: break-all;
+}
+
+.mesa-numeros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 0.8rem;
+}
+
+.numero {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: white;
+}
+
+.numero-vermelho {
+    background-color: #e60000;
+}
+
+.numero-preto {
+    background-color: #000;
+}
+
+.numero-verde {
+    background-color: #009900;
+}
+
+.mesa-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: #888;
+}
+
+.mesa-jogadores {
+    display: flex;
+    align-items: center;
+}
+
+.mesa-jogadores::before {
+    content: "Jogadores: ";
+    margin-right: 5px;
+}
+
+.mesa-timestamp {
+    display: flex;
+    align-items: center;
+}
+
+.mesa-timestamp::before {
+    content: "Atualizado: ";
+    margin-right: 5px;
+}
+
+.secao-vazia {
+    display: none;
+}

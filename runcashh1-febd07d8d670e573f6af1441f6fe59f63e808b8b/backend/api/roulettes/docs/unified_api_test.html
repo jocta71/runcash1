@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste da API Unificada de Roletas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #1a73e8;
+        }
+        .toolbar {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        input[type="text"], select {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        select {
+            min-width: 200px;
+        }
+        button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0d47a1;
+        }
+        .warning {
+            background-color: #FFF3CD;
+            border: 1px solid #FFECB5;
+            color: #856404;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        #messages {
+            margin-bottom: 20px;
+        }
+        .tab-container {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .tab-buttons {
+            background-color: #f8f9fa;
+            display: flex;
+            overflow-x: auto;
+        }
+        .tab-button {
+            padding: 12px 24px;
+            background-color: transparent;
+            border: none;
+            color: #333;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-button.active {
+            border-bottom-color: #1a73e8;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow: auto;
+            max-height: 500px;
+        }
+        code {
+            font-family: monospace;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: white;
+        }
+        .card-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #1a73e8;
+        }
+        .card-content {
+            color: #555;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table th, table td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        table th {
+            background-color: #f8f9fa;
+        }
+        table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .endpoint-params {
+            margin-top: 10px;
+        }
+        .param-inputs {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+            flex-wrap: wrap;
+        }
+        .label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top-color: #1a73e8;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Teste da API Unificada de Roletas</h1>
+        
+        <div class="toolbar">
+            <label for="apiUrl" class="label">URL Base:</label>
+            <input type="text" id="apiUrl" placeholder="http://localhost:3005" value="http://localhost:3005">
+            
+            <label for="endpoint" class="label">Endpoint:</label>
+            <select id="endpoint">
+                <option value="/api/roulettes/all">Todas as Roletas</option>
+                <option value="/api/roulettes/compact">Formato Compacto</option>
+                <option value="/api/roulettes/consolidated">Formato Consolidado</option>
+                <option value="/api/roulettes/events">Formato de Eventos</option>
+                <option value="/api/roulettes/events/all-in-one">Evento Único (All-in-One)</option>
+            </select>
+            
+            <div id="paramsContainer" class="endpoint-params" style="display: none;">
+                <div class="param-inputs" id="allInOneParams">
+                    <input type="text" id="maxRoletas" placeholder="max_roletas (opcional)">
+                    <input type="text" id="maxNumeros" placeholder="max_numeros (opcional)">
+                </div>
+            </div>
+            
+            <button id="loadBtn">Carregar Dados</button>
+            <button id="generateKeyBtn">Gerar Nova Chave</button>
+        </div>
+        
+        <div id="clientKeyContainer" class="card">
+            <div class="card-title">Chave de Cliente</div>
+            <div class="card-content">
+                <input type="text" id="clientKey" placeholder="Chave de cliente para descriptografia" style="width: 100%;">
+                <small>A chave será aplicada automaticamente em todas as requisições para obter dados descriptografados.</small>
+            </div>
+        </div>
+        
+        <div id="messages"></div>
+        
+        <div class="tab-container">
+            <div class="tab-buttons">
+                <button class="tab-button active" data-tab="raw">Dados Brutos</button>
+                <button class="tab-button" data-tab="decrypted">Dados Descriptografados</button>
+                <button class="tab-button" data-tab="table">Tabela</button>
+            </div>
+            
+            <div class="tab-content active" id="raw-tab">
+                <pre id="rawOutput">Nenhum dado carregado ainda. Clique em "Carregar Dados".</pre>
+            </div>
+            
+            <div class="tab-content" id="decrypted-tab">
+                <pre id="decryptedOutput">Nenhum dado descriptografado ainda.</pre>
+            </div>
+            
+            <div class="tab-content" id="table-tab">
+                <div id="tableOutput">Nenhum dado para exibir na tabela ainda.</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Elementos DOM
+        const apiUrlInput = document.getElementById('apiUrl');
+        const endpointSelect = document.getElementById('endpoint');
+        const loadBtn = document.getElementById('loadBtn');
+        const generateKeyBtn = document.getElementById('generateKeyBtn');
+        const clientKeyInput = document.getElementById('clientKey');
+        const messagesContainer = document.getElementById('messages');
+        const rawOutput = document.getElementById('rawOutput');
+        const decryptedOutput = document.getElementById('decryptedOutput');
+        const tableOutput = document.getElementById('tableOutput');
+        const paramsContainer = document.getElementById('paramsContainer');
+        const maxRoletasInput = document.getElementById('maxRoletas');
+        const maxNumerosInput = document.getElementById('maxNumeros');
+        
+        // Gerenciar abas
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                // Remover classe ativa de todos os botões e conteúdos
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                // Adicionar classe ativa ao botão clicado e ao conteúdo correspondente
+                button.classList.add('active');
+                document.getElementById(`${button.dataset.tab}-tab`).classList.add('active');
+            });
+        });
+        
+        // Mostrar parâmetros com base no endpoint selecionado
+        endpointSelect.addEventListener('change', () => {
+            const endpoint = endpointSelect.value;
+            if (endpoint === '/api/roulettes/events/all-in-one') {
+                paramsContainer.style.display = 'block';
+            } else {
+                paramsContainer.style.display = 'none';
+            }
+        });
+        
+        // Função para mostrar mensagens
+        function showMessage(type, text) {
+            const messageElement = document.createElement('div');
+            messageElement.className = type;
+            messageElement.textContent = text;
+            messagesContainer.appendChild(messageElement);
+            
+            // Remover a mensagem após 5 segundos
+            setTimeout(() => {
+                messageElement.remove();
+            }, 5000);
+        }
+        
+        // Função para simular descriptografia de tokens Fe26.2
+        function decryptToken(token) {
+            try {
+                // Verifica se o token tem o formato correto
+                if (!token.startsWith('Fe26.2*')) {
+                    throw new Error('Formato de token inválido');
+                }
+                
+                // Divide o token em suas partes
+                const parts = token.split('*');
+                if (parts.length < 5) {
+                    throw new Error('Token malformado');
+                }
+                
+                // A parte 4 contém os dados codificados em base64
+                const base64Data = parts[4];
+                
+                // Decodifica os dados de base64 para texto
+                const jsonString = atob(base64Data);
+                
+                // Converte o texto JSON para objeto
+                return JSON.parse(jsonString);
+            } catch (error) {
+                console.error('Erro ao descriptografar token:', error);
+                return null;
+            }
+        }
+        
+        // Função para descriptografar dados de uma roleta
+        function decryptRoulette(roleta) {
+            // Cria uma cópia do objeto
+            const decryptedRoulette = { ...roleta };
+            
+            // Se houver um array de números, descriptografa cada um
+            if (Array.isArray(decryptedRoulette.numero)) {
+                decryptedRoulette.numero = decryptedRoulette.numero.map(num => {
+                    if (typeof num === 'string' && num.startsWith('Fe26.2*')) {
+                        return decryptToken(num);
+                    }
+                    return num;
+                });
+            }
+            
+            // Se houver um último número como token, descriptografa-o
+            if (decryptedRoulette.ultimo_numero && typeof decryptedRoulette.ultimo_numero === 'string' && 
+                decryptedRoulette.ultimo_numero.startsWith('Fe26.2*')) {
+                decryptedRoulette.ultimo_numero = decryptToken(decryptedRoulette.ultimo_numero);
+            }
+            
+            return decryptedRoulette;
+        }
+        
+        // Função para renderizar dados de roletas em uma tabela
+        function renderTable(data) {
+            if (!data) {
+                tableOutput.innerHTML = '<p>Nenhum dado disponível para tabela.</p>';
+                return;
+            }
+            
+            let html = '';
+            
+            // Verificar o tipo de dados
+            if (Array.isArray(data)) {
+                // Array de roletas
+                html = '<table>';
+                html += '<tr><th>ID</th><th>Nome</th><th>Ativa</th><th>Último Número</th><th>Números</th><th>Atualizado</th></tr>';
+                
+                data.forEach(roleta => {
+                    let ultimoNumero = '';
+                    if (roleta.ultimo_numero) {
+                        ultimoNumero = `${roleta.ultimo_numero.numero} (${roleta.ultimo_numero.cor})`;
+                    } else if (roleta.numero && roleta.numero.length > 0) {
+                        ultimoNumero = `${roleta.numero[0].numero} (${roleta.numero[0].cor})`;
+                    }
+                    
+                    html += `
+                    <tr>
+                        <td>${roleta.id}</td>
+                        <td>${roleta.nome}</td>
+                        <td>${roleta.ativa ? 'Sim' : 'Não'}</td>
+                        <td>${ultimoNumero}</td>
+                        <td>${roleta.numero ? roleta.numero.length : (roleta.total_numeros || 0)}</td>
+                        <td>${new Date(roleta.updated_at).toLocaleString()}</td>
+                    </tr>`;
+                });
+                
+                html += '</table>';
+            } else if (data.roletas && Array.isArray(data.roletas)) {
+                // Formato consolidado
+                html = '<h3>Roletas</h3>';
+                html += '<table>';
+                html += '<tr><th>ID</th><th>Nome</th><th>Ativa</th></tr>';
+                
+                data.roletas.forEach(roleta => {
+                    html += `
+                    <tr>
+                        <td>${roleta.id}</td>
+                        <td>${roleta.nome}</td>
+                        <td>${roleta.ativa ? 'Sim' : 'Não'}</td>
+                    </tr>`;
+                });
+                
+                html += '</table>';
+                
+                // Tabela de números
+                if (data.numeros && Array.isArray(data.numeros)) {
+                    html += '<h3>Últimos Números</h3>';
+                    html += '<table>';
+                    html += '<tr><th>Número</th><th>Cor</th><th>Roleta</th><th>Timestamp</th></tr>';
+                    
+                    data.numeros.forEach(numero => {
+                        html += `
+                        <tr>
+                            <td>${numero.numero}</td>
+                            <td>${numero.cor}</td>
+                            <td>${numero.roleta_nome}</td>
+                            <td>${new Date(numero.timestamp).toLocaleString()}</td>
+                        </tr>`;
+                    });
+                    
+                    html += '</table>';
+                }
+            } else if (data.timestamp && data.roletas && Array.isArray(data.roletas)) {
+                // Formato all-in-one
+                html = `<h3>Dados completos (${data.total_roletas} roletas)</h3>`;
+                
+                if (data.limites_aplicados) {
+                    html += `<p>Limites aplicados: `;
+                    if (data.limites_aplicados.max_roletas) {
+                        html += `Máximo de ${data.limites_aplicados.max_roletas} roletas, `;
+                    }
+                    if (data.limites_aplicados.max_numeros) {
+                        html += `Máximo de ${data.limites_aplicados.max_numeros} números por roleta`;
+                    }
+                    html += `</p>`;
+                }
+                
+                html += '<table>';
+                html += '<tr><th>ID</th><th>Nome</th><th>Números</th><th>Total Real</th><th>Atualizado</th></tr>';
+                
+                data.roletas.forEach(roleta => {
+                    html += `
+                    <tr>
+                        <td>${roleta.id}</td>
+                        <td>${roleta.nome}</td>
+                        <td>${roleta.numeros ? roleta.numeros.length : 0}</td>
+                        <td>${roleta.total_numeros || 0}</td>
+                        <td>${new Date(roleta.updated_at).toLocaleString()}</td>
+                    </tr>`;
+                });
+                
+                html += '</table>';
+                
+                // Para cada roleta, mostrar seus números
+                data.roletas.forEach(roleta => {
+                    if (roleta.numeros && roleta.numeros.length > 0) {
+                        html += `<h4>Números de ${roleta.nome}</h4>`;
+                        html += '<table>';
+                        html += '<tr><th>Número</th><th>Cor</th><th>Timestamp</th></tr>';
+                        
+                        roleta.numeros.slice(0, 5).forEach(numero => {
+                            html += `
+                            <tr>
+                                <td>${numero.numero}</td>
+                                <td>${numero.cor}</td>
+                                <td>${new Date(numero.timestamp).toLocaleString()}</td>
+                            </tr>`;
+                        });
+                        
+                        if (roleta.numeros.length > 5) {
+                            html += `<tr><td colspan="3">... mais ${roleta.numeros.length - 5} números</td></tr>`;
+                        }
+                        
+                        html += '</table>';
+                    }
+                });
+            }
+            
+            tableOutput.innerHTML = html;
+        }
+        
+        // Função para extrair eventos SSE de uma resposta de texto
+        function parseSSEResponse(text) {
+            const events = [];
+            const lines = text.split('\n');
+            let currentEvent = {};
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                if (line === '') {
+                    if (Object.keys(currentEvent).length > 0) {
+                        events.push(currentEvent);
+                        currentEvent = {};
+                    }
+                    continue;
+                }
+                
+                const [field, ...valueArr] = line.split(':');
+                const value = valueArr.join(':').trim();
+                
+                switch (field) {
+                    case 'event':
+                        currentEvent.event = value;
+                        break;
+                    case 'id':
+                        currentEvent.id = value;
+                        break;
+                    case 'data':
+                        currentEvent.data = value;
+                        break;
+                }
+            }
+            
+            // Se houver um evento parcial restante
+            if (Object.keys(currentEvent).length > 0) {
+                events.push(currentEvent);
+            }
+            
+            return events;
+        }
+        
+        // Função para processar dados de eventos
+        function processEventData(eventsText) {
+            const events = parseSSEResponse(eventsText);
+            
+            if (events.length === 0) {
+                return null;
+            }
+            
+            // Para eventos all-in-one, retornar apenas o primeiro evento
+            if (endpointSelect.value === '/api/roulettes/events/all-in-one' && events.length > 0) {
+                const data = events[0].data;
+                if (data.startsWith('Fe26.2*')) {
+                    return decryptToken(data);
+                } else {
+                    try {
+                        return JSON.parse(data);
+                    } catch (e) {
+                        return data;
+                    }
+                }
+            }
+            
+            // Para eventos múltiplos, processar cada um
+            return events.map(event => {
+                const data = event.data;
+                if (data.startsWith('Fe26.2*')) {
+                    return {
+                        event: event.event,
+                        id: event.id,
+                        data: decryptToken(data)
+                    };
+                } else {
+                    try {
+                        return {
+                            event: event.event,
+                            id: event.id,
+                            data: JSON.parse(data)
+                        };
+                    } catch (e) {
+                        return {
+                            event: event.event,
+                            id: event.id,
+                            data
+                        };
+                    }
+                }
+            });
+        }
+        
+        // Função para carregar dados da API
+        async function loadData() {
+            // Reset outputs
+            rawOutput.textContent = 'Carregando...';
+            decryptedOutput.textContent = 'Aguardando dados...';
+            tableOutput.innerHTML = '<div class="spinner"></div> Carregando dados...';
+            
+            try {
+                const baseUrl = apiUrlInput.value.trim();
+                let endpoint = endpointSelect.value;
+                
+                // Adicionar parâmetros para o endpoint all-in-one
+                if (endpoint === '/api/roulettes/events/all-in-one') {
+                    const params = [];
+                    
+                    if (maxRoletasInput.value) {
+                        params.push(`max_roletas=${maxRoletasInput.value.trim()}`);
+                    }
+                    
+                    if (maxNumerosInput.value) {
+                        params.push(`max_numeros=${maxNumerosInput.value.trim()}`);
+                    }
+                    
+                    if (params.length > 0) {
+                        endpoint += `?${params.join('&')}`;
+                    }
+                }
+                
+                // Adicionar chave de cliente se disponível
+                const clientKey = clientKeyInput.value.trim();
+                if (clientKey) {
+                    const separator = endpoint.includes('?') ? '&' : '?';
+                    endpoint += `${separator}k=${clientKey}`;
+                }
+                
+                const url = `${baseUrl}${endpoint}`;
+                
+                // Mostrar a URL que está sendo chamada
+                showMessage('warning', `Chamando: ${url}`);
+                
+                // Fazer a requisição
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
+                }
+                
+                // Obter o tipo de conteúdo
+                const contentType = response.headers.get('content-type');
+                
+                let rawData;
+                let processedData;
+                
+                // Processar resposta com base no content-type
+                if (contentType && contentType.includes('application/json')) {
+                    // Resposta JSON
+                    rawData = await response.json();
+                    rawOutput.textContent = JSON.stringify(rawData, null, 2);
+                    
+                    // Processar dados (descriptografar se necessário)
+                    if (Array.isArray(rawData)) {
+                        // Array de roletas
+                        processedData = rawData.map(decryptRoulette);
+                    } else {
+                        // Objeto (consolidado ou outro formato)
+                        processedData = { ...rawData };
+                        
+                        // Se houver array de números, descriptografar cada um
+                        if (processedData.numeros && Array.isArray(processedData.numeros)) {
+                            processedData.numeros = processedData.numeros.map(num => {
+                                if (typeof num === 'string' && num.startsWith('Fe26.2*')) {
+                                    return decryptToken(num);
+                                }
+                                return num;
+                            });
+                        }
+                    }
+                } else {
+                    // Resposta de texto (provavelmente eventos SSE)
+                    const text = await response.text();
+                    rawData = text;
+                    rawOutput.textContent = text;
+                    
+                    // Processar eventos SSE
+                    processedData = processEventData(text);
+                }
+                
+                // Atualizar saída de dados descriptografados
+                decryptedOutput.textContent = JSON.stringify(processedData, null, 2);
+                
+                // Renderizar tabela
+                renderTable(processedData);
+                
+                // Mostrar mensagem de sucesso
+                showMessage('success', 'Dados carregados com sucesso!');
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+                showMessage('error', `Erro: ${error.message}`);
+                
+                rawOutput.textContent = `Erro: ${error.message}`;
+                decryptedOutput.textContent = 'Nenhum dado disponível.';
+                tableOutput.innerHTML = `<p class="error">Erro ao carregar dados: ${error.message}</p>`;
+            }
+        }
+        
+        // Função para gerar nova chave de cliente
+        async function generateClientKey() {
+            try {
+                const baseUrl = apiUrlInput.value.trim();
+                const url = `${baseUrl}/api/roulettes/keys/generate`;
+                
+                // Mostrar mensagem de carregamento
+                showMessage('warning', 'Gerando nova chave de cliente...');
+                
+                // Fazer a requisição
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                // Atualizar campo de chave
+                clientKeyInput.value = data.key;
+                
+                // Mostrar mensagem de sucesso
+                showMessage('success', `Nova chave gerada com sucesso! Expira em: ${new Date(data.expiresAt).toLocaleString()}`);
+            } catch (error) {
+                console.error('Erro ao gerar chave:', error);
+                showMessage('error', `Erro ao gerar chave: ${error.message}`);
+            }
+        }
+        
+        // Event listeners
+        loadBtn.addEventListener('click', loadData);
+        generateKeyBtn.addEventListener('click', generateClientKey);
+        
+        // Quando mudar o endpoint, atualizar os parâmetros visíveis
+        endpointSelect.dispatchEvent(new Event('change'));
+    </script>
+</body>
+</html> 

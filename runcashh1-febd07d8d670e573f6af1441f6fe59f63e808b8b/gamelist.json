@@ -1,0 +1,1715 @@
+{
+    "gameList": [
+        {
+            "gameId": "roulette_TABLE-pphrgptjgstmjhmg@evolution",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Unibet Lightning Roulette",
+                "uniqueGameId": "roulette_TABLE-pphrgptjgstmjhmg@evolution",
+                "tableId": "pphrgptjgstmjhmg",
+                "gameType": "roulette",
+                "gameSubType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "dealerId": "tts155883_______",
+                    "name": "Mariya"
+                },
+                "betLimit": {
+                    "symbol": "€",
+                    "min": 0.2,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "operationHours": {
+                    "type": "FullTime"
+                },
+                "tableImage": "https://bshots.egcvi.com/thumbnail/lightubk1_imr_med_XL.jpg",
+                "open": true,
+                "privateTable": false,
+                "players": 18,
+                "seatsTaken": [],
+                "descriptions": {}
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-lirahvjoqxiadoh4@evolution",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Unibet Roulette",
+                "uniqueGameId": "roulette_TABLE-lirahvjoqxiadoh4@evolution",
+                "tableId": "lirahvjoqxiadoh4",
+                "gameType": "roulette",
+                "gameSubType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "dealerId": "tts175079_______",
+                    "name": "David"
+                },
+                "betLimit": {
+                    "symbol": "€",
+                    "min": 0.2,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "operationHours": {
+                    "type": "FullTime"
+                },
+                "tableImage": "https://bshots.egcvi.com/thumbnail/ubm3_imr_med_XL.jpg",
+                "open": true,
+                "privateTable": false,
+                "players": 5,
+                "seatsTaken": [],
+                "descriptions": {}
+            }
+        },
+        {
+            "gameId": "226a7@pragmatic",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Unibet Speed Auto Roulette",
+                "uniqueGameId": "226a7@pragmatic",
+                "tableId": "226a7",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Auto"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/autorwra311autor/ppcdk00000004643/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 97,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "210a57@pragmatic",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Unibet Auto Mega Roulette",
+                "uniqueGameId": "210a57@pragmatic",
+                "tableId": "210a57",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Auto"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 5000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/1hl323e1lxuqdrkr/ppcdk00000004643/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 195,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-LightningTable01@evolution",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Lightning Roulette",
+                "uniqueGameId": "roulette_TABLE-LightningTable01@evolution",
+                "tableId": "LightningTable01",
+                "gameType": "roulette",
+                "gameSubType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "dealerId": "tts138882_______",
+                    "name": "Vincents"
+                },
+                "betLimit": {
+                    "symbol": "€",
+                    "min": 0.2,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "operationHours": {
+                    "type": "FullTime"
+                },
+                "tableImage": "https://bshots.egcvi.com/thumbnail/lightr1_imr_med_XL.jpg",
+                "open": true,
+                "privateTable": false,
+                "players": 2868,
+                "seatsTaken": [],
+                "descriptions": {}
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-vctlz20yfnmp1ylr@evolution",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Roulette",
+                "uniqueGameId": "roulette_TABLE-vctlz20yfnmp1ylr@evolution",
+                "tableId": "vctlz20yfnmp1ylr",
+                "gameType": "roulette",
+                "gameSubType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "dealerId": "tts131960_______",
+                    "name": "Karina"
+                },
+                "betLimit": {
+                    "symbol": "€",
+                    "min": 0.5,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "operationHours": {
+                    "type": "FullTime"
+                },
+                "tableImage": "https://bshots.egcvi.com/thumbnail/green_imr_med_XL.jpg",
+                "open": true,
+                "privateTable": false,
+                "players": 568,
+                "seatsTaken": [],
+                "descriptions": {}
+            }
+        },
+        {
+            "gameId": "227@pragmatic",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Roulette 1",
+                "uniqueGameId": "227@pragmatic",
+                "tableId": "227",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Ame"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/g03y1t9vvuhrfytl/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 504,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-XxxtremeLigh0001@evolution",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "XXXtreme Lightning Roulette",
+                "uniqueGameId": "roulette_TABLE-XxxtremeLigh0001@evolution",
+                "tableId": "XxxtremeLigh0001",
+                "gameType": "roulette",
+                "gameSubType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "dealerId": "tts175652_______",
+                    "name": "Wendy"
+                },
+                "betLimit": {
+                    "symbol": "€",
+                    "min": 0.2,
+                    "max": 20000,
+                    "currencyCode": "EUR"
+                },
+                "operationHours": {
+                    "type": "FullTime"
+                },
+                "tableImage": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_XL.jpg",
+                "open": true,
+                "privateTable": false,
+                "players": 2090,
+                "seatsTaken": [],
+                "descriptions": {}
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-InstantRo0000001@evolution",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Instant Roulette",
+                "uniqueGameId": "roulette_TABLE-InstantRo0000001@evolution",
+                "tableId": "InstantRo0000001",
+                "gameType": "roulette",
+                "gameSubType": "instantroulette",
+                "language": "en",
+                "dealer": {
+                    "dealerId": "s2xi6rfg7mxqaaad",
+                    "name": "Auto"
+                },
+                "betLimit": {
+                    "symbol": "€",
+                    "min": 0.10,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "operationHours": {
+                    "type": "FullTime"
+                },
+                "tableImage": "https://bshots.egcvi.com/thumbnail/s_inrok0_med_XL.jpg",
+                "open": true,
+                "privateTable": false,
+                "players": 213,
+                "seatsTaken": [],
+                "descriptions": {}
+            }
+        },
+        {
+            "gameId": "reddoorroulette_TABLE-RedDoorRoulette1@evolution",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Red Door Roulette",
+                "uniqueGameId": "reddoorroulette_TABLE-RedDoorRoulette1@evolution",
+                "tableId": "RedDoorRoulette1",
+                "gameType": "reddoorroulette",
+                "gameSubType": "reddoorroulette",
+                "language": "en",
+                "dealer": {
+                    "dealerId": "tts123879_______",
+                    "name": "Ramons"
+                },
+                "betLimit": {
+                    "symbol": "€",
+                    "min": 0.2,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "operationHours": {
+                    "type": "FullTime"
+                },
+                "tableImage": "https://bshots.egcvi.com/thumbnail/rdr_imr_med_XL.jpg",
+                "open": true,
+                "privateTable": false,
+                "players": 2114,
+                "seatsTaken": [],
+                "descriptions": {}
+            }
+        },
+        {
+            "gameId": "240@pragmatic",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Power Up Roulette",
+                "uniqueGameId": "240@pragmatic",
+                "tableId": "240",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Hilary"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 5000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/powruprw1qm3xc25/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 340,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "211a1@pragmatic",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Lucky 6 Roulette",
+                "uniqueGameId": "211a1@pragmatic",
+                "tableId": "211a1",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Clay"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 5000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/lucky6roulettea3/ppcdk00000004643/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 646,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "203@pragmatic",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Speed Roulette 1",
+                "uniqueGameId": "203@pragmatic",
+                "tableId": "203",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Kaian"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 186,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "206@pragmatic",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Roulette Macao",
+                "uniqueGameId": "206@pragmatic",
+                "tableId": "206",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Heidi"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/yqpz3ichst2xg439/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 248,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "230@pragmatic",
+            "gameListSourceLabel": "PUSH",
+            "liveCasino": {
+                "gameName": "Roulette 10",
+                "uniqueGameId": "230@pragmatic",
+                "tableId": "230",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Jalisa"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/chroma229rwltr22/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 463,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "225a7@pragmatic",
+            "gameListSourceLabel": "LIVE",
+            "liveCasino": {
+                "gameName": "Unibet Auto Roulette",
+                "uniqueGameId": "225a7@pragmatic",
+                "tableId": "225a7",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Auto"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/5bzl2835s5ruvweg/ppcdk00000004643/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 481,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "205a11@pragmatic",
+            "gameListSourceLabel": "LIVE",
+            "liveCasino": {
+                "gameName": "Unibet Speed Roulette",
+                "uniqueGameId": "205a11@pragmatic",
+                "tableId": "205a11",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Martin"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/r20speedrtwo201s/ppcdk00000004643/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 91,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "LC6106@stakelogic",
+            "gameListSourceLabel": "LIVE",
+            "liveCasino": {
+                "gameName": "Vegas Drops Roulette",
+                "uniqueGameId": "LC6106@stakelogic",
+                "tableId": "LC6106",
+                "gameType": "roulette",
+                "gameSubType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Utsav"
+                },
+                "betLimit": {
+                    "symbol": "€",
+                    "min": 0.1,
+                    "max": 5000.0,
+                    "currencyCode": "EUR"
+                },
+                "operationHours": {
+                    "type": "FullTime"
+                },
+                "tableImage": "https://vs.lc-stakelogic.com/tile/preview/415",
+                "open": true,
+                "privateTable": false,
+                "players": 8,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-48z5pjps3ntvqc1b@evolution",
+            "gameListSourceLabel": "LIVE",
+            "liveCasino": {
+                "gameName": "Auto-Roulette",
+                "uniqueGameId": "roulette_TABLE-48z5pjps3ntvqc1b@evolution",
+                "tableId": "48z5pjps3ntvqc1b",
+                "gameType": "roulette",
+                "gameSubType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "dealerId": "s2xlkdn46sgeduf7",
+                    "name": "Auto"
+                },
+                "betLimit": {
+                    "symbol": "€",
+                    "min": 0.1,
+                    "max": 5000,
+                    "currencyCode": "EUR"
+                },
+                "operationHours": {
+                    "type": "FullTime"
+                },
+                "tableImage": "https://bshots.egcvi.com/thumbnail/gen1_ss_thumb_med_XL.jpg",
+                "open": true,
+                "privateTable": false,
+                "players": 3254,
+                "seatsTaken": [],
+                "descriptions": {}
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-7x0b1tgh7agmf6hv@evolution",
+            "gameListSourceLabel": "LIVE",
+            "liveCasino": {
+                "gameName": "Immersive Roulette",
+                "uniqueGameId": "roulette_TABLE-7x0b1tgh7agmf6hv@evolution",
+                "tableId": "7x0b1tgh7agmf6hv",
+                "gameType": "roulette",
+                "gameSubType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "dealerId": "tts151180_______",
+                    "name": "Mery"
+                },
+                "betLimit": {
+                    "symbol": "€",
+                    "min": 0.5,
+                    "max": 10000,
+                    "currencyCode": "EUR"
+                },
+                "operationHours": {
+                    "type": "FullTime"
+                },
+                "tableImage": "https://bshots.egcvi.com/thumbnail/immersive_med_XL.jpg",
+                "open": true,
+                "privateTable": false,
+                "players": 1276,
+                "seatsTaken": [],
+                "descriptions": {}
+            }
+        },
+        {
+            "gameId": "204@pragmatic",
+            "gameListSourceLabel": "LIVE",
+            "liveCasino": {
+                "gameName": "Mega Roulette",
+                "uniqueGameId": "204@pragmatic",
+                "tableId": "204",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Woods"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 1000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/1hl65ce1lxuqdrkr/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 1034,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "270@pragmatic",
+            "gameListSourceLabel": "LIVE",
+            "liveCasino": {
+                "gameName": "Fortune Roulette",
+                "uniqueGameId": "270@pragmatic",
+                "tableId": "270",
+                "gameType": "roulette",
+                "language": "en",
+                "dealer": {
+                    "name": "Genevieve"
+                },
+                "betLimit": {
+                    "symbol": "EUR",
+                    "min": 0.1,
+                    "max": 5000,
+                    "currencyCode": "EUR"
+                },
+                "tableImage": "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg?v=0.5093192113753383",
+                "open": true,
+                "privateTable": false,
+                "players": 612,
+                "seatsTaken": []
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-SpeedAutoRo00001@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Speed Auto Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Auto"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.10,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            },
+            "image": {
+                "gameName": "Speed Auto Roulette",
+                "gameId": "roulette_TABLE-SpeedAutoRo00001@evolution",
+                "stakeName": "€0.10",
+                "variantId": "speed-auto-roulette",
+                "launchInApp": false,
+                "gameUrl": "/play/speed-auto-roulette",
+                "pathSegment": "speed-auto-roulette",
+                "launchLocale": "en_GB",
+                "imageId": "1.1608492.1712154021",
+                "imageIdStatic": "1.1608492.1712154021",
+                "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.1608492.1712154021!/image/3778758041.jpg",
+                "imageUrl": "https://www.unibet.com/polopoly_fs/1.1608492.1712154021!/image/3778758041.jpg",
+                "loyaltyContribution": 1,
+                "requiresLogin": true,
+                "ageRestricted": false,
+                "fullyAgeRestricted": false,
+                "playForFunRequiresLogin": false,
+                "isHighAbuseRisk": false,
+                "tags": [
+                    "auto-roulette",
+                    "evolution",
+                    "live",
+                    "roulette",
+                    "tableandcards",
+                    "010",
+                    "32redlobby",
+                    "speed"
+                ],
+                "badges": {
+                    "live": true
+                },
+                "translations": {
+                    "title": "Speed Auto Roulette"
+                },
+                "vendorId": "gamevendor.evolutionVendor",
+                "displayVendorName": "Evolution",
+                "vendor": {
+                    "name": "Evolution",
+                    "vendorGroupId": "evolution"
+                },
+                "subVendor": {
+                    "name": "Evolution",
+                    "id": "evolution"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-GoldVaultRo00001@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Gold Vault Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Auto"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.20,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            },
+            "image": {
+                "gameName": "Gold Vault Roulette",
+                "gameId": "roulette_TABLE-GoldVaultRo00001@evolution",
+                "variantId": "gold-vault-roulette",
+                "launchInApp": false,
+                "gameUrl": "/play/gold-vault-roulette",
+                "pathSegment": "gold-vault-roulette",
+                "launchLocale": "en_GB",
+                "imageId": "1.2375678.1712151710",
+                "imageIdStatic": "1.2375678.1712151710",
+                "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.2375678.1712151710!/image/11064377.jpg",
+                "backgroundImageId": "1.2375679.1692194611",
+                "imageUrl": "https://www.unibet.com/polopoly_fs/1.2375678.1712151710!/image/11064377.jpg",
+                "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.2375679.1692194611!/image/1743640914.jpg",
+                "loyaltyContribution": 1,
+                "requiresLogin": true,
+                "ageRestricted": false,
+                "fullyAgeRestricted": false,
+                "playForFunRequiresLogin": false,
+                "isHighAbuseRisk": false,
+                "tags": [
+                    "evolution",
+                    "roulette",
+                    "live",
+                    "gameshows",
+                    "tableandcards"
+                ],
+                "badges": {
+                    "live": true
+                },
+                "translations": {
+                    "title": "Gold Vault Roulette"
+                },
+                "vendorId": "gamevendor.evolutionVendor",
+                "displayVendorName": "Evolution",
+                "vendor": {
+                    "name": "Evolution",
+                    "vendorGroupId": "evolution"
+                },
+                "subVendor": {
+                    "name": "Evolution",
+                    "id": "evolution"
+                }
+            }
+        },
+        {
+            "gameId": "fireballroulette_TABLE-fireballrou00001@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Fireball Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Auto"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.20,
+                    "max": 5000,
+                    "symbol": "€"
+                }
+            },
+            "image": {
+                "gameName": "Fireball Roulette",
+                "gameId": "fireballroulette_TABLE-fireballrou00001@evolution",
+                "variantId": "fireball-roulette",
+                "launchInApp": false,
+                "gameUrl": "/play/fireball-roulette",
+                "pathSegment": "fireball-roulette",
+                "launchLocale": "en_GB",
+                "imageId": "1.2696690.1745404400",
+                "imageIdStatic": "1.2696690.1745404400",
+                "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.2696690.1745404400!/image/2779547318.jpg",
+                "backgroundImageId": "1.2696691.1745404400",
+                "imageUrl": "https://www.unibet.com/polopoly_fs/1.2696690.1745404400!/image/2779547318.jpg",
+                "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.2696691.1745404400!/image/3530620207.jpg",
+                "loyaltyContribution": 1,
+                "requiresLogin": true,
+                "ageRestricted": false,
+                "fullyAgeRestricted": false,
+                "playForFunRequiresLogin": false,
+                "isHighAbuseRisk": false,
+                "tags": [
+                    "evolution",
+                    "live",
+                    "tableandcards",
+                    "roulette"
+                ],
+                "badges": {
+                    "live": true
+                },
+                "translations": {
+                    "title": "Fireball Roulette"
+                },
+                "vendorId": "gamevendor.evolutionVendor",
+                "displayVendorName": "Evolution",
+                "vendor": {
+                    "name": "Evolution",
+                    "vendorGroupId": "evolution"
+                },
+                "subVendor": {
+                    "name": "Evolution",
+                    "id": "evolution"
+                }
+            },
+            "games": {
+                "roulette_TABLE-SpeedAutoRo00001@evolution": {
+                    "gameName": "Speed Auto Roulette",
+                    "gameId": "roulette_TABLE-SpeedAutoRo00001@evolution",
+                    "stakeName": "€0.10",
+                    "variantId": "speed-auto-roulette",
+                    "launchInApp": false,
+                    "gameUrl": "/play/speed-auto-roulette",
+                    "pathSegment": "speed-auto-roulette",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.1608492.1712154021",
+                    "imageIdStatic": "1.1608492.1712154021",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.1608492.1712154021!/image/3778758041.jpg",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.1608492.1712154021!/image/3778758041.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "auto-roulette",
+                        "evolution",
+                        "live",
+                        "roulette",
+                        "tableandcards",
+                        "010",
+                        "32redlobby",
+                        "speed"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Speed Auto Roulette"
+                    },
+                    "vendorId": "gamevendor.evolutionVendor",
+                    "displayVendorName": "Evolution",
+                    "vendor": {
+                        "name": "Evolution",
+                        "vendorGroupId": "evolution"
+                    },
+                    "subVendor": {
+                        "name": "Evolution",
+                        "id": "evolution"
+                    }
+                },
+                "roulette_TABLE-GoldVaultRo00001@evolution": {
+                    "gameName": "Gold Vault Roulette",
+                    "gameId": "roulette_TABLE-GoldVaultRo00001@evolution",
+                    "variantId": "gold-vault-roulette",
+                    "launchInApp": false,
+                    "gameUrl": "/play/gold-vault-roulette",
+                    "pathSegment": "gold-vault-roulette",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.2375678.1712151710",
+                    "imageIdStatic": "1.2375678.1712151710",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.2375678.1712151710!/image/11064377.jpg",
+                    "backgroundImageId": "1.2375679.1692194611",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.2375678.1712151710!/image/11064377.jpg",
+                    "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.2375679.1692194611!/image/1743640914.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "evolution",
+                        "roulette",
+                        "live",
+                        "gameshows",
+                        "tableandcards"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Gold Vault Roulette"
+                    },
+                    "vendorId": "gamevendor.evolutionVendor",
+                    "displayVendorName": "Evolution",
+                    "vendor": {
+                        "name": "Evolution",
+                        "vendorGroupId": "evolution"
+                    },
+                    "subVendor": {
+                        "name": "Evolution",
+                        "id": "evolution"
+                    }
+                },
+                "fireballroulette_TABLE-fireballrou00001@evolution": {
+                    "gameName": "Fireball Roulette",
+                    "gameId": "fireballroulette_TABLE-fireballrou00001@evolution",
+                    "variantId": "fireball-roulette",
+                    "launchInApp": false,
+                    "gameUrl": "/play/fireball-roulette",
+                    "pathSegment": "fireball-roulette",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.2696690.1745404400",
+                    "imageIdStatic": "1.2696690.1745404400",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.2696690.1745404400!/image/2779547318.jpg",
+                    "backgroundImageId": "1.2696691.1745404400",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.2696690.1745404400!/image/2779547318.jpg",
+                    "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.2696691.1745404400!/image/3530620207.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "evolution",
+                        "live",
+                        "tableandcards",
+                        "roulette"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Fireball Roulette"
+                    },
+                    "vendorId": "gamevendor.evolutionVendor",
+                    "displayVendorName": "Evolution",
+                    "vendor": {
+                        "name": "Evolution",
+                        "vendorGroupId": "evolution"
+                    },
+                    "subVendor": {
+                        "name": "Evolution",
+                        "id": "evolution"
+                    }
+                },
+                "RO00STENNE0013OA@mg": {
+                    "gameName": "Amstel Roulette",
+                    "gameId": "RO00STENNE0013OA@mg",
+                    "variantId": "amstel-roulette",
+                    "launchInApp": false,
+                    "gameUrl": "/play/amstel-roulette",
+                    "pathSegment": "amstel-roulette",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.2457625.1701774992",
+                    "imageIdStatic": "1.2457625.1701774992",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.2457625.1701774992!/image/4173333399.jpg",
+                    "backgroundImageId": "1.2457626.1701774992",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.2457625.1701774992!/image/4173333399.jpg",
+                    "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.2457626.1701774992!/image/2076605552.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "live",
+                        "onair",
+                        "roulette",
+                        "tableandcards",
+                        "32redlobby"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Amstel Roulette"
+                    },
+                    "vendorId": "gamevendor.microgamingVendor",
+                    "displayVendorName": "OnAir",
+                    "vendor": {
+                        "name": "Microgaming",
+                        "vendorGroupId": "mg"
+                    },
+                    "subVendor": {
+                        "name": "OnAir",
+                        "id": "onair"
+                    }
+                },
+                "roulette_TABLE-01rb77cq1gtenhmo@evolution": {
+                    "gameName": "Auto-Roulette VIP",
+                    "gameId": "roulette_TABLE-01rb77cq1gtenhmo@evolution",
+                    "stakeName": "€1.00",
+                    "variantId": "auto-roulette-vip",
+                    "launchInApp": false,
+                    "gameUrl": "/play/auto-roulette-vip",
+                    "pathSegment": "auto-roulette-vip",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.2034268.1712148098",
+                    "imageIdStatic": "1.2034268.1712148098",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.2034268.1712148098!/image/1413447924.jpg",
+                    "backgroundImageId": "1.2034269.1651587378",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.2034268.1712148098!/image/1413447924.jpg",
+                    "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.2034269.1651587378!/image/641396704.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "auto-roulette",
+                        "evolution",
+                        "live",
+                        "roulette",
+                        "vip",
+                        "tableandcards",
+                        "100",
+                        "32redlobby",
+                        "speed"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Auto-Roulette VIP"
+                    },
+                    "vendorId": "gamevendor.evolutionVendor",
+                    "displayVendorName": "Evolution",
+                    "vendor": {
+                        "name": "Evolution",
+                        "vendorGroupId": "evolution"
+                    },
+                    "subVendor": {
+                        "name": "Evolution",
+                        "id": "evolution"
+                    }
+                },
+                "roulette_TABLE-lkcbrbdckjxajdol@evolution": {
+                    "gameName": "Speed Roulette",
+                    "gameId": "roulette_TABLE-lkcbrbdckjxajdol@evolution",
+                    "stakeName": "€0.50",
+                    "variantId": "speed-roulette",
+                    "launchInApp": false,
+                    "gameUrl": "/play/speed-roulette",
+                    "pathSegment": "speed-roulette",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.1635050.1712148086",
+                    "imageIdStatic": "1.1635050.1712148086",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.1635050.1712148086!/image/962060674.jpg",
+                    "backgroundImageId": "1.1706671.1636550960",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.1635050.1712148086!/image/962060674.jpg",
+                    "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.1706671.1636550960!/image/3189815548.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "evolution",
+                        "live",
+                        "roulette",
+                        "tableandcards",
+                        "050",
+                        "speed",
+                        "32redlobby"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Speed Roulette"
+                    },
+                    "vendorId": "gamevendor.evolutionVendor",
+                    "displayVendorName": "Evolution",
+                    "vendor": {
+                        "name": "Evolution",
+                        "vendorGroupId": "evolution"
+                    },
+                    "subVendor": {
+                        "name": "Evolution",
+                        "id": "evolution"
+                    }
+                },
+                "292@pragmatic": {
+                    "gameName": "Immersive Roulette Deluxe",
+                    "gameId": "292@pragmatic",
+                    "variantId": "immersive-roulette-deluxe",
+                    "launchInApp": false,
+                    "gameUrl": "/play/immersive-roulette-deluxe",
+                    "pathSegment": "immersive-roulette-deluxe",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.2662268.1738169498",
+                    "imageIdStatic": "1.2662268.1738169498",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.2662268.1738169498!/image/1313202516.jpg",
+                    "backgroundImageId": "1.2662269.1738169498",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.2662268.1738169498!/image/1313202516.jpg",
+                    "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.2662269.1738169498!/image/2831898868.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "roulette",
+                        "live",
+                        "pragmatic",
+                        "tableandcards",
+                        "gameshows"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Immersive Roulette Deluxe"
+                    },
+                    "vendorId": "gamevendor.pragmaticLiveCasinoVendor",
+                    "displayVendorName": "Pragmatic Play Live",
+                    "vendor": {
+                        "name": "Pragmatic LiveCasino",
+                        "vendorGroupId": "pragmatic"
+                    },
+                    "subVendor": {
+                        "name": "Pragmatic Play Live",
+                        "id": "pragmaticdirectlivecasino"
+                    }
+                },
+                "roulette_TABLE-wzg6kdkad1oe7m5k@evolution": {
+                    "gameName": "Roulette VIP",
+                    "gameId": "roulette_TABLE-wzg6kdkad1oe7m5k@evolution",
+                    "stakeName": "€1.00",
+                    "variantId": "roulette-vip",
+                    "launchInApp": false,
+                    "gameUrl": "/play/roulette-vip",
+                    "pathSegment": "roulette-vip",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.1608489.1712148099",
+                    "imageIdStatic": "1.1608489.1712148099",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.1608489.1712148099!/image/3584328592.jpg",
+                    "backgroundImageId": "1.1706671.1636550960",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.1608489.1712148099!/image/3584328592.jpg",
+                    "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.1706671.1636550960!/image/3189815548.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "evolution",
+                        "live",
+                        "roulette",
+                        "vip",
+                        "tableandcards",
+                        "500"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Roulette VIP"
+                    },
+                    "vendorId": "gamevendor.evolutionVendor",
+                    "displayVendorName": "Evolution",
+                    "vendor": {
+                        "name": "Evolution",
+                        "vendorGroupId": "evolution"
+                    },
+                    "subVendor": {
+                        "name": "Evolution",
+                        "id": "evolution"
+                    }
+                },
+                "201@pragmatic": {
+                    "gameName": "Roulette Green",
+                    "gameId": "201@pragmatic",
+                    "stakeName": "€0.10",
+                    "variantId": "roulette-green",
+                    "launchInApp": false,
+                    "gameUrl": "/play/roulette-green",
+                    "pathSegment": "roulette-green",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.1976860.1645796791",
+                    "imageIdStatic": "1.1976860.1645796791",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.1976860.1645796791!/image/327847990.jpg",
+                    "backgroundImageId": "1.1706663.1636550958",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.1976860.1645796791!/image/327847990.jpg",
+                    "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.1706663.1636550958!/image/1589979742.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "tableandcards",
+                        "live",
+                        "roulette",
+                        "pragmatic"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Roulette Green"
+                    },
+                    "vendorId": "gamevendor.pragmaticLiveCasinoVendor",
+                    "displayVendorName": "Pragmatic Play Live",
+                    "vendor": {
+                        "name": "Pragmatic LiveCasino",
+                        "vendorGroupId": "pragmatic"
+                    },
+                    "subVendor": {
+                        "name": "Pragmatic Play Live",
+                        "id": "pragmaticdirectlivecasino"
+                    }
+                },
+                "roulette_TABLE-DoubleBallRou001@evolution": {
+                    "gameName": "Double Ball Roulette",
+                    "gameId": "roulette_TABLE-DoubleBallRou001@evolution",
+                    "stakeName": "€0.25",
+                    "variantId": "double-ball-roulette",
+                    "launchInApp": false,
+                    "gameUrl": "/play/double-ball-roulette",
+                    "pathSegment": "double-ball-roulette",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.1608490.1712148089",
+                    "imageIdStatic": "1.1608490.1712148089",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.1608490.1712148089!/image/2828656935.jpg",
+                    "backgroundImageId": "1.1706671.1636550960",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.1608490.1712148089!/image/2828656935.jpg",
+                    "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.1706671.1636550960!/image/3189815548.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "evolution",
+                        "live",
+                        "roulette",
+                        "tableandcards",
+                        "025"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Double Ball Roulette"
+                    },
+                    "vendorId": "gamevendor.evolutionVendor",
+                    "displayVendorName": "Evolution",
+                    "vendor": {
+                        "name": "Evolution",
+                        "vendorGroupId": "evolution"
+                    },
+                    "subVendor": {
+                        "name": "Evolution",
+                        "id": "evolution"
+                    }
+                },
+                "LC5102@stakelogic": {
+                    "gameName": "Super Stake Roulette",
+                    "gameId": "LC5102@stakelogic",
+                    "stakeName": "€0.10",
+                    "variantId": "super-stake-roulette",
+                    "launchInApp": false,
+                    "gameUrl": "/play/super-stake-roulette",
+                    "pathSegment": "super-stake-roulette",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.2103069.1712151089",
+                    "imageIdStatic": "1.2103069.1712151089",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.2103069.1712151089!/image/85636585.jpg",
+                    "backgroundImageId": "1.2103063.1659005742",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.2103069.1712151089!/image/85636585.jpg",
+                    "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.2103063.1659005742!/image/2426637808.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "live",
+                        "roulette",
+                        "stakelogic",
+                        "gameshows",
+                        "tableandcards",
+                        "speed"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Super Stake Roulette"
+                    },
+                    "vendorId": "gamevendor.stakelogicLiveCasinoVendor",
+                    "displayVendorName": "Stakelogic Live",
+                    "vendor": {
+                        "name": "StakeLogic Live Casino",
+                        "vendorGroupId": "stakelogic"
+                    },
+                    "subVendor": {
+                        "name": "Stakelogic Live",
+                        "id": "stakelogiclive"
+                    }
+                },
+                "roulette_TABLE-lr6t4k3lcd4qgyrk@evolution": {
+                    "gameName": "Grand Casino Roulette",
+                    "gameId": "roulette_TABLE-lr6t4k3lcd4qgyrk@evolution",
+                    "stakeName": "€1 - €10.000",
+                    "variantId": "grand-casino-roulette",
+                    "launchInApp": false,
+                    "gameUrl": "/play/grand-casino-roulette",
+                    "pathSegment": "grand-casino-roulette",
+                    "launchLocale": "en_GB",
+                    "imageId": "1.2034238.1712148087",
+                    "imageIdStatic": "1.2034238.1712148087",
+                    "imageStaticUrl": "https://www.unibet.com/polopoly_fs/1.2034238.1712148087!/image/153022925.jpg",
+                    "backgroundImageId": "1.2034239.1651587376",
+                    "imageUrl": "https://www.unibet.com/polopoly_fs/1.2034238.1712148087!/image/153022925.jpg",
+                    "backgroundImageUrl": "https://www.unibet.com/polopoly_fs/1.2034239.1651587376!/image/3676452003.jpg",
+                    "loyaltyContribution": 1,
+                    "requiresLogin": true,
+                    "ageRestricted": false,
+                    "fullyAgeRestricted": false,
+                    "playForFunRequiresLogin": false,
+                    "isHighAbuseRisk": false,
+                    "tags": [
+                        "evolution",
+                        "live",
+                        "tableandcards",
+                        "roulette"
+                    ],
+                    "badges": {
+                        "live": true
+                    },
+                    "translations": {
+                        "title": "Grand Casino Roulette"
+                    },
+                    "vendorId": "gamevendor.evolutionVendor",
+                    "displayVendorName": "Evolution",
+                    "vendor": {
+                        "name": "Evolution",
+                        "vendorGroupId": "evolution"
+                    },
+                    "subVendor": {
+                        "name": "Evolution",
+                        "id": "evolution"
+                    }
+                }
+            }
+        },
+        {
+            "gameId": "RO00STENNE0013OA@mg",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Amstel Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.50,
+                    "max": 2000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-01rb77cq1gtenhmo@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Auto-Roulette VIP",
+                "open": true,
+                "dealer": {
+                    "name": "Auto"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 1.00,
+                    "max": 20000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-lkcbrbdckjxajdol@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Speed Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.50,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "292@pragmatic",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Immersive Roulette Deluxe",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.20,
+                    "max": 5000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-wzg6kdkad1oe7m5k@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Roulette VIP",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 1.00,
+                    "max": 20000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "201@pragmatic",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Roulette Green",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.10,
+                    "max": 5000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-DoubleBallRou001@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Double Ball Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.25,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "LC5102@stakelogic",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Super Stake Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.10,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-lr6t4k3lcd4qgyrk@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Grand Casino Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 1.00,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-pnkk4iuchw7blb2p@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Dragonara Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.50,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "LC1103@stakelogic",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Glam Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.20,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-mdkqijp3dctrhnuv@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Salon Privé Roulette 2",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 100.00,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-TRLRou0000000001@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Türkçe Lightning Rulet",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.10,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-zosmk25g2f768o52@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Ruletka Live",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.50,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-rr0yhns3we03tqqu@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Svensk Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 1.00,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "LC2101@stakelogic",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Burgundy Auto-Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Auto"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.20,
+                    "max": 5000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "LC2106@stakelogic",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Classic Auto Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Auto"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.20,
+                    "max": 5000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "LC2105@stakelogic",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Burgundy Auto-Roulette Classic",
+                "open": true,
+                "dealer": {
+                    "name": "Auto"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.20,
+                    "max": 5000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "LC2103@stakelogic",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Sports Auto Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Auto"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.20,
+                    "max": 5000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "LC2108@stakelogic",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "VIP Classic Auto Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Auto"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 1.00,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "roulette_TABLE-AmericanTable001@evolution",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "American Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.20,
+                    "max": 10000,
+                    "symbol": "€"
+                }
+            }
+        },
+        {
+            "gameId": "turkishRouletteOA@mg",
+            "liveCasino": {
+                "gameType": "roulette",
+                "gameName": "Turkish Roulette",
+                "open": true,
+                "dealer": {
+                    "name": "Dealer"
+                },
+                "players": 0,
+                "betLimit": {
+                    "min": 0.50,
+                    "max": 5000,
+                    "symbol": "€"
+                }
+            }
+        }
+    ],
+    "totalNumberOfGames": 21
+} 

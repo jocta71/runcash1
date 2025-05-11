@@ -1,0 +1,113 @@
+{
+  "version": 2,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/asaas-create-customer.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-create-subscription.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/webhook-manager.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-find-payment.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-pix-qrcode.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-find-subscription.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-cancel-subscription.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/asaas-find-customer.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/update-user.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/ai/query.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    },
+    "api/strategies.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/asaas-webhook",
+      "destination": "/api/webhook-manager.js"
+    },
+    {
+      "source": "/api/subscription-reconciliation",
+      "destination": "/api/webhook-manager.js?operation=reconciliation"
+    },
+    {
+      "source": "/api/retry-failed-webhooks",
+      "destination": "/api/webhook-manager.js?operation=retry"
+    },
+    {
+      "source": "/api/asaas-create-customer",
+      "destination": "/api/asaas-create-customer.js"
+    },
+    {
+      "source": "/api/asaas-create-subscription",
+      "destination": "/api/asaas-create-subscription.js"
+    },
+    {
+      "source": "/api/asaas-find-payment",
+      "destination": "/api/asaas-find-payment.js"
+    },
+    {
+      "source": "/api/asaas-pix-qrcode",
+      "destination": "/api/asaas-pix-qrcode.js"
+    },
+    {
+      "source": "/api/asaas-find-subscription",
+      "destination": "/api/asaas-find-subscription.js"
+    },
+    {
+      "source": "/api/asaas-cancel-subscription",
+      "destination": "/api/asaas-cancel-subscription.js"
+    },
+    {
+      "source": "/api/asaas-find-customer",
+      "destination": "/api/asaas-find-customer.js"
+    },
+    {
+      "source": "/api/update-user",
+      "destination": "/api/update-user.js"
+    },
+    {
+      "source": "/api/ai/query",
+      "destination": "/api/ai/query.js"
+    },
+    {
+      "source": "/api/strategies",
+      "destination": "/api/strategies.js"
+    },
+    {
+      "source": "/api/((?!asaas-webhook|subscription-reconciliation|retry-failed-webhooks|asaas-create-customer|asaas-create-subscription|asaas-find-payment|asaas-pix-qrcode|asaas-find-subscription|asaas-cancel-subscription|asaas-find-customer|update-user|ai/query|strategies).*)",
+      "destination": "https://starfish-app-fubxw.ondigitalocean.app/api/$1"
+    },
+    {
+      "source": "/((?!api|_next/static|_next/image|favicon.ico|favicon.svg|logo.png|img/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

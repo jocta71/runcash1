@@ -1,0 +1,3 @@
+[33ma9cc21d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m fix: Atualizar endpoints no frontend para usar roulette-numero (singular)
+[33me63eda5[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m fix: Alterar backend para usar apenas o campo 'numero' (singular) em vez de 'numeros'
+[33mac5a4f6[m fix: Simplificar para usar apenas o campo 'numero' (singular)
