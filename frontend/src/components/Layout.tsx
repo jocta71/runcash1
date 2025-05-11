@@ -216,7 +216,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         variant="default" 
         size="sm" 
         onClick={handleLoginClick}
-        className="h-8 text-black bg-vegas-green hover:bg-vegas-green/90"
+        className="h-8 text-black bg-gradient-to-b from-[#00FF00] to-[#A3FFA3] hover:from-[#00FF00]/90 hover:to-[#A3FFA3]/90"
       >
         <LogIn size={14} className="mr-1" /> Entrar
       </Button>
@@ -260,7 +260,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
         variant="default" 
         size="sm" 
         onClick={handleLoginClick}
-        className="h-8 text-black bg-vegas-green hover:bg-vegas-green/90"
+        className="h-8 text-black bg-gradient-to-b from-[#00FF00] to-[#A3FFA3] hover:from-[#00FF00]/90 hover:to-[#A3FFA3]/90"
       >
         <LogIn size={14} /> 
       </Button>
@@ -320,7 +320,7 @@ const Layout: React.FC<LayoutProps> = ({ children, preloadData = false }) => {
           {/* Ações de usuário com base no estado de autenticação */}
           {user ? <MobileAuthenticatedActions /> : <MobileUnauthenticatedActions />}
           
-          <Button variant="default" size="sm" asChild className="h-8 text-white font-medium bg-gradient-to-b from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900">
+          <Button variant="default" size="sm" asChild className="h-8 text-black font-medium bg-gradient-to-b from-[#00FF00] to-[#A3FFA3] hover:from-[#00FF00]/90 hover:to-[#A3FFA3]/90">
             <Link to="/planos">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg> Planos
             </Link>
