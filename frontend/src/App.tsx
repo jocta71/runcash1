@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/toaster";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
@@ -558,11 +558,7 @@ const App = () => {
                             
                             {/* Rota direta para o Dashboard de Roletas para facilitar testes */}
                             <Route path="/dashboard" element={
-                              <ProtectedRoute>
-                                <Suspense fallback={<LoadingScreen />}>
-                                  <RoulettesDashboard />
-                                </Suspense>
-                              </ProtectedRoute>
+                              <Navigate to="/" replace />
                             } />
                             
                             {/* Rota para a página de teste do Asaas - DESATIVADA */}
