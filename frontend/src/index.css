@@ -184,7 +184,7 @@
 .cy-live-casino-grid-item {
   position: relative;
   cursor: pointer;
-  background-color: #1c1c1c;
+  background-color: #14161F;
   border-radius: 8px;
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
@@ -200,7 +200,7 @@
   display: flex;
   flex-direction: column;
   padding: 8px 12px;
-  background-color: #2a2a2a;
+  background-color: #14161F;
 }
 
 .cy-live-casino-grid-item-infobar-dealer-name {

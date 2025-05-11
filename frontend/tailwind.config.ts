@@ -69,6 +69,7 @@ export default {
 					blue: '#36B5FF',
 					red: '#FF4560',
 					darkgreen: '#0E3B28',
+					card: '#14161F',
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
