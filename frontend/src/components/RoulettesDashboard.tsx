@@ -94,25 +94,36 @@ const RoulettesDashboard = () => {
       
       // Atualizar o estado apenas se encontramos dados
       if (newRoulettes.length > 0) {
-        setRoulettes(newRoulettes);
-        
-        // Somente atualizar a referência da roleta selecionada, não mudar a seleção
+        // Preservar a seleção atual quando recebemos novos dados
         if (selectedRoulette) {
+          const currentSelectedId = selectedRoulette.id || selectedRoulette.roleta_id;
+          console.log(`Preservando seleção atual: ${currentSelectedId}`);
+          
+          // Atualize apenas a referência para a roleta atualmente selecionada
           const updatedSelected = newRoulettes.find(
-            (r: any) => r.id === selectedRoulette.id || r.roleta_id === selectedRoulette.id
+            (r: any) => r.id === currentSelectedId || r.roleta_id === currentSelectedId
           );
+          
           if (updatedSelected) {
-            // Apenas atualizar a referência do objeto selecionado para manter os dados atualizados
+            console.log(`Roleta selecionada encontrada nos novos dados`);
+            // Preserva o flag _userSelected para manter o estado da seleção do usuário
+            if (selectedRoulette._userSelected) {
+              updatedSelected._userSelected = true;
+            }
+            
+            // Atualiza a lista de roletas
+            setRoulettes(newRoulettes);
+            // Atualiza apenas a referência da roleta selecionada
             setSelectedRoulette(updatedSelected);
+          } else {
+            console.log(`Roleta selecionada não encontrada nos novos dados, mantendo seleção atual`);
+            // Se a roleta selecionada não existe mais na lista, apenas atualize a lista
+            setRoulettes(newRoulettes);
           }
-          // Se a roleta selecionada não existe mais, só então selecionar a primeira
-          else if (newRoulettes.length > 0) {
-            setSelectedRoulette(newRoulettes[0]);
-          }
-        } 
-        // Apenas inicializar a seleção se não houver nenhuma roleta selecionada
-        else if (newRoulettes.length > 0 && !selectedRoulette) {
-          setSelectedRoulette(newRoulettes[0]);
+        } else {
+          // Se não havia seleção, atualize apenas a lista
+          console.log(`Sem roleta selecionada anteriormente, atualizando apenas a lista`);
+          setRoulettes(newRoulettes);
         }
         
         setLoading(false);
@@ -158,7 +169,9 @@ const RoulettesDashboard = () => {
 
   // Função para selecionar uma roleta
   const handleSelectRoulette = (roulette: any) => {
-    console.log('Roleta selecionada:', roulette);
+    console.log('Roleta selecionada pelo usuário:', roulette);
+    // Adiciona um flag para indicar que foi explicitamente selecionada pelo usuário
+    roulette._userSelected = true;
     setSelectedRoulette(roulette);
   };
 
@@ -291,18 +304,20 @@ const RoulettesDashboard = () => {
                 return (
                   <div 
                     key={rouletteId}
-                    className={cn(
-                      "relative cursor-pointer transition-all",
+                    className="relative transition-all"
+                    onClick={() => handleSelectRoulette(roulette)}
+                  >
+                    <div className={cn(
+                      "cursor-pointer transition-all",
                       {
                         "ring-2 ring-primary ring-offset-2 ring-offset-background": isSelected
                       }
-                    )}
-                    onClick={() => handleSelectRoulette(roulette)}
-                  >
-                    <RouletteCard 
-                      data={roulette}
-                      isSelected={isSelected}
-                    />
+                    )}>
+                      <RouletteCard 
+                        data={roulette}
+                        // Não passamos isSelected para o RouletteCard para evitar duplicação
+                      />
+                    </div>
                   </div>
                 );
               })}
