@@ -19,7 +19,7 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				sans: ['Poppins', 'sans-serif'],
+				sans: ['Roboto', 'Helvetica Neue', 'sans-serif'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',
