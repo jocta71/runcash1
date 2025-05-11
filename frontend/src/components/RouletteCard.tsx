@@ -428,6 +428,14 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   const isOnline = status?.toLowerCase() === 'online';
   console.log(`[${componentId}] Renderizando números:`, numeros); // Log 8: Array de números antes de mapear
   const lastNumbersToDisplay = numeros.map(n => n.numero);
+  
+  // Identificar números repetidos (RAP)
+  const rapsMap = new Map<number, number>();
+  lastNumbersToDisplay.forEach((num, i) => {
+    if (i < lastNumbersToDisplay.length - 1 && num === lastNumbersToDisplay[i + 1]) {
+      rapsMap.set(num, (rapsMap.get(num) || 0) + 1);
+    }
+  });
 
   return (
     <>
@@ -497,12 +505,18 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
           {/* Números recentes */}
           <div className="flex justify-center items-center space-x-1 min-h-[40px] overflow-x-auto">
             {lastNumbersToDisplay.map((num, index) => (
-              <NumberDisplay 
-                key={`${componentId}-num-${index}-${num}`} 
-                number={num} 
-                size="medium" 
-                highlight={index === 0 && isNewNumber}
-              />
+              <div key={`${componentId}-num-${index}-${num}`} className="relative">
+                <NumberDisplay 
+                  number={num} 
+                  size="medium" 
+                  highlight={index === 0 && isNewNumber}
+                />
+                {rapsMap.has(num) && index < lastNumbersToDisplay.length - 1 && num === lastNumbersToDisplay[index + 1] && (
+                  <span className="absolute -top-2 -right-2 bg-yellow-500 text-xs px-1 rounded-full text-white font-bold">
+                    RAP
+                  </span>
+                )}
+              </div>
             ))}
             {lastNumbersToDisplay.length === 0 && <span className="text-xs text-muted-foreground">Nenhum número recente</span>}
           </div>
