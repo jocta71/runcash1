@@ -368,22 +368,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   // Log para verificar o estado antes de renderizar
   console.log(`[${componentId}] Renderizando. Estado rouletteData:`, rouletteData); // Log 7: Estado na renderização
 
-  // Função para selecionar esta roleta para exibir estatísticas
-  const handleShowStats = (e: React.MouseEvent) => {
-    // Evitar que o clique se propague para outros elementos
-    e.stopPropagation();
-    
-    // Criar e disparar um evento personalizado com os dados da roleta
-    const event = new CustomEvent('rouletteSelected', {
-      detail: { roulette: rouletteData }
-    });
-    
-    // Disparar o evento para que o Layout possa capturá-lo
-    window.dispatchEvent(event);
-    
-    console.log('[RouletteCard] Evento de seleção de roleta disparado:', rouletteData.nome);
-  };
-
   if (isLoading) {
     return (
       <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden bg-card text-card-foreground animate-pulse">
@@ -447,7 +431,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   return (
     <Card 
       ref={cardRef}
-      onClick={handleShowStats}
+      onClick={handleCardClick}
       className={cn(
         "relative h-full w-full transition-all group",
         {

@@ -5,7 +5,11 @@ import { Button } from './ui/button';
 import { AlertCircle, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const RoulettesDashboard = () => {
+interface RoulettesDashboardProps {
+  onRouletteSelect?: (roulette: any) => void;
+}
+
+const RoulettesDashboard: React.FC<RoulettesDashboardProps> = ({ onRouletteSelect }) => {
   const [roulettes, setRoulettes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +155,14 @@ const RoulettesDashboard = () => {
     }
   };
 
+  // Handler de seleção de roleta
+  const handleRouletteSelect = (roulette: any) => {
+    console.log('Roleta selecionada:', roulette);
+    if (onRouletteSelect) {
+      onRouletteSelect(roulette);
+    }
+  };
+
   // Render loading state
   if (loading && roulettes.length === 0) {
     return (
@@ -242,10 +254,13 @@ const RoulettesDashboard = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {roulettes.map((roulette: any) => (
-            <RouletteCard 
-              key={roulette.id || roulette._id || roulette.roleta_id} 
-              data={roulette} 
-            />
+            <div key={roulette.id || roulette._id || roulette.roleta_id} 
+                 onClick={() => handleRouletteSelect(roulette)}
+                 className="cursor-pointer transition-transform hover:scale-105">
+              <RouletteCard 
+                data={roulette} 
+              />
+            </div>
           ))}
         </div>
       )}

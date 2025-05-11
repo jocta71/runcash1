@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import RoulettesDashboard from '../components/RoulettesDashboard';
+import SidePanelStats from '../components/SidePanelStats';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 import { useSubscription } from '@/context/SubscriptionContext';
@@ -9,6 +10,8 @@ import { cn } from '@/lib/utils';
 export default function Index() {
   // Estado para controlar se estamos no modo de depuração
   const [debugMode, setDebugMode] = useState(false);
+  // Estado para controlar a roleta selecionada
+  const [selectedRoulette, setSelectedRoulette] = useState<any>(null);
   const { user } = useAuth();
   const { subscription } = useSubscription();
 
@@ -45,6 +48,12 @@ export default function Index() {
     };
   }, []);
 
+  // Função para selecionar uma roleta e mostrar estatísticas
+  const handleRouletteSelect = (roulette: any) => {
+    console.log('[Index] Roleta selecionada:', roulette);
+    setSelectedRoulette(roulette);
+  };
+
   // Render padrão com layout reutilizável
   return (
     <Layout>
@@ -63,8 +72,27 @@ export default function Index() {
           </Card>
         )}
       
-        {/* Dashboard de roletas com todos os recursos */}
-        <RoulettesDashboard />
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Dashboard de roletas à esquerda */}
+          <div className="w-full lg:w-2/3">
+            <RoulettesDashboard onRouletteSelect={handleRouletteSelect} />
+          </div>
+          
+          {/* Painel de estatísticas à direita */}
+          <div className="w-full lg:w-1/3">
+            {selectedRoulette ? (
+              <SidePanelStats 
+                roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
+                wins={selectedRoulette.vitorias || 0}
+                losses={selectedRoulette.derrotas || 0}
+              />
+            ) : (
+              <div className="bg-gray-800 rounded-lg border border-gray-700 p-6 flex items-center justify-center h-48">
+                <p className="text-gray-400">Selecione uma roleta para ver suas estatísticas</p>
+              </div>
+            )}
+          </div>
+        </div>
         
         {/* Modo de depuração */}
         {debugMode && (

@@ -85,7 +85,7 @@ const SidePanelStats: React.FC<SidePanelStatsProps> = ({
   }, [data, wins, losses]);
 
   return (
-    <div className="w-full h-full fixed right-0 top-0 bg-[#141318] border-l border-[#2a2a2e] overflow-y-auto">
+    <div className="h-full bg-[#141318] border border-[#2a2a2e] rounded-lg overflow-y-auto">
       <div className="p-5 border-b border-gray-800 bg-opacity-40">
         <h2 className="text-white flex items-center text-xl font-bold mb-3">
           <BarChart className="mr-3 text-green-500 h-6 w-6" /> 
