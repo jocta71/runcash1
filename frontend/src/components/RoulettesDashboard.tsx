@@ -325,7 +325,7 @@ const RoulettesDashboard = () => {
           </div>
           
           {/* Estatísticas da roleta à direita */}
-          <div className="lg:w-1/2 mt-4 lg:mt-0">
+          <div className="lg:w-1/2 mt-4 lg:mt-0 lg:sticky lg:top-4">
             {selectedRoulette ? (
               <RouletteSidePanelStats
                 roletaId={selectedRoulette.id || selectedRoulette.roleta_id || ''}
