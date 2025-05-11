@@ -48,6 +48,7 @@ interface ProcessedRouletteData {
   winRate: number;
   streak: number;
   lastUpdateTime: number;
+  isHistorical?: boolean;
 }
 
 // Função processRouletteData GLOBAL
@@ -178,6 +179,7 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
   const finalUpdateTime = roulette.lastUpdateTime || roulette.timestamp ? new Date(roulette.lastUpdateTime || roulette.timestamp).getTime() : Date.now();
   const currentProvider = roulette.provider || 'Desconhecido';
   const currentStatus = roulette.status || (numerosComTimestamp.length > 0 ? 'online' : 'offline'); // Inferir status se não vier
+  const isHistorical = roulette.isHistorical || false; // Flag para indicar se são dados históricos
 
   const result: ProcessedRouletteData = {
     id: currentId,
@@ -189,6 +191,7 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
     winRate: winRate,
     streak: streak,
     lastUpdateTime: finalUpdateTime,
+    isHistorical: isHistorical
   };
   console.log(`[processRouletteData - ${rouletteIdForLog}] Objeto final retornado...`);
   return result;
@@ -295,10 +298,36 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
          // Define isLoading como false aqui, pois já temos dados
          setIsLoading(false); 
       } else {
-        console.log(`[${componentId}] Nenhum dado inicial no UnifiedClient. Aguardando evento 'update'...`);
-         // Mantém isLoading true apenas se não houver dados iniciais
-        setIsLoading(true); 
-    }
+        console.log(`[${componentId}] Nenhum dado inicial no UnifiedClient. Tentando usar histórico...`);
+        
+        // Tentar usar o histórico como fallback
+        const historicalData = unifiedClient.getPreloadedHistory(safeData.name);
+        
+        if (historicalData && historicalData.length > 0) {
+          console.log(`[${componentId}] Histórico encontrado com ${historicalData.length} registros para ${safeData.name}`);
+          
+          // Criar objeto de roleta sintético usando dados históricos
+          const syntheticRoulette = {
+            id: safeData.id,
+            roleta_id: safeData.id,
+            nome: safeData.name,
+            roleta_nome: safeData.name,
+            provider: "Desconhecido",
+            status: "offline",
+            numeros: historicalData.slice(0, 10), // Primeiros 10 números do histórico
+            ultimoNumero: historicalData[0]?.numero,
+            timestamp: Date.now(),
+            isHistorical: true // Marcar que são dados históricos
+          };
+          
+          console.log(`[${componentId}] Objeto sintético criado a partir do histórico:`, syntheticRoulette);
+          handleUpdate(syntheticRoulette);
+        } else {
+          console.log(`[${componentId}] Nenhum histórico encontrado para ${safeData.name}. Aguardando evento 'update'...`);
+          // Mantém isLoading true apenas se não houver dados iniciais
+          setIsLoading(true);
+        }
+      }
 
     console.log(`[${componentId}] Assinando evento 'update' do UnifiedClient.`);
     unifiedClient.subscribe('update', handleUpdate);
@@ -409,10 +438,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
           'border-primary border-2': isSelected,
           'cursor-pointer hover:border-primary hover:shadow-md': !isDetailView,
           'shadow-inner bg-muted/40': isDetailView,
-          'animate-shake': isNewNumber
+          'animate-shake': isNewNumber,
+          'border-amber-300 border-dashed border-2': rouletteData?.isHistorical
         }
       )}
     >
+      {rouletteData?.isHistorical && (
+        <div className="absolute top-0 right-0 bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-bl">
+          Histórico
+        </div>
+      )}
+
       {loadingTimeout && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -435,6 +471,23 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
             )}
           </span>
         </CardDescription>
+        
+        {rouletteData && rouletteData.status !== 'online' && (
+          <div className="mt-2 flex justify-end">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="text-xs py-1 px-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                unifiedClient.forceReconnectStream();
+                console.log(`[${componentId}] Tentando reconectar com o servidor SSE...`);
+              }}
+            >
+              Reconectar
+            </Button>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="p-4 relative z-10">
