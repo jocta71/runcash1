@@ -1936,6 +1936,38 @@ class UnifiedRouletteClient {
       this.error('Erro ao notificar subscribers:', error);
     }
   }
+
+  /**
+   * Verifica se uma conexão SSE para a URL base já existe.
+   * Se existir, a fecha antes de criar uma nova conexão.
+   * @param {string} urlBase - A URL base para verificar (sem parâmetros de consulta)
+   * @returns {Promise<void>}
+   */
+  private async checkAndCloseExistingConnection(urlBase: string): Promise<void> {
+    const existingConnection = UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.get(urlBase);
+    
+    if (existingConnection) {
+      this.log(`Encontrada conexão existente para ${urlBase}. Fechando para evitar conexões duplicadas.`);
+      
+      try {
+        existingConnection.close();
+        UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.delete(urlBase);
+        
+        // Detectar se há outras conexões ativas
+        if (UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size === 0) {
+          UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+          UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+        }
+        
+        // Adicionar um pequeno atraso para garantir que o navegador reconheça o fechamento
+        await new Promise<void>(resolve => setTimeout(resolve, 300));
+        
+        this.log(`Conexão anterior para ${urlBase} fechada com sucesso.`);
+      } catch (error) {
+        this.error(`Erro ao fechar conexão existente para ${urlBase}:`, error);
+      }
+    }
+  }
 }
 
 // Exportar singleton
