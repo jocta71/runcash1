@@ -57,12 +57,13 @@ export const ENDPOINTS = {
     GOOGLE_STATUS: '/api/auth/google/status',
   },
   ROULETTE: {
-    ALL: '/api/roulettes',
-    SEARCH: '/api/roulettes/search',
-    NUMBERS: '/api/roulettes/numbers',
-    BY_ID: (id: string) => `/api/roulettes/${id}`,
-    NUMBERS_BY_ID: (id: string) => `/api/roulettes/${id}/numbers`,
-    ANALYZE: (id: string) => `/api/roulettes/${id}/analyze`,
+    // DEPRECIADO: Use a API de streaming SSE_STREAM_URL em vez destes endpoints
+    ALL: '/api/roulettes', // DEPRECIADO: Use SSE_STREAM_URL para obter todas as roletas
+    SEARCH: '/api/roulettes/search', // DEPRECIADO: Use SSE_STREAM_URL e filtre localmente
+    NUMBERS: '/api/roulettes/numbers', // DEPRECIADO: Use SSE_STREAM_URL para obter números
+    BY_ID: (id: string) => `/api/roulettes/${id}`, // DEPRECIADO: Use SSE_STREAM_URL e filtre por ID
+    NUMBERS_BY_ID: (id: string) => `/api/roulettes/${id}/numbers`, // DEPRECIADO: Use SSE_STREAM_URL
+    ANALYZE: (id: string) => `/api/roulettes/${id}/analyze`, // DEPRECIADO: Use SSE_STREAM_URL
   },
   SOCKET: {
     CONNECT: '/socket.io',

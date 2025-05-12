@@ -669,28 +669,38 @@ class UnifiedRouletteClient {
           this.isFetching = false;
           
           return data;
+        } else {
+          // Se o cliente SSE estiver conectado mas sem dados, aguardar
+          this.log('🔄 Cliente SSE conectado mas sem dados, aguardando...');
+          // Tentar reconectar o cliente SSE
+          try {
+            this.log('🔄 Tentando reconectar cliente SSE...');
+            await streamClient.connect();
+            
+            // Aguardar um momento para receber dados
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Verificar novamente se temos dados
+            const freshData = streamClient.getAllRouletteData();
+            if (freshData && freshData.length > 0) {
+              this.log(`📡 Dados recebidos após reconexão: ${freshData.length} roletas`);
+              this.updateCache(freshData);
+              this.isFetching = false;
+              return freshData;
+            }
+          } catch (reconnectError) {
+            this.warn('⚠️ Falha ao reconectar cliente SSE:', reconnectError);
+          }
+          
+          // Se ainda não temos dados, retornar cache atual
+          this.isFetching = false;
+          return this.rouletteData ? Array.from(this.rouletteData.values()) : [];
         }
       } catch (error) {
         this.warn('⚠️ Não foi possível obter dados do RouletteStreamClient:', error);
-        // Continuar para fallback
-      }
-      
-      // Fallback para requisição REST só se o SSE falhar
-      const response = await fetch('/api/roulettes');
-      
-      if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      this.isFetching = false;
-      
-      if (Array.isArray(data)) {
-        this.updateCache(data);
-        return data;
-      } else {
-        this.warn('Formato de dados inválido recebido');
-        return [];
+        // Retornar cache atual
+        this.isFetching = false;
+        return this.rouletteData ? Array.from(this.rouletteData.values()) : [];
       }
     } catch (error) {
       this.error('❌ Erro ao buscar dados das roletas:', error);

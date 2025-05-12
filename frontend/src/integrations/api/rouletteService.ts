@@ -88,20 +88,26 @@ const CACHE_TTL = 60000; // 1 minuto em milissegundos
 
 /**
  * Busca todas as roletas através do endpoint /api/roulettes
- * @returns Array com todas as roletas disponíveis
+ * 
+ * @deprecated Este método está depreciado. Use UnifiedRouletteClient.getInstance().getAllRoulettes() em vez disso.
+ * @returns Promise com o array de todas as roletas
  */
-export const fetchAllRoulettes = async (): Promise<any[]> => {
+export async function getAllRoulettes(): Promise<RouletteData[]> {
   try {
-    // Aqui usaremos a API rouletteApi para buscar as roletas
-    const { fetchRoulettesWithNumbers } = await import('./rouletteApi');
-    const roulettes = await fetchRoulettesWithNumbers();
+    console.warn('DEPRECIADO: O método getAllRoulettes() está depreciado. Use UnifiedRouletteClient.getInstance().getAllRoulettes() em vez disso.');
     
-    return roulettes.map(processRouletteData);
+    // Importar UnifiedRouletteClient dinamicamente
+    const { default: UnifiedRouletteClient } = await import('../../services/UnifiedRouletteClient');
+    const client = UnifiedRouletteClient.getInstance();
+    
+    // Obter dados do cliente unificado
+    return client.getAllRoulettes();
   } catch (error) {
-    console.error('Error fetching roulettes:', error);
+    console.error('Erro ao buscar roletas:', error);
+    // Fallback para dados vazios em caso de erro
     return [];
   }
-};
+}
 
 /**
  * Função para processar dados brutos da roleta e adicionar informações úteis
@@ -134,48 +140,45 @@ export const processRouletteData = (roleta: any): any => {
 
 /**
  * Busca todas as roletas através do endpoint /api/roulettes e adiciona números reais a cada uma
- * @returns Array com todas as roletas disponíveis, incluindo números
+ * 
+ * @deprecated Este método está depreciado. Use UnifiedRouletteClient.getInstance().getAllRoulettes() em vez disso.
+ * @returns Promise com o array de todas as roletas com números
  */
-export const fetchAllRoulettesWithNumbers = async (): Promise<any[]> => {
+export async function getAllRoulettesWithRealNumbers(): Promise<RouletteData[]> {
   try {
-    // Aqui usaremos a API rouletteApi para buscar as roletas com números
-    const { fetchRoulettesWithNumbers } = await import('./rouletteApi');
-    const roulettes = await fetchRoulettesWithNumbers();
+    console.warn('DEPRECIADO: O método getAllRoulettesWithRealNumbers() está depreciado. Use UnifiedRouletteClient.getInstance().getAllRoulettes() em vez disso.');
     
-    return roulettes.map(processRouletteData);
+    // Importar UnifiedRouletteClient dinamicamente
+    const { default: UnifiedRouletteClient } = await import('../../services/UnifiedRouletteClient');
+    const client = UnifiedRouletteClient.getInstance();
+    
+    // Obter dados do cliente unificado
+    return client.getAllRoulettes();
   } catch (error) {
-    console.error('Error fetching roulettes with numbers:', error);
+    console.error('Erro ao buscar roletas com números reais:', error);
+    // Fallback para dados vazios em caso de erro
     return [];
   }
-};
+}
 
 /**
- * Busca uma roleta específica pelo ID usando o resultado de fetchRoulettes
+ * Busca uma roleta específica pelo ID
+ * @deprecated Este método está depreciado. Use UnifiedRouletteClient.getInstance().getRouletteById(id) em vez disso.
+ * @param id ID da roleta a ser buscada
+ * @returns Dados da roleta ou null se não encontrada
  */
-export const fetchRouletteById = async (roletaId: string): Promise<RouletteData | null> => {
+export const getRouletteById = async (id: string): Promise<RouletteData | null> => {
   try {
-    // Buscar todas as roletas
-    const roletas = await fetchAllRoulettes();
+    console.warn('DEPRECIADO: O método getRouletteById() está depreciado. Use UnifiedRouletteClient.getInstance().getRouletteById(id) em vez disso.');
     
-    // Encontrar a roleta específica
-    const roleta = roletas.find(r => 
-      r._id === roletaId || 
-      r.id === roletaId || 
-      mapToCanonicalRouletteId(r.id || '') === roletaId
-    );
-  
-  if (roleta) {
-      console.log(`[API] ✅ Roleta encontrada para ID: ${roletaId}`);
-      return roleta;
-    }
-    
-    console.warn(`[API] Roleta não encontrada para ID: ${roletaId}`);
-    return null;
+    // Buscar todas as roletas e filtrar pela ID desejada
+    const roulettes = await getAllRoulettes();
+    return roulettes.find(roulette => roulette.id === id) || null;
   } catch (error) {
-    console.error(`[API] Erro ao buscar roleta por ID ${roletaId}:`, error);
+    console.error(`Erro ao buscar roleta com ID ${id}:`, error);
     return null;
   }
-}
+};
 
 /**
  * Busca os números mais recentes de uma roleta pelo ID canônico
@@ -288,7 +291,7 @@ export const fetchRouletteNumbersById = async (canonicalId: string, limit = 100)
 export const fetchRouletteStrategy = async (roletaId: string): Promise<RouletteStrategy | null> => {
   try {
     // Buscar a roleta para obter a estratégia
-    const roleta = await fetchRouletteById(roletaId);
+    const roleta = await getRouletteById(roletaId);
     
     if (roleta) {
       // Construir objeto de estratégia a partir dos dados da roleta

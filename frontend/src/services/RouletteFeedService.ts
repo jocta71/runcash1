@@ -426,45 +426,46 @@ export default class RouletteFeedService {
       try {
         logger.info(`🔄 Buscando dados iniciais (tentativa ${retryCount + 1}/${MAX_RETRIES})`);
         
-        // Tentar obter dados via SSE primeiro
-        if (this.isConnected) {
+        // Obter dados via RouletteStreamClient ou UnifiedRouletteClient
+        try {
+          // Primeiro tentar obter dados do RouletteStreamClient (cliente SSE)
+          const { default: RouletteStreamClient } = await import('../utils/RouletteStreamClient');
+          const streamClient = RouletteStreamClient.getInstance();
+          
+          // Verificar se o cliente está conectado ou tentar conectar
+          if (!streamClient.getStatus().isConnected) {
+            logger.info('🔄 Cliente SSE não conectado, tentando conectar...');
+            await streamClient.connect();
+            
+            // Aguardar um momento para receber dados
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          
+          // Verificar se temos dados no cliente SSE
+          const rouletteData = streamClient.getAllRouletteData();
+          if (rouletteData && rouletteData.length > 0) {
+            logger.info(`📡 Recebidos ${rouletteData.length} roletas via cliente SSE`);
+            return this.processRouletteData(rouletteData);
+          }
+          
+          // Se não temos dados no cliente SSE, tentar via UnifiedRouletteClient
+          logger.info('⚠️ Sem dados no cliente SSE, tentando via UnifiedRouletteClient...');
           const unifiedClient = UnifiedRouletteClient.getInstance();
           const globalRoulettes = await unifiedClient.fetchRouletteData();
-      
-    if (globalRoulettes && globalRoulettes.length > 0) {
-            logger.info(`📋 Recebidos ${globalRoulettes.length} roletas via SSE`);
+          
+          if (globalRoulettes && globalRoulettes.length > 0) {
+            logger.info(`📋 Recebidos ${globalRoulettes.length} roletas via UnifiedRouletteClient`);
             return this.processRouletteData(globalRoulettes);
           }
+          
+          logger.warn('⚠️ Nenhum dado recebido dos clientes, retornando cache atual');
+          return this.roulettes;
+          
+        } catch (clientError) {
+          // Se falhar ao tentar obter dados via clientes, lançar erro para tentar novamente
+          throw new Error(`Erro ao obter dados via clientes: ${clientError.message}`);
         }
         
-        // Se SSE falhar ou não estiver conectado, tentar via REST
-        const response = await fetch('/api/roulettes', {
-          method: 'GET',
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data && Array.isArray(data) && data.length > 0) {
-          logger.info(`📋 Recebidos ${data.length} roletas via REST`);
-          return this.processRouletteData(data);
-        }
-        
-        // Se não recebemos dados, esperar antes de tentar novamente
-        if (retryCount < MAX_RETRIES - 1) {
-          const waitTime = Math.min(1000 * Math.pow(2, retryCount), 5000);
-          logger.warn(`⚠️ Nenhum dado recebido, aguardando ${waitTime}ms antes de tentar novamente...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
-        
-        retryCount++;
       } catch (error) {
         lastError = error;
         logger.error(`❌ Erro ao buscar dados iniciais (tentativa ${retryCount + 1}/${MAX_RETRIES}):`, error);
