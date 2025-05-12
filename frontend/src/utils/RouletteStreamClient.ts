@@ -7,6 +7,16 @@
 import EventBus from '../services/EventBus';
 import { SSE_STREAM_URL } from '../services/api/endpoints';
 
+// Controle global para garantir uma única conexão SSE em toda a aplicação
+const GLOBAL = {
+  SSE_CONNECTION_ACTIVE: false,
+  SSE_CONNECTION_ID: null as string | null,
+  CONNECTION_PROMISE: null as Promise<boolean> | null,
+  CONNECTION_ATTEMPTS: 0,
+  CONNECTION_MAX_ATTEMPTS: 3,
+  SSE_INITIALIZED: false
+};
+
 // Opções de configuração do cliente SSE
 interface RouletteStreamOptions {
   autoConnect?: boolean;
@@ -28,6 +38,7 @@ class RouletteStreamClient {
   private reconnectTimer: number | null = null;
   private lastEventId: string | null = null;
   private lastReceivedAt: number = 0;
+  private connectionId: string = `sse-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
   
   // Configurações padrão
   private url: string = SSE_STREAM_URL;
@@ -50,6 +61,12 @@ class RouletteStreamClient {
     if (options.autoConnect) {
       this.connect();
     }
+
+    // Registrar esta instância como a conexão global
+    GLOBAL.SSE_CONNECTION_ID = this.connectionId;
+    GLOBAL.SSE_INITIALIZED = true;
+    
+    console.log(`[RouletteStream] Instância inicializada com ID: ${this.connectionId}`);
   }
 
   /**
@@ -63,39 +80,118 @@ class RouletteStreamClient {
   }
 
   /**
+   * Verifica se já existe uma conexão SSE ativa em qualquer parte da aplicação
+   */
+  public static isConnectionActive(): boolean {
+    return GLOBAL.SSE_CONNECTION_ACTIVE;
+  }
+
+  /**
+   * Aguarda pela inicialização da conexão SSE
+   * @returns Promise que resolve para true quando a conexão for estabelecida ou false em caso de falha
+   */
+  public static async waitForConnection(timeout: number = 10000): Promise<boolean> {
+    if (GLOBAL.SSE_CONNECTION_ACTIVE) {
+      return true;
+    }
+
+    if (GLOBAL.CONNECTION_PROMISE) {
+      return GLOBAL.CONNECTION_PROMISE;
+    }
+
+    GLOBAL.CONNECTION_PROMISE = new Promise<boolean>((resolve) => {
+      // Se a conexão já estiver ativa, resolver imediatamente
+      if (GLOBAL.SSE_CONNECTION_ACTIVE) {
+        resolve(true);
+        return;
+      }
+
+      // Iniciar timer para timeout
+      const timeoutId = setTimeout(() => {
+        console.log('[RouletteStream] Timeout ao aguardar conexão SSE');
+        resolve(false);
+      }, timeout);
+
+      // Ouvir evento de conexão
+      const handler = () => {
+        clearTimeout(timeoutId);
+        resolve(true);
+      };
+
+      // Registrar listener para evento de conexão
+      EventBus.on('roulette:stream-connected', handler);
+
+      // Verificar novamente após um curto período (para caso o evento já tenha sido emitido)
+      setTimeout(() => {
+        if (GLOBAL.SSE_CONNECTION_ACTIVE) {
+          clearTimeout(timeoutId);
+          EventBus.off('roulette:stream-connected', handler);
+          resolve(true);
+        }
+      }, 100);
+
+      // Se não houver uma instância inicializada, tentar criar uma agora
+      if (!GLOBAL.SSE_INITIALIZED) {
+        console.log('[RouletteStream] Iniciando conexão SSE automaticamente');
+        RouletteStreamClient.getInstance({ autoConnect: true });
+      }
+    });
+
+    return GLOBAL.CONNECTION_PROMISE;
+  }
+
+  /**
    * Conecta ao stream SSE
    */
-  public connect(): void {
+  public connect(): Promise<boolean> {
+    // Se já existe uma conexão global ativa com outro ID, não iniciar nova conexão
+    if (GLOBAL.SSE_CONNECTION_ACTIVE && GLOBAL.SSE_CONNECTION_ID !== this.connectionId) {
+      console.log(`[RouletteStream] Já existe uma conexão SSE ativa com ID: ${GLOBAL.SSE_CONNECTION_ID}. Reutilizando.`);
+      return Promise.resolve(true);
+    }
+
     if (this.isConnected || this.isConnecting) {
       console.log('[RouletteStream] Já conectado ou conectando');
-      return;
+      return Promise.resolve(this.isConnected);
     }
     
     this.isConnecting = true;
-    console.log(`[RouletteStream] Conectando ao stream SSE: ${this.url}`);
+    GLOBAL.CONNECTION_ATTEMPTS++;
     
-    try {
-      // Usar a URL diretamente do atributo da classe, que já está sendo
-      // inicializado com SSE_STREAM_URL no construtor
-      let streamUrl = this.url;
-      
-      // Criar conexão SSE
-      this.eventSource = new EventSource(streamUrl);
-      
-      // Configurar handlers de eventos
-      this.eventSource.onopen = this.handleOpen.bind(this);
-      this.eventSource.onerror = this.handleError.bind(this);
-      
-      // Evento de atualização
-      this.eventSource.addEventListener('update', this.handleUpdateEvent.bind(this));
-      
-      // Evento de conexão inicial
-      this.eventSource.addEventListener('connected', this.handleConnectedEvent.bind(this));
-    } catch (error) {
-      console.error('[RouletteStream] Erro ao conectar:', error);
-      this.isConnecting = false;
-      this.reconnect();
-    }
+    console.log(`[RouletteStream] Conectando ao stream SSE: ${this.url} (tentativa ${GLOBAL.CONNECTION_ATTEMPTS})`);
+    
+    return new Promise((resolve) => {
+      try {
+        // Usar a URL diretamente do atributo da classe, que já está sendo
+        // inicializado com SSE_STREAM_URL no construtor
+        let streamUrl = this.url;
+        
+        // Criar conexão SSE
+        this.eventSource = new EventSource(streamUrl);
+        
+        // Configurar handlers de eventos
+        this.eventSource.onopen = () => {
+          this.handleOpen();
+          resolve(true);
+        };
+        
+        this.eventSource.onerror = (error) => {
+          this.handleError(error);
+          resolve(false);
+        };
+        
+        // Evento de atualização
+        this.eventSource.addEventListener('update', this.handleUpdateEvent.bind(this));
+        
+        // Evento de conexão inicial
+        this.eventSource.addEventListener('connected', this.handleConnectedEvent.bind(this));
+      } catch (error) {
+        console.error('[RouletteStream] Erro ao conectar:', error);
+        this.isConnecting = false;
+        this.reconnect();
+        resolve(false);
+      }
+    });
   }
 
   /**
@@ -122,12 +218,19 @@ class RouletteStreamClient {
     this.isConnecting = false;
     this.reconnectAttempts = 0;
     
+    // Se esta era a conexão global ativa, atualizar estado global
+    if (GLOBAL.SSE_CONNECTION_ID === this.connectionId) {
+      GLOBAL.SSE_CONNECTION_ACTIVE = false;
+      console.log(`[RouletteStream] Conexão global com ID ${this.connectionId} desativada`);
+    }
+    
     // Notificar sobre a desconexão
     this.notifyEvent('disconnect', { timestamp: Date.now() });
     
     // Emitir evento global
     EventBus.emit('roulette:stream-disconnected', { 
-      timestamp: new Date().toISOString() 
+      timestamp: new Date().toISOString(),
+      connectionId: this.connectionId
     });
   }
 
@@ -184,12 +287,17 @@ class RouletteStreamClient {
     this.isConnecting = false;
     this.reconnectAttempts = 0;
     
+    // Atualizar estado global para indicar conexão ativa
+    GLOBAL.SSE_CONNECTION_ACTIVE = true;
+    GLOBAL.CONNECTION_ATTEMPTS = 0;
+    
     // Notificar sobre a conexão
     this.notifyEvent('connect', { timestamp: Date.now() });
     
     // Emitir evento global
     EventBus.emit('roulette:stream-connected', { 
-      timestamp: new Date().toISOString() 
+      timestamp: new Date().toISOString(),
+      connectionId: this.connectionId
     });
   }
 
@@ -202,10 +310,22 @@ class RouletteStreamClient {
     this.isConnected = false;
     this.isConnecting = false;
     
+    // Se esta era a conexão global ativa, atualizar estado global
+    if (GLOBAL.SSE_CONNECTION_ID === this.connectionId) {
+      GLOBAL.SSE_CONNECTION_ACTIVE = false;
+    }
+    
     // Notificar sobre o erro
     this.notifyEvent('error', { 
       event,
       timestamp: Date.now()
+    });
+    
+    // Emitir evento global
+    EventBus.emit('roulette:stream-error', {
+      timestamp: new Date().toISOString(),
+      connectionId: this.connectionId,
+      reconnectAttempts: this.reconnectAttempts
     });
     
     // Tentar reconectar

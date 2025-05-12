@@ -1810,42 +1810,79 @@ export default class RouletteFeedService {
   private initializeSSE(): void {
     try {
       // Importar e usar o RouletteStreamClient como cliente único
-      import('../utils/RouletteStreamClient').then(module => {
-        const RouletteStreamClient = module.default.getInstance();
+      import('../utils/RouletteStreamClient').then(async (module) => {
+        const RouletteStreamClient = module.default;
         
-        logger.info('🔄 Usando RouletteStreamClient para streaming SSE');
+        logger.info('🔄 Inicializando conexão SSE via RouletteStreamClient centralizado');
         
-        // Inscrever para receber eventos do RouletteStreamClient
-        RouletteStreamClient.on('update', (data) => {
-          this.handleRouletteData(data);
-          this.lastReceivedTime = Date.now();
-        });
-        
-        RouletteStreamClient.on('connect', () => {
-          logger.info('✅ Conexão SSE estabelecida via RouletteStreamClient');
+        // Verificar se a conexão já está ativa
+        if (RouletteStreamClient.isConnectionActive()) {
+          logger.info('✅ Cliente SSE centralizado já está ativo');
           this.isConnected = true;
           this.lastReceivedTime = Date.now();
           
-          // Notificar sobre conexão estabelecida
-          EventBus.emit('roulette:sse-connected', {
-            timestamp: new Date().toISOString(),
-            source: 'RouletteStreamClient'
+          // Registrar para receber eventos
+          const client = RouletteStreamClient.getInstance();
+          
+          // Configurar handlers de eventos
+          client.on('update', (data) => {
+            this.handleRouletteData(data);
+            this.lastReceivedTime = Date.now();
           });
-        });
+          
+          client.on('connect', () => {
+            logger.info('✅ Conexão SSE estabelecida via RouletteStreamClient');
+            this.isConnected = true;
+            this.lastReceivedTime = Date.now();
+            
+            // Notificar sobre conexão estabelecida
+            EventBus.emit('roulette:sse-connected', {
+              timestamp: new Date().toISOString(),
+              source: 'RouletteStreamClient'
+            });
+          });
+          
+          client.on('error', (error) => {
+            logger.error('❌ Erro na conexão SSE:', error);
+            this.isConnected = false;
+          });
+          
+          return;
+        }
         
-        RouletteStreamClient.on('error', (error) => {
-          logger.error('❌ Erro na conexão SSE:', error);
+        // Aguardar pela conexão centralizada
+        logger.info('🔄 Aguardando inicialização do cliente SSE centralizado...');
+        const isConnected = await RouletteStreamClient.waitForConnection();
+        
+        if (isConnected) {
+          logger.info('✅ Cliente SSE centralizado conectado com sucesso');
+          this.isConnected = true;
+          
+          // Registrar eventos para o cliente já conectado
+          const client = RouletteStreamClient.getInstance();
+          
+          client.on('update', (data) => {
+            this.handleRouletteData(data);
+            this.lastReceivedTime = Date.now();
+          });
+          
+          client.on('connect', () => {
+            logger.info('✅ Conexão SSE reestabelecida');
+            this.isConnected = true;
+          });
+          
+          client.on('error', (error) => {
+            logger.error('❌ Erro na conexão SSE:', error);
+            this.isConnected = false;
+          });
+        } else {
+          logger.warn('⚠️ Falha na inicialização do cliente SSE centralizado');
           this.isConnected = false;
-        });
-        
-        // Conectar se ainda não estiver conectado
-        RouletteStreamClient.connect();
-        
+        }
       }).catch(error => {
         logger.error('❌ Erro ao importar RouletteStreamClient:', error);
         this.isConnected = false;
       });
-      
     } catch (error) {
       logger.error('❌ Erro ao inicializar conexão SSE:', error);
       this.isConnected = false;

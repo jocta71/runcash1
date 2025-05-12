@@ -158,131 +158,71 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Conecta ao stream de eventos SSE
-   * Garante que apenas uma conexão SSE seja estabelecida por vez
+   * Conecta ao stream de dados
    */
   public connectStream(): void {
-    if (!this.streamingEnabled) {
-      this.log('Streaming está desabilitado');
-      return;
-    }
-    
-    // Extrair a URL base sem query params para garantir unicidade
-    const baseUrl = SSE_STREAM_URL.split('?')[0];
-    
-    // Verificar se já existe alguma conexão para esta URL base
-    const existingConnection = UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.get(baseUrl);
-    if (existingConnection) {
-      this.log(`Já existe uma conexão SSE ativa para a URL base ${baseUrl}. Reutilizando conexão.`);
-      
-      // Associar a conexão existente a esta instância
-      this.eventSource = existingConnection;
-      this.isStreamConnected = true;
-      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = true;
-      
-      // Emitir evento para notificar que estamos usando uma conexão existente
-      this.emit('reusing-connection', { 
-        baseUrl, 
-        timestamp: Date.now(),
-        connectionId: UnifiedRouletteClient.SSE_CONNECTION_ID
-      });
-      
-      return;
-    }
-    
-    // Verificar se já existe uma tentativa de conexão global
-    if (UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT) {
-      this.log('Outra instância já está tentando conectar ao stream, aguardando...');
-      return;
-    }
-    
-    // Marcar que estamos tentando conectar
-    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = true;
-    this.isStreamConnecting = true;
-    
     try {
-      const streamUrl = SSE_STREAM_URL;
-      const connectionId = `sse-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      UnifiedRouletteClient.SSE_CONNECTION_ID = connectionId;
-      
-      this.log(`Conectando ao stream SSE: ${streamUrl} (ID: ${connectionId})`);
-      
-      // Parar polling se estiver ativo
-      this.stopPolling();
-      
-      // Fechar qualquer conexão SSE existente
-      this.closeAllSSEConnections();
-      
-      // Construir URL com query params para autenticação
-      let fullStreamUrl = streamUrl;
-      if (cryptoService.hasAccessKey()) {
-        const accessKey = cryptoService.getAccessKey();
-        if (accessKey) {
-          fullStreamUrl += `?key=${encodeURIComponent(accessKey)}`;
+      // Importar o módulo RouletteStreamClient e usar a instância centralizada
+      import('../utils/RouletteStreamClient').then(async (module) => {
+        const RouletteStreamClient = module.default;
+        
+        this.log('🔄 Verificando cliente SSE centralizado...');
+        
+        if (RouletteStreamClient.isConnectionActive()) {
+          this.log('✅ Cliente SSE centralizado já está ativo, conectando aos eventos');
+          this.isStreamConnected = true;
+          
+          // Se já estiver conectado, apenas registrar para eventos
+          const client = RouletteStreamClient.getInstance();
+          
+          // Registrar para receber eventos
+          client.on('update', this.handleStreamUpdate.bind(this));
+          client.on('connect', this.handleStreamConnected.bind(this));
+          client.on('error', this.handleStreamError.bind(this));
+          
+          return;
         }
-      }
-      
-      // Criar conexão SSE
-      this.eventSource = new EventSource(fullStreamUrl);
-      
-      // Registrar a nova conexão no mapa global
-      UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.set(baseUrl, this.eventSource);
-      
-      // Configurar handlers de eventos
-      this.eventSource.onopen = this.handleStreamOpen.bind(this);
-      this.eventSource.onerror = this.handleStreamError.bind(this);
-      
-      // Eventos específicos
-      this.eventSource.addEventListener('message', this.handleStreamUpdate.bind(this));
-      this.eventSource.addEventListener('update', this.handleStreamUpdate.bind(this));
-      this.eventSource.addEventListener('connected', this.handleStreamConnected.bind(this));
-      
-      // Timeout de segurança para diagnóstico
-      setTimeout(() => {
-        if (this.eventSource) {
-          console.log('📊 Status da conexão SSE após tentativa:', {
-            readyState: this.eventSource.readyState,
-            status: ['CONNECTING', 'OPEN', 'CLOSED'][this.eventSource.readyState] || 'UNKNOWN',
-            isConnected: this.isStreamConnected,
-            isConnecting: this.isStreamConnecting,
-            connectionId: UnifiedRouletteClient.SSE_CONNECTION_ID,
-            registeredConnections: Array.from(UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.keys()),
-            lastReceived: this.lastReceivedAt ? new Date(this.lastReceivedAt).toISOString() : 'nunca'
-          });
+        
+        this.log('🔄 Aguardando inicialização do cliente SSE centralizado...');
+        
+        // Aguardar pela conexão ou iniciar se necessário
+        const isConnected = await RouletteStreamClient.waitForConnection();
+        
+        if (isConnected) {
+          this.log('✅ Cliente SSE centralizado conectado com sucesso');
+          this.isStreamConnected = true;
+          
+          // Registrar para receber eventos
+          const client = RouletteStreamClient.getInstance();
+          client.on('update', this.handleStreamUpdate.bind(this));
+          client.on('connect', this.handleStreamConnected.bind(this));
+          client.on('error', this.handleStreamError.bind(this));
+        } else {
+          this.log('⚠️ Falha na inicialização do cliente SSE centralizado, tentando conexão direta');
+          
+          // Obter a instância e tentar conectar diretamente
+          const client = RouletteStreamClient.getInstance();
+          const success = await client.connect();
+          
+          if (success) {
+            this.log('✅ Conexão direta bem-sucedida');
+            this.isStreamConnected = true;
+            
+            // Registrar para receber eventos
+            client.on('update', this.handleStreamUpdate.bind(this));
+            client.on('connect', this.handleStreamConnected.bind(this));
+            client.on('error', this.handleStreamError.bind(this));
+          } else {
+            this.error('❌ Falha na conexão direta');
+            this.isStreamConnected = false;
+          }
         }
-      }, 3000);
+      }).catch(error => {
+        this.error('❌ Erro ao importar RouletteStreamClient:', error);
+      });
     } catch (error) {
-      this.error('Erro ao conectar ao stream:', error);
-      this.isStreamConnecting = false;
-      UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
-      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
-      UnifiedRouletteClient.SSE_CONNECTION_ID = null;
-      this.reconnectStream();
+      this.error('❌ Erro ao conectar ao stream:', error);
     }
-  }
-  
-  /**
-   * Fecha todas as conexões SSE ativas
-   */
-  private closeAllSSEConnections(): void {
-    this.log(`Fechando todas as ${UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size} conexões SSE ativas...`);
-    
-    // Fechar cada conexão registrada
-    UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.forEach((eventSource, url) => {
-      try {
-        this.log(`Fechando conexão SSE para ${url}`);
-        eventSource.close();
-      } catch (error) {
-        this.error(`Erro ao fechar conexão SSE para ${url}:`, error);
-      }
-    });
-    
-    // Limpar o registro
-    UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.clear();
-    
-    // Resetar flags
-    UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
-    UnifiedRouletteClient.SSE_CONNECTION_ID = null;
   }
   
   /**
@@ -1811,34 +1751,42 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Força a reconexão do stream e registro do status
+   * Força a reconexão do stream SSE
    */
   public forceReconnectStream(): void {
-    // Registrar estado atual
-    console.log('Estado antes da reconexão:');
-    this.diagnoseConnectionState();
-    
-    // Fechar todas as conexões SSE existentes para garantir uma reconexão limpa
-    this.closeAllSSEConnections();
-    
-    // Resetar flags
-    UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
-    UnifiedRouletteClient.SSE_CONNECTION_ID = null;
-    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
-    this.isStreamConnected = false;
-    this.isStreamConnecting = false;
-    
-    // Pequeno delay antes de reconectar
-    setTimeout(() => {
-      console.log('Tentando reconectar stream com conexão limpa...');
-      this.connectStream();
-      
-      // Verificar estado após tentativa
-      setTimeout(() => {
-        console.log('Estado após tentativa de reconexão:');
-        this.diagnoseConnectionState();
-      }, 1000);
-    }, 500);
+    try {
+      // Aguardar a inicialização do RouletteStreamClient e então usar
+      import('../utils/RouletteStreamClient').then(async (module) => {
+        const RouletteStreamClient = module.default;
+        
+        this.log('🔄 Aguardando inicialização do cliente SSE centralizado...');
+        
+        // Aguardar a conexão ou inicializar se necessário
+        const isConnected = await RouletteStreamClient.waitForConnection();
+        
+        if (isConnected) {
+          this.log('✅ Cliente SSE centralizado já está conectado');
+          this.isStreamConnected = true;
+        } else {
+          this.log('🔄 Forçando reconexão do cliente SSE centralizado');
+          // Obter a instância e conectar
+          const client = RouletteStreamClient.getInstance();
+          const success = await client.connect();
+          
+          this.isStreamConnected = success;
+          
+          if (success) {
+            this.log('✅ Reconexão bem-sucedida');
+          } else {
+            this.error('❌ Falha ao reconectar');
+          }
+        }
+      }).catch(error => {
+        this.error('❌ Erro ao importar RouletteStreamClient:', error);
+      });
+    } catch (error) {
+      this.error('❌ Erro ao forçar reconexão:', error);
+    }
   }
 
   /**
@@ -1846,43 +1794,56 @@ class UnifiedRouletteClient {
    */
   private initializeSSE(): void {
     try {
-      // Importar e usar o RouletteStreamClient em vez de criar conexão direta
-      import('../utils/RouletteStreamClient').then(module => {
-        const RouletteStreamClient = module.default.getInstance();
+      // Importar e usar o RouletteStreamClient como cliente centralizado
+      import('../utils/RouletteStreamClient').then(async (module) => {
+        const RouletteStreamClient = module.default;
         
-        this.log('🔄 Usando RouletteStreamClient para streaming SSE');
+        this.log('🔄 Inicializando conexão SSE via RouletteStreamClient');
         
-        // Inscrever para receber eventos do RouletteStreamClient
-        RouletteStreamClient.on('update', (data) => {
-          this.handleRouletteData(data);
-          this.lastReceivedAt = Date.now();
-        });
+        // Aguardar pela conexão ou iniciar se necessário
+        const isConnected = await RouletteStreamClient.waitForConnection();
         
-        RouletteStreamClient.on('connect', () => {
-          this.log('✅ Conexão SSE estabelecida via RouletteStreamClient');
-          this.streamReconnectAttempts = 0;
+        if (isConnected) {
+          this.log('✅ Cliente SSE centralizado já está conectado');
           this.isStreamConnected = true;
+          this.streamReconnectAttempts = 0;
           
-          // Emitir evento de conexão bem-sucedida
-          this.emit('connected', {
-            timestamp: Date.now(),
-            source: 'RouletteStreamClient'
+          // Registrar para receber eventos
+          const client = RouletteStreamClient.getInstance();
+          
+          // Registrar handlers para eventos
+          client.on('update', (data) => {
+            this.handleRouletteData(data);
+            this.lastReceivedAt = Date.now();
           });
-        });
-        
-        RouletteStreamClient.on('error', (error) => {
-          this.error('❌ Erro na conexão SSE:', error);
-          this.isStreamConnected = false;
-        });
-        
-        // Conectar se ainda não estiver conectado
-        RouletteStreamClient.connect();
-        
+          
+          client.on('connect', () => {
+            this.log('✅ Conexão SSE estabelecida via RouletteStreamClient');
+            this.streamReconnectAttempts = 0;
+            this.isStreamConnected = true;
+            
+            // Emitir evento de conexão bem-sucedida
+            this.emit('connected', {
+              timestamp: Date.now(),
+              source: 'RouletteStreamClient'
+            });
+          });
+          
+          client.on('error', (error) => {
+            this.error('❌ Erro na conexão SSE:', error);
+            this.isStreamConnected = false;
+          });
+        } else {
+          this.log('⚠️ Falha na inicialização do cliente SSE centralizado, tentando conexão direta');
+          
+          // Obter a instância e tentar conectar diretamente
+          const client = RouletteStreamClient.getInstance();
+          await client.connect();
+        }
       }).catch(error => {
         this.error('❌ Erro ao importar RouletteStreamClient:', error);
         this.isStreamConnected = false;
       });
-      
     } catch (error) {
       this.error('❌ Erro ao inicializar conexão SSE:', error);
       this.isStreamConnected = false;
