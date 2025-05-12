@@ -37,8 +37,15 @@ window.ROULETTE_SYSTEM_INITIALIZED = false;
 async function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
-  // Inicializar o UnifiedRouletteClient diretamente - usamos o cliente já inicializado previamente
-  const unifiedClient = UnifiedRouletteClient.getInstance();
+  // Garantir que temos apenas uma instância do cliente
+  const unifiedClient = (window as any)._unifiedRouletteClientInstance || 
+                        UnifiedRouletteClient.getInstance({
+                          streamingEnabled: true,
+                          autoConnect: false // Inicialmente desabilitado para evitar múltiplas conexões
+                        });
+  
+  // Armazenar globalmente para referência
+  (window as any)._unifiedRouletteClientInstance = unifiedClient;
   
   // Inicializar outros serviços
   const eventService = EventService.getInstance();
@@ -46,6 +53,22 @@ async function initializeRoulettesSystem() {
   
   // Registrar o UnifiedRouletteClient no RouletteFeedService (compatibilidade)
   rouletteFeedService.registerSocketService(unifiedClient);
+  
+  // Garantir que temos apenas uma conexão SSE
+  const diagnostics = unifiedClient.diagnoseConnectionState();
+  logger.info(`Estado atual das conexões: ${diagnostics.GLOBAL_SSE_CONNECTIONS_COUNT} conexões ativas`);
+  
+  if (diagnostics.GLOBAL_SSE_CONNECTIONS_COUNT === 0) {
+    logger.info('Estabelecendo conexão SSE única para todos os componentes...');
+    try {
+      await unifiedClient.connectStream();
+      logger.info('Conexão SSE estabelecida com sucesso.');
+    } catch (error) {
+      logger.error('Erro ao estabelecer conexão SSE:', error);
+    }
+  } else {
+    logger.info(`Já existem ${diagnostics.GLOBAL_SSE_CONNECTIONS_COUNT} conexões SSE ativas. Usando conexões existentes.`);
+  }
   
   // Inicializar o serviço de feed e buscar dados iniciais uma única vez
   logger.info('Inicializando serviço de feed e realizando única busca de dados de roletas...');
@@ -64,9 +87,13 @@ async function initializeRoulettesSystem() {
         }
       });
       
-      // Iniciar polling com intervalo de 10 segundos
-      rouletteFeedService.startPolling();
-      logger.info('Polling de roletas iniciado (intervalo de 10s)');
+      // Iniciar polling apenas como fallback se o streaming falhar
+      if (!unifiedClient.getStatus().isStreamConnected) {
+        logger.info('Streaming não conectado, iniciando polling como fallback (intervalo de 10s)');
+        rouletteFeedService.startPolling();
+      } else {
+        logger.info('Streaming conectado, polling não será iniciado');
+      }
     }).catch(error => {
       logger.error('Erro ao inicializar RouletteFeedService:', error);
     });
