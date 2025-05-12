@@ -54,6 +54,29 @@ interface RouletteNumber {
  * Cliente unificado para dados de roletas
  */
 class UnifiedRouletteClient {
+  /**
+   * Registra uma mensagem de log no console
+   */
+  private log(message: string, ...args: any[]): void {
+    if (this.logEnabled) {
+      console.log(`[UnifiedRouletteClient] ${message}`, ...args);
+    }
+  }
+
+  /**
+   * Registra um erro no console
+   */
+  private error(message: string, ...args: any[]): void {
+    console.error(`[UnifiedRouletteClient] ${message}`, ...args);
+  }
+
+  /**
+   * Registra um aviso no console
+   */
+  private warn(message: string, ...args: any[]): void {
+    console.warn(`[UnifiedRouletteClient] ${message}`, ...args);
+  }
+  
   private static instance: UnifiedRouletteClient;
   
   // Estado
@@ -1290,13 +1313,6 @@ class UnifiedRouletteClient {
   }
 
   /**
-   * Registra um aviso no console
-   */
-  private warn(message: string, ...args: any[]): void {
-    console.warn(`[UnifiedRouletteClient] ${message}`, ...args);
-  }
-
-  /**
    * Processa os dados da roleta recebidos via SSE
    */
   private handleRouletteData(data: any): void {
@@ -1368,6 +1384,124 @@ class UnifiedRouletteClient {
       } catch (error) {
         this.error(`Erro ao fechar conexão existente para ${urlBase}:`, error);
       }
+    }
+  }
+
+  /**
+   * Diagnóstica o estado atual da conexão
+   */
+  public diagnoseConnectionState(): any {
+    const state = {
+      isStreamConnected: this.isStreamConnected,
+      isStreamConnecting: this.isStreamConnecting,
+      ACTIVE_SSE_CONNECTION: UnifiedRouletteClient.ACTIVE_SSE_CONNECTION,
+      GLOBAL_CONNECTION_ATTEMPT: UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT,
+      SSE_CONNECTION_ID: UnifiedRouletteClient.SSE_CONNECTION_ID,
+      lastFullUrl: UnifiedRouletteClient.LAST_FULL_URL,
+      GLOBAL_SSE_CONNECTIONS_COUNT: UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size,
+      GLOBAL_SSE_CONNECTIONS_URLS: Array.from(UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.keys()),
+      streamReconnectAttempts: this.streamReconnectAttempts,
+      lastEventId: this.lastEventId,
+      lastReceivedAt: this.lastReceivedAt ? new Date(this.lastReceivedAt).toISOString() : null,
+      eventSourceReadyState: this.eventSource ? this.eventSource.readyState : null,
+      eventSourceReadyStateText: this.eventSource 
+        ? ['CONNECTING', 'OPEN', 'CLOSED'][this.eventSource.readyState] || 'UNKNOWN' 
+        : 'NO_EVENTSOURCE',
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      isOnline: navigator.onLine
+    };
+    
+    console.log('📊 Diagnóstico da conexão SSE:', state);
+    return state;
+  }
+
+  /**
+   * Busca e armazena em cache o histórico inicial de roletas
+   */
+  private async fetchAndCacheInitialHistory(): Promise<void> {
+    if (this.isFetchingInitialHistory) {
+      return this.initialHistoryFetchPromise;
+    }
+    
+    this.isFetchingInitialHistory = true;
+    this.initialHistoryFetchPromise = new Promise<void>(async (resolve) => {
+      try {
+        this.log('Buscando histórico inicial de roletas...');
+        // Implementação real depende da API disponível
+        resolve();
+      } catch (error) {
+        this.error('Erro ao buscar histórico inicial:', error);
+        resolve();
+      } finally {
+        this.isFetchingInitialHistory = false;
+      }
+    });
+    
+    return this.initialHistoryFetchPromise;
+  }
+  
+  /**
+   * Processa dados descriptografados
+   */
+  private handleDecryptedData(data: any): void {
+    if (!data) {
+      this.error('Dados descriptografados inválidos');
+      return;
+    }
+    
+    try {
+      if (data.roletas && Array.isArray(data.roletas)) {
+        this.log(`Processando ${data.roletas.length} roletas de dados descriptografados`);
+        this.updateCache(data.roletas);
+        this.emit('update', { roulettes: data.roletas, timestamp: new Date().toISOString() });
+        EventBus.emit('roulette:data-updated', { roulettes: data.roletas, source: 'decrypted-data' });
+      } else {
+        this.error('Formato de dados descriptografados inválido');
+      }
+    } catch (error) {
+      this.error('Erro ao processar dados descriptografados:', error);
+    }
+  }
+
+  /**
+   * Disponibiliza os recursos quando a instância é descartada
+   */
+  public dispose(): void {
+    this.log('Descartando instância e liberando recursos');
+    
+    // Limpar timers
+    if (this.pollingTimer) {
+      window.clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+    
+    if (this.streamReconnectTimer) {
+      window.clearTimeout(this.streamReconnectTimer);
+      this.streamReconnectTimer = null;
+    }
+    
+    // Fechar conexão SSE
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+    
+    // Remover event listeners
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+      window.removeEventListener('focus', this.handleFocus);
+      window.removeEventListener('blur', this.handleBlur);
+    }
+    
+    // Limpar caches
+    this.rouletteData.clear();
+    this.initialHistoricalDataCache.clear();
+    this.eventCallbacks.clear();
+    
+    // Resetar singleton se esta for a instância atual
+    if (UnifiedRouletteClient.instance === this) {
+      UnifiedRouletteClient.instance = null as any;
     }
   }
 }
