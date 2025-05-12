@@ -429,6 +429,35 @@ class UnifiedRouletteClient {
    */
   private handleStreamConnected(event: MessageEvent): void {
     try {
+      // Verificar se event.data está definido antes de tentar parsear
+      if (!event.data) {
+        this.log(`Conexão SSE estabelecida (ID: ${UnifiedRouletteClient.SSE_CONNECTION_ID}), sem dados`);
+        
+        this.isStreamConnected = true;
+        this.isStreamConnecting = false;
+        UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+        UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = true;
+        this.lastReceivedAt = Date.now();
+        
+        // Parar polling se estiver ativo
+        this.stopPolling();
+        
+        // Emitir evento para notificar outros componentes
+        this.emit('connected', {});
+        EventBus.emit('roulette:connected', {
+          timestamp: new Date().toISOString(),
+          connectionId: UnifiedRouletteClient.SSE_CONNECTION_ID
+        });
+        
+        // Tentar buscar dados iniciais (caso não tenhamos)
+        if (this.rouletteData.size === 0) {
+          this.fetchRouletteData().catch(err => {
+            this.error('Erro ao buscar dados iniciais após conexão:', err);
+          });
+        }
+        return;
+      }
+      
       // Processar mensagem de conexão
       const data = JSON.parse(event.data);
       
