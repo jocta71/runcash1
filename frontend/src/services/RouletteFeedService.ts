@@ -210,6 +210,13 @@ export default class RouletteFeedService {
   // Adicionar propriedade lastReceivedTime
   private lastReceivedTime: number = 0;
 
+  // Adicionar propriedades para controle de logs de erro
+  private lastErrorTime: number = 0;
+  private sseErrorCount: number = 0;
+  private sseErrorSilenced: boolean = false;
+  private readonly SSE_ERROR_THRESHOLD: number = 3; // Número de erros antes de silenciar
+  private readonly SSE_ERROR_COOLDOWN: number = 30000; // 30 segundos de cooldown entre logs completos
+
   /**
    * O construtor configura os parâmetros iniciais e inicia o serviço
    * @param options Opções de configuração para o serviço
@@ -1873,6 +1880,10 @@ export default class RouletteFeedService {
             this.isConnected = true;
             this.lastReceivedTime = Date.now();
             
+            // Reiniciar contagem de erros ao conectar com sucesso
+            this.sseErrorCount = 0;
+            this.sseErrorSilenced = false;
+            
             // Notificar sobre conexão estabelecida
             EventBus.emit('roulette:sse-connected', {
               timestamp: new Date().toISOString(),
@@ -1881,8 +1892,7 @@ export default class RouletteFeedService {
           });
           
           client.on('error', (error) => {
-            logger.error('❌ Erro na conexão SSE:', error);
-            this.isConnected = false;
+            this.handleSSEError(error);
           });
           
           return;
@@ -1896,6 +1906,10 @@ export default class RouletteFeedService {
           logger.info('✅ Cliente SSE centralizado conectado com sucesso');
           this.isConnected = true;
           
+          // Reiniciar contagem de erros ao conectar com sucesso
+          this.sseErrorCount = 0;
+          this.sseErrorSilenced = false;
+          
           // Registrar eventos para o cliente já conectado
           const client = RouletteStreamClient.getInstance();
           
@@ -1907,11 +1921,14 @@ export default class RouletteFeedService {
           client.on('connect', () => {
             logger.info('✅ Conexão SSE reestabelecida');
             this.isConnected = true;
+            
+            // Reiniciar contagem de erros ao conectar com sucesso
+            this.sseErrorCount = 0;
+            this.sseErrorSilenced = false;
           });
           
           client.on('error', (error) => {
-            logger.error('❌ Erro na conexão SSE:', error);
-            this.isConnected = false;
+            this.handleSSEError(error);
           });
         } else {
           logger.warn('⚠️ Falha na inicialização do cliente SSE centralizado');
@@ -1924,6 +1941,44 @@ export default class RouletteFeedService {
     } catch (error) {
       logger.error('❌ Erro ao inicializar conexão SSE:', error);
       this.isConnected = false;
+    }
+  }
+  
+  /**
+   * Gerencia erros de SSE com mecanismo para reduzir logs repetitivos
+   */
+  private handleSSEError(error: any): void {
+    const now = Date.now();
+    const timeSinceLastError = now - this.lastErrorTime;
+    
+    // Atualizar estado
+    this.isConnected = false;
+    
+    // Detectar erros repetitivos
+    if (timeSinceLastError < 5000) { // Erros em menos de 5 segundos são considerados repetitivos
+      this.sseErrorCount++;
+      
+      // Se atingimos o limite, silenciar logs detalhados
+      if (this.sseErrorCount >= this.SSE_ERROR_THRESHOLD && !this.sseErrorSilenced) {
+        logger.warn(`Múltiplos erros de conexão SSE detectados (${this.sseErrorCount}). Logs detalhados serão reduzidos temporariamente.`);
+        this.sseErrorSilenced = true;
+      }
+    } else {
+      // Resetar contador se passou tempo suficiente
+      if (timeSinceLastError > this.SSE_ERROR_COOLDOWN) {
+        this.sseErrorCount = 1;
+        this.sseErrorSilenced = false;
+      }
+    }
+    
+    this.lastErrorTime = now;
+    
+    // Decidir o nível de log com base no estado de silenciamento
+    if (!this.sseErrorSilenced) {
+      logger.error('❌ Erro na conexão SSE:', error);
+    } else if (timeSinceLastError > this.SSE_ERROR_COOLDOWN) {
+      // Log resumido periódico mesmo no modo silenciado
+      logger.warn(`Conexão SSE continua instável. ${this.sseErrorCount} erros desde a última notificação.`);
     }
   }
 

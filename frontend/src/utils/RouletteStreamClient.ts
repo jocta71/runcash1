@@ -49,6 +49,15 @@ class RouletteStreamClient {
   private rouletteData: Map<string, any> = new Map();
 
   /**
+   * Handler para erros na conexão SSE
+   */
+  private lastErrorTime: number = 0;
+  private errorCount: number = 0;
+  private errorSilenced: boolean = false;
+  private readonly ERROR_THRESHOLD: number = 3; // Número de erros antes de silenciar
+  private readonly ERROR_COOLDOWN: number = 30000; // 30 segundos de cooldown entre logs completos
+
+  /**
    * Construtor privado para Singleton
    */
   private constructor(options: RouletteStreamOptions = {}) {
@@ -305,8 +314,10 @@ class RouletteStreamClient {
    * Handler para erros na conexão SSE
    */
   private handleError(event: Event): void {
-    console.error('[RouletteStream] Erro na conexão SSE:', event);
+    const now = Date.now();
+    const timeSinceLastError = now - this.lastErrorTime;
     
+    // Atualizar estado da conexão
     this.isConnected = false;
     this.isConnecting = false;
     
@@ -315,17 +326,46 @@ class RouletteStreamClient {
       GLOBAL.SSE_CONNECTION_ACTIVE = false;
     }
     
-    // Notificar sobre o erro
+    // Detectar erros repetitivos
+    if (timeSinceLastError < 5000) { // Erros em menos de 5 segundos são considerados repetitivos
+      this.errorCount++;
+      
+      // Se atingimos o limite, silenciar logs detalhados
+      if (this.errorCount >= this.ERROR_THRESHOLD && !this.errorSilenced) {
+        console.warn('[RouletteStream] Múltiplos erros de conexão detectados. Logs detalhados serão reduzidos temporariamente.');
+        this.errorSilenced = true;
+      }
+    } else {
+      // Resetar contador se passou tempo suficiente
+      if (timeSinceLastError > this.ERROR_COOLDOWN) {
+        this.errorCount = 1;
+        this.errorSilenced = false;
+      }
+    }
+    
+    this.lastErrorTime = now;
+    
+    // Decidir o nível de log com base no estado de silenciamento
+    if (!this.errorSilenced) {
+      console.error('[RouletteStream] Erro na conexão SSE:', event);
+    } else if (timeSinceLastError > this.ERROR_COOLDOWN) {
+      // Log resumido periódico mesmo no modo silenciado
+      console.warn(`[RouletteStream] Conexão SSE continua instável. ${this.errorCount} erros desde a última notificação.`);
+    }
+    
+    // Notificar sobre o erro (sem log)
     this.notifyEvent('error', { 
       event,
-      timestamp: Date.now()
+      timestamp: now,
+      silenced: this.errorSilenced
     });
     
-    // Emitir evento global
+    // Emitir evento global (sempre, independente do silenciamento)
     EventBus.emit('roulette:stream-error', {
       timestamp: new Date().toISOString(),
       connectionId: this.connectionId,
-      reconnectAttempts: this.reconnectAttempts
+      reconnectAttempts: this.reconnectAttempts,
+      errorCount: this.errorCount
     });
     
     // Tentar reconectar

@@ -110,6 +110,13 @@ class UnifiedRouletteClient {
   // Adicionar um registro global estático para todas as conexões SSE ativas
   private static GLOBAL_SSE_CONNECTIONS = new Map<string, EventSource>();
   
+  // Adicionar propriedades para controle de logs de erro
+  private lastErrorTime: number = 0;
+  private errorCount: number = 0;
+  private errorSilenced: boolean = false;
+  private readonly ERROR_THRESHOLD: number = 3; // Número de erros antes de silenciar
+  private readonly ERROR_COOLDOWN: number = 30000; // 30 segundos de cooldown entre logs completos
+  
   /**
    * Construtor privado para garantir singleton
    */
@@ -366,16 +373,46 @@ class UnifiedRouletteClient {
    * Handler para erros na conexão do stream
    */
   private handleStreamError(event: Event): void {
+    const now = Date.now();
+    const timeSinceLastError = now - this.lastErrorTime;
+    
+    // Detectar erros repetitivos
+    if (timeSinceLastError < 5000) { // Erros em menos de 5 segundos são considerados repetitivos
+      this.errorCount++;
+      
+      // Se atingimos o limite, silenciar logs detalhados
+      if (this.errorCount >= this.ERROR_THRESHOLD && !this.errorSilenced) {
+        this.warn('Múltiplos erros de conexão SSE detectados. Logs detalhados serão reduzidos temporariamente.');
+        this.errorSilenced = true;
+      }
+    } else {
+      // Resetar contador se passou tempo suficiente
+      if (timeSinceLastError > this.ERROR_COOLDOWN) {
+        this.errorCount = 1;
+        this.errorSilenced = false;
+      }
+    }
+    
+    this.lastErrorTime = now;
+    
     // Verificar se o erro é devido a uma mudança de rede
     const isNetworkChange = navigator.onLine === false;
     
-    this.error('Erro na conexão SSE:', event, isNetworkChange ? '(offline)' : '');
+    // Decidir o nível de log com base no estado de silenciamento
+    if (!this.errorSilenced) {
+      this.error('Erro na conexão SSE:', event, isNetworkChange ? '(offline)' : '');
+    } else if (timeSinceLastError > this.ERROR_COOLDOWN) {
+      // Log resumido periódico mesmo no modo silenciado
+      this.warn(`Conexão SSE continua instável. ${this.errorCount} erros desde a última notificação.`);
+    }
     
     // Remover esta conexão do registro global se ocorrer um erro
     if (this.eventSource) {
       UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.forEach((eventSource, url) => {
         if (eventSource === this.eventSource) {
-          this.log(`Removendo conexão com erro para ${url} do registro global`);
+          if (!this.errorSilenced) {
+            this.log(`Removendo conexão com erro para ${url} do registro global`);
+          }
           UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.delete(url);
         }
       });
@@ -393,8 +430,10 @@ class UnifiedRouletteClient {
       this.emit('error', { 
         type: 'stream', 
         message: 'Conexão perdida', 
-        timestamp: Date.now(),
-        connectionsCount: UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size
+        timestamp: now,
+        connectionsCount: UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size,
+        silenced: this.errorSilenced,
+        errorCount: this.errorCount
       });
       
       // Tentar reconectar automaticamente
@@ -409,7 +448,9 @@ class UnifiedRouletteClient {
         this.reconnectStream();
       } else {
         // Desistir e usar polling
-        this.error('Número máximo de tentativas de conexão atingido. Usando polling como fallback.');
+        if (!this.errorSilenced) {
+          this.warn('Número máximo de tentativas de conexão atingido. Usando polling como fallback.');
+        }
         
         // Atualizar flag global apenas se não houver mais conexões ativas
         if (UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size === 0) {
@@ -1130,7 +1171,10 @@ class UnifiedRouletteClient {
    * Registra mensagem de erro
    */
   private error(...args: any[]): void {
-    console.error('[UnifiedRouletteClient]', ...args);
+    // Evitar logs de erro se estiver no modo silenciado
+    if (!this.errorSilenced) {
+      console.error('[UnifiedRouletteClient]', ...args);
+    }
   }
   
   /**
@@ -1734,7 +1778,7 @@ class UnifiedRouletteClient {
    * Registra um aviso no console
    */
   private warn(message: string, ...args: any[]): void {
-    console.warn(`[UnifiedRouletteClient] ${message}`, ...args);
+    console.warn('[UnifiedRouletteClient]', message, ...args);
   }
 
   /**
