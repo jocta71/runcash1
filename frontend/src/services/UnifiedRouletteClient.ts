@@ -170,7 +170,7 @@ class UnifiedRouletteClient {
         
         if (RouletteStreamClient.isConnectionActive()) {
           this.log('✅ Cliente SSE centralizado já está ativo, conectando aos eventos');
-          this.isStreamConnected = true;
+      this.isStreamConnected = true;
           
           // Se já estiver conectado, apenas registrar para eventos
           const client = RouletteStreamClient.getInstance();
@@ -180,9 +180,9 @@ class UnifiedRouletteClient {
           client.on('connect', this.handleStreamConnected.bind(this));
           client.on('error', this.handleStreamError.bind(this));
           
-          return;
-        }
-        
+      return;
+    }
+    
         this.log('🔄 Aguardando inicialização do cliente SSE centralizado...');
         
         // Aguardar pela conexão ou iniciar se necessário
@@ -476,8 +476,8 @@ class UnifiedRouletteClient {
           jsonData = JSON.parse(data);
         } catch (error) {
           this.error('Erro ao analisar dados JSON do stream:', error);
-          return;
-        }
+        return;
+      }
       } else {
         // Se não for string, usar diretamente
         jsonData = data;
@@ -645,7 +645,7 @@ class UnifiedRouletteClient {
    */
   public async fetchRouletteData(): Promise<any[]> {
     try {
-      if (this.isFetching) {
+    if (this.isFetching) {
         this.log('⚠️ Já existe uma requisição em andamento, aguardando...');
         return this.rouletteData ? Array.from(this.rouletteData.values()) : [];
       }
@@ -1670,19 +1670,19 @@ class UnifiedRouletteClient {
           
           client.on('connect', () => {
             this.log('✅ Conexão SSE estabelecida via RouletteStreamClient');
-            this.streamReconnectAttempts = 0;
-            this.isStreamConnected = true;
-            
-            // Emitir evento de conexão bem-sucedida
-            this.emit('connected', {
-              timestamp: Date.now(),
+        this.streamReconnectAttempts = 0;
+        this.isStreamConnected = true;
+        
+        // Emitir evento de conexão bem-sucedida
+        this.emit('connected', {
+          timestamp: Date.now(),
               source: 'RouletteStreamClient'
             });
           });
           
           client.on('error', (error) => {
-            this.error('❌ Erro na conexão SSE:', error);
-            this.isStreamConnected = false;
+        this.error('❌ Erro na conexão SSE:', error);
+        this.isStreamConnected = false;
           });
         } else {
           this.log('⚠️ Falha na inicialização do cliente SSE centralizado, tentando conexão direta');

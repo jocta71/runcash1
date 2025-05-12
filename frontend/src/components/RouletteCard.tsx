@@ -71,6 +71,7 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
   let potentialSources = [
     { key: 'numbers', data: roulette.numbers },
     { key: 'numero', data: roulette.numero },
+    { key: 'numeros', data: roulette.numeros }, // Adicionado suporte para "numeros" (sem "s")
     { key: 'lastNumbers', data: roulette.lastNumbers }, // Adicionado fallback para lastNumbers
   ];
 
@@ -106,7 +107,7 @@ const processRouletteData = (roulette: any): ProcessedRouletteData | null => {
   }
 
   if (sourceKey === 'none') {
-    console.log(`[processRouletteData - ${rouletteIdForLog}] Nenhuma fonte de números ('numbers', 'numero', 'lastNumbers') encontrada ou array vazio.`);
+    console.log(`[processRouletteData - ${rouletteIdForLog}] Nenhuma fonte de números ('numbers', 'numero', 'numeros', 'lastNumbers') encontrada ou array vazio.`);
     // Se não achou fonte, retorna null para não sobrescrever dados possivelmente bons
     console.warn(`[processRouletteData - ${rouletteIdForLog}] Retornando null pois nenhuma fonte de números foi encontrada.`);
     return null; 
