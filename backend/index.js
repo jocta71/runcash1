@@ -16,7 +16,7 @@ const { encryptRouletteData, verifyAccessKey } = require('./middlewares/encrypti
 dotenv.config();
 
 // Configuração
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "runcash_default_encryption_key_2024";
 
