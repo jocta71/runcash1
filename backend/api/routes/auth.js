@@ -148,29 +148,13 @@ if (isGoogleAuthEnabled) {
 
 // @desc    Obter usuário atual
 // @route   GET /api/auth/me
-// @access  Privado (agora público após desativar JWT)
-router.get('/me', async (req, res) => {
+// @access  Privado
+router.get('/me', protect, async (req, res) => {
   try {
-    // Em vez de buscar no banco de dados, retornar um usuário padrão
-    // já que o JWT foi desativado para reduzir consumo de memória
-    const defaultUser = {
-      _id: 'system-default-id',
-      id: 'system-default-id',
-      username: 'sistema',
-      email: 'default@system.local',
-      isAdmin: true,
-      profilePicture: null,
-      firstName: 'Usuário',
-      lastName: 'Sistema',
-      lastLogin: new Date(),
-      createdAt: new Date(),
-      role: 'admin',
-      isPremium: true
-    };
-    
+    const user = await User.findById(req.user.id).select('-password');
     res.status(200).json({
       success: true,
-      data: defaultUser
+      data: user
     });
   } catch (error) {
     console.error('Erro ao obter perfil:', error);
