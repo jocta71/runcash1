@@ -3,7 +3,8 @@
  * Utiliza JWT para validar tokens e gerenciar permissões
  */
 
-// Referência mantida por compatibilidade
+const jwt = require('jsonwebtoken');
+const { promisify } = require('util');
 const User = require('../api/models/User');
 // Removendo referência problemática ao config
 // const config = require('../config/config');
@@ -14,41 +15,86 @@ const User = require('../api/models/User');
 const JWT_SECRET = process.env.JWT_SECRET || 'seu_segredo_super_secreto';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
-console.log('[AUTH] Middleware de autenticação desativado para reduzir consumo de memória');
+console.log('[AUTH] Middleware de autenticação ativado');
 
 /**
- * Gera um token JWT para um usuário - DESATIVADO
- * Retorna apenas uma string fixa para manter compatibilidade
+ * Gera um token JWT para um usuário
  * 
- * @param {Object} user - Dados do usuário (ignorado)
- * @returns {String} Token JWT fictício
+ * @param {Object} user - Dados do usuário para incluir no token
+ * @returns {String} Token JWT
  */
 exports.gerarToken = (user) => {
-  return 'token_desativado_para_reduzir_consumo_de_memoria';
+  // Remover dados sensíveis do objeto de usuário
+  const userData = {
+    id: user.id,
+    email: user.email,
+    nome: user.nome,
+    role: user.role || 'user',
+    isPremium: user.isPremium || false
+  };
+
+  return jwt.sign(userData, JWT_SECRET, {
+    expiresIn: JWT_EXPIRES_IN
+  });
 };
 
 /**
- * Middleware para proteger rotas - DESATIVADO
+ * Middleware para proteger rotas - requer autenticação
  * @param {Object} req - Objeto de requisição
  * @param {Object} res - Objeto de resposta
  * @param {Function} next - Função para passar para o próximo middleware
  */
 exports.proteger = async (req, res, next) => {
   try {
-    // Adicionar usuário padrão sem verificar token
+    // Verificar se o token está presente
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Não autorizado - token não fornecido',
+        error: 'ERROR_NO_TOKEN'
+      });
+    }
+    
+    // Verificar e decodificar o token
+    // Usando JWT_SECRET diretamente em vez de config.jwt.secret
+    const decodificado = jwt.verify(token, JWT_SECRET);
+    
+    // Simplificando para contornar o erro de modelo ausente
+    // Adicionando o usuário à requisição sem verificar no banco
     req.usuario = {
-      id: 'system-default',
-      nome: 'Sistema',
-      email: 'default@system.local',
-      tipo: 'admin',
-      premium: true,
-      roles: ['admin', 'premium']
+      id: decodificado.id,
+      nome: decodificado.nome,
+      email: decodificado.email,
+      tipo: decodificado.role || 'user',
+      premium: decodificado.isPremium || false,
+      roles: decodificado.roles || []
     };
     
     next();
   } catch (error) {
-    console.error('Erro no middleware de autenticação:', error);
-    next(); // Continuar mesmo com erro
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token expirado, faça login novamente',
+        error: 'ERROR_TOKEN_EXPIRED'
+      });
+    }
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token inválido',
+        error: 'ERROR_INVALID_TOKEN'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao autenticar usuário',
+      error: error.message
+    });
   }
 };
 
@@ -204,22 +250,75 @@ exports.limitarRequisicoes = (maxRequests = 100, windowMs = 60 * 1000) => {
 };
 
 /**
- * Middleware de autenticação - DESATIVADO
+ * Middleware de autenticação
  * @param {Object} options - Opções de configuração
+ * @param {Boolean} options.required - Se true, bloqueia acesso sem autenticação
  * @returns {Function} Middleware Express
  */
 exports.authenticate = (options = { required: true }) => {
   return async (req, res, next) => {
-    // Adicionar usuário padrão sem verificar token
-    req.user = {
-      _id: 'default-user-id',
-      email: 'default@system.local',
-      name: 'Sistema',
-      role: 'admin',
-      isPremium: true
-    };
-    
-    next();
+    try {
+      // Verificar se há token no header de autorização
+      const authHeader = req.headers.authorization;
+      
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        // Se autenticação é obrigatória, retorna erro
+        if (options.required) {
+          return res.status(401).json({
+            success: false,
+            message: 'Acesso negado. Autenticação necessária'
+          });
+        }
+        
+        // Se não é obrigatória, continua sem usuário autenticado
+        req.user = null;
+        return next();
+      }
+      
+      // Extrai token do header
+      const token = authHeader.split(' ')[1];
+      
+      // Verifica e decodifica o token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+      // Busca usuário no banco de dados
+      const user = await User.findById(decoded.userId).select('-password');
+      
+      if (!user) {
+        if (options.required) {
+          return res.status(401).json({
+            success: false,
+            message: 'Token inválido ou usuário não encontrado'
+          });
+        }
+        
+        req.user = null;
+        return next();
+      }
+      
+      // Adiciona informações do usuário ao request
+      req.user = user;
+      next();
+      
+    } catch (error) {
+      if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+        if (options.required) {
+          return res.status(401).json({
+            success: false,
+            message: 'Token inválido ou expirado'
+          });
+        }
+        
+        req.user = null;
+        return next();
+      }
+      
+      console.error('Erro de autenticação:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Erro interno no servidor durante autenticação'
+      });
+    }
   };
 };
 

@@ -9,6 +9,7 @@ const { Server } = require('socket.io');
 const { MongoClient } = require('mongodb');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const jwt = require('jsonwebtoken');
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -19,6 +20,7 @@ const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@ru
 const DB_NAME = process.env.MONGODB_DB_NAME || 'runcash';
 const COLLECTION_NAME = 'roleta_numeros';
 const POLL_INTERVAL = process.env.POLL_INTERVAL || 2000; // 2 segundos
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Informações de configuração
 console.log('=== RunCash WebSocket Server ===');
@@ -63,24 +65,34 @@ const io = new Server(server, {
 });
 
 // Verificar se o middleware de autenticação está sendo registrado corretamente
-console.log('[Socket.IO] Middleware de autenticação JWT DESATIVADO para reduzir consumo de memória');
+console.log('[Socket.IO] Registrando middleware de autenticação JWT...');
 
-// Middleware de autenticação desativado para WebSocket
+// Adicionar middleware de autenticação global para todas as conexões Socket.io
 io.use((socket, next) => {
-  // Atribuir usuário padrão sem verificar token
-  socket.user = {
-    id: 'system-default',
-    username: 'Sistema',
-    email: 'default@system.local',
-    role: 'admin'
-  };
-  socket.isAuthenticated = true;
-  
-  console.log(`[WebSocket Middleware] Conexão permitida sem autenticação: ${socket.id}`);
-  return next();
+  try {
+    const token = socket.handshake.query.token || socket.handshake.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      console.log(`[WebSocket Middleware] Conexão rejeitada: ${socket.id} - Token ausente`);
+      return next(new Error('Autenticação necessária. Token não fornecido.'));
+    }
+    
+    // Verificar JWT
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Guardar dados do usuário no socket
+    socket.user = decoded;
+    socket.isAuthenticated = true;
+    
+    console.log(`[WebSocket Middleware] Conexão autorizada: ${socket.id} - Usuário: ${decoded.username || decoded.email || 'usuário'}`);
+    return next();
+  } catch (error) {
+    console.log(`[WebSocket Middleware] Conexão rejeitada: ${socket.id} - Erro: ${error.message}`);
+    return next(new Error('Token inválido ou expirado. Por favor, autentique-se novamente.'));
+  }
 });
 
-console.log('[Socket.IO] Autenticação desativada para todas as conexões WebSocket');
+console.log('[Socket.IO] Middleware de autenticação JWT registrado com sucesso');
 console.log('[Socket.IO] Inicializado com configuração CORS para aceitar todas as origens');
 
 // Resto do código para conexão MongoDB, polling e eventos do WebSocket

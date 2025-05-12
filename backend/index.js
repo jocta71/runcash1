@@ -42,23 +42,6 @@ try {
 // Inicializar Express para a API principal
 const app = express();
 
-// Adicionar middleware global para atribuir usuário padrão a todas as requisições
-app.use((req, res, next) => {
-  // Adicionar usuário padrão com permissões completas
-  req.user = {
-    id: 'system-default',
-    email: 'default@system.local',
-    role: 'admin',
-    isPremium: true,
-    subscription: { status: 'ACTIVE' }
-  };
-  
-  // Adicionar aliases comuns para compatibilidade
-  req.usuario = req.user;
-  
-  next();
-});
-
 // *** AUTENTICAÇÃO DESATIVADA PARA /api/roulettes ***
 // Este middleware antes bloqueava acessos não autenticados, agora permite qualquer acesso
 app.use(async (req, res, next) => {

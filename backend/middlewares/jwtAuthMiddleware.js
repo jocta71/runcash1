@@ -1,40 +1,95 @@
 /**
- * Middleware JWT desativado para reduzir consumo de memória
- * Este middleware foi modificado para não realizar verificação de tokens
+ * Middleware simples para autenticação JWT
+ * Este middleware verifica se o token JWT fornecido é válido
  */
 
-// Constante mantida apenas para compatibilidade com código existente
+const jwt = require("jsonwebtoken");
+
+// Usar a constante global JWT_SECRET para garantir consistência em toda a aplicação
 const JWT_SECRET = process.env.JWT_SECRET || 'runcashh_secret_key';
 
-// Log informativo
-console.log(`[JWT] Middleware desativado para reduzir consumo de memória`);
+// Registrar informações sobre a configuração JWT
+console.log(`[JWT] Usando JWT_SECRET: ${JWT_SECRET ? '******' : 'Não definido'} (middleware)`);
 
 /**
- * Middleware para verificar token JWT - DESATIVADO
- * @param {Object} options - Opções de configuração (ignoradas)
+ * Middleware para verificar token JWT
+ * @param {Object} options - Opções de configuração
+ * @param {boolean} options.required - Se true, recusa requisições sem token
+ * @param {Array} options.roles - Papéis permitidos para acessar a rota (opcional)
  * @returns {Function} Middleware de Express
  */
 const authenticateToken = (options = { required: true }) => {
   return (req, res, next) => {
     const requestId = Math.random().toString(36).substring(2, 15);
-    console.log(`[JWT-AUTH ${requestId}] Verificação JWT desativada para ${req.method} ${req.path}`);
+    console.log(`[JWT-AUTH ${requestId}] Verificando token para ${req.method} ${req.path}`);
     
-    // Adicionar usuário padrão com permissões básicas
-    req.user = {
-      id: 'system-default',
-      email: 'default@system.local',
-      nome: 'Sistema',
-      role: 'user',
-      isPremium: true,
-      roles: ['user', 'premium']
-    };
+    // Extrair token do cabeçalho
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     
-    // Continuar sem verificar token
-    next();
+    // Se token não existir e for obrigatório
+    if (!token) {
+      if (options.required) {
+        console.log(`[JWT-AUTH ${requestId}] Token não fornecido (obrigatório)`);
+        return res.status(401).json({
+          success: false,
+          message: 'Token de autenticação obrigatório',
+          code: 'TOKEN_REQUIRED',
+          requestId
+        });
+      } else {
+        console.log(`[JWT-AUTH ${requestId}] Token não fornecido (opcional)`);
+        return next(); // Continuar sem token
+      }
+    }
+    
+    // Verificar token usando a constante JWT_SECRET global
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      
+      // Verificar se usuário possui role necessário (se especificado)
+      if (options.roles && options.roles.length > 0) {
+        const userRoles = decoded.roles || ['user'];
+        const hasRequiredRole = userRoles.some(role => options.roles.includes(role));
+        
+        if (!hasRequiredRole) {
+          console.log(`[JWT-AUTH ${requestId}] Usuário ${decoded.id} não possui role necessário`);
+          return res.status(403).json({
+            success: false,
+            message: 'Acesso negado - Permissão insuficiente',
+            code: 'INSUFFICIENT_ROLE',
+            requestId
+          });
+        }
+      }
+      
+      // Adicionar usuário decodificado à requisição
+      req.user = decoded;
+      console.log(`[JWT-AUTH ${requestId}] Token verificado para usuário ${decoded.id || 'desconhecido'}`);
+      
+      next();
+    } catch (error) {
+      console.error(`[JWT-AUTH ${requestId}] Erro ao verificar token:`, error.message);
+      
+      // Verificar tipo de erro
+      if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          success: false,
+          message: 'Token expirado',
+          code: 'TOKEN_EXPIRED',
+          requestId
+        });
+      }
+      
+      return res.status(403).json({
+        success: false,
+        message: 'Token inválido',
+        code: 'INVALID_TOKEN',
+        error: error.message,
+        requestId
+      });
+    }
   };
 };
 
-module.exports = {
-  authenticateToken,
-  JWT_SECRET
-}; 
+module.exports = { authenticateToken, JWT_SECRET }; 
