@@ -15,6 +15,7 @@ const { encryptRouletteData, verifyAccessKey } = require('./middlewares/encrypti
 // Carregar variáveis de ambiente
 dotenv.config();
 
+
 // Configuração
 const PORT = process.env.PORT;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://runcash:8867Jpp@runcash.gxi9yoz.mongodb.net/?retryWrites=true&w=majority&appName=runcash";
