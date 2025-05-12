@@ -2,6 +2,7 @@ import EventService from './EventService';
 import { getLogger } from './utils/logger';
 import EventBus from '../services/EventBus';
 import UnifiedRouletteClient from './UnifiedRouletteClient';
+import { SSE_STREAM_URL } from './api/endpoints';
 
 // Criar uma única instância do logger
 const logger = getLogger('RouletteFeedService');
@@ -565,7 +566,7 @@ export default class RouletteFeedService {
     // Registrar requisição pendente
     this.pendingRequests[requestId] = {
       timestamp: Date.now(),
-      url: '/api/stream/roulettes',
+      url: SSE_STREAM_URL,
       service: 'RouletteFeedService'
     };
     
@@ -1784,7 +1785,7 @@ export default class RouletteFeedService {
         // Emitir evento de falha na conexão
         EventBus.emit('roulette:connection-failed', {
           timestamp: new Date().toISOString(),
-          url: 'https://starfish-app-fubxw.ondigitalocean.app/api/stream/roulettes',
+          url: SSE_STREAM_URL,
           error: 'Timeout ao verificar conexão'
         });
         

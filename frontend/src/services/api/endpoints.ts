@@ -14,11 +14,16 @@ if (isProduction || isVercel) {
   API_BASE_URL = 'http://localhost:3001';
 }
 
+// Definir caminhos relativos dos endpoints
+const API_PATHS = {
+  STREAM_ROULETTES: '/api/stream/roulettes'
+};
+
 // Definir base URL com base no ambiente
 export const BASE_URL = API_BASE_URL;
 
 // Endpoint unificado para o streaming SSE
-export const SSE_STREAM_URL = `${API_BASE_URL}/api/stream/roulettes`;
+export const SSE_STREAM_URL = `${API_BASE_URL}${API_PATHS.STREAM_ROULETTES}`;
 
 console.log('🔌 Endpoints configurados:', {
   base: BASE_URL,
@@ -63,7 +68,8 @@ export const ENDPOINTS = {
     CONNECT: '/socket.io',
   },
   STREAM: {
-    ROULETTES: '/api/stream/roulettes',
+    // Usar o caminho relativo definido acima
+    ROULETTES: API_PATHS.STREAM_ROULETTES,
     
     // Endpoint para estatísticas do serviço de streaming
     STATS: '/api/stream/stats',

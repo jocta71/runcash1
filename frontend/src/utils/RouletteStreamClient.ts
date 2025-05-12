@@ -75,7 +75,8 @@ class RouletteStreamClient {
     console.log(`[RouletteStream] Conectando ao stream SSE: ${this.url}`);
     
     try {
-      // Construir URL (sem parâmetros de criptografia por enquanto)
+      // Usar a URL diretamente do atributo da classe, que já está sendo
+      // inicializado com SSE_STREAM_URL no construtor
       let streamUrl = this.url;
       
       // Criar conexão SSE
