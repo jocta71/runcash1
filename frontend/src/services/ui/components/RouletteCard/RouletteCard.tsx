@@ -42,6 +42,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
   const lastNumberRef = useRef<number | null>(null);
   const subscriberId = useRef(`roulette-card-${rouletteId}-${Date.now()}`);
   const unifiedClient = useRef(UnifiedRouletteClient.getInstance());
+  const handlerRegisteredRef = useRef(false);
   
   // Função para processar dados da roleta
   const processData = () => {
@@ -56,7 +57,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
       });
       
       if (!apiData) {
-        console.warn(`[RouletteCard] Roleta ${rouletteId} não encontrada`);
         return;
       }
       
@@ -82,7 +82,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
-      console.error('[RouletteCard] Erro:', err);
       if (!rouletteData) {
         setError(errorMsg);
         if (onError) onError(errorMsg);
@@ -90,107 +89,95 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
     }
   };
   
-  // Função auxiliar para determinar a cor do número
-  const getNumberColor = (numero: number): string => {
-    if (numero === 0) return 'green';
-    return [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(numero) ? 'red' : 'black';
-  };
-  
-  // Efeito para gerenciar conexão SSE
+  // Efeito para registrar evento update e iniciar busca
   useEffect(() => {
-    console.log(`[RouletteCard] Inicializando para roleta ${rouletteId}`);
-    setLoading(true);
+    // Evitar múltiplos registros do mesmo handler
+    if (handlerRegisteredRef.current) return;
+    
+    handlerRegisteredRef.current = true;
     
     // Registrar para atualizações
     unifiedClient.current.on('update', processData);
     
     // Forçar atualização inicial
-    unifiedClient.current.forceUpdate();
+    processData();
     
-    // Limpar ao desmontar
     return () => {
-      console.log(`[RouletteCard] Limpando para roleta ${rouletteId}`);
+      handlerRegisteredRef.current = false;
       unifiedClient.current.off('update', processData);
     };
-  }, [rouletteId, processData]);
+  }, [rouletteId]);
   
   // Formatar timestamp
   const formatTimestamp = (timestamp: string | number) => {
-    return new Date(timestamp).toLocaleTimeString();
+    try {
+      return new Date(timestamp).toLocaleTimeString('pt-BR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } catch (e) {
+      return "--:--";
+    }
   };
   
-  // Renderizar estados de carregamento e erro
-  if (loading && !rouletteData) {
+  // Renderização condicional
+  if (loading) {
     return (
       <div className="roulette-card loading">
-        <div className="loading-indicator">Carregando...</div>
+        <div className="loading-spinner"></div>
+        <p>Carregando roleta {rouletteId}...</p>
       </div>
     );
   }
   
-  if (error && !rouletteData) {
+  if (error) {
     return (
       <div className="roulette-card error">
-        <div className="error-message">{error}</div>
+        <div className="error-icon">❌</div>
+        <p>{error}</p>
+        <button onClick={() => processData()}>Tentar novamente</button>
       </div>
     );
   }
   
+  // Se não há dados, mostrar estado vazio
   if (!rouletteData) {
     return (
-      <div className="roulette-card">
-        <div className="loading-indicator">Aguardando dados...</div>
+      <div className="roulette-card empty">
+        <p>Sem dados para roleta {rouletteId}</p>
+        <button onClick={() => processData()}>Atualizar</button>
       </div>
     );
   }
   
-  // Extrair dados
-  const { name, numbers, active, strategyState, wins, losses } = rouletteData;
-  const latestNumber = numbers?.[0];
-  
-  // Renderizar roleta
+  // Renderizar cartão com dados
   return (
-    <div className={`roulette-card ${active ? 'active' : 'inactive'} ${isNewNumber ? 'new-number' : ''}`}>
-      <div className="roulette-header">
-        <h3 className="roulette-name">{name}</h3>
-        <div className="status-container">
-          <span className={`status-badge ${active ? 'active' : 'inactive'}`}>
-            {active ? 'Ativa' : 'Inativa'}
-          </span>
-          {loading && <span className="loading-indicator-small" />}
-        </div>
+    <div className={`roulette-card ${isNewNumber ? 'new-number-animation' : ''}`}>
+      <div className="card-header">
+        <h3>{rouletteData.nome || rouletteId}</h3>
+        <span className={`status ${rouletteData.status || 'offline'}`}>
+          {rouletteData.status || 'Offline'}
+        </span>
       </div>
       
-      {latestNumber && (
-        <div className="latest-number">
-          <div className="number-label">Último número:</div>
-          <div className={`number-display ${latestNumber.color}`}>
-            {latestNumber.value}
+      <div className="card-body">
+        {rouletteData.numeros && (
+          <div className="numbers-container">
+            <NumberHistory 
+              numbers={rouletteData.numeros.map((n: any) => ({ 
+                value: n.numero,
+                timestamp: n.timestamp,
+                color: getNumberColor(n.numero)
+              }))} 
+            />
           </div>
-          <div className="timestamp">
-            {formatTimestamp(latestNumber.timestamp)}
-          </div>
-        </div>
-      )}
-      
-      <div className="strategy-info">
-        <div className="strategy-state">
-          Estado: <span className={strategyState}>{strategyState}</span>
-        </div>
-        
-        <div className="stats-container">
-          <div className="stat wins">
-            <span className="label">Vitórias:</span>
-            <span className="value">{wins}</span>
-          </div>
-          <div className="stat losses">
-            <span className="label">Derrotas:</span>
-            <span className="value">{losses}</span>
-          </div>
-        </div>
+        )}
       </div>
       
-      <NumberHistory numbers={numbers} maxItems={10} />
+      <div className="card-footer">
+        <span className="provider">{rouletteData.provider || 'Desconhecido'}</span>
+        <span className="timestamp">Atualizado: {formatTimestamp(lastUpdateTime)}</span>
+      </div>
     </div>
   );
 };

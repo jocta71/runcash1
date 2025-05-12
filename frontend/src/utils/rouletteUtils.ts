@@ -194,4 +194,35 @@ export const isEvenNumber = (num: number): boolean => {
  */
 export const isOddNumber = (num: number): boolean => {
   return num !== 0 && num % 2 !== 0;
+};
+
+/**
+ * Inicializa o cliente SSE se necessário
+ */
+export const initializeSSEClientIfNeeded = (): void => {
+  // Esta função seria chamada pelo UnifiedRouletteClient quando necessário
+  // Seu propósito seria inicializar uma única conexão SSE compartilhada
+  // Implementação vazia para compatibilidade
+};
+
+/**
+ * Adiciona lógica para remover possíveis assinaturas duplicadas
+ * @param client O cliente UnifiedRouletteClient
+ * @param eventType Tipo de evento
+ * @param callback Função callback
+ */
+export const addUniqueSubscription = (
+  client: any,
+  eventType: string,
+  callback: (data: any) => void
+): string => {
+  // Gera um ID único para o subscriber
+  const subscriberId = `sub_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  
+  // Esta função seria usada para garantir que não haja callbacks duplicados
+  if (client && typeof client.subscribe === 'function') {
+    return client.subscribe(eventType, callback);
+  }
+  
+  return subscriberId;
 }; 

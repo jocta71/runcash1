@@ -762,15 +762,49 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Adiciona um callback para eventos (alias para subscribe)
+   * Adiciona um callback para eventos, verificando duplicatas
    */
-  public on(event: string, callback: (data: any) => void): Unsubscribe {
-    this.subscribe(event, callback);
+  public subscribe(event: string, callback: (data: any) => void): void {
+    if (typeof callback !== 'function') {
+      this.error('❌ Tentativa de adicionar callback inválido:', {
+        type: typeof callback,
+        value: callback,
+        stack: new Error().stack
+      });
+      return;
+    }
+
+    if (!this.eventCallbacks.has(event)) {
+      this.eventCallbacks.set(event, new Set());
+    }
     
-    // Retornar função de limpeza
-    return () => {
-      this.unsubscribe(event, callback);
-    };
+    // Verificar se o callback já está registrado
+    if (this.eventCallbacks.get(event)!.has(callback)) {
+      this.warn('⚠️ Callback já registrado para evento:', event);
+      return;
+    }
+
+    try {
+      // Adicionar callback com validação adicional
+      const validatedCallback = (data: any) => {
+        try {
+          if (typeof callback === 'function') {
+            callback(data);
+          } else {
+            this.error('⚠️ Callback se tornou inválido durante execução');
+            this.unsubscribe(event, callback);
+          }
+        } catch (error) {
+          this.error('❌ Erro ao executar callback:', error);
+          this.unsubscribe(event, callback);
+        }
+      };
+
+      this.eventCallbacks.get(event)!.add(validatedCallback);
+      this.log(`➕ Novo callback registrado para evento: ${event}`);
+    } catch (error) {
+      this.error('❌ Erro ao registrar callback:', error);
+    }
   }
   
   /**
@@ -830,52 +864,6 @@ class UnifiedRouletteClient {
       }
     } catch (error) {
       this.error('❌ Erro ao remover callback:', error);
-    }
-  }
-  
-  /**
-   * Adiciona um callback para eventos
-   */
-  public subscribe(event: string, callback: (data: any) => void): void {
-    if (typeof callback !== 'function') {
-      this.error('❌ Tentativa de adicionar callback inválido:', {
-        type: typeof callback,
-        value: callback,
-        stack: new Error().stack
-      });
-      return;
-    }
-
-    if (!this.eventCallbacks.has(event)) {
-      this.eventCallbacks.set(event, new Set());
-    }
-    
-    // Verificar se o callback já está registrado
-    if (this.eventCallbacks.get(event)!.has(callback)) {
-      this.warn('⚠️ Callback já registrado para evento:', event);
-      return;
-    }
-
-    try {
-      // Adicionar callback com validação adicional
-      const validatedCallback = (data: any) => {
-        try {
-          if (typeof callback === 'function') {
-            callback(data);
-          } else {
-            this.error('⚠️ Callback se tornou inválido durante execução');
-            this.unsubscribe(event, callback);
-          }
-        } catch (error) {
-          this.error('❌ Erro ao executar callback:', error);
-          this.unsubscribe(event, callback);
-        }
-      };
-
-      this.eventCallbacks.get(event)!.add(validatedCallback);
-      this.log(`➕ Novo callback registrado para evento: ${event}`);
-    } catch (error) {
-      this.error('❌ Erro ao registrar callback:', error);
     }
   }
   
