@@ -371,51 +371,72 @@ class RouletteStreamClient {
   }
   
   /**
-   * Processa dados de evento de atualização
+   * Processa um evento de atualização do stream
    */
   private async processUpdateEvent(rawData: string): Promise<void> {
     try {
-      // Tentar fazer parse dos dados como JSON
-      let parsedData = null;
+      // Se os dados estiverem vazios, ignorar
+      if (!rawData || rawData === 'vazio') {
+        console.log('🔄 Evento SSE recebido: {type: \'heartbeat\', id: undefined, data: \'vazio\'}');
+        return;
+      }
+
+      let jsonData: any;
       
+      // Tentar analisar os dados como JSON
       try {
-        parsedData = JSON.parse(rawData);
-      } catch (error) {
-        console.error('[RouletteStream] Erro ao fazer parse dos dados:', error);
+        jsonData = JSON.parse(rawData);
+      } catch (e) {
+        console.error('❌ Erro ao analisar dados JSON do SSE:', e);
+        console.debug('Dados brutos recebidos:', rawData);
         return;
       }
       
-      // Verificar se os dados são válidos
-      if (!parsedData) {
-        console.error('[RouletteStream] Dados inválidos ou nulos');
-        return;
-      }
-      
-      // Atualizar cache de dados
-      if (Array.isArray(parsedData)) {
-        // Se for um array, presumir que são várias roletas
-        for (const roulette of parsedData) {
-          if (roulette && roulette.id) {
-            this.rouletteData.set(roulette.id, roulette);
+      // Processar diferentes tipos de eventos
+      if (jsonData.type === 'all_roulettes_update' && Array.isArray(jsonData.data)) {
+        // Atualizar cache de dados
+        jsonData.data.forEach((rouletteData: any) => {
+          if (rouletteData && rouletteData.id) {
+            this.rouletteData.set(rouletteData.id, rouletteData);
           }
+        });
+        
+        // Para compatibilidade com UnifiedRouletteClient, converter para formato de string JSON
+        const compatData = JSON.stringify(jsonData);
+        
+        // Notificar sobre a atualização
+        this.notifyEvent('update', compatData);
+      } else if (jsonData.type === 'single_roulette_update' && jsonData.data) {
+        // Atualizar cache para uma roleta específica
+        if (jsonData.data.id) {
+          this.rouletteData.set(jsonData.data.id, jsonData.data);
         }
-      } else if (parsedData.id) {
-        // Se for um objeto com ID, presumir que é uma única roleta
-        this.rouletteData.set(parsedData.id, parsedData);
-      } else if (parsedData.data && Array.isArray(parsedData.data)) {
-        // Formato alternativo com campo 'data'
-        for (const roulette of parsedData.data) {
-          if (roulette && roulette.id) {
-            this.rouletteData.set(roulette.id, roulette);
-          }
-        }
+        
+        // Para compatibilidade com UnifiedRouletteClient, converter para formato de string JSON
+        const compatData = JSON.stringify(jsonData);
+        
+        // Notificar sobre a atualização
+        this.notifyEvent('update', compatData);
+      } else if (jsonData.type === 'heartbeat') {
+        // Atualizar timestamp de última recepção
+        this.lastReceivedAt = Date.now();
+        
+        // Para compatibilidade com manipuladores existentes
+        const heartbeatEvent = JSON.stringify({ 
+          type: 'heartbeat',
+          timestamp: Date.now(),
+          message: 'Heartbeat recebido'
+        });
+        
+        // Notificar sobre o heartbeat (opcional)
+        this.notifyEvent('heartbeat', heartbeatEvent);
+      } else {
+        // Para qualquer outro formato de dados, passar adiante como está (em formato string)
+        const compatData = (typeof rawData === 'string') ? rawData : JSON.stringify(jsonData);
+        this.notifyEvent('update', compatData);
       }
-      
-      // Notificar sobre a atualização
-      this.notifyEvent('update', parsedData);
-      this.lastReceivedAt = Date.now();
     } catch (error) {
-      console.error('[RouletteStream] Erro ao processar evento de atualização:', error);
+      console.error('❌ Erro ao processar evento do stream:', error);
     }
   }
 

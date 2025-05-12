@@ -1070,20 +1070,74 @@ export default class RouletteFeedService {
   }
 
   /**
-   * Processa os dados das roletas recebidos da API
+   * Manipula novos dados de roletas recebidos via stream
    */
   private handleRouletteData(data: any): void {
-    if (!data || !Array.isArray(data)) {
-      logger.error('⚠️ Dados inválidos recebidos:', data);
-      return;
+    try {
+      // Verificar tipo de dados e processar de acordo
+      let jsonData: any;
+      
+      // Se data for string, tentar parsear como JSON
+      if (typeof data === 'string') {
+        try {
+          jsonData = JSON.parse(data);
+        } catch (error) {
+          logger.error('❌ Erro ao analisar dados JSON do stream:', error);
+          return;
+        }
+      } else {
+        // Se não for string, usar diretamente
+        jsonData = data;
+      }
+      
+      // Processar diferentes formatos de dados
+      if (jsonData.type === 'all_roulettes_update' && Array.isArray(jsonData.data)) {
+        // Formato com tipo e array de dados
+        logger.info(`📡 Recebidos ${jsonData.data.length} roletas via SSE`);
+        this.updateRouletteCache(jsonData.data);
+        this.notifySubscribers(this.transformDataToLiveTables(jsonData.data));
+      } else if (jsonData.type === 'single_roulette_update' && jsonData.data) {
+        // Formato com tipo e dados de uma roleta
+        logger.info(`📡 Recebidos dados da roleta ${jsonData.data.id || 'desconhecida'} via SSE`);
+        if (jsonData.data.id) {
+          this.updateRouletteCache([jsonData.data]);
+          this.notifySubscribers(this.transformDataToLiveTables([jsonData.data]));
+        }
+      } else if (Array.isArray(jsonData)) {
+        // Formato de array direto
+        logger.info(`📡 Recebidos ${jsonData.length} roletas via SSE`);
+        this.updateRouletteCache(jsonData);
+        this.notifySubscribers(this.transformDataToLiveTables(jsonData));
+      } else if (jsonData.id) {
+        // Formato de objeto único com ID
+        logger.info(`📡 Recebidos dados da roleta ${jsonData.id} via SSE`);
+        this.updateRouletteCache([jsonData]);
+        this.notifySubscribers(this.transformDataToLiveTables([jsonData]));
+      } else if (jsonData.type === 'heartbeat') {
+        // Heartbeat do servidor - apenas registrar
+        this.lastReceivedTime = Date.now();
+      } else {
+        // Formato desconhecido
+        logger.error('⚠️ Dados inválidos recebidos:', jsonData);
+      }
+      
+      // Atualizar timestamp de recepção
+      this.lastReceivedTime = Date.now();
+      
+    } catch (error) {
+      logger.error('❌ Erro ao processar dados recebidos:', error);
     }
-    
-    // Transformar a resposta da API (array) para o formato esperado pelo resto do código
+  }
+
+  /**
+   * Transforma um array de dados de roletas no formato LiveTables
+   */
+  private transformDataToLiveTables(data: any[]): { [key: string]: any } {
     const liveTables: { [key: string]: any } = {};
+    
     data.forEach(roleta => {
       if (roleta && roleta.id) {
         // Certifique-se de que estamos lidando corretamente com o campo numero
-        // Na API, o 'numero' é um array de objetos com propriedade 'numero'
         const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
         
         liveTables[roleta.id] = {
@@ -1098,27 +1152,7 @@ export default class RouletteFeedService {
       }
     });
     
-    // Criar o formato esperado pelo sistema
-    const formattedData = {
-      LiveTables: liveTables
-    };
-    
-    // Atualizar a lista de roletas
-    this.roulettes = formattedData.LiveTables;
-    
-    // Atualizar o cache
-    this.updateRouletteCache(Object.values(formattedData.LiveTables));
-    
-    // Registrar estatística de requisição bem-sucedida
-    this.requestStats.totalRequests++;
-    this.requestStats.successfulRequests++;
-    this.requestStats.lastMinuteRequests.push(Date.now());
-    
-    // Ajustar o intervalo de polling com base no sucesso
-    this.adjustPollingInterval(false);
-    
-    // Notificar que temos novos dados
-    this.notifySubscribers(formattedData.LiveTables);
+    return liveTables;
   }
 
   /**

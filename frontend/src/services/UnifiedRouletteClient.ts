@@ -463,221 +463,62 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Handler para eventos de atualização do stream
+   * Manipula atualizações recebidas via SSE
    */
-  private async handleStreamUpdate(event: MessageEvent): Promise<void> {
-    this.lastReceivedAt = Date.now();
-    
+  private handleStreamUpdate(data: any): void {
     try {
-      // Log detalhado do evento recebido para diagnóstico
-      console.log(`🔄 Evento SSE recebido:`, {
-        type: event.type,
-        id: event.lastEventId,
-        data: event.data ? event.data.substring(0, 100) + '...' : 'vazio'
-      });
+      // Verificar tipo de dados e processar de acordo
+      let jsonData: any;
       
-      // Tentar extrair dados do evento
-      let data = null;
-      
-      try {
-        if (typeof event.data === 'string') {
-          data = JSON.parse(event.data);
-          this.log(`Dados SSE parseados: ${typeof data} - ${data.type || 'sem tipo'}`);
-        } else if (event.data && typeof event.data === 'object') {
-          data = event.data;
-        }
-      } catch (parseError) {
-        this.error('Erro ao analisar dados do evento SSE:', parseError);
-        return;
-      }
-      
-      // Verificação de segurança
-      if (!data) {
-        this.error('Dados de atualização inválidos recebidos do stream');
-        return;
-      }
-      
-      // Tratamento de dados criptografados
-      if (data.encrypted === true && data.payload) {
+      // Se data for string, tentar parsear como JSON
+      if (typeof data === 'string') {
         try {
-          const decryptedData = cryptoService.decryptData(data.payload);
-          this.handleDecryptedData(decryptedData);
+          jsonData = JSON.parse(data);
+        } catch (error) {
+          this.error('Erro ao analisar dados JSON do stream:', error);
           return;
-        } catch (decryptError) {
-          this.error('Erro ao descriptografar dados:', decryptError);
-        return;
         }
+      } else {
+        // Se não for string, usar diretamente
+        jsonData = data;
       }
       
-      // Processo específico para dados de tipo all_roulettes_update
-      if (data.type === 'all_roulettes_update' && data.data && Array.isArray(data.data)) {
-        this.log(`Atualizando cache com ${data.data.length} roletas do stream SSE (evento all_roulettes_update)`);
-        console.log(`📊 Recebido all_roulettes_update com ${data.data.length} roletas`);
-        
-        // Processar diretamente os dados do formato do SSE
-        const processedData = data.data.map((roleta: any) => {
-          // Converter o formato de numeros para o formato esperado pelos componentes
-          if (Array.isArray(roleta.numeros)) {
-            roleta.numero = roleta.numeros.map((num: number) => {
-              return { numero: Number(num) };
-            });
-          } else if (!roleta.numero || !Array.isArray(roleta.numero)) {
-            roleta.numero = [];
-          }
-          
-          return roleta;
-        });
-        
-        // Atualizar o cache com dados processados
-        this.updateCache(processedData);
-        
-        // Notificar sobre a atualização dos dados
-        this.emit('update', { roulettes: processedData, timestamp: new Date().toISOString() });
-        EventBus.emit('roulette:data-updated', {
-          roulettes: processedData, 
-          source: 'stream-sse', 
-          timestamp: new Date().toISOString() 
-        });
-        
-        return;
-      }
-      
-      // Processo específico para heartbeat
-      if (data.type === 'heartbeat') {
-        this.log(`Heartbeat recebido: ${data.message || 'Conexão ativa'}`);
-        // Emitir evento de heartbeat para indicar que a conexão está viva
-        this.emit('heartbeat', { timestamp: new Date().toISOString() });
-        EventBus.emit('roulette:heartbeat', {
-          timestamp: new Date().toISOString(),
-          message: data.message || 'Conexão ativa'
-        });
-        return;
-      }
-      
-      // Atualizar cache com novos dados, garantindo o formato correto
-      console.log('[UnifiedRouletteClient] Recebendo atualização de stream:', data);
-      
-      // Se é um array de roletas (atualização completa)
-      if (Array.isArray(data)) {
-        // Processar cada roleta para garantir o formato consistente
-        const processedData = data.map(roleta => {
-          // Garantir que número seja um array, mesmo que vazio
-          if (!roleta.numero || !Array.isArray(roleta.numero)) {
-            roleta.numero = [];
-          }
-          
-          // Garantir que cada número esteja no formato esperado pelos cards
-          roleta.numero = roleta.numero.map((num: any) => {
-            // Se for um objeto com propriedade numero, manter
-            if (num && typeof num === 'object' && 'numero' in num) {
-              return num;
-            }
-            
-            // Se for um número diretamente, converter para o formato esperado
-            if (typeof num === 'number' || (typeof num === 'string' && !isNaN(Number(num)))) {
-              return { numero: Number(num) };
-            }
-            
-            // Caso não seja possível determinar, retornar um objeto vazio
-            return { numero: 0 };
-          });
-          
-          return roleta;
-        });
-        
-        // Atualizar o cache com dados processados
-        this.updateCache(processedData);
-        
-        // Notificar sobre a atualização dos dados
-        this.emit('update', { roulettes: processedData, timestamp: new Date().toISOString() });
-        EventBus.emit('roulette:data-updated', { roulettes: processedData, source: 'stream' });
-        
-        // Log para depuração
-        console.log(`[UnifiedRouletteClient] Cache atualizado com ${processedData.length} roletas do stream`);
-      }
-      // Se é um objeto de roleta única (atualização parcial)
-      else if (data && typeof data === 'object' && (data.id || data._id || data.nome)) {
-        // Processar para garantir o formato consistente
-        if (!data.numero || !Array.isArray(data.numero)) {
-          data.numero = [];
+      // Processar diferentes formatos de dados
+      if (jsonData.type === 'all_roulettes_update' && Array.isArray(jsonData.data)) {
+        // Formato com tipo e array de dados
+        this.log(`📡 Recebidos dados de ${jsonData.data.length} roletas via stream`);
+        this.updateCache(jsonData.data);
+        this.emit('update', jsonData.data);
+      } else if (jsonData.type === 'single_roulette_update' && jsonData.data) {
+        // Formato com tipo e dados de uma roleta
+        this.log(`📡 Recebidos dados da roleta ${jsonData.data.id || 'desconhecida'} via stream`);
+        if (jsonData.data.id) {
+          this.updateCache([jsonData.data]);
+          this.emit('update', jsonData.data);
         }
-        
-        // Garantir que cada número esteja no formato esperado pelos cards
-        data.numero = data.numero.map((num: any) => {
-          // Se for um objeto com propriedade numero, manter
-          if (num && typeof num === 'object' && 'numero' in num) {
-            return num;
-          }
-          
-          // Se for um número diretamente, converter para o formato esperado
-          if (typeof num === 'number' || (typeof num === 'string' && !isNaN(Number(num)))) {
-            return { numero: Number(num) };
-          }
-          
-          // Caso não seja possível determinar, retornar um objeto vazio
-          return { numero: 0 };
-        });
-        
-        // Obter dados existentes
-        const currentRoulettes = this.getAllRoulettes();
-        
-        // Encontrar e atualizar apenas a roleta específica
-        const updatedRoulettes = currentRoulettes.map(existingRoulette => {
-          // Verificar se é a mesma roleta por id ou nome
-          if (
-            existingRoulette.id === data.id || 
-            existingRoulette._id === data._id || 
-            existingRoulette.nome === data.nome
-          ) {
-            return { ...existingRoulette, ...data };
-          }
-          return existingRoulette;
-        });
-        
-        // Atualizar cache
-        this.updateCache(updatedRoulettes);
-        
-        // Notificar sobre a atualização
-        this.emit('update', { roulette: data, roulettes: updatedRoulettes, timestamp: new Date().toISOString() });
-        EventBus.emit('roulette:data-updated', { roulette: data, roulettes: updatedRoulettes, source: 'stream' });
-        
-        console.log(`[UnifiedRouletteClient] Cache atualizado com dados da roleta ${data.nome || data.id}`);
-      }
-      // Evento específico (como novo número)
-      else if (data && typeof data === 'object' && data.type === 'new_number') {
-        // Processar novo número
-        console.log(`[UnifiedRouletteClient] Recebido novo número para roleta ${data.roleta_nome || data.roleta_id}:`, data.numero);
-        
-        // Aqui podemos atualizar a roleta específica com o novo número
-        const currentRoulettes = this.getAllRoulettes();
-        const updatedRoulettes = currentRoulettes.map(existingRoulette => {
-          // Verificar se é a mesma roleta
-          if (
-            existingRoulette.id === data.roleta_id || 
-            existingRoulette._id === data.roleta_id || 
-            existingRoulette.nome === data.roleta_nome
-          ) {
-            // Adicionar o novo número ao início do array
-            const newNumero = { numero: Number(data.numero) };
-            return {
-              ...existingRoulette,
-              numero: [newNumero, ...(existingRoulette.numero || [])]
-            };
-          }
-          return existingRoulette;
-        });
-        
-        // Atualizar cache
-        this.updateCache(updatedRoulettes);
-        
-        // Notificar sobre o novo número
-        this.emit('new_number', { ...data, timestamp: new Date().toISOString() });
-        EventBus.emit('roulette:new-number', { ...data, timestamp: new Date().toISOString() });
-        EventBus.emit('roulette:data-updated', { roulettes: updatedRoulettes, source: 'new-number' });
+      } else if (Array.isArray(jsonData)) {
+        // Formato de array direto
+        this.log(`📡 Recebidos dados de ${jsonData.length} roletas via stream`);
+        this.updateCache(jsonData);
+        this.emit('update', jsonData);
+      } else if (jsonData.id) {
+        // Formato de objeto único com ID
+        this.log(`📡 Recebidos dados da roleta ${jsonData.id} via stream`);
+        this.updateCache([jsonData]);
+        this.emit('update', jsonData);
+      } else if (jsonData.type === 'heartbeat') {
+        // Heartbeat do servidor - apenas registrar
+        this.lastReceivedAt = Date.now();
+      } else {
+        // Formato desconhecido
+        this.error('Dados de atualização inválidos recebidos do stream');
       }
       
-    } catch (e) {
-      this.error('Erro ao processar atualização do stream:', e);
+      // Atualizar timestamp de recepção
+      this.lastReceivedAt = Date.now();
+      
+    } catch (error) {
+      this.error('Erro ao processar atualização do stream:', error);
     }
   }
   
