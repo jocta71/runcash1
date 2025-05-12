@@ -178,50 +178,38 @@ router.post('/login', (req, res) => {
  * Rota para verificar se o token é válido
  */
 router.get('/verify', (req, res) => {
-  // Desativada a verificação de token para reduzir consumo de memória
-  // const authHeader = req.headers['authorization'];
-  // const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   
-  // if (!token) {
-  //   return res.status(401).json({
-  //     success: false,
-  //     message: 'Token não fornecido'
-  //   });
-  // }
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Token não fornecido'
+    });
+  }
   
-  // try {
-  //   const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
-  //   const decoded = jwt.verify(token, secret);
+  try {
+    const secret = process.env.JWT_SECRET || 'runcashh_secret_key';
+    const decoded = jwt.verify(token, secret);
     
-  //   res.json({
-  //     success: true,
-  //     message: 'Token válido',
-  //     user: {
-  //       id: decoded.id,
-  //       username: decoded.username,
-  //       roles: decoded.roles
-  //     }
-  //   });
-  // } catch (error) {
-  //   console.error('Erro ao verificar token:', error.message);
+    res.json({
+      success: true,
+      message: 'Token válido',
+      user: {
+        id: decoded.id,
+        username: decoded.username,
+        roles: decoded.roles
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao verificar token:', error.message);
     
-  //   res.status(401).json({
-  //     success: false,
-  //     message: 'Token inválido ou expirado',
-  //     error: error.message
-  //   });
-  // }
-
-  // Retornar sempre um sucesso com usuário padrão
-  res.json({
-    success: true,
-    message: 'Token válido (verificação desativada)',
-    user: {
-      id: 'system-default',
-      username: 'Sistema',
-      roles: ['admin', 'premium']
-    }
-  });
+    res.status(401).json({
+      success: false,
+      message: 'Token inválido ou expirado',
+      error: error.message
+    });
+  }
 });
 
 /**

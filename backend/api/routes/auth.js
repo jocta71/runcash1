@@ -151,26 +151,10 @@ if (isGoogleAuthEnabled) {
 // @access  Privado
 router.get('/me', protect, async (req, res) => {
   try {
-    // Desativado para reduzir consumo de memória: não consulta mais o banco de dados
-    // const user = await User.findById(req.user.id).select('-password');
-    
-    // Retorna um usuário padrão com permissões administrativas
-    const defaultUser = {
-      _id: 'system-default',
-      username: 'Sistema',
-      email: 'default@system.local',
-      isAdmin: true,
-      isPremium: true,
-      profilePicture: '/assets/default_avatar.png',
-      firstName: 'Usuário',
-      lastName: 'Sistema',
-      createdAt: new Date(),
-      lastLogin: new Date()
-    };
-    
+    const user = await User.findById(req.user.id).select('-password');
     res.status(200).json({
       success: true,
-      data: defaultUser
+      data: user
     });
   } catch (error) {
     console.error('Erro ao obter perfil:', error);
