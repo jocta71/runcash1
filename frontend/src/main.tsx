@@ -37,14 +37,8 @@ window.ROULETTE_SYSTEM_INITIALIZED = false;
 async function initializeRoulettesSystem() {
   logger.info('Inicializando sistema centralizado de roletas');
   
-  // Inicializar o UnifiedRouletteClient diretamente
-  const unifiedClient = UnifiedRouletteClient.getInstance({
-    streamingEnabled: true,
-    autoConnect: true
-  });
-  
-  // Forçar conexão com stream SSE
-  unifiedClient.connectStream();
+  // Inicializar o UnifiedRouletteClient diretamente - usamos o cliente já inicializado previamente
+  const unifiedClient = UnifiedRouletteClient.getInstance();
   
   // Inicializar outros serviços
   const eventService = EventService.getInstance();
@@ -109,7 +103,10 @@ async function initializeRoulettesSystem() {
   const unifiedClient = UnifiedRouletteClient.getInstance({
     streamingEnabled: true,
     autoConnect: true
-  }); // Inicia a conexão
+  }); // Inicia a conexão apenas uma vez
+
+  // Garantir que a conexão SSE esteja ativa
+  unifiedClient.connectStream();
 
   // Inicializar o sistema de roletas como parte do carregamento da aplicação
   logger.info('Inicializando sistema de roletas de forma centralizada...');

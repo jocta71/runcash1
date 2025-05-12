@@ -103,6 +103,10 @@ class UnifiedRouletteClient {
   private webSocketReconnectAttempts = 0;
   private readonly maxWebSocketReconnectAttempts = 5;
   
+  // Flags estáticas para gerenciar conexões globalmente 
+  private static ACTIVE_SSE_CONNECTION = false;
+  private static SSE_CONNECTION_ID: string | null = null;
+  
   /**
    * Construtor privado para garantir singleton
    */
@@ -160,6 +164,12 @@ class UnifiedRouletteClient {
       return;
     }
     
+    // Verificar se já existe uma conexão SSE ativa em qualquer instância
+    if (UnifiedRouletteClient.ACTIVE_SSE_CONNECTION) {
+      this.log(`Conexão SSE já ativa (ID: ${UnifiedRouletteClient.SSE_CONNECTION_ID}). Ignorando nova tentativa.`);
+      return;
+    }
+    
     if (this.isStreamConnected || this.isStreamConnecting) {
       this.log('Stream já está conectado ou conectando');
       return;
@@ -177,7 +187,10 @@ class UnifiedRouletteClient {
     
     try {
       const streamUrl = SSE_STREAM_URL;
-      this.log(`Conectando ao stream SSE: ${streamUrl}`);
+      const connectionId = `sse-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      UnifiedRouletteClient.SSE_CONNECTION_ID = connectionId;
+      
+      this.log(`Conectando ao stream SSE: ${streamUrl} (ID: ${connectionId})`);
       
       // Parar polling se estiver ativo
       this.stopPolling();
@@ -211,6 +224,7 @@ class UnifiedRouletteClient {
             status: ['CONNECTING', 'OPEN', 'CLOSED'][this.eventSource.readyState] || 'UNKNOWN',
             isConnected: this.isStreamConnected,
             isConnecting: this.isStreamConnecting,
+            connectionId: UnifiedRouletteClient.SSE_CONNECTION_ID,
             lastReceived: this.lastReceivedAt ? new Date(this.lastReceivedAt).toISOString() : 'nunca'
           });
         }
@@ -219,6 +233,8 @@ class UnifiedRouletteClient {
       this.error('Erro ao conectar ao stream:', error);
       this.isStreamConnecting = false;
       UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+      UnifiedRouletteClient.SSE_CONNECTION_ID = null;
       this.reconnectStream();
     }
   }
@@ -231,7 +247,7 @@ class UnifiedRouletteClient {
       return;
     }
     
-    this.log('Desconectando do stream SSE');
+    this.log(`Desconectando do stream SSE (ID: ${UnifiedRouletteClient.SSE_CONNECTION_ID})`);
     
     if (this.eventSource) {
       this.eventSource.close();
@@ -247,6 +263,8 @@ class UnifiedRouletteClient {
     this.isStreamConnecting = false;
     this.streamReconnectAttempts = 0;
     UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+    UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+    UnifiedRouletteClient.SSE_CONNECTION_ID = null;
     
     // Notificar sobre a desconexão
     this.emit('disconnect', { timestamp: Date.now() });
@@ -311,48 +329,53 @@ class UnifiedRouletteClient {
    * Handler para abertura de conexão do stream
    */
   private handleStreamOpen(): void {
-    this.log('Conexão SSE estabelecida');
-    this.isStreamConnected = true;
+    this.log(`Conexão SSE aberta com sucesso (ID: ${UnifiedRouletteClient.SSE_CONNECTION_ID})`);
     this.isStreamConnecting = false;
+    this.isStreamConnected = true;
     this.streamReconnectAttempts = 0;
     UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+    UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = true;
     
-    // Notificar sobre conexão
+    // Emitir evento de conexão
     this.emit('connect', { timestamp: Date.now() });
     EventBus.emit('roulette:stream-connected', { timestamp: new Date().toISOString() });
-    
-    // Se polling estiver ativo como fallback, parar
-    if (this.pollingTimer) {
-      this.log('Stream conectado, desativando polling fallback');
-      this.stopPolling();
-    }
   }
   
   /**
    * Handler para erros na conexão do stream
    */
   private handleStreamError(event: Event): void {
-    this.error('Erro na conexão SSE:', event);
+    // Verificar se o erro é devido a uma mudança de rede
+    const isNetworkChange = navigator.onLine === false;
     
-    this.isStreamConnected = false;
-    this.isStreamConnecting = false;
-    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+    this.error('Erro na conexão SSE:', event, isNetworkChange ? '(offline)' : '');
     
-    // Notificar erro
-    this.emit('error', { event, timestamp: Date.now() });
-    
-    // Reconectar com backoff exponencial
-    const delay = Math.min(1000 * Math.pow(2, this.streamReconnectAttempts), 30000);
-    this.log(`Agendando reconexão em ${delay}ms (tentativa ${this.streamReconnectAttempts + 1})`);
-    
-    setTimeout(() => {
-    this.reconnectStream();
-    }, delay);
-    
-    // Iniciar polling como fallback
-    if (this.pollingEnabled && !this.pollingTimer) {
-      this.log('Iniciando polling como fallback após erro no stream');
-      this.startPolling();
+    // Se a conexão estava previamente estabelecida, tentar reconectar
+    if (this.isStreamConnected) {
+      this.isStreamConnected = false;
+      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+      this.emit('error', { type: 'stream', message: 'Conexão perdida', timestamp: Date.now() });
+      
+      // Tentar reconectar automaticamente
+      this.reconnectStream();
+    } else if (this.isStreamConnecting) {
+      // Falha ao conectar pela primeira vez
+      this.isStreamConnecting = false;
+      UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+      
+      // Tentar reconectar se não for o último limite
+      if (this.streamReconnectAttempts < this.maxStreamReconnectAttempts) {
+        this.reconnectStream();
+      } else {
+        // Desistir e usar polling
+        this.error('Número máximo de tentativas de conexão atingido. Usando polling como fallback.');
+        UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+        UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+        
+        if (this.pollingEnabled && !this.pollingTimer) {
+          this.startPolling();
+        }
+      }
     }
   }
   
@@ -361,41 +384,36 @@ class UnifiedRouletteClient {
    */
   private handleStreamConnected(event: MessageEvent): void {
     try {
-      this.log(`Evento 'connected' recebido: ${event.data.substring(0, 100)}...`);
+      // Processar mensagem de conexão
+      const data = JSON.parse(event.data);
       
-      let data;
-      try {
-        data = JSON.parse(event.data);
-      } catch (error) {
-        this.error('Erro ao fazer parse JSON do evento connected:', error);
-        return;
-      }
+      this.log(`Conexão SSE estabelecida (ID: ${UnifiedRouletteClient.SSE_CONNECTION_ID}):`, data);
       
-      // Tentar extrair a chave de acesso do evento connected
-      try {
-        const keyExtracted = cryptoService.extractAndSetAccessKeyFromEvent(data);
-        if (keyExtracted) {
-          this.log('✅ Chave de acesso extraída e configurada a partir do evento connected');
-        } else {
-          this.log('⚠️ Nenhuma chave de acesso encontrada no evento connected');
-        }
-      } catch (error) {
-        this.error('Erro ao extrair chave de acesso do evento connected:', error);
-      }
+      this.isStreamConnected = true;
+      this.isStreamConnecting = false;
+      UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = true;
+      this.lastReceivedAt = Date.now();
       
-      // Notificar
+      // Parar polling se estiver ativo
+      this.stopPolling();
+      
+      // Emitir evento para notificar outros componentes
       this.emit('connected', data);
-      EventBus.emit('roulette:stream-ready', { 
+      EventBus.emit('roulette:connected', {
+        data,
         timestamp: new Date().toISOString(),
-        data
+        connectionId: UnifiedRouletteClient.SSE_CONNECTION_ID
       });
       
-      // Se recebemos o evento connected, solicitar dados imediatamente
-      // para garantir que temos os dados mais recentes
-      this.log('Evento connected recebido, solicitando dados atualizados');
-      this.forceUpdate();
-    } catch (error) {
-      this.error('Erro ao processar evento connected:', error, event.data);
+      // Tentar buscar dados iniciais (caso não tenhamos)
+      if (this.rouletteData.size === 0) {
+        this.fetchRouletteData().catch(err => {
+          this.error('Erro ao buscar dados iniciais após conexão:', err);
+        });
+      }
+    } catch (err) {
+      this.error('Erro ao processar evento connected:', err, event.data);
     }
   }
   
@@ -1091,15 +1109,41 @@ class UnifiedRouletteClient {
    * Limpa recursos ao desmontar
    */
   public dispose(): void {
-    // Limpar timers
-    if (this.pollingTimer) {
-      window.clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
+    this.log('Limpando recursos e fechando conexões');
+    
+    // Remover listeners de eventos
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+      window.removeEventListener('focus', this.handleFocus);
+      window.removeEventListener('blur', this.handleBlur);
     }
     
+    // Parar polling
+    this.stopPolling();
+    
+    // Fechar conexão SSE
+    if (this.eventSource) {
+      this.log('Fechando conexão EventSource');
+      this.eventSource.close();
+      this.eventSource = null;
+      this.isStreamConnected = false;
+      this.isStreamConnecting = false;
+      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+      UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+    }
+    
+    // Limpar timers
     if (this.streamReconnectTimer) {
       window.clearTimeout(this.streamReconnectTimer);
       this.streamReconnectTimer = null;
+    }
+    
+    // Fechar WebSocket
+    if (this.socket) {
+      this.log('Fechando conexão WebSocket');
+      this.socket.close();
+      this.socket = null;
+      this.webSocketConnected = false;
     }
     
     if (this.webSocketReconnectTimer) {
@@ -1107,30 +1151,22 @@ class UnifiedRouletteClient {
       this.webSocketReconnectTimer = null;
     }
     
-    // Fechar WebSocket
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
-    }
+    // Limpar caches
+    this.rouletteData.clear();
+    this.initialHistoricalDataCache.clear();
     
-    // Fechar stream
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
-    }
+    // Resetar estado
+    this.isInitialized = false;
     
-    // Reset da flag de conexão global
-    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
-    
-    // Remover event listeners
-    if (typeof document !== 'undefined') {
-      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
-      window.removeEventListener('focus', this.handleFocus);
-      window.removeEventListener('blur', this.handleBlur);
-    }
-    
-    // Limpar callbacks
+    // Limpar callbacks de eventos
     this.eventCallbacks.clear();
+    
+    // Se esta for a instância singleton, limpá-la
+    if (UnifiedRouletteClient.instance === this) {
+      UnifiedRouletteClient.instance = null as any;
+    }
+    
+    this.log('Limpeza completa');
   }
   
   /**
@@ -1614,17 +1650,30 @@ class UnifiedRouletteClient {
    */
   public diagnoseConnectionState(): any {
     const diagnosticInfo = {
+      // Flags estáticas para controle global de conexões
+      ACTIVE_SSE_CONNECTION: UnifiedRouletteClient.ACTIVE_SSE_CONNECTION,
+      GLOBAL_CONNECTION_ATTEMPT: UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT,
+      SSE_CONNECTION_ID: UnifiedRouletteClient.SSE_CONNECTION_ID,
+      
+      // Estado da instância atual
+      instanceId: `instance-${Math.random().toString(36).substring(2, 9)}`,
       isConnected: this.isStreamConnected,
       isConnecting: this.isStreamConnecting,
       lastReceivedAt: this.lastReceivedAt ? new Date(this.lastReceivedAt).toISOString() : null,
       timeSinceLastEvent: this.lastReceivedAt ? `${Math.round((Date.now() - this.lastReceivedAt) / 1000)}s atrás` : 'Nunca',
       reconnectAttempts: this.streamReconnectAttempts,
       eventSourceActive: !!this.eventSource,
+      eventSourceReadyState: this.eventSource ? ['CONNECTING', 'OPEN', 'CLOSED'][this.eventSource.readyState] : 'N/A',
       webSocketActive: !!this.socket && this.webSocketConnected,
       dataCount: this.rouletteData.size,
       streamingEnabled: this.streamingEnabled,
       pollingEnabled: this.pollingEnabled,
-      pollingActive: !!this.pollingTimer
+      pollingActive: !!this.pollingTimer,
+      
+      // Informações de ambiente
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A',
+      onLine: typeof navigator !== 'undefined' ? navigator.onLine : 'N/A',
+      timestamp: new Date().toISOString()
     };
     
     console.log('📊 Diagnóstico de conexão UnifiedRouletteClient:', diagnosticInfo);

@@ -234,9 +234,14 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   // Obter instância do UnifiedClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
   
+  // Log para diagnóstico da conexão SSE
+  useEffect(() => {
+    console.log(`[${componentId}] Diagnosticando conexão SSE:`, unifiedClient.diagnoseConnectionState());
+    // Este effect deve ser executado apenas uma vez
+  }, [componentId]);
+  
   // Efeito para iniciar a busca de dados
   useEffect(() => {
-    const componentId = `roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`; 
     console.log(`[${componentId}] useEffect executado. ID: ${safeData.id}`);
 
     const handleUpdate = (updateData: any) => {
