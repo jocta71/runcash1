@@ -531,80 +531,43 @@ export default class RouletteFeedService {
       '\nEste método será removido em versões futuras.'
     );
     
-    // Verificar se já há uma requisição em andamento
-    if (this.isFetching) {
-      if (this.fetchPromise) {
-        return this.fetchPromise;
-      }
-      
-      // Se não tiver uma Promise válida, retornar os dados em cache
-      if (Object.values(this.roulettes).length > 0) {
-        return Promise.resolve(Object.values(this.roulettes));
-      }
-      return Promise.resolve([]);
-    }
-    
-    // Verificar se o cache ainda é válido
+    // Se já há dados em cache válidos, retornar diretamente
     if (this.isCacheValid()) {
       return Promise.resolve(Object.values(this.roulettes));
     }
     
-    // Inicializar estado da request
-    this.isFetching = true;
-    this.lastFetchTime = Date.now();
-    
-    // Se não puder fazer request devido ao rate limiting, retornar cache
-    if (!this.canMakeRequest()) {
-      console.warn('[RouletteFeedService] Limite de requisições atingido, usando cache');
-      this.isFetching = false;
-      return Promise.resolve(Object.values(this.roulettes));
-    }
-    
-    // Criar ID único para esta requisição
+    // Criar ID único para esta requisição apenas para manter compatibilidade
     const requestId = this.generateRequestId();
     
-    // Registrar requisição pendente
-    this.pendingRequests[requestId] = {
-      timestamp: Date.now(),
-      url: SSE_STREAM_URL,
-      service: 'RouletteFeedService'
-    };
-    
-    // Importar UnifiedRouletteClient e usar para buscar os dados
-    import('./UnifiedRouletteClient').then(module => {
-      const UnifiedRouletteClient = module.default;
-      // Forçar atualização dos dados através do cliente unificado
-      UnifiedRouletteClient.getInstance().forceUpdate();
-    }).catch(error => {
-      console.error('[RouletteFeedService] Erro ao importar UnifiedRouletteClient:', error);
-    });
-    
-    // Criar promise para compatibilidade com código existente
-    this.fetchPromise = new Promise((resolve, reject) => {
+    // Importar RouletteStreamClient e obter dados já disponíveis no cliente SSE
+    // em vez de fazer nova requisição
+    return new Promise((resolve) => {
       try {
-        // Usar cache e resolver imediatamente
-        if (Object.values(this.roulettes).length > 0) {
+        import('../utils/RouletteStreamClient').then(module => {
+          const RouletteStreamClient = module.default.getInstance();
+          // Obter dados do cache do cliente SSE
+          const rouletteData = RouletteStreamClient.getAllRouletteData();
+          
+          if (rouletteData && rouletteData.length > 0) {
+            // Processar dados obtidos do RouletteStreamClient
+            this.handleRouletteData(rouletteData);
+            resolve(Object.values(this.roulettes));
+          } else {
+            // Se não houver dados no cliente SSE, retornar o cache atual
+            logger.warn('Sem dados disponíveis no cliente SSE, usando cache local');
+            resolve(Object.values(this.roulettes));
+          }
+        }).catch(error => {
+          logger.error('[RouletteFeedService] Erro ao importar RouletteStreamClient:', error);
+          // Em caso de erro, retornar o cache existente
           resolve(Object.values(this.roulettes));
-            } else {
-          // Sem dados em cache, resolver com array vazio
-          resolve([]);
-        }
-        
-        // Limpar estado
-        this.isFetching = false;
-        this.fetchPromise = null;
-        delete this.pendingRequests[requestId];
-        
+        });
       } catch (error) {
-        console.error('[RouletteFeedService] Erro geral:', error);
-        this.isFetching = false;
-        this.fetchPromise = null;
-        delete this.pendingRequests[requestId];
-        reject(error);
+        logger.error('[RouletteFeedService] Erro geral:', error);
+        // Em caso de erro, retornar o cache existente
+        resolve(Object.values(this.roulettes));
       }
     });
-    
-    return this.fetchPromise;
   }
 
   /**
@@ -1000,26 +963,63 @@ export default class RouletteFeedService {
       this.pollingTimer = null;
     }
     
-    // Verificar trava global
-    if (!this.checkAndReleaseGlobalLock()) {
-      logger.info('⛔ Trava global ativa, não é possível forçar atualização');
-      return Promise.resolve(this.roulettes);
+    try {
+      // Importar o RouletteStreamClient para obter dados atualizados
+      return import('../utils/RouletteStreamClient').then(module => {
+        const RouletteStreamClient = module.default.getInstance();
+        
+        // Forçar reconexão no cliente SSE, se necessário
+        if (!RouletteStreamClient.getStatus().isConnected) {
+          logger.info('Reconectando ao stream SSE...');
+          RouletteStreamClient.connect();
+        }
+        
+        // Obter dados do cache do cliente SSE
+        const rouletteData = RouletteStreamClient.getAllRouletteData();
+        
+        if (rouletteData && rouletteData.length > 0) {
+          // Processar dados obtidos do RouletteStreamClient
+          this.handleRouletteData(rouletteData);
+          
+          // Reiniciar o timer se o polling estiver ativo
+          if (this.isPollingActive && !this.isPaused) {
+            this.restartPollingTimer();
+          }
+          
+          return Object.values(this.roulettes);
+        } else {
+          // Se não houver dados no cliente SSE, retornar o cache atual
+          logger.warn('Sem dados disponíveis no cliente SSE, usando cache local');
+          
+          // Reiniciar o timer se o polling estiver ativo
+          if (this.isPollingActive && !this.isPaused) {
+            this.restartPollingTimer();
+          }
+          
+          return Object.values(this.roulettes);
+        }
+      }).catch(error => {
+        logger.error('[RouletteFeedService] Erro ao importar RouletteStreamClient:', error);
+        
+        // Reiniciar o timer se o polling estiver ativo
+        if (this.isPollingActive && !this.isPaused) {
+          this.restartPollingTimer();
+        }
+        
+        // Em caso de erro, retornar o cache existente
+        return Object.values(this.roulettes);
+      });
+    } catch (error) {
+      logger.error('[RouletteFeedService] Erro ao forçar atualização:', error);
+      
+      // Reiniciar o timer se o polling estiver ativo
+      if (this.isPollingActive && !this.isPaused) {
+        this.restartPollingTimer();
+      }
+      
+      // Em caso de erro, retornar o cache existente
+      return Promise.resolve(Object.values(this.roulettes));
     }
-    
-    // Resetar flags para permitir a requisição
-    this.isFetching = false;
-    this.hasPendingRequest = false;
-    GLOBAL_IS_FETCHING = false;
-    
-    // Buscar dados e reiniciar o timer
-    const promise = this.fetchLatestData();
-    
-    // Reiniciar o timer se o polling estiver ativo
-    if (this.isPollingActive && !this.isPaused) {
-      this.restartPollingTimer();
-    }
-    
-    return promise;
   }
   
   /**

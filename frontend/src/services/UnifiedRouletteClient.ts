@@ -860,52 +860,62 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Obtém dados simulados ou reais das roletas
+   * Busca os dados mais recentes das roletas
    */
   public async fetchRouletteData(): Promise<any[]> {
-    // Evitar requisições simultâneas
-    if (this.isFetching) {
-      this.log('Requisição já em andamento, aguardando...');
-      if (this.fetchPromise) {
-        return this.fetchPromise;
+    try {
+      if (this.isFetching) {
+        this.log('⚠️ Já existe uma requisição em andamento, aguardando...');
+        return this.rouletteData ? Array.from(this.rouletteData.values()) : [];
       }
-      return Array.from(this.rouletteData.values());
-    }
-    
-    // Verificar se o SSE já está conectado
-    if (this.isStreamConnected) {
-      this.log('Stream SSE já está conectado, usando dados em cache');
-      return Array.from(this.rouletteData.values());
-    }
-    
-    // Tentar conectar ao SSE se não estiver conectado
-    if (!this.isStreamConnected && !this.isStreamConnecting) {
-      this.log('Tentando conectar ao SSE para obter dados reais...');
-      this.connectStream();
       
-      // Esperar um pouco para dar tempo da conexão se estabelecer
-      await new Promise(resolve => setTimeout(resolve, 500));
+      this.isFetching = true;
+      
+      // Tentar obter dados via RouletteStreamClient primeiro
+      try {
+        // Importar dinamicamente para evitar dependência circular
+        const { default: RouletteStreamClient } = await import('../utils/RouletteStreamClient');
+        const streamClient = RouletteStreamClient.getInstance();
+        
+        // Verificar se o cliente está conectado
+        const status = streamClient.getStatus();
+        if (status.isConnected && status.cacheSize > 0) {
+          this.log('📡 Obtendo dados do RouletteStreamClient');
+          const data = streamClient.getAllRouletteData();
+          
+          // Atualizar cache local
+          this.updateCache(data);
+          this.isFetching = false;
+          
+          return data;
+        }
+      } catch (error) {
+        this.warn('⚠️ Não foi possível obter dados do RouletteStreamClient:', error);
+        // Continuar para fallback
+      }
+      
+      // Fallback para requisição REST só se o SSE falhar
+      const response = await fetch('/api/roulettes');
+      
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      this.isFetching = false;
+      
+      if (Array.isArray(data)) {
+        this.updateCache(data);
+        return data;
+      } else {
+        this.warn('Formato de dados inválido recebido');
+        return [];
+      }
+    } catch (error) {
+      this.error('❌ Erro ao buscar dados das roletas:', error);
+      this.isFetching = false;
+      return this.rouletteData ? Array.from(this.rouletteData.values()) : [];
     }
-    
-    // Verificar se o cache ainda é válido
-    if (this.isCacheValid()) {
-      this.log('Usando dados em cache (ainda válidos)');
-      return Array.from(this.rouletteData.values());
-    }
-    
-    // Se já tivermos alguns dados, retorná-los mesmo que não sejam recentes
-    if (this.rouletteData.size > 0) {
-      this.log('Retornando dados existentes em cache enquanto aguarda conexão SSE');
-      return Array.from(this.rouletteData.values());
-    }
-    
-    // Avisar o usuário que não temos dados disponíveis ainda
-    console.warn('[UnifiedRouletteClient] Tentando obter dados reais via SSE, aguarde. Se não aparecer, verifique sua conexão.');
-    
-    // Se não tivermos absolutamente nenhum dado, retornar array vazio
-    // O componente que chamou este método receberá atualizações via eventos quando os dados chegarem
-    this.log('Nenhum dado disponível ainda, retornando array vazio');
-    return [];
   }
   
   /**
