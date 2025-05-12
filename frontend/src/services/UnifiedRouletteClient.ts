@@ -110,6 +110,9 @@ class UnifiedRouletteClient {
   // Adicionar um registro global estático para todas as conexões SSE ativas
   private static GLOBAL_SSE_CONNECTIONS = new Map<string, EventSource>();
   
+  // Armazenar a última URL com parâmetros usada
+  private static LAST_FULL_URL: string | null = null;
+  
   /**
    * Construtor privado para garantir singleton
    */
@@ -161,33 +164,16 @@ class UnifiedRouletteClient {
    * Conecta ao stream de eventos SSE
    * Garante que apenas uma conexão SSE seja estabelecida por vez
    */
-  public connectStream(): void {
+  public async connectStream(): Promise<void> {
     if (!this.streamingEnabled) {
       this.log('Streaming está desabilitado');
       return;
     }
     
-    // Extrair a URL base sem query params para garantir unicidade
-    const baseUrl = SSE_STREAM_URL.split('?')[0];
-    
-    // Verificar se já existe alguma conexão para esta URL base
-    const existingConnection = UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.get(baseUrl);
-    if (existingConnection) {
-      this.log(`Já existe uma conexão SSE ativa para a URL base ${baseUrl}. Reutilizando conexão.`);
-      
-      // Associar a conexão existente a esta instância
-      this.eventSource = existingConnection;
-      this.isStreamConnected = true;
-      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = true;
-      
-      // Emitir evento para notificar que estamos usando uma conexão existente
-      this.emit('reusing-connection', { 
-        baseUrl, 
-        timestamp: Date.now(),
-        connectionId: UnifiedRouletteClient.SSE_CONNECTION_ID
-      });
-      
-      return;
+    // Verificar se há qualquer conexão SSE ativa e fechar todas
+    if (UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size > 0) {
+      this.log('Conexões SSE ativas encontradas. Fechando todas antes de criar uma nova.');
+      this.closeAllSSEConnections();
     }
     
     // Verificar se já existe uma tentativa de conexão global
@@ -205,14 +191,6 @@ class UnifiedRouletteClient {
       const connectionId = `sse-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       UnifiedRouletteClient.SSE_CONNECTION_ID = connectionId;
       
-      this.log(`Conectando ao stream SSE: ${streamUrl} (ID: ${connectionId})`);
-      
-      // Parar polling se estiver ativo
-      this.stopPolling();
-      
-      // Fechar qualquer conexão SSE existente
-      this.closeAllSSEConnections();
-      
       // Construir URL com query params para autenticação
       let fullStreamUrl = streamUrl;
       if (cryptoService.hasAccessKey()) {
@@ -222,10 +200,44 @@ class UnifiedRouletteClient {
         }
       }
       
+      // Armazenar a URL completa para referência
+      UnifiedRouletteClient.LAST_FULL_URL = fullStreamUrl;
+      
+      this.log(`Conectando ao stream SSE: ${fullStreamUrl} (ID: ${connectionId})`);
+      
+      // Parar polling se estiver ativo
+      this.stopPolling();
+      
       // Criar conexão SSE
       this.eventSource = new EventSource(fullStreamUrl);
       
-      // Registrar a nova conexão no mapa global
+      // Importante: Registramos a conexão com a URL base (sem parâmetros de consulta)
+      // para que possamos identificar todas as conexões para o mesmo endpoint
+      const baseUrl = streamUrl.split('?')[0];
+      
+      // Fechar qualquer conexão existente com esta URL base antes de registrar uma nova
+      const existingConnection = UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.get(baseUrl);
+      if (existingConnection) {
+        this.log(`Encontrada conexão existente para ${baseUrl}. Fechando antes de criar nova.`);
+        try {
+          existingConnection.close();
+        } catch (error) {
+          this.error(`Erro ao fechar conexão existente para ${baseUrl}:`, error);
+        }
+        
+        // Aguardar um pequeno momento para garantir que a conexão antiga seja fechada
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      
+      // Verificar se já temos o mesmo endpoint com o mesmo access key já conectado
+      if (UnifiedRouletteClient.LAST_FULL_URL === fullStreamUrl && UnifiedRouletteClient.ACTIVE_SSE_CONNECTION) {
+        this.log(`Já existe uma conexão ativa para exatamente a mesma URL: ${fullStreamUrl}. Não criando nova conexão.`);
+        UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+        this.isStreamConnecting = false;
+        return;
+      }
+      
+      // Registrar a nova conexão
       UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.set(baseUrl, this.eventSource);
       
       // Configurar handlers de eventos
@@ -246,6 +258,7 @@ class UnifiedRouletteClient {
             isConnected: this.isStreamConnected,
             isConnecting: this.isStreamConnecting,
             connectionId: UnifiedRouletteClient.SSE_CONNECTION_ID,
+            url: fullStreamUrl,
             registeredConnections: Array.from(UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.keys()),
             lastReceived: this.lastReceivedAt ? new Date(this.lastReceivedAt).toISOString() : 'nunca'
           });
@@ -283,6 +296,10 @@ class UnifiedRouletteClient {
     // Resetar flags
     UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
     UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+    UnifiedRouletteClient.LAST_FULL_URL = null;
+    
+    // Registrar a limpeza
+    console.log('🧹 Todas as conexões SSE foram fechadas e flags resetadas');
   }
   
   /**
@@ -367,7 +384,7 @@ class UnifiedRouletteClient {
     // Notificar sobre tentativa de reconexão
     this.emit('reconnecting', { attempt: this.streamReconnectAttempts, delay });
     
-    this.streamReconnectTimer = window.setTimeout(() => {
+    this.streamReconnectTimer = window.setTimeout(async () => {
       if (this.eventSource) {
         this.eventSource.close();
         this.eventSource = null;
@@ -376,7 +393,7 @@ class UnifiedRouletteClient {
       this.isStreamConnected = false;
       this.isStreamConnecting = false;
       UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
-      this.connectStream();
+      await this.connectStream();
     }, delay);
   }
   
@@ -1767,13 +1784,25 @@ class UnifiedRouletteClient {
    * Útil para diagnosticar problemas de streaming
    */
   public diagnoseConnectionState(): any {
+    // Coletar informações sobre todas as conexões EventSource ativas
+    const activeConnections: Array<{url: string, state: string, readyState: number}> = [];
+    UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.forEach((eventSource, url) => {
+      activeConnections.push({
+        url,
+        state: ['CONNECTING', 'OPEN', 'CLOSED'][eventSource.readyState] || 'UNKNOWN',
+        readyState: eventSource.readyState
+      });
+    });
+    
     const diagnosticInfo = {
       // Flags estáticas para controle global de conexões
       ACTIVE_SSE_CONNECTION: UnifiedRouletteClient.ACTIVE_SSE_CONNECTION,
       GLOBAL_CONNECTION_ATTEMPT: UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT,
       SSE_CONNECTION_ID: UnifiedRouletteClient.SSE_CONNECTION_ID,
-      GLOBAL_SSE_CONNECTIONS: Array.from(UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.keys()),
+      LAST_FULL_URL: UnifiedRouletteClient.LAST_FULL_URL,
       GLOBAL_SSE_CONNECTIONS_COUNT: UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size,
+      GLOBAL_SSE_CONNECTIONS_URLS: Array.from(UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.keys()),
+      ACTIVE_CONNECTIONS: activeConnections,
       
       // Estado da instância atual
       instanceId: `instance-${Math.random().toString(36).substring(2, 9)}`,
@@ -1784,6 +1813,7 @@ class UnifiedRouletteClient {
       reconnectAttempts: this.streamReconnectAttempts,
       eventSourceActive: !!this.eventSource,
       eventSourceReadyState: this.eventSource ? ['CONNECTING', 'OPEN', 'CLOSED'][this.eventSource.readyState] : 'N/A',
+      currentUrl: this.eventSource ? (this.eventSource as any).url : 'N/A',
       webSocketActive: !!this.socket && this.webSocketConnected,
       dataCount: this.rouletteData.size,
       streamingEnabled: this.streamingEnabled,
@@ -1818,82 +1848,36 @@ class UnifiedRouletteClient {
     this.isStreamConnected = false;
     this.isStreamConnecting = false;
     
-    // Pequeno delay antes de reconectar
-    setTimeout(() => {
-      console.log('Tentando reconectar stream com conexão limpa...');
-      this.connectStream();
+    // Pequeno delay antes de reconectar para garantir que o navegador tenha tempo
+    // suficiente para fechar completamente as conexões existentes
+    setTimeout(async () => {
+      console.log('Tentando reconectar stream com estado limpo...');
+      
+      // Forçar novo ID de conexão
+      UnifiedRouletteClient.SSE_CONNECTION_ID = `sse-force-reconnect-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      
+      // Tentar criar uma nova conexão única
+      await this.connectStream();
       
       // Verificar estado após tentativa
       setTimeout(() => {
         console.log('Estado após tentativa de reconexão:');
         this.diagnoseConnectionState();
-      }, 1000);
-    }, 500);
+      }, 2000);
+    }, 1000);
   }
 
   /**
    * Inicializa a conexão SSE
    */
-  private initializeSSE(): void {
+  private async initializeSSE(): Promise<void> {
     if (this.eventSource) {
       this.log('🔄 Reconectando stream SSE...');
       this.eventSource.close();
     }
 
     try {
-      const sseUrl = 'https://starfish-app-fubxw.ondigitalocean.app/api/stream/roulettes';
-      this.eventSource = new EventSource(sseUrl);
-      
-      this.eventSource.onopen = () => {
-        this.log('✅ Conexão SSE estabelecida');
-        this.streamReconnectAttempts = 0;
-        this.isStreamConnected = true;
-        
-        // Emitir evento de conexão bem-sucedida
-        this.emit('connected', {
-          timestamp: Date.now(),
-          url: sseUrl
-        });
-      };
-
-      this.eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          this.handleRouletteData(data);
-          
-          // Atualizar timestamp do último recebimento
-          this.lastReceivedAt = Date.now();
-      } catch (error) {
-          this.error('❌ Erro ao processar mensagem SSE:', error);
-        }
-      };
-
-      this.eventSource.onerror = (error) => {
-        this.error('❌ Erro na conexão SSE:', error);
-        this.isStreamConnected = false;
-        
-        if (this.streamReconnectAttempts < this.maxStreamReconnectAttempts) {
-          this.streamReconnectAttempts++;
-          const delay = this.streamReconnectInterval * Math.pow(2, this.streamReconnectAttempts - 1);
-          this.log(`🔄 Tentativa de reconexão ${this.streamReconnectAttempts}/${this.maxStreamReconnectAttempts} em ${delay}ms`);
-          
-          setTimeout(() => this.initializeSSE(), delay);
-        } else {
-          this.error('❌ Máximo de tentativas de reconexão atingido');
-          this.emit('sse-connection-failed', {
-            attempts: this.streamReconnectAttempts,
-            lastError: error,
-            url: sseUrl
-          });
-          
-          // Tentar reconexão após um tempo maior
-          setTimeout(() => {
-            this.streamReconnectAttempts = 0;
-            this.initializeSSE();
-          }, 30000); // 30 segundos
-        }
-      };
-
+      await this.connectStream();
     } catch (error) {
       this.error('❌ Erro ao inicializar conexão SSE:', error);
       this.isStreamConnected = false;

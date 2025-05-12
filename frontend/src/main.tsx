@@ -98,34 +98,68 @@ async function initializeRoulettesSystem() {
   logger.info('Conexão com o servidor sendo estabelecida em background...');
 
   // Função para limpar todas as conexões EventSource existentes
-  const cleanupExistingEventSources = () => {
+  const cleanupExistingEventSources = async () => {
     logger.info('Verificando e limpando conexões SSE existentes...');
     let count = 0;
     
-    // No ambiente do navegador, não há uma API para listar todas as conexões EventSource ativas
-    // então vamos adicionar uma verificação rudimentar
+    // Verificar conexões EventSource que possam estar em propriedades globais
     if (typeof window !== 'undefined') {
-      // Verificar se há uma propriedade global que pode conter EventSources (não padrão)
-      const globalObj = window as any;
-      if (globalObj._eventSourceInstances && Array.isArray(globalObj._eventSourceInstances)) {
-        globalObj._eventSourceInstances.forEach((es: any) => {
+      // Tentar fechar qualquer conexão EventSource que possa estar ativa
+      try {
+        // 1. Verificar objetos globais conhecidos que possam ter referências a EventSource
+        const globalObj = window as any;
+        
+        // 2. Tentar encontrar EventSource em _eventSourceInstances (se existir)
+        if (globalObj._eventSourceInstances && Array.isArray(globalObj._eventSourceInstances)) {
+          globalObj._eventSourceInstances.forEach((es: any) => {
+            try {
+              if (es && typeof es.close === 'function') {
+                es.close();
+                count++;
+                logger.info('EventSource fechado de _eventSourceInstances');
+              }
+            } catch (e) {
+              logger.error('Erro ao fechar EventSource:', e);
+            }
+          });
+          globalObj._eventSourceInstances = [];
+        }
+        
+        // 3. Verificar a presença de conexões SSE específicas por URL conhecida
+        const checkAndCloseSSE = (url: string) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', `${url}/check-connection`, false); // Chamada síncrona
+          xhr.send(null);
+          // Se a conexão existir, o servidor pode retornar um status indicando isso
+          return xhr.status === 200;
+        };
+        
+        // Lista de URLs base conhecidas para verificar
+        const knownSSEUrls = [
+          'https://starfish-app-fubxw.ondigitalocean.app/api/stream/roulettes'
+        ];
+        
+        knownSSEUrls.forEach(url => {
           try {
-            if (es && typeof es.close === 'function') {
-              es.close();
-              count++;
+            // Apenas verificar, não fechar diretamente (a verificação pode não ser confiável)
+            logger.info(`Verificando conexão SSE para: ${url}`);
+            const exists = checkAndCloseSSE(url);
+            if (exists) {
+              logger.info(`Conexão existente detectada para ${url}`);
             }
           } catch (e) {
-            console.error('Erro ao fechar EventSource:', e);
+            logger.error(`Erro ao verificar SSE para ${url}:`, e);
           }
         });
-        globalObj._eventSourceInstances = [];
+      } catch (e) {
+        logger.error('Erro durante verificação de conexões SSE:', e);
       }
     }
     
-    logger.info(`${count} conexões EventSource limpas`);
+    logger.info(`${count} conexões EventSource detectadas e limpas`);
     
-    // Para garantir, adicionar um pequeno atraso antes de continuar
-    return new Promise<void>(resolve => setTimeout(resolve, 500));
+    // Adicionar um atraso maior para garantir que as conexões sejam completamente fechadas
+    return new Promise<void>(resolve => setTimeout(resolve, 1000));
   };
   
   // Limpar conexões existentes
@@ -134,14 +168,42 @@ async function initializeRoulettesSystem() {
   // Inicializar o cliente de roletas no início para estabelecer conexão antecipada
   logger.info('Inicializando UnifiedRouletteClient antes do render...');
   const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
-  const unifiedClient = UnifiedRouletteClient.getInstance({
-    streamingEnabled: true,
-    autoConnect: false // Inicialmente desabilitado para evitar múltiplas conexões
-  });
 
-  // Garantir que apenas uma conexão SSE seja estabelecida
-  logger.info('Estabelecendo conexão SSE única...');
-  unifiedClient.connectStream();
+  // Inspeção explícita de conexões existentes
+  logger.info('Verificando se já existe uma instância do UnifiedRouletteClient...');
+  const existingInstance = (window as any)._unifiedRouletteClientInstance;
+  let unifiedClient;
+
+  if (existingInstance && typeof existingInstance.diagnoseConnectionState === 'function') {
+    logger.info('Reutilizando instância existente do UnifiedRouletteClient');
+    unifiedClient = existingInstance;
+    
+    // Diagnosticar estado atual da conexão
+    const diagnostics = unifiedClient.diagnoseConnectionState();
+    logger.info(`Estado atual das conexões: ${diagnostics.GLOBAL_SSE_CONNECTIONS_COUNT} conexões ativas`);
+    
+    // Se já houver conexões ativas, não criar outra
+    if (diagnostics.GLOBAL_SSE_CONNECTIONS_COUNT === 0) {
+      logger.info('Nenhuma conexão SSE ativa encontrada. Estabelecendo nova conexão...');
+      await unifiedClient.connectStream();
+    } else {
+      logger.info('Conexões SSE já existentes encontradas. Não criando nova conexão.');
+    }
+  } else {
+    // Criar nova instância com autoConnect desabilitado para controlar manualmente
+    logger.info('Criando nova instância do UnifiedRouletteClient...');
+    unifiedClient = UnifiedRouletteClient.getInstance({
+      streamingEnabled: true,
+      autoConnect: false
+    });
+    
+    // Armazenar globalmente para referência futura
+    (window as any)._unifiedRouletteClientInstance = unifiedClient;
+    
+    // Estabelecer conexão SSE única explicitamente
+    logger.info('Estabelecendo conexão SSE única...');
+    await unifiedClient.connectStream();
+  }
 
   // Inicializar o sistema de roletas como parte do carregamento da aplicação
   logger.info('Inicializando sistema de roletas de forma centralizada...');
