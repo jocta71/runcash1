@@ -1808,47 +1808,43 @@ export default class RouletteFeedService {
    */
   private initializeSSE(): void {
     try {
+      // Importar e usar o RouletteStreamClient como cliente único
       import('../utils/RouletteStreamClient').then(module => {
         const RouletteStreamClient = module.default.getInstance();
         
-        logger.info('🔄 Usando RouletteStreamClient para stream de dados');
+        logger.info('🔄 Usando RouletteStreamClient para streaming SSE');
         
-        // Registrar listeners para os eventos do RouletteStreamClient
+        // Inscrever para receber eventos do RouletteStreamClient
         RouletteStreamClient.on('update', (data) => {
-          this.lastReceivedTime = Date.now();
           this.handleRouletteData(data);
+          this.lastReceivedTime = Date.now();
         });
         
         RouletteStreamClient.on('connect', () => {
           logger.info('✅ Conexão SSE estabelecida via RouletteStreamClient');
           this.isConnected = true;
-          this.reconnectAttempts = 0;
+          this.lastReceivedTime = Date.now();
           
           // Notificar sobre conexão estabelecida
           EventBus.emit('roulette:sse-connected', {
             timestamp: new Date().toISOString(),
-            via: 'RouletteStreamClient'
+            source: 'RouletteStreamClient'
           });
         });
         
         RouletteStreamClient.on('error', (error) => {
-          logger.error('❌ Erro na conexão SSE via RouletteStreamClient:', error);
-          this.isConnected = false;
-        });
-        
-        RouletteStreamClient.on('disconnect', () => {
-          logger.info('🔌 Desconectado do stream SSE');
+          logger.error('❌ Erro na conexão SSE:', error);
           this.isConnected = false;
         });
         
         // Conectar se ainda não estiver conectado
-        if (!RouletteStreamClient.getStatus().isConnected) {
-          RouletteStreamClient.connect();
-        }
+        RouletteStreamClient.connect();
+        
       }).catch(error => {
         logger.error('❌ Erro ao importar RouletteStreamClient:', error);
         this.isConnected = false;
       });
+      
     } catch (error) {
       logger.error('❌ Erro ao inicializar conexão SSE:', error);
       this.isConnected = false;

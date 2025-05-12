@@ -1,9 +1,9 @@
 /**
  * Cliente para streaming de dados de roletas via SSE (Server-Sent Events)
- * Implementação central única para toda a aplicação
+ * Implementação unificada para streaming de dados de roletas
  */
 
-import cryptoService from './crypto-service';
+// Importar módulos do projeto
 import EventBus from '../services/EventBus';
 import { SSE_STREAM_URL } from '../services/api/endpoints';
 
@@ -41,8 +41,6 @@ class RouletteStreamClient {
    * Construtor privado para Singleton
    */
   private constructor(options: RouletteStreamOptions = {}) {
-    console.log('[RouletteStream] 🚀 Inicializando cliente SSE único');
-    
     // Aplicar opções
     this.url = options.url || this.url;
     this.reconnectInterval = options.reconnectInterval || this.reconnectInterval;
@@ -77,14 +75,8 @@ class RouletteStreamClient {
     console.log(`[RouletteStream] Conectando ao stream SSE: ${this.url}`);
     
     try {
-      // Construir URL com query params para autenticação, se necessário
+      // Construir URL (sem parâmetros de criptografia por enquanto)
       let streamUrl = this.url;
-      if (cryptoService.hasAccessKey()) {
-        const accessKey = localStorage.getItem('roulette_access_key');
-        if (accessKey) {
-          streamUrl += `?key=${encodeURIComponent(accessKey)}`;
-        }
-      }
       
       // Criar conexão SSE
       this.eventSource = new EventSource(streamUrl);
@@ -258,79 +250,51 @@ class RouletteStreamClient {
   }
   
   /**
-   * Processa os dados do evento de forma assíncrona, separado do handler de evento
-   * Este método pode usar async/await com segurança
+   * Processa dados de evento de atualização
    */
   private async processUpdateEvent(rawData: string): Promise<void> {
     try {
-      let parsedData;
+      // Tentar fazer parse dos dados como JSON
+      let parsedData = null;
       
-      // Verificar se os dados estão criptografados
-      if (rawData.startsWith('Fe26.2*')) {
-        console.log('[RouletteStream] Dados criptografados recebidos');
-        
-        // Tentar descriptografar se tivermos a chave
-        if (cryptoService.hasAccessKey()) {
-          try {
-            parsedData = await this.decryptEventData(rawData);
-          } catch (error) {
-            console.error('[RouletteStream] Erro ao descriptografar dados:', error);
-            // Notificar sobre o erro de descriptografia
-            EventBus.emit('roulette:decryption-error', {
-              timestamp: new Date().toISOString(),
-              error: error.message
-            });
-            return;
-          }
-        } else {
-          // Se não temos a chave, notificar que os dados estão criptografados
-          EventBus.emit('roulette:encrypted-data', {
-            timestamp: new Date().toISOString(),
-            hasAccessKey: false
-          });
-          
-          // Mesmo assim, envia os dados criptografados para quem quiser tentar processar
-          this.notifyEvent('update', { encrypted: true, raw: rawData });
-          return;
-        }
-      } else {
-        // Dados não estão criptografados
-        try {
-          parsedData = JSON.parse(rawData);
-        } catch (error) {
-          console.error('[RouletteStream] Erro ao fazer parse dos dados:', error);
-          return;
-        }
+      try {
+        parsedData = JSON.parse(rawData);
+      } catch (error) {
+        console.error('[RouletteStream] Erro ao fazer parse dos dados:', error);
+        return;
+      }
+      
+      // Verificar se os dados são válidos
+      if (!parsedData) {
+        console.error('[RouletteStream] Dados inválidos ou nulos');
+        return;
       }
       
       // Atualizar cache de dados
-      if (parsedData && parsedData.id) {
+      if (Array.isArray(parsedData)) {
+        // Se for um array, presumir que são várias roletas
+        for (const roulette of parsedData) {
+          if (roulette && roulette.id) {
+            this.rouletteData.set(roulette.id, roulette);
+          }
+        }
+      } else if (parsedData.id) {
+        // Se for um objeto com ID, presumir que é uma única roleta
         this.rouletteData.set(parsedData.id, parsedData);
+      } else if (parsedData.data && Array.isArray(parsedData.data)) {
+        // Formato alternativo com campo 'data'
+        for (const roulette of parsedData.data) {
+          if (roulette && roulette.id) {
+            this.rouletteData.set(roulette.id, roulette);
+          }
+        }
       }
       
-      // Notificar callbacks registrados
+      // Notificar sobre a atualização
       this.notifyEvent('update', parsedData);
-      
-      // Emitir evento global
-      EventBus.emit('roulette:data-updated', {
-        timestamp: new Date().toISOString(),
-        data: parsedData
-      });
+      this.lastReceivedAt = Date.now();
     } catch (error) {
-      console.error('[RouletteStream] Erro ao processar dados de evento update:', error);
-    }
-  }
-
-  /**
-   * Descriptografa dados de evento criptografados
-   */
-  private async decryptEventData(encryptedData: string): Promise<any> {
-    try {
-      // Usar o serviço de criptografia para descriptografar
-      return await cryptoService.processEncryptedData(encryptedData);
-    } catch (error) {
-      console.error('[RouletteStream] Erro na descriptografia:', error);
-      throw error;
+      console.error('[RouletteStream] Erro ao processar evento de atualização:', error);
     }
   }
 
