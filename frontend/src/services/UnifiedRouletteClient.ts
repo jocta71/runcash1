@@ -107,6 +107,9 @@ class UnifiedRouletteClient {
   private static ACTIVE_SSE_CONNECTION = false;
   private static SSE_CONNECTION_ID: string | null = null;
   
+  // Adicionar um registro global estático para todas as conexões SSE ativas
+  private static GLOBAL_SSE_CONNECTIONS = new Map<string, EventSource>();
+  
   /**
    * Construtor privado para garantir singleton
    */
@@ -164,14 +167,26 @@ class UnifiedRouletteClient {
       return;
     }
     
-    // Verificar se já existe uma conexão SSE ativa em qualquer instância
-    if (UnifiedRouletteClient.ACTIVE_SSE_CONNECTION) {
-      this.log(`Conexão SSE já ativa (ID: ${UnifiedRouletteClient.SSE_CONNECTION_ID}). Ignorando nova tentativa.`);
-      return;
-    }
+    // Extrair a URL base sem query params para garantir unicidade
+    const baseUrl = SSE_STREAM_URL.split('?')[0];
     
-    if (this.isStreamConnected || this.isStreamConnecting) {
-      this.log('Stream já está conectado ou conectando');
+    // Verificar se já existe alguma conexão para esta URL base
+    const existingConnection = UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.get(baseUrl);
+    if (existingConnection) {
+      this.log(`Já existe uma conexão SSE ativa para a URL base ${baseUrl}. Reutilizando conexão.`);
+      
+      // Associar a conexão existente a esta instância
+      this.eventSource = existingConnection;
+      this.isStreamConnected = true;
+      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = true;
+      
+      // Emitir evento para notificar que estamos usando uma conexão existente
+      this.emit('reusing-connection', { 
+        baseUrl, 
+        timestamp: Date.now(),
+        connectionId: UnifiedRouletteClient.SSE_CONNECTION_ID
+      });
+      
       return;
     }
     
@@ -195,6 +210,9 @@ class UnifiedRouletteClient {
       // Parar polling se estiver ativo
       this.stopPolling();
       
+      // Fechar qualquer conexão SSE existente
+      this.closeAllSSEConnections();
+      
       // Construir URL com query params para autenticação
       let fullStreamUrl = streamUrl;
       if (cryptoService.hasAccessKey()) {
@@ -206,6 +224,9 @@ class UnifiedRouletteClient {
       
       // Criar conexão SSE
       this.eventSource = new EventSource(fullStreamUrl);
+      
+      // Registrar a nova conexão no mapa global
+      UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.set(baseUrl, this.eventSource);
       
       // Configurar handlers de eventos
       this.eventSource.onopen = this.handleStreamOpen.bind(this);
@@ -225,6 +246,7 @@ class UnifiedRouletteClient {
             isConnected: this.isStreamConnected,
             isConnecting: this.isStreamConnecting,
             connectionId: UnifiedRouletteClient.SSE_CONNECTION_ID,
+            registeredConnections: Array.from(UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.keys()),
             lastReceived: this.lastReceivedAt ? new Date(this.lastReceivedAt).toISOString() : 'nunca'
           });
         }
@@ -240,6 +262,30 @@ class UnifiedRouletteClient {
   }
   
   /**
+   * Fecha todas as conexões SSE ativas
+   */
+  private closeAllSSEConnections(): void {
+    this.log(`Fechando todas as ${UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size} conexões SSE ativas...`);
+    
+    // Fechar cada conexão registrada
+    UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.forEach((eventSource, url) => {
+      try {
+        this.log(`Fechando conexão SSE para ${url}`);
+        eventSource.close();
+      } catch (error) {
+        this.error(`Erro ao fechar conexão SSE para ${url}:`, error);
+      }
+    });
+    
+    // Limpar o registro
+    UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.clear();
+    
+    // Resetar flags
+    UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+    UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+  }
+  
+  /**
    * Desconecta do stream SSE
    */
   public disconnectStream(): void {
@@ -250,6 +296,15 @@ class UnifiedRouletteClient {
     this.log(`Desconectando do stream SSE (ID: ${UnifiedRouletteClient.SSE_CONNECTION_ID})`);
     
     if (this.eventSource) {
+      // Remover do registro global
+      UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.forEach((eventSource, url) => {
+        if (eventSource === this.eventSource) {
+          UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.delete(url);
+          this.log(`Removida conexão SSE do registro para ${url}`);
+        }
+      });
+      
+      // Fechar a conexão
       this.eventSource.close();
       this.eventSource = null;
     }
@@ -336,9 +391,35 @@ class UnifiedRouletteClient {
     UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
     UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = true;
     
+    // Verificar se a conexão está registrada globalmente
+    let isRegistered = false;
+    UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.forEach((eventSource) => {
+      if (eventSource === this.eventSource) {
+        isRegistered = true;
+      }
+    });
+    
+    // Se não estiver registrada, registrar agora (caso raro)
+    if (!isRegistered && this.eventSource) {
+      const baseUrl = SSE_STREAM_URL.split('?')[0];
+      this.log(`Registrando conexão SSE recém-aberta para ${baseUrl}`);
+      UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.set(baseUrl, this.eventSource);
+    }
+    
+    // Log do estado atual de conexões
+    this.log(`Estado atual: ${UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size} conexões SSE ativas`);
+    
     // Emitir evento de conexão
-    this.emit('connect', { timestamp: Date.now() });
-    EventBus.emit('roulette:stream-connected', { timestamp: new Date().toISOString() });
+    this.emit('connect', { 
+      timestamp: Date.now(),
+      connectionId: UnifiedRouletteClient.SSE_CONNECTION_ID,
+      connectionsCount: UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size
+    });
+    
+    EventBus.emit('roulette:stream-connected', { 
+      timestamp: new Date().toISOString(),
+      connectionId: UnifiedRouletteClient.SSE_CONNECTION_ID
+    });
   }
   
   /**
@@ -350,11 +431,31 @@ class UnifiedRouletteClient {
     
     this.error('Erro na conexão SSE:', event, isNetworkChange ? '(offline)' : '');
     
+    // Remover esta conexão do registro global se ocorrer um erro
+    if (this.eventSource) {
+      UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.forEach((eventSource, url) => {
+        if (eventSource === this.eventSource) {
+          this.log(`Removendo conexão com erro para ${url} do registro global`);
+          UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.delete(url);
+        }
+      });
+    }
+    
     // Se a conexão estava previamente estabelecida, tentar reconectar
     if (this.isStreamConnected) {
       this.isStreamConnected = false;
-      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
-      this.emit('error', { type: 'stream', message: 'Conexão perdida', timestamp: Date.now() });
+      
+      // Atualizar flag global apenas se não houver mais conexões ativas
+      if (UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size === 0) {
+        UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+      }
+      
+      this.emit('error', { 
+        type: 'stream', 
+        message: 'Conexão perdida', 
+        timestamp: Date.now(),
+        connectionsCount: UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size
+      });
       
       // Tentar reconectar automaticamente
       this.reconnectStream();
@@ -369,8 +470,12 @@ class UnifiedRouletteClient {
       } else {
         // Desistir e usar polling
         this.error('Número máximo de tentativas de conexão atingido. Usando polling como fallback.');
-        UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
-        UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+        
+        // Atualizar flag global apenas se não houver mais conexões ativas
+        if (UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size === 0) {
+          UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+          UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+        }
         
         if (this.pollingEnabled && !this.pollingTimer) {
           this.startPolling();
@@ -1121,15 +1226,22 @@ class UnifiedRouletteClient {
     // Parar polling
     this.stopPolling();
     
-    // Fechar conexão SSE
+    // Fechar conexão SSE associada a esta instância
     if (this.eventSource) {
       this.log('Fechando conexão EventSource');
+      
+      // Remover do registro global apenas a conexão desta instância
+      UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.forEach((eventSource, url) => {
+        if (eventSource === this.eventSource) {
+          this.log(`Removendo conexão para ${url} do registro global`);
+          UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.delete(url);
+        }
+      });
+      
       this.eventSource.close();
       this.eventSource = null;
       this.isStreamConnected = false;
       this.isStreamConnecting = false;
-      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
-      UnifiedRouletteClient.SSE_CONNECTION_ID = null;
     }
     
     // Limpar timers
@@ -1161,8 +1273,14 @@ class UnifiedRouletteClient {
     // Limpar callbacks de eventos
     this.eventCallbacks.clear();
     
-    // Se esta for a instância singleton, limpá-la
+    // Se esta for a instância singleton, limpá-la e atualizar flags globais
     if (UnifiedRouletteClient.instance === this) {
+      // Se não houver mais conexões SSE ativas, resetar as flags globais
+      if (UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size === 0) {
+        UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+        UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+      }
+      
       UnifiedRouletteClient.instance = null as any;
     }
     
@@ -1654,6 +1772,8 @@ class UnifiedRouletteClient {
       ACTIVE_SSE_CONNECTION: UnifiedRouletteClient.ACTIVE_SSE_CONNECTION,
       GLOBAL_CONNECTION_ATTEMPT: UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT,
       SSE_CONNECTION_ID: UnifiedRouletteClient.SSE_CONNECTION_ID,
+      GLOBAL_SSE_CONNECTIONS: Array.from(UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.keys()),
+      GLOBAL_SSE_CONNECTIONS_COUNT: UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size,
       
       // Estado da instância atual
       instanceId: `instance-${Math.random().toString(36).substring(2, 9)}`,
@@ -1688,12 +1808,19 @@ class UnifiedRouletteClient {
     console.log('Estado antes da reconexão:');
     this.diagnoseConnectionState();
     
-    // Desconectar stream existente
-    this.disconnectStream();
+    // Fechar todas as conexões SSE existentes para garantir uma reconexão limpa
+    this.closeAllSSEConnections();
+    
+    // Resetar flags
+    UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+    UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+    this.isStreamConnected = false;
+    this.isStreamConnecting = false;
     
     // Pequeno delay antes de reconectar
     setTimeout(() => {
-      console.log('Tentando reconectar stream...');
+      console.log('Tentando reconectar stream com conexão limpa...');
       this.connectStream();
       
       // Verificar estado após tentativa

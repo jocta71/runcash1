@@ -97,15 +97,50 @@ async function initializeRoulettesSystem() {
   // Informa ao usuário que a conexão está sendo estabelecida
   logger.info('Conexão com o servidor sendo estabelecida em background...');
 
+  // Função para limpar todas as conexões EventSource existentes
+  const cleanupExistingEventSources = () => {
+    logger.info('Verificando e limpando conexões SSE existentes...');
+    let count = 0;
+    
+    // No ambiente do navegador, não há uma API para listar todas as conexões EventSource ativas
+    // então vamos adicionar uma verificação rudimentar
+    if (typeof window !== 'undefined') {
+      // Verificar se há uma propriedade global que pode conter EventSources (não padrão)
+      const globalObj = window as any;
+      if (globalObj._eventSourceInstances && Array.isArray(globalObj._eventSourceInstances)) {
+        globalObj._eventSourceInstances.forEach((es: any) => {
+          try {
+            if (es && typeof es.close === 'function') {
+              es.close();
+              count++;
+            }
+          } catch (e) {
+            console.error('Erro ao fechar EventSource:', e);
+          }
+        });
+        globalObj._eventSourceInstances = [];
+      }
+    }
+    
+    logger.info(`${count} conexões EventSource limpas`);
+    
+    // Para garantir, adicionar um pequeno atraso antes de continuar
+    return new Promise<void>(resolve => setTimeout(resolve, 500));
+  };
+  
+  // Limpar conexões existentes
+  await cleanupExistingEventSources();
+
   // Inicializar o cliente de roletas no início para estabelecer conexão antecipada
   logger.info('Inicializando UnifiedRouletteClient antes do render...');
   const { default: UnifiedRouletteClient } = await import('./services/UnifiedRouletteClient');
   const unifiedClient = UnifiedRouletteClient.getInstance({
     streamingEnabled: true,
-    autoConnect: true
-  }); // Inicia a conexão apenas uma vez
+    autoConnect: false // Inicialmente desabilitado para evitar múltiplas conexões
+  });
 
-  // Garantir que a conexão SSE esteja ativa
+  // Garantir que apenas uma conexão SSE seja estabelecida
+  logger.info('Estabelecendo conexão SSE única...');
   unifiedClient.connectStream();
 
   // Inicializar o sistema de roletas como parte do carregamento da aplicação
