@@ -1807,97 +1807,51 @@ export default class RouletteFeedService {
    * Inicializa a conexão SSE com suporte a reconexão automática
    */
   private initializeSSE(): void {
-    if (this.sseConnection) {
-      logger.info('🔄 Fechando conexão SSE existente antes de reconectar');
-      this.sseConnection.close();
-      this.sseConnection = null;
-    }
-
     try {
-      const sseUrl = 'https://starfish-app-fubxw.ondigitalocean.app/api/stream/roulettes';
-      logger.info(`🔌 Inicializando conexão SSE com ${sseUrl}`);
-      
-      // Adicionar cabeçalhos para melhorar a conexão
-      const requestInit: RequestInit = {
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive'
-        },
-        credentials: 'include', // Incluir cookies para autenticação se necessário
-        mode: 'cors' // Permitir CORS
-      };
-
-      // Criar a conexão SSE
-      this.sseConnection = new EventSource(sseUrl);
-      
-      // Configurar handlers de eventos
-      this.sseConnection.onopen = () => {
-        logger.info('✅ Conexão SSE estabelecida');
-        this.isConnected = true;
-        this.reconnectAttempts = 0;
-        this.lastReceivedTime = Date.now();
+      import('../utils/RouletteStreamClient').then(module => {
+        const RouletteStreamClient = module.default.getInstance();
         
-        // Notificar sobre conexão estabelecida
-        EventBus.emit('roulette:sse-connected', {
-          timestamp: new Date().toISOString(),
-          url: sseUrl
-        });
-      };
-      
-      this.sseConnection.onmessage = (event) => {
-        try {
+        logger.info('🔄 Usando RouletteStreamClient para stream de dados');
+        
+        // Registrar listeners para os eventos do RouletteStreamClient
+        RouletteStreamClient.on('update', (data) => {
           this.lastReceivedTime = Date.now();
-          const data = JSON.parse(event.data);
           this.handleRouletteData(data);
-        } catch (error) {
-          logger.error('❌ Erro ao processar mensagem SSE:', error);
-        }
-      };
-      
-      this.sseConnection.onerror = (event) => {
-        logger.error('❌ Erro na conexão SSE:', event);
-        this.isConnected = false;
+        });
         
-        // Tentar reconectar com backoff exponencial
-        if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
-          this.reconnectAttempts++;
-          const delay = this.SSE_RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts - 1);
-          const maxDelay = 30000; // 30 segundos no máximo
-          const actualDelay = Math.min(delay, maxDelay);
+        RouletteStreamClient.on('connect', () => {
+          logger.info('✅ Conexão SSE estabelecida via RouletteStreamClient');
+          this.isConnected = true;
+          this.reconnectAttempts = 0;
           
-          logger.info(`🔄 Tentativa de reconexão ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS} em ${actualDelay}ms`);
-          
-          setTimeout(() => this.initializeSSE(), actualDelay);
-        } else {
-          logger.error('❌ Máximo de tentativas de reconexão SSE atingido');
-          
-          // Emitir evento de falha na reconexão
-          EventBus.emit('roulette:sse-reconnect-failed', {
+          // Notificar sobre conexão estabelecida
+          EventBus.emit('roulette:sse-connected', {
             timestamp: new Date().toISOString(),
-            attempts: this.reconnectAttempts,
-            url: sseUrl
+            via: 'RouletteStreamClient'
           });
-          
-          // Tentar novamente após um intervalo maior
-          setTimeout(() => {
-            logger.info('🔄 Reiniciando tentativas de conexão SSE após pausa');
-            this.reconnectAttempts = 0;
-            this.initializeSSE();
-          }, 60000); // 1 minuto
+        });
+        
+        RouletteStreamClient.on('error', (error) => {
+          logger.error('❌ Erro na conexão SSE via RouletteStreamClient:', error);
+          this.isConnected = false;
+        });
+        
+        RouletteStreamClient.on('disconnect', () => {
+          logger.info('🔌 Desconectado do stream SSE');
+          this.isConnected = false;
+        });
+        
+        // Conectar se ainda não estiver conectado
+        if (!RouletteStreamClient.getStatus().isConnected) {
+          RouletteStreamClient.connect();
         }
-      };
+      }).catch(error => {
+        logger.error('❌ Erro ao importar RouletteStreamClient:', error);
+        this.isConnected = false;
+      });
     } catch (error) {
       logger.error('❌ Erro ao inicializar conexão SSE:', error);
       this.isConnected = false;
-      
-      // Emitir evento de erro
-      EventBus.emit('roulette:sse-initialization-error', {
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error)
-      });
-      
-      // Tentar novamente após um intervalo
-      setTimeout(() => this.initializeSSE(), this.SSE_RECONNECT_DELAY);
     }
   }
 

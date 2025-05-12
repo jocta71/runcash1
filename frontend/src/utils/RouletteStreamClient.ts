@@ -1,10 +1,11 @@
 /**
  * Cliente para streaming de dados de roletas via SSE (Server-Sent Events)
- * Implementação similar ao concorrente (tipminer)
+ * Implementação central única para toda a aplicação
  */
 
-import { cryptoService } from './crypto-utils';
+import cryptoService from './crypto-service';
 import EventBus from '../services/EventBus';
+import { SSE_STREAM_URL } from '../services/api/endpoints';
 
 // Opções de configuração do cliente SSE
 interface RouletteStreamOptions {
@@ -29,7 +30,7 @@ class RouletteStreamClient {
   private lastReceivedAt: number = 0;
   
   // Configurações padrão
-  private url: string = '/api/stream/roulettes';
+  private url: string = SSE_STREAM_URL;
   private reconnectInterval: number = 5000;
   private maxReconnectAttempts: number = 10;
   
@@ -40,6 +41,8 @@ class RouletteStreamClient {
    * Construtor privado para Singleton
    */
   private constructor(options: RouletteStreamOptions = {}) {
+    console.log('[RouletteStream] 🚀 Inicializando cliente SSE único');
+    
     // Aplicar opções
     this.url = options.url || this.url;
     this.reconnectInterval = options.reconnectInterval || this.reconnectInterval;

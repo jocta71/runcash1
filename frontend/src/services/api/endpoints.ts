@@ -20,6 +20,9 @@ export const BASE_URL = API_BASE_URL;
 // Endpoint completo para o streaming SSE
 export const SSE_STREAM_URL = `${API_BASE_URL}/api/stream/roulettes`;
 
+// Endpoint com a chave de acesso padrão para testes
+export const SSE_STREAM_URL_WITH_KEY = `${SSE_STREAM_URL}?key=mcs128i123xcxvc-testkey-production-v1`;
+
 console.log('🔌 Endpoints configurados:', {
   base: BASE_URL,
   sseStream: SSE_STREAM_URL,
