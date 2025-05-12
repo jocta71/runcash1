@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { getRouletteTypeByName } from '../../utils/roulette-utils';
 import * as RouletteApi from '../../services/api/rouletteApi';
+import { processRouletteData } from '../../utils/rouletteUtils';
 
 // Função auxiliar para determinar a cor de um número
 function determinarCorNumero(numero: number): string {
@@ -114,29 +115,7 @@ export async function getAllRoulettes(): Promise<RouletteData[]> {
  * @param roleta Dados brutos da roleta da API
  * @returns Roleta processada com dados adicionais
  */
-export const processRouletteData = (roleta: any): any => {
-  if (!roleta) return null;
-  
-  // Normalizar propriedades
-  const nome = roleta.nome || roleta.name || 'Sem nome';
-  const id = roleta.id || roleta._id || mapToCanonicalRouletteId(nome);
-  
-  // Adicionar tipo da roleta
-  const rouletteType = getRouletteTypeByName(nome);
-  
-  return {
-    ...roleta,
-    id: id,
-    nome: nome,
-    nome_canonico: nome.toLowerCase().trim(),
-    id_canonico: mapToCanonicalRouletteId(id),
-    tipo: rouletteType,
-    imagem: roleta.imagem || `/images/roulettes/${mapToCanonicalRouletteId(id)}.png`,
-    // Certificar-se de que números seja um array
-    numeros: Array.isArray(roleta.numeros) ? roleta.numeros : 
-             Array.isArray(roleta.numero) ? roleta.numero : []
-  };
-};
+export { processRouletteData };
 
 /**
  * Busca todas as roletas através do endpoint /api/roulettes e adiciona números reais a cada uma

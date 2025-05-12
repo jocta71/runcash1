@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import NumberHistory from '../NumberHistory';
 import UnifiedRouletteClient from '../../../../services/UnifiedRouletteClient';
+import { processRouletteData as globalProcessRouletteData, getNumberColor } from '../../../../utils/rouletteUtils';
 import './RouletteCard.css';
 
 // Adiciona regra global para corrigir posicionamento de dropdowns
@@ -43,7 +44,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
   const unifiedClient = useRef(UnifiedRouletteClient.getInstance());
   
   // Função para processar dados da roleta
-  const processRouletteData = useCallback(() => {
+  const processData = () => {
     try {
       // Obter dados das roletas do UnifiedRouletteClient
       const allRoulettes = unifiedClient.current.getAllRoulettes();
@@ -59,37 +60,26 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
         return;
       }
       
-      // Processar dados
-      const processedData = {
-        name: apiData.nome || apiData.name || rouletteId,
-        numbers: Array.isArray(apiData.numero) 
-          ? apiData.numero.map((n: any) => ({
-              value: n.numero,
-              color: getNumberColor(n.numero),
-              timestamp: n.timestamp || new Date().toISOString()
-            }))
-          : [],
-        active: true,
-        strategyState: apiData.strategyState || 'Neutro',
-        wins: apiData.wins || 0,
-        losses: apiData.losses || 0
-      };
+      // Usar a função centralizada para processar os dados
+      const processedData = globalProcessRouletteData(apiData);
       
-      // Verificar novo número
-      if (processedData.numbers?.length > 0) {
-        const latestNumber = processedData.numbers[0].value;
-        if (lastNumberRef.current !== latestNumber) {
-          lastNumberRef.current = latestNumber;
-          setIsNewNumber(true);
-          setTimeout(() => setIsNewNumber(false), 2000);
+      if (processedData) {
+        // Verificar novo número
+        if (processedData.numeros?.length > 0) {
+          const latestNumber = processedData.numeros[0].numero;
+          if (lastNumberRef.current !== latestNumber) {
+            lastNumberRef.current = latestNumber;
+            setIsNewNumber(true);
+            setTimeout(() => setIsNewNumber(false), 2000);
+          }
         }
+        
+        // Atualizar estados
+        setRouletteData(processedData);
+        setLastUpdateTime(Date.now());
+        setError(null);
+        setLoading(false);
       }
-      
-      // Atualizar estados
-      setRouletteData(processedData);
-      setLastUpdateTime(Date.now());
-      setError(null);
-      setLoading(false);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
       console.error('[RouletteCard] Erro:', err);
@@ -98,7 +88,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
         if (onError) onError(errorMsg);
       }
     }
-  }, [rouletteId, onError, rouletteData]);
+  };
   
   // Função auxiliar para determinar a cor do número
   const getNumberColor = (numero: number): string => {
@@ -112,7 +102,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
     setLoading(true);
     
     // Registrar para atualizações
-    unifiedClient.current.on('update', processRouletteData);
+    unifiedClient.current.on('update', processData);
     
     // Forçar atualização inicial
     unifiedClient.current.forceUpdate();
@@ -120,9 +110,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
     // Limpar ao desmontar
     return () => {
       console.log(`[RouletteCard] Limpando para roleta ${rouletteId}`);
-      unifiedClient.current.off('update', processRouletteData);
+      unifiedClient.current.off('update', processData);
     };
-  }, [rouletteId, processRouletteData]);
+  }, [rouletteId, processData]);
   
   // Formatar timestamp
   const formatTimestamp = (timestamp: string | number) => {

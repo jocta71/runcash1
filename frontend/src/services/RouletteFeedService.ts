@@ -84,6 +84,9 @@ interface RouletteFeedServiceOptions {
   historySize?: number;
 }
 
+// Importar a função processRouletteData centralizada 
+import { processRouletteData as globalProcessRouletteData } from '../utils/rouletteUtils';
+
 /**
  * Serviço para obter atualizações das roletas usando polling único
  * Intervalo ajustado para 10 segundos conforme especificação
@@ -493,29 +496,29 @@ export default class RouletteFeedService {
    * Processa os dados das roletas recebidos
    */
   private processRouletteData(data: any[]): { [key: string]: any } {
-      const liveTables: { [key: string]: any } = {};
+    const liveTables: { [key: string]: any } = {};
     
     data.forEach(roleta => {
-        if (roleta && roleta.id) {
-          const numeroArray = Array.isArray(roleta.numero) ? roleta.numero : [];
-          liveTables[roleta.id] = {
-            GameID: roleta.id,
-            Name: roleta.name || roleta.nome,
-            ativa: roleta.ativa,
-            numero: numeroArray,
-            ...roleta
+      if (roleta && (roleta.id || roleta.roleta_id)) {
+        const processedRoulette = globalProcessRouletteData(roleta);
+        if (processedRoulette) {
+          liveTables[processedRoulette.id] = {
+            ...processedRoulette,
+            GameID: processedRoulette.id,
+            Name: processedRoulette.nome
           };
         }
-      });
-      
-      this.lastUpdateTime = Date.now();
-      this.hasCachedData = true;
-      this.roulettes = liveTables;
-      RouletteFeedService.INITIAL_DATA_FETCHED = true;
-      
+      }
+    });
+    
+    this.lastUpdateTime = Date.now();
+    this.hasCachedData = true;
+    this.roulettes = liveTables;
+    RouletteFeedService.INITIAL_DATA_FETCHED = true;
+    
     // Notificar assinantes sobre os dados iniciais
-      this.notifySubscribers(liveTables);
-      
+    this.notifySubscribers(liveTables);
+    
     return liveTables;
   }
 
