@@ -115,9 +115,10 @@ class RouletteStreamClient {
         return;
       }
 
-      // Iniciar timer para timeout
+      // Iniciar timer para timeout - reduzido para falhar mais rápido
       const timeoutId = setTimeout(() => {
         console.log('[RouletteStream] Timeout ao aguardar conexão SSE');
+        GLOBAL.CONNECTION_PROMISE = null; // Limpar a promessa para permitir novas tentativas
         resolve(false);
       }, timeout);
 
@@ -130,14 +131,15 @@ class RouletteStreamClient {
       // Registrar listener para evento de conexão
       EventBus.on('roulette:stream-connected', handler);
 
-      // Verificar novamente após um curto período (para caso o evento já tenha sido emitido)
-      setTimeout(() => {
+      // Verificar novamente em intervalos mais frequentes
+      const checkInterval = setInterval(() => {
         if (GLOBAL.SSE_CONNECTION_ACTIVE) {
           clearTimeout(timeoutId);
+          clearInterval(checkInterval);
           EventBus.off('roulette:stream-connected', handler);
           resolve(true);
         }
-      }, 100);
+      }, 50); // Verificar a cada 50ms em vez de esperar 100ms
 
       // Se não houver uma instância inicializada, tentar criar uma agora
       if (!GLOBAL.SSE_INITIALIZED) {
@@ -170,6 +172,17 @@ class RouletteStreamClient {
     console.log(`[RouletteStream] Conectando ao stream SSE: ${this.url} (tentativa ${GLOBAL.CONNECTION_ATTEMPTS})`);
     
     return new Promise((resolve) => {
+      // Definir um timeout de conexão mais curto (3 segundos)
+      const connectionTimeout = setTimeout(() => {
+        console.log('[RouletteStream] Timeout na conexão SSE, resolvendo como não conectado');
+        if (this.eventSource) {
+          this.eventSource.close();
+          this.eventSource = null;
+        }
+        this.isConnecting = false;
+        resolve(false);
+      }, 3000);
+      
       try {
         // Usar a URL diretamente do atributo da classe, que já está sendo
         // inicializado com SSE_STREAM_URL no construtor
@@ -180,11 +193,13 @@ class RouletteStreamClient {
         
         // Configurar handlers de eventos
         this.eventSource.onopen = () => {
+          clearTimeout(connectionTimeout);
           this.handleOpen();
           resolve(true);
         };
         
         this.eventSource.onerror = (error) => {
+          clearTimeout(connectionTimeout);
           this.handleError(error);
           resolve(false);
         };
@@ -195,6 +210,7 @@ class RouletteStreamClient {
         // Evento de conexão inicial
         this.eventSource.addEventListener('connected', this.handleConnectedEvent.bind(this));
       } catch (error) {
+        clearTimeout(connectionTimeout);
         console.error('[RouletteStream] Erro ao conectar:', error);
         this.isConnecting = false;
         this.reconnect();

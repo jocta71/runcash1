@@ -177,7 +177,7 @@ class UnifiedRouletteClient {
         
         if (RouletteStreamClient.isConnectionActive()) {
           this.log('✅ Cliente SSE centralizado já está ativo, conectando aos eventos');
-      this.isStreamConnected = true;
+          this.isStreamConnected = true;
           
           // Se já estiver conectado, apenas registrar para eventos
           const client = RouletteStreamClient.getInstance();
@@ -187,13 +187,19 @@ class UnifiedRouletteClient {
           client.on('connect', this.handleStreamConnected.bind(this));
           client.on('error', this.handleStreamError.bind(this));
           
-      return;
-    }
+          // Forçar atualização imediata para exibir dados rapidamente
+          this.fetchRouletteData().catch(err => this.error('Erro ao buscar dados iniciais:', err));
+          
+          return;
+        }
     
+        // Enquanto aguarda a conexão SSE, fazer uma busca imediata de dados
+        this.fetchRouletteData().catch(err => this.error('Erro ao buscar dados iniciais:', err));
+        
         this.log('🔄 Aguardando inicialização do cliente SSE centralizado...');
         
-        // Aguardar pela conexão ou iniciar se necessário
-        const isConnected = await RouletteStreamClient.waitForConnection();
+        // Reduzir timeout para conexão
+        const isConnected = await RouletteStreamClient.waitForConnection(5000);
         
         if (isConnected) {
           this.log('✅ Cliente SSE centralizado conectado com sucesso');
@@ -222,13 +228,20 @@ class UnifiedRouletteClient {
           } else {
             this.error('❌ Falha na conexão direta');
             this.isStreamConnected = false;
+            
+            // Iniciar polling imediatamente como fallback para exibir dados
+            this.startPolling();
           }
         }
       }).catch(error => {
         this.error('❌ Erro ao importar RouletteStreamClient:', error);
+        // Iniciar polling como fallback em caso de erro
+        this.startPolling();
       });
     } catch (error) {
       this.error('❌ Erro ao conectar ao stream:', error);
+      // Iniciar polling como fallback em caso de erro
+      this.startPolling();
     }
   }
   
