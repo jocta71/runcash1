@@ -44,14 +44,17 @@ export function getRouletteImage(rouletteName: string, provider: string): string
     return "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg";
   } 
   else if (provider.toLowerCase().includes('evolution')) {
-    // Imagens da Evolution - aqui usaremos URLs fictícias pois não encontramos nos registros
+    // Imagens oficiais da Evolution
     const evolutionImageMap: Record<string, string> = {
-      "lightning roulette": "https://evolution-live.com/images/lightning-roulette.jpg",
-      "immersive roulette": "https://evolution-live.com/images/immersive-roulette.jpg",
-      "xxxtreme lightning roulette": "https://evolution-live.com/images/xxxtreme-lightning-roulette.jpg",
-      "gold vault roulette": "https://evolution-live.com/images/gold-vault-roulette.jpg",
-      "speed auto roulette": "https://evolution-live.com/images/speed-auto-roulette.jpg",
-      "american roulette": "https://evolution-live.com/images/american-roulette.jpg"
+      "lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
+      "immersive roulette": "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg",
+      "xxxtreme lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
+      "gold vault roulette": "https://bshots.egcvi.com/thumbnail/goldvk1_imr_med_L.jpg",
+      "dansk roulette": "https://bshots.egcvi.com/thumbnail/dgenm1_imr_med_L.jpg",
+      "vip roulette": "https://bshots.egcvi.com/thumbnail/vipk1_imr_med_L.jpg",
+      "ruleta relámpago en vivo": "https://bshots.egcvi.com/thumbnail/lightrs1_imrs_med_L.jpg",
+      "speed auto roulette": "https://bshots.egcvi.com/thumbnail/ezugi_221002_med_L.jpg",
+      "bucharest auto-roulette": "https://bshots.egcvi.com/thumbnail/buc1_ss_thumb_med_L.jpg"
     };
 
     // Busca pelo nome exato no evolutionImageMap
@@ -62,7 +65,7 @@ export function getRouletteImage(rouletteName: string, provider: string): string
     }
     
     // Fallback para Evolution
-    return "https://evolution-live.com/images/default-roulette.jpg";
+    return "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg";
   }
   
   // Imagem padrão se o provedor não for reconhecido
