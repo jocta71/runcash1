@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import RouletteCard from './RouletteCard';
 import RouletteSidePanelStats from './RouletteSidePanelStats';
 import UnifiedRouletteClient from '../services/UnifiedRouletteClient';
 import { Button } from './ui/button';
 import { AlertCircle, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// Obter uma única instância global do cliente para evitar múltiplas inicializações
+const unifiedClient = UnifiedRouletteClient.getInstance();
 
 const RoulettesDashboard = () => {
   const [roulettes, setRoulettes] = useState<any[]>([]);
@@ -13,12 +16,20 @@ const RoulettesDashboard = () => {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
   const [reconnecting, setReconnecting] = useState(false);
   const [selectedRoulette, setSelectedRoulette] = useState<any>(null);
-
-  // Instância de UnifiedRouletteClient
-  const unifiedClient = UnifiedRouletteClient.getInstance();
+  
+  // Referências para evitar múltiplas inicializações e registros de eventos
+  const initialized = useRef(false);
+  const updateHandlerRef = useRef<((data: any) => void) | null>(null);
 
   // Obter dados de roletas e configurar atualizações
   useEffect(() => {
+    // Evitar inicializações múltiplas
+    if (initialized.current) {
+      console.log('Dashboard já inicializado, pulando inicialização duplicada');
+      return;
+    }
+    
+    initialized.current = true;
     console.log('Inicializando painel de roletas...');
     setLoading(true);
 
@@ -37,9 +48,6 @@ const RoulettesDashboard = () => {
     // Buscar roletas iniciais
     const fetchInitialRoulettes = async () => {
       try {
-        // Forçar uma atualização
-        await unifiedClient.forceUpdate();
-        
         // Obter roletas do UnifiedRouletteClient
         const data = unifiedClient.getAllRoulettes();
         
@@ -54,7 +62,8 @@ const RoulettesDashboard = () => {
           setError(null);
         } else {
           console.log('Sem dados iniciais, aguardando atualizações...');
-          setLoading(true);
+          // Se não temos dados, forçar uma atualização
+          unifiedClient.forceUpdate();
         }
         
         updateConnectionStatus();
@@ -94,37 +103,28 @@ const RoulettesDashboard = () => {
       
       // Atualizar o estado apenas se encontramos dados
       if (newRoulettes.length > 0) {
-        // Preservar a seleção atual quando recebemos novos dados
-        if (selectedRoulette) {
-          const currentSelectedId = selectedRoulette.id || selectedRoulette.roleta_id;
-          console.log(`Preservando seleção atual: ${currentSelectedId}`);
-          
-          // Atualize apenas a referência para a roleta atualmente selecionada
-          const updatedSelected = newRoulettes.find(
-            (r: any) => r.id === currentSelectedId || r.roleta_id === currentSelectedId
-          );
-          
-          if (updatedSelected) {
-            console.log(`Roleta selecionada encontrada nos novos dados`);
-            // Preserva o flag _userSelected para manter o estado da seleção do usuário
-            if (selectedRoulette._userSelected) {
-              updatedSelected._userSelected = true;
-            }
-            
-            // Atualiza a lista de roletas
-            setRoulettes(newRoulettes);
-            // Atualiza apenas a referência da roleta selecionada
-            setSelectedRoulette(updatedSelected);
-          } else {
-            console.log(`Roleta selecionada não encontrada nos novos dados, mantendo seleção atual`);
-            // Se a roleta selecionada não existe mais na lista, apenas atualize a lista
-            setRoulettes(newRoulettes);
+        setRoulettes(prevRoulettes => {
+          // Se não tínhamos roletas antes, simplesmente atualizar
+          if (prevRoulettes.length === 0) {
+            return newRoulettes;
           }
-        } else {
-          // Se não havia seleção, atualize apenas a lista
-          console.log(`Sem roleta selecionada anteriormente, atualizando apenas a lista`);
-          setRoulettes(newRoulettes);
-        }
+          
+          // Preservar a seleção atual
+          setSelectedRoulette(prevSelected => {
+            if (!prevSelected) return newRoulettes[0];
+            
+            const currentSelectedId = prevSelected.id || prevSelected.roleta_id;
+            const updatedSelected = newRoulettes.find(
+              (r: any) => r.id === currentSelectedId || r.roleta_id === currentSelectedId
+            );
+            
+            // Se encontrarmos a roleta nos novos dados, retornar ela
+            // caso contrário, manter a seleção atual
+            return updatedSelected || prevSelected;
+          });
+          
+          return newRoulettes;
+        });
         
         setLoading(false);
         setError(null);
@@ -133,24 +133,14 @@ const RoulettesDashboard = () => {
       updateConnectionStatus();
     };
 
-    // Registrar para atualizações
+    // Salvar referência ao handler para limpeza
+    updateHandlerRef.current = handleRouletteUpdate;
+    
+    // Registrar para atualizações apenas uma vez
     unifiedClient.subscribe('update', handleRouletteUpdate);
     
     // Buscar roletas iniciais imediatamente após o useEffect ser executado
     fetchInitialRoulettes();
-    
-    // Além disso, verificar se já temos os dados no cache
-    const cachedRoulettes = unifiedClient.getAllRoulettes();
-    if (cachedRoulettes && cachedRoulettes.length > 0) {
-      console.log(`Usando ${cachedRoulettes.length} roletas do cache existente`);
-      setRoulettes(cachedRoulettes);
-      // Selecionar a primeira roleta por padrão, se ainda não houver uma selecionada
-      if (!selectedRoulette) {
-        setSelectedRoulette(cachedRoulettes[0]);
-      }
-      setLoading(false);
-      setError(null);
-    }
     
     // Status inicial 
     updateConnectionStatus();
@@ -162,21 +152,27 @@ const RoulettesDashboard = () => {
 
     // Cleanup
     return () => {
-      unifiedClient.unsubscribe('update', handleRouletteUpdate);
+      if (updateHandlerRef.current) {
+        unifiedClient.unsubscribe('update', updateHandlerRef.current);
+      }
       clearInterval(statusInterval);
+      initialized.current = false;
     };
-  }, []); // Removido selectedRoulette das dependências para evitar loop
+  }, []); // Dependência vazia, executa apenas uma vez
 
   // Função para selecionar uma roleta
-  const handleSelectRoulette = (roulette: any) => {
-    console.log('Roleta selecionada pelo usuário:', roulette);
-    // Adiciona um flag para indicar que foi explicitamente selecionada pelo usuário
-    roulette._userSelected = true;
-    setSelectedRoulette(roulette);
+  const handleSelectRoulette = (id: string) => {
+    const roulette = roulettes.find(r => r.id === id || r.roleta_id === id);
+    if (roulette) {
+      console.log('Roleta selecionada pelo usuário:', roulette.nome || roulette.name);
+      setSelectedRoulette(roulette);
+    }
   };
 
   // Função para forçar reconexão de todos os serviços
   const handleReconnect = async () => {
+    if (reconnecting) return;
+    
     setReconnecting(true);
     
     try {
@@ -253,19 +249,25 @@ const RoulettesDashboard = () => {
             </Button>
           </div>
         </div>
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
-          <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 mr-2" />
-            <p>{error}</p>
-          </div>
-          <p className="mt-2 text-sm">Tente reconectar ou recarregar a página.</p>
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-center">
+          <AlertTriangle className="h-5 w-5 mr-2" />
+          <p>{error}</p>
+          <Button 
+            onClick={() => unifiedClient.forceUpdate()} 
+            variant="outline" 
+            size="sm" 
+            className="ml-4"
+          >
+            Tentar novamente
+          </Button>
         </div>
       </div>
     );
   }
 
+  // Main dashboard view
   return (
-    <div className="container mx-auto p-4 pb-20">
+    <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Roletas Disponíveis</h1>
         <div className="flex items-center gap-2">
@@ -282,96 +284,69 @@ const RoulettesDashboard = () => {
           </Button>
         </div>
       </div>
-      
-      {roulettes.length === 0 ? (
-        <div className="text-center py-10">
-          <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-4" />
-          <p className="text-gray-600">Nenhuma roleta disponível no momento</p>
-          <Button onClick={handleReconnect} variant="outline" className="mt-4">
-            Tentar Novamente
-          </Button>
-        </div>
-      ) : (
-        <div className="lg:flex">
-          {/* Lista de roletas à esquerda - 50% em desktop */}
-          <div className="lg:w-1/2 lg:pr-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2">
-              {roulettes.map((roulette: any) => {
-                const rouletteId = roulette.id || roulette.roleta_id;
-                const isSelected = selectedRoulette && 
-                  (selectedRoulette.id === rouletteId || selectedRoulette.roleta_id === rouletteId);
-                  
-                return (
-                  <div 
-                    key={rouletteId}
-                    className="relative transition-all"
-                    onClick={() => handleSelectRoulette(roulette)}
-                  >
-                    <div className={cn(
-                      "cursor-pointer transition-all",
-                      {
-                        "ring-2 ring-primary ring-offset-2 ring-offset-background": isSelected
-                      }
-                    )}>
-                      <RouletteCard 
-                        data={roulette}
-                        // Não passamos isSelected para o RouletteCard para evitar duplicação
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          
-          {/* Estatísticas da roleta à direita - 50% em desktop, fixo em scroll */}
-          <div className="lg:w-1/2 mt-4 lg:mt-0 lg:sticky lg:top-2 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
-            <div className="h-full">
-              {selectedRoulette ? (
-                <RouletteSidePanelStats
-                  roletaId={selectedRoulette.id || selectedRoulette.roleta_id || ''}
-                  roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
-                  lastNumbers={selectedRoulette.numero?.map((n: any) => Number(n.numero)) || []}
-                  wins={0}
-                  losses={0}
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center border border-dashed border-gray-700 rounded-lg p-8">
-                  <p className="text-gray-500">Selecione uma roleta para ver as estatísticas</p>
-                </div>
-              )}
-            </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {roulettes.map((roulette) => (
+              <RouletteCard
+                key={roulette.id || roulette.roleta_id}
+                data={roulette}
+                onSelect={handleSelectRoulette}
+                isSelected={(selectedRoulette && 
+                  (selectedRoulette.id === roulette.id || 
+                   selectedRoulette.roleta_id === roulette.roleta_id))}
+              />
+            ))}
+            {roulettes.length === 0 && !loading && !error && (
+              <div className="col-span-full bg-gray-50 border border-gray-200 p-4 rounded-lg text-center">
+                <p className="text-gray-500">Nenhuma roleta disponível no momento.</p>
+              </div>
+            )}
           </div>
         </div>
-      )}
+        <div className="bg-card rounded-lg shadow-sm border p-4">
+          {selectedRoulette ? (
+            <RouletteSidePanelStats
+              roletaId={selectedRoulette.id || selectedRoulette.roleta_id || ''}
+              roletaNome={selectedRoulette.nome || selectedRoulette.name || 'Roleta'}
+              lastNumbers={(selectedRoulette.numeros || []).map((n: any) => Number(n.numero))}
+              wins={0}
+              losses={0}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center text-center">
+              <p className="text-muted-foreground">Selecione uma roleta para ver mais detalhes</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
 
-// Componente para mostrar status de conexão
+// Status indicator component
 const StatusIndicator = ({ status }: { status: 'connected' | 'connecting' | 'disconnected' }) => {
-  if (status === 'connected') {
-    return (
-      <div className="flex items-center gap-1">
-        <CheckCircle className="h-4 w-4 text-green-500" />
-        <span className="text-sm font-medium text-green-500">Conectado</span>
-      </div>
-    );
-  }
-  
-  if (status === 'connecting') {
-    return (
-      <div className="flex items-center gap-1">
-        <div className="h-4 w-4 rounded-full border-2 border-t-transparent border-yellow-500 animate-spin"></div>
-        <span className="text-sm font-medium text-yellow-500">Conectando...</span>
-      </div>
-    );
-  }
-  
   return (
-    <div className="flex items-center gap-1">
-      <AlertCircle className="h-4 w-4 text-red-500" />
-      <span className="text-sm font-medium text-red-500">Desconectado</span>
+    <div className="flex items-center">
+      {status === 'connected' && (
+        <div className="flex items-center text-green-600">
+          <CheckCircle className="h-4 w-4 mr-1" />
+          <span className="text-xs">Conectado</span>
+        </div>
+      )}
+      {status === 'connecting' && (
+        <div className="flex items-center text-amber-600">
+          <div className="animate-pulse h-4 w-4 rounded-full bg-amber-500 mr-1"></div>
+          <span className="text-xs">Conectando...</span>
+        </div>
+      )}
+      {status === 'disconnected' && (
+        <div className="flex items-center text-red-600">
+          <AlertCircle className="h-4 w-4 mr-1" />
+          <span className="text-xs">Desconectado</span>
+        </div>
+      )}
     </div>
   );
 };

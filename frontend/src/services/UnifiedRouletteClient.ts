@@ -56,6 +56,10 @@ interface RouletteNumber {
 class UnifiedRouletteClient {
   private static instance: UnifiedRouletteClient;
   
+  // Adicionar controle global de callbacks para evitar duplicação
+  private static globalCallbacks: Map<string, Set<EventCallback>> = new Map();
+  private static connectionInProgress: boolean = false;
+  
   // Estado
   private isInitialized = false;
   private rouletteData: Map<string, any> = new Map();
@@ -159,15 +163,25 @@ class UnifiedRouletteClient {
    */
   public static getInstance(options: RouletteClientOptions = {}): UnifiedRouletteClient {
     if (!UnifiedRouletteClient.instance) {
+      // Garantir que apenas uma instância é criada, mesmo com chamadas concorrentes
       UnifiedRouletteClient.instance = new UnifiedRouletteClient(options);
+      console.log('[UnifiedRouletteClient] Nova instância criada');
     }
     return UnifiedRouletteClient.instance;
   }
   
   /**
-   * Conecta ao stream de dados
+   * Conecta ao stream de dados evitando múltiplas conexões simultâneas
    */
   public connectStream(): void {
+    // Evitar múltiplas tentativas de conexão simultâneas
+    if (UnifiedRouletteClient.connectionInProgress) {
+      this.log('Conexão já em andamento, aguardando...');
+      return;
+    }
+    
+    UnifiedRouletteClient.connectionInProgress = true;
+    
     try {
       // Importar o módulo RouletteStreamClient e usar a instância centralizada
       import('../utils/RouletteStreamClient').then(async (module) => {
@@ -226,14 +240,16 @@ class UnifiedRouletteClient {
         }
       }).catch(error => {
         this.error('❌ Erro ao importar RouletteStreamClient:', error);
+        UnifiedRouletteClient.connectionInProgress = false;
       });
     } catch (error) {
       this.error('❌ Erro ao conectar ao stream:', error);
+      UnifiedRouletteClient.connectionInProgress = false;
     }
   }
   
   /**
-   * Desconecta do stream SSE
+   * Desconecta do stream SSE de forma segura
    */
   public disconnectStream(): void {
     if (!this.isStreamConnected && !this.isStreamConnecting) {
@@ -251,31 +267,17 @@ class UnifiedRouletteClient {
         }
       });
       
-      // Fechar a conexão
       this.eventSource.close();
       this.eventSource = null;
+      this.isStreamConnected = false;
+      this.isStreamConnecting = false;
+      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+      UnifiedRouletteClient.connectionInProgress = false;
     }
     
     if (this.streamReconnectTimer) {
-      window.clearTimeout(this.streamReconnectTimer);
+      clearTimeout(this.streamReconnectTimer);
       this.streamReconnectTimer = null;
-    }
-    
-    this.isStreamConnected = false;
-    this.isStreamConnecting = false;
-    this.streamReconnectAttempts = 0;
-    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
-    UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
-    UnifiedRouletteClient.SSE_CONNECTION_ID = null;
-    
-    // Notificar sobre a desconexão
-    this.emit('disconnect', { timestamp: Date.now() });
-    EventBus.emit('roulette:stream-disconnected', { timestamp: new Date().toISOString() });
-    
-    // Iniciar polling como fallback se estiver habilitado
-    if (this.pollingEnabled && !this.pollingTimer) {
-      this.log('Iniciando polling após desconexão do stream');
-      this.startPolling();
     }
   }
   
@@ -854,52 +856,15 @@ class UnifiedRouletteClient {
    * Remove um callback de eventos
    */
   public unsubscribe(event: string, callback: (data: any) => void): void {
-    if (typeof callback !== 'function') {
-      this.error('❌ Tentativa de remover callback inválido');
-      return;
+    // Remover do registro global
+    if (UnifiedRouletteClient.globalCallbacks.has(event)) {
+      const callbacks = UnifiedRouletteClient.globalCallbacks.get(event);
+      callbacks?.delete(callback);
     }
     
-    try {
-      if (this.eventCallbacks.has(event)) {
-        const callbacks = this.eventCallbacks.get(event)!;
-        const initialSize = callbacks.size;
-        
-        // Problema: O callback passado pode não ser a mesma referência que foi usada no subscribe
-        // Solução: Procurar pelo callback inspecionando o código fonte das funções
-        let removed = false;
-        
-        // Primeiro tentar remover diretamente (caso seja a mesma referência)
-        callbacks.delete(callback);
-        
-        // Se não conseguir remover diretamente, comparar o código fonte das funções
-        if (callbacks.size === initialSize) {
-          // Obter a string do callback original
-          const originalCallbackString = callback.toString();
-          
-          // Criar uma nova coleção para não modificar a original durante a iteração
-          const callbacksArray = Array.from(callbacks);
-          
-          for (const registeredCallback of callbacksArray) {
-            // Verificar se é uma função anônima com o mesmo corpo
-            if (registeredCallback.toString() === originalCallbackString) {
-              callbacks.delete(registeredCallback);
-              removed = true;
-              this.log(`➖ Callback removido do evento ${event} por comparação de string`);
-              break;
-            }
-          }
-        } else {
-          removed = true;
-        }
-        
-        if (removed || callbacks.size < initialSize) {
-          this.log(`➖ Callback removido do evento: ${event}`);
-        } else {
-          this.warn('⚠️ Callback não encontrado para remoção');
-        }
-      }
-    } catch (error) {
-      this.error('❌ Erro ao remover callback:', error);
+    // Remover do registro local
+    if (this.eventCallbacks.has(event)) {
+      this.eventCallbacks.get(event)?.delete(callback);
     }
   }
   
@@ -907,46 +872,36 @@ class UnifiedRouletteClient {
    * Adiciona um callback para eventos
    */
   public subscribe(event: string, callback: (data: any) => void): void {
-    if (typeof callback !== 'function') {
-      this.error('❌ Tentativa de adicionar callback inválido:', {
-        type: typeof callback,
-        value: callback,
-        stack: new Error().stack
-      });
-      return;
-    }
-
-    if (!this.eventCallbacks.has(event)) {
-      this.eventCallbacks.set(event, new Set());
+    const callbackHash = this.getCallbackHash(callback);
+    const callbackKey = `${event}_${callbackHash}`;
+    
+    // Verificar se já existe este callback para este evento
+    if (!UnifiedRouletteClient.globalCallbacks.has(event)) {
+      UnifiedRouletteClient.globalCallbacks.set(event, new Set());
     }
     
-    // Verificar se o callback já está registrado
-    if (this.eventCallbacks.get(event)!.has(callback)) {
-      this.warn('⚠️ Callback já registrado para evento:', event);
-      return;
-    }
-
-    try {
-      // Adicionar callback com validação adicional
-      const validatedCallback = (data: any) => {
-        try {
-          if (typeof callback === 'function') {
-            callback(data);
-          } else {
-            this.error('⚠️ Callback se tornou inválido durante execução');
-            this.unsubscribe(event, callback);
-          }
-        } catch (error) {
-          this.error('❌ Erro ao executar callback:', error);
-          this.unsubscribe(event, callback);
-        }
-      };
-
-      this.eventCallbacks.get(event)!.add(validatedCallback);
+    const callbacks = UnifiedRouletteClient.globalCallbacks.get(event);
+    
+    // Evitar duplicação de callbacks
+    if (!callbacks?.has(callback)) {
+      callbacks?.add(callback);
       this.log(`➕ Novo callback registrado para evento: ${event}`);
-    } catch (error) {
-      this.error('❌ Erro ao registrar callback:', error);
+      
+      // Continuar com a lógica de registro
+      if (!this.eventCallbacks.has(event)) {
+        this.eventCallbacks.set(event, new Set());
+      }
+      
+      this.eventCallbacks.get(event)?.add(callback);
     }
+  }
+  
+  /**
+   * Calcula um hash simples para uma função callback
+   */
+  private getCallbackHash(callback: Function): string {
+    // Uma abordagem simples para identificar funções similares
+    return callback.toString().substring(0, 50);
   }
   
   /**
@@ -1066,96 +1021,64 @@ class UnifiedRouletteClient {
   }
   
   /**
-   * Força uma atualização imediata dos dados
-   * Tenta reconectar o streaming se não estiver conectado
+   * Força atualização de dados
    */
   public forceUpdate(): Promise<any[]> {
-    // Se streaming não estiver conectado, tenta reconectar
-    if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
-      this.log('Forçando reconexão do stream');
-      this.connectStream();
-      return Promise.resolve(Array.from(this.rouletteData.values()));
+    // Evitar múltiplas atualizações forçadas simultâneas
+    if (this.isFetching) {
+      this.log('Já existe uma atualização forçada em andamento...');
+      return this.fetchPromise || Promise.resolve([]);
     }
     
-    // Caso contrário, busca dados via REST
+    this.log('Forçando atualização de dados...');
     return this.fetchRouletteData();
   }
   
   /**
-   * Limpa recursos ao desmontar
+   * Limpa todos os recursos usados pelo cliente
    */
   public dispose(): void {
-    this.log('Limpando recursos e fechando conexões');
+    // Desconectar qualquer EventSource ativo
+    this.disconnectStream();
     
-    // Remover listeners de eventos
+    // Limpar timers
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+    
+    if (this.streamReconnectTimer) {
+      clearTimeout(this.streamReconnectTimer);
+      this.streamReconnectTimer = null;
+    }
+    
+    // Limpar callbacks
+    this.eventCallbacks.clear();
+    
+    // Desconectar WebSocket
+    if (this.socket) {
+      this.socket.close();
+      this.socket = null;
+    }
+    
+    // Limpar o estado da instância
+    this.isInitialized = false;
+    this.isFetching = false;
+    this.isStreamConnected = false;
+    this.isStreamConnecting = false;
+    this.webSocketConnected = false;
+    
+    // Remover ouvintes de eventos
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.handleVisibilityChange);
       window.removeEventListener('focus', this.handleFocus);
       window.removeEventListener('blur', this.handleBlur);
     }
     
-    // Parar polling
-    this.stopPolling();
-    
-    // Fechar conexão SSE associada a esta instância
-    if (this.eventSource) {
-      this.log('Fechando conexão EventSource');
-      
-      // Remover do registro global apenas a conexão desta instância
-      UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.forEach((eventSource, url) => {
-        if (eventSource === this.eventSource) {
-          this.log(`Removendo conexão para ${url} do registro global`);
-          UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.delete(url);
-        }
-      });
-      
-      this.eventSource.close();
-      this.eventSource = null;
-      this.isStreamConnected = false;
-      this.isStreamConnecting = false;
-    }
-    
-    // Limpar timers
-    if (this.streamReconnectTimer) {
-      window.clearTimeout(this.streamReconnectTimer);
-      this.streamReconnectTimer = null;
-    }
-    
-    // Fechar WebSocket
-    if (this.socket) {
-      this.log('Fechando conexão WebSocket');
-      this.socket.close();
-      this.socket = null;
-      this.webSocketConnected = false;
-    }
-    
-    if (this.webSocketReconnectTimer) {
-      window.clearTimeout(this.webSocketReconnectTimer);
-      this.webSocketReconnectTimer = null;
-    }
-    
-    // Limpar caches
-    this.rouletteData.clear();
-    this.initialHistoricalDataCache.clear();
-    
-    // Resetar estado
-    this.isInitialized = false;
-    
-    // Limpar callbacks de eventos
-    this.eventCallbacks.clear();
-    
-    // Se esta for a instância singleton, limpá-la e atualizar flags globais
-    if (UnifiedRouletteClient.instance === this) {
-      // Se não houver mais conexões SSE ativas, resetar as flags globais
-      if (UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size === 0) {
-        UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
-        UnifiedRouletteClient.SSE_CONNECTION_ID = null;
-      }
-      
-      UnifiedRouletteClient.instance = null as any;
-    }
-    
-    this.log('Limpeza completa');
+    // Resetar configurações estáticas
+    UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+    UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+    UnifiedRouletteClient.connectionInProgress = false;
   }
   
   /**

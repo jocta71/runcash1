@@ -22,6 +22,15 @@ const debugLog = (...args: any[]) => {
   }
 };
 
+// Obter uma única instância do UnifiedClient para reutilização global
+const unifiedClient = UnifiedRouletteClient.getInstance();
+
+// Manter um registro global de callbacks para evitar duplicação
+const callbackRegistry = new Map<string, boolean>();
+
+// Criar um contexto global para gerenciar o estado de carregamento
+const loadingTimeoutActive = new Set<string>();
+
 const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetailView = false, onSelect, isSelected }) => {
   // Estados
   const [rouletteData, setRouletteData] = useState<ProcessedRouletteData | null>(() => {
@@ -56,102 +65,89 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   // ID único para este componente
   const componentId = useRef(`roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`).current;
   
-  // Obter instância do UnifiedClient
-  const unifiedClient = UnifiedRouletteClient.getInstance();
-  
-  // Log para diagnóstico da conexão SSE
-  useEffect(() => {
-    debugLog(`Diagnosticando conexão SSE:`, unifiedClient.diagnoseConnectionState());
-    // Este effect deve ser executado apenas uma vez
-  }, [componentId]);
-  
   // Efeito para iniciar a busca de dados
   useEffect(() => {
     debugLog(`useEffect executado. ID: ${safeData.id}`);
 
     // Adicionar um timeout de segurança para sempre mostrar algo ao usuário
-    const displayTimeoutMs = 5000; // 5 segundos
-    const safetyTimeoutId = setTimeout(() => {
-      if (isLoading) {
-        console.log('Timeout de segurança acionado - liberando interface');
-        setLoadingTimeout(true);
-        
-        // Após mais 3 segundos, liberar o componente mesmo sem dados
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 3000);
-      }
-    }, displayTimeoutMs);
+    // Verificar se já existe um timeout global ativo para este ID
+    if (!loadingTimeoutActive.has(safeData.id)) {
+      loadingTimeoutActive.add(safeData.id);
+      
+      const displayTimeoutMs = 5000; // 5 segundos
+      const safetyTimeoutId = setTimeout(() => {
+        if (isLoading) {
+          console.log('Timeout de segurança acionado - liberando interface');
+          setLoadingTimeout(true);
+          
+          // Após mais 3 segundos, liberar o componente mesmo sem dados
+          setTimeout(() => {
+            setIsLoading(false);
+            loadingTimeoutActive.delete(safeData.id);
+          }, 3000);
+        } else {
+          loadingTimeoutActive.delete(safeData.id);
+        }
+      }, displayTimeoutMs);
+      
+      timeoutRef.current = safetyTimeoutId;
+    }
 
     const handleUpdate = (updateData: any) => {
-      debugLog(`handleUpdate chamado. Evento 'update' recebido`);
+      debugLog(`handleUpdate chamado para ID: ${safeData.id}`);
         
       // Extrair dados da roleta do objeto de evento
       let myData: any = null;
         
-      // Casos possíveis de formato do updateData
+      // Verificar se os dados já são um objeto de roleta para este ID
       if (updateData && typeof updateData === 'object') {
-        // Caso 1: updateData é o objeto { roulettes: [...] }
-        if (updateData.roulettes && Array.isArray(updateData.roulettes)) {
-          debugLog(`Formato detectado: {roulettes: [...]}. Buscando ID ${safeData.id}`);
-          myData = updateData.roulettes.find((r: any) => 
-            (r.id === safeData.id || r.roleta_id === safeData.id)
-          );
-        } 
-        // Caso 2: updateData é um array de roletas diretamente
-        else if (Array.isArray(updateData)) {
-          debugLog(`Formato detectado: Array direto. Buscando ID ${safeData.id}`);
-          myData = updateData.find((r: any) => 
-            (r.id === safeData.id || r.roleta_id === safeData.id)
-          );
-        }
-        // Caso 3: updateData é uma roleta individual
-        else if (updateData.id === safeData.id || updateData.roleta_id === safeData.id) {
-          debugLog(`Formato detectado: Objeto individual. ID corresponde a ${safeData.id}`);
+        // Verificar se é a nossa roleta
+        if (updateData.id === safeData.id || updateData.roleta_id === safeData.id) {
           myData = updateData;
         }
-        // Caso 4: updateData.data contém as roletas (formato do evento SSE)
-        else if (updateData.type === 'all_roulettes_update' && Array.isArray(updateData.data)) {
-          debugLog(`Formato detectado: {type: 'all_roulettes_update', data: [...]}. Buscando ID ${safeData.id}`);
-          myData = updateData.data.find((r: any) => 
-            (r.id === safeData.id || r.roleta_id === safeData.id)
-          );
+        // É um array ou contém um array de roletas
+        else {
+          const rouletteArray = Array.isArray(updateData) 
+            ? updateData 
+            : (updateData.roulettes || updateData.data || []);
+            
+          if (Array.isArray(rouletteArray)) {
+            myData = rouletteArray.find((r: any) => 
+              (r.id === safeData.id || r.roleta_id === safeData.id)
+            );
+          }
         }
       }
         
       if (myData) {
-        debugLog(`Dados para este ID encontrados na atualização!`);
+        debugLog(`Dados encontrados para ID: ${safeData.id}`);
         const processed = processRouletteData(myData);
         if (processed) {
           setRouletteData(processed);
           setIsLoading(false);
           setError(null);
           setLoadingTimeout(false);
+          loadingTimeoutActive.delete(safeData.id);
         }
-      } else {
-        debugLog(`Nenhum dado para ID ${safeData.id} encontrado na atualização.`);
       }
     };
 
-    // Busca inicial e assinatura
-    debugLog(`Verificando dados existentes no UnifiedClient...`);
+    // Busca inicial usando dados em cache sempre que possível
+    debugLog(`Verificando dados em cache para ID: ${safeData.id}`);
     const currentDataFromClient = unifiedClient.getRouletteById(safeData.id);
+    
     if (currentDataFromClient) {
-      debugLog(`Dados INICIAIS encontrados no UnifiedClient. Processando...`);
-      // Chama handleUpdate diretamente para processar os dados iniciais
-      handleUpdate(currentDataFromClient); 
-      // Define isLoading como false aqui, pois já temos dados
-      setIsLoading(false); 
+      debugLog(`Dados em cache encontrados para ID: ${safeData.id}`);
+      handleUpdate(currentDataFromClient);
+      setIsLoading(false);
     } else {
-      debugLog(`Nenhum dado inicial no UnifiedClient. Tentando usar histórico...`);
-        
       // Tentar usar o histórico como fallback
       const historicalData = unifiedClient.getPreloadedHistory(safeData.name);
         
       if (historicalData && historicalData.length > 0) {
-        debugLog(`Histórico encontrado com ${historicalData.length} registros para ${safeData.name}`);
+        debugLog(`Histórico encontrado para: ${safeData.name}`);
           
-        // Criar objeto de roleta sintético usando dados históricos
+        // Criar objeto sintético
         const syntheticRoulette = {
           id: safeData.id,
           roleta_id: safeData.id,
@@ -159,63 +155,73 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
           roleta_nome: safeData.name,
           provider: "Desconhecido",
           status: "offline",
-          numeros: historicalData.slice(0, 10), // Primeiros 10 números do histórico
+          numeros: historicalData.slice(0, 10),
           ultimoNumero: historicalData[0]?.numero,
           timestamp: Date.now(),
-          isHistorical: true // Marcar que são dados históricos
+          isHistorical: true
         };
           
-        debugLog(`Objeto sintético criado a partir do histórico:`, syntheticRoulette);
         handleUpdate(syntheticRoulette);
-      } else {
-        debugLog(`Nenhum histórico encontrado para ${safeData.name}. Aguardando evento 'update'...`);
-        // Mantém isLoading true apenas se não houver dados iniciais
-        setIsLoading(true);
-        
-        // Tentar forçar uma atualização para carregar os dados mais rapidamente
-        unifiedClient.forceUpdate();
-      }
-    }
+      } else if (isLoading) {
+        // Registrar para ser notificado quando os dados históricos estiverem disponíveis
+        const historyReadyHandler = (availableNames: string[]) => {
+          if (availableNames.includes(safeData.name)) {
+            const historicalData = unifiedClient.getPreloadedHistory(safeData.name);
+            if (historicalData && historicalData.length > 0) {
+              const syntheticRoulette = {
+                id: safeData.id,
+                roleta_id: safeData.id,
+                nome: safeData.name,
+                roleta_nome: safeData.name,
+                provider: "Desconhecido",
+                status: "offline",
+                numeros: historicalData.slice(0, 10),
+                ultimoNumero: historicalData[0]?.numero,
+                timestamp: Date.now(),
+                isHistorical: true
+              };
+              handleUpdate(syntheticRoulette);
+            }
+          }
+        };
 
-    debugLog(`Assinando evento 'update' do UnifiedClient.`);
-    unifiedClient.subscribe('update', handleUpdate);
-    
-    // Adicionar subscription para o evento de dados históricos carregados
-    unifiedClient.subscribe('historical-data-ready', () => {
-      // Tentar novamente obter dados históricos quando ficarem disponíveis
-      if (isLoading) {
-        const historicalData = unifiedClient.getPreloadedHistory(safeData.name);
-        if (historicalData && historicalData.length > 0) {
-          const syntheticRoulette = {
-            id: safeData.id,
-            roleta_id: safeData.id,
-            nome: safeData.name,
-            roleta_nome: safeData.name,
-            provider: "Desconhecido",
-            status: "offline",
-            numeros: historicalData.slice(0, 10),
-            ultimoNumero: historicalData[0]?.numero,
-            timestamp: Date.now(),
-            isHistorical: true
-          };
-          handleUpdate(syntheticRoulette);
+        // Evitar registro duplicado de callbacks usando um ID único
+        const historyCallbackId = `historical-data-ready_${safeData.id}`;
+        if (!callbackRegistry.has(historyCallbackId)) {
+          callbackRegistry.set(historyCallbackId, true);
+          unifiedClient.subscribe('historical-data-ready', historyReadyHandler);
         }
       }
-    });
-
-    // VERIFICAÇÃO DE FONTE ÚNICA
-    console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas UnifiedRouletteClient para obter dados da API.');
+    }
+    
+    // Evitar registros duplicados de callbacks usando um ID único
+    const updateCallbackId = `update_${safeData.id}`;
+    if (!callbackRegistry.has(updateCallbackId)) {
+      callbackRegistry.set(updateCallbackId, true);
+      unifiedClient.subscribe('update', handleUpdate);
+    }
 
     return () => {
-      debugLog(`Desmontando e cancelando assinatura do evento 'update'.`);
-      unifiedClient.unsubscribe('update', handleUpdate);
-      unifiedClient.unsubscribe('historical-data-ready', () => {});
+      debugLog(`Limpando recursos para ID: ${safeData.id}`);
       
       // Limpar timeout de segurança
-      clearTimeout(safetyTimeoutId);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      
+      // Remover do registro de callbacks ativos
+      callbackRegistry.delete(`update_${safeData.id}`);
+      callbackRegistry.delete(`historical-data-ready_${safeData.id}`);
+      
+      // Limpar o timeout global
+      loadingTimeoutActive.delete(safeData.id);
+      
+      // Desinscrever dos eventos
+      unifiedClient.unsubscribe('update', handleUpdate);
+      unifiedClient.unsubscribe('historical-data-ready', () => {});
     };
-  // Dependências revisadas: safeData.id e unifiedClient são suficientes para setup/cleanup.
-  }, [safeData.id, unifiedClient, isLoading]);
+  }, [safeData.id, safeData.name, isLoading]);
   
   // Formatar tempo relativo
   const getTimeAgo = () => {
@@ -224,9 +230,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     if (seconds < 60) return `${seconds}s atrás`;
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s atrás`;
   };
-
-  // Log para verificar o estado antes de renderizar
-  debugLog(`Renderizando. Estado rouletteData:`, rouletteData);
 
   if (isLoading) {
     return (
@@ -285,7 +288,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   // Desestruturação e Renderização Normal
   const { nome, provider, status, ultimoNumero, numeros, winRate, streak, lastUpdateTime } = rouletteData;
   const isOnline = status?.toLowerCase() === 'online';
-  debugLog(`Renderizando números:`, numeros);
   const lastNumbersToDisplay = numeros.map(n => n.numero);
 
   return (
@@ -344,7 +346,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
                 onClick={(e) => {
                   e.stopPropagation();
                   unifiedClient.forceReconnectStream();
-                  debugLog(`Tentando reconectar com o servidor SSE...`);
                 }}
               >
                 Reconectar

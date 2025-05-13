@@ -93,6 +93,8 @@ import { processRouletteData as globalProcessRouletteData } from '../utils/roule
  */
 export default class RouletteFeedService {
   private static instance: RouletteFeedService | null = null;
+  private static isInitializing: boolean = false;
+  private static initializationPromise: Promise<any> | null = null;
   private roulettes: { [key: string]: any } = {}; // Alterado para um objeto em vez de array
   
   // Controle de estado global
@@ -287,83 +289,57 @@ export default class RouletteFeedService {
    * Inicializa o serviço
    */
   public initialize(): Promise<any> {
-    logger.info('Solicitação de inicialização recebida');
-    
-    // Se já está inicializando, retornar a promessa existente
-    if (this.IS_INITIALIZING && this.GLOBAL_INITIALIZATION_PROMISE) {
-      return this.GLOBAL_INITIALIZATION_PROMISE;
+    if (this.initialized) {
+      console.log('[RouletteFeedService] Serviço já inicializado');
+      return Promise.resolve(this.roulettesList);
     }
     
-    // Marcar como inicializando
+    if (this.IS_INITIALIZING) {
+      console.log('[RouletteFeedService] Inicialização já em andamento, aguardando...');
+      return this.GLOBAL_INITIALIZATION_PROMISE || Promise.resolve(this.roulettesList);
+    }
+    
+    console.log('[RouletteFeedService] Solicitação de inicialização recebida');
     this.IS_INITIALIZING = true;
     
-    // Criar uma promessa global para a inicialização
-    this.GLOBAL_INITIALIZATION_PROMISE = new Promise(async (resolve) => {
+    // Usar o cliente unificado para estabelecer uma única conexão SSE
+    const unifiedClient = UnifiedRouletteClient.getInstance();
+    
+    this.GLOBAL_INITIALIZATION_PROMISE = new Promise<any>(async (resolve) => {
       try {
-        // Verificar saúde da API antes de inicializar
-        const isAPIHealthy = await this.checkAPIHealth();
+        await this.checkAPIHealth();
         
-        // Registrar ouvintes para eventos do serviço global
+        console.log('[RouletteFeedService] 🔄 Inicializando conexão SSE via RouletteStreamClient centralizado');
+        console.log('[RouletteFeedService] 🔄 Aguardando inicialização do cliente SSE centralizado...');
+        
+        // Registrar para ser notificado sobre conexões e atualizações
+        unifiedClient.subscribe('update', this.handleRouletteData.bind(this));
+        
+        // Registrar ouvintes de eventos globais
         this.registerGlobalEventListeners();
         
-        // Inicializar UnifiedRouletteClient primeiramente
-        logger.info('Inicializando conexão com UnifiedRouletteClient...');
-        const unifiedClient = UnifiedRouletteClient.getInstance();
+        // Inicializar a sincronização entre instâncias
+        this.initializeInstanceSync();
         
-        // Solicitar dados iniciais
-        try {
-          const initialData = await this.fetchInitialData();
-          logger.info(`✅ Dados iniciais carregados: ${Object.keys(initialData).length} roletas`);
-        } catch (dataError) {
-          logger.warn('⚠️ Não foi possível carregar dados iniciais:', dataError);
-        }
+        // Buscar dados iniciais - preferir usar o UnifiedRouletteClient para evitar busca duplicada
+        const initialData = await this.fetchInitialData();
         
-        // Iniciar o monitoramento de saúde do serviço
-        this.startHealthMonitoring();
-        
-        // Iniciar o ciclo de atualização em segundo plano
+        // Iniciar polling apenas como fallback, com intervalo fixo de 10 segundos
+        console.log(`[RouletteFeedService] ▶️ Iniciando polling de dados de roletas a cada ${POLLING_INTERVAL/1000} segundos`);
         this.startPolling();
         
-        // Configurar sincronização entre abas
-        this.initializeInstanceSync();
-        this.startSyncUpdates();
-        
-        // Resolver com informações sobre a inicialização
-            this.initialized = true;
-            this.isInitialized = true;
-            
-        logger.info('✅ RouletteFeedService inicializado e pronto para uso');
-        EventService.emit('roulette:service-ready', {
-          timestamp: new Date().toISOString(),
-          isAPIHealthy: isAPIHealthy
-        });
-        
-        resolve({
-          initialized: true,
-          timestamp: new Date().toISOString(),
-          isAPIHealthy: isAPIHealthy
-        });
-      } catch (error) {
-        // Tratar erros críticos durante a inicialização
-        logger.error('❌ ERRO CRÍTICO durante inicialização:', error);
         this.initialized = true;
-        this.isInitialized = true;
-        
-        // Mesmo em caso de erro crítico, resolvemos para não bloquear a aplicação
-        resolve({
-          initialized: true,
-          error: error instanceof Error ? error.message : String(error),
-          timestamp: new Date().toISOString()
-        });
-        
-        // Emitir evento de erro para informar componentes
-        EventService.emit('roulette:critical-error', {
-          message: 'Falha crítica na inicialização do serviço',
-          error: error instanceof Error ? error.message : 'Erro desconhecido'
-        });
-      } finally {
-        // Garantir que o estado de inicialização seja sempre atualizado
         this.IS_INITIALIZING = false;
+        RouletteFeedService.isInitializing = false;
+        
+        console.log('[RouletteFeedService] ✅ RouletteFeedService inicializado e pronto para uso');
+        
+        resolve(this.roulettesList);
+      } catch (error) {
+        console.error('[RouletteFeedService] ❌ Erro na inicialização:', error);
+        this.IS_INITIALIZING = false;
+        RouletteFeedService.isInitializing = false;
+        resolve([]);
       }
     });
     
@@ -428,75 +404,47 @@ export default class RouletteFeedService {
    * Busca os dados iniciais das roletas
    */
   public async fetchInitialData(): Promise<{ [key: string]: any }> {
-    const MAX_RETRIES = 3;
-    let retryCount = 0;
-    let lastError: any = null;
+    // Evitar duplicação de busca, checando primeiro se o UnifiedClient já tem dados
+    const unifiedClient = UnifiedRouletteClient.getInstance();
+    const cachedRoulettes = unifiedClient.getAllRoulettes();
     
-    while (retryCount < MAX_RETRIES) {
-      try {
-        logger.info(`🔄 Buscando dados iniciais (tentativa ${retryCount + 1}/${MAX_RETRIES})`);
-        
-        // Obter dados via RouletteStreamClient ou UnifiedRouletteClient
-        try {
-          // Primeiro tentar obter dados do RouletteStreamClient (cliente SSE)
-          const { default: RouletteStreamClient } = await import('../utils/RouletteStreamClient');
-          const streamClient = RouletteStreamClient.getInstance();
-          
-          // Verificar se o cliente está conectado ou tentar conectar
-          if (!streamClient.getStatus().isConnected) {
-            logger.info('🔄 Cliente SSE não conectado, tentando conectar...');
-            await streamClient.connect();
-            
-            // Aguardar um momento para receber dados
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-          
-          // Verificar se temos dados no cliente SSE
-          const rouletteData = streamClient.getAllRouletteData();
-          if (rouletteData && rouletteData.length > 0) {
-            logger.info(`📡 Recebidos ${rouletteData.length} roletas via cliente SSE`);
-            return this.processRouletteData(rouletteData);
-          }
-          
-          // Se não temos dados no cliente SSE, tentar via UnifiedRouletteClient
-          logger.info('⚠️ Sem dados no cliente SSE, tentando via UnifiedRouletteClient...');
-          const unifiedClient = UnifiedRouletteClient.getInstance();
-          const globalRoulettes = await unifiedClient.fetchRouletteData();
-          
-          if (globalRoulettes && globalRoulettes.length > 0) {
-            logger.info(`📋 Recebidos ${globalRoulettes.length} roletas via UnifiedRouletteClient`);
-            return this.processRouletteData(globalRoulettes);
-          }
-          
-          logger.warn('⚠️ Nenhum dado recebido dos clientes, retornando cache atual');
-          return this.roulettes;
-          
-        } catch (clientError) {
-          // Se falhar ao tentar obter dados via clientes, lançar erro para tentar novamente
-          throw new Error(`Erro ao obter dados via clientes: ${clientError.message}`);
-        }
-        
-      } catch (error) {
-        lastError = error;
-        logger.error(`❌ Erro ao buscar dados iniciais (tentativa ${retryCount + 1}/${MAX_RETRIES}):`, error);
-        
-        if (retryCount < MAX_RETRIES - 1) {
-          const waitTime = Math.min(1000 * Math.pow(2, retryCount), 5000);
-          logger.warn(`⚠️ Aguardando ${waitTime}ms antes de tentar novamente...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
-        
-        retryCount++;
-      }
+    if (cachedRoulettes && cachedRoulettes.length > 0) {
+      console.log(`[RouletteFeedService] 📡 Usando ${cachedRoulettes.length} roletas já carregadas pelo UnifiedRouletteClient`);
+      
+      // Processar e armazenar no formato deste serviço
+      this.updateRouletteCache(cachedRoulettes);
+      this.hasFetchedInitialData = true;
+      
+      return this.roulettes;
     }
     
-    logger.error('❌ Todas as tentativas de buscar dados iniciais falharam:', lastError);
-    EventService.emit('roulette:initial-data-failed', {
-      error: lastError,
-      attempts: retryCount
-    });
+    // Se não houver dados em cache, tentar usar o Cliente SSE centralizado
+    console.log('[RouletteFeedService] 🔄 Buscando dados iniciais (tentativa 1/3)');
     
-    return {};
+    try {
+      // Verificar se o cliente SSE está disponível e conectado
+      if (unifiedClient.diagnoseConnectionState().isStreamConnected) {
+        const sseData = unifiedClient.getAllRoulettes();
+        
+        if (sseData && sseData.length > 0) {
+          console.log(`[RouletteFeedService] 📡 Recebidos ${sseData.length} roletas via cliente SSE`);
+          this.updateRouletteCache(sseData);
+          this.hasFetchedInitialData = true;
+          return this.roulettes;
+        } else {
+          console.warn('[RouletteFeedService] ⚠️ Sem dados no cliente SSE, tentando via UnifiedRouletteClient...');
+        }
+      }
+      
+      // Se nada funcionar, usar o cache atual como último recurso
+      console.warn('[RouletteFeedService] ⚠️ Nenhum dado recebido dos clientes, retornando cache atual');
+      return this.roulettes;
+    } catch (error) {
+      console.error('[RouletteFeedService] ❌ Erro ao buscar dados iniciais:', error);
+      return this.roulettes;
+    } finally {
+      console.log(`[RouletteFeedService] ✅ Dados iniciais carregados: ${Object.keys(this.roulettes).length} roletas`);
+    }
   }
 
   /**
@@ -629,12 +577,34 @@ export default class RouletteFeedService {
   }
   
   /**
-   * Obtém a instância única do serviço (Singleton)
+   * Obtém a instância única do serviço, garantindo que só exista uma
    */
   public static getInstance(): RouletteFeedService {
     if (!RouletteFeedService.instance) {
+      // Se já houver uma inicialização em andamento, retornar a instância que será criada
+      if (RouletteFeedService.isInitializing) {
+        console.log('[RouletteFeedService] Já existe uma inicialização em andamento, aguardando...');
+        return new Proxy({} as RouletteFeedService, {
+          get: (target, prop) => {
+            // Aguardar a inicialização real e então acessar a propriedade
+            if (!RouletteFeedService.instance) {
+              console.warn('[RouletteFeedService] Acesso a propriedade antes da inicialização completa:', prop.toString());
+              // Retornar função vazia para métodos
+              if (typeof prop === 'string' && prop !== 'then') {
+                return () => console.warn('[RouletteFeedService] Método chamado antes da inicialização completa:', prop);
+              }
+              return undefined;
+            }
+            return (RouletteFeedService.instance as any)[prop];
+          }
+        });
+      }
+      
+      console.log('[RouletteFeedService] Criando nova instância');
+      RouletteFeedService.isInitializing = true;
       RouletteFeedService.instance = new RouletteFeedService();
     }
+    
     return RouletteFeedService.instance;
   }
   
@@ -1792,156 +1762,94 @@ export default class RouletteFeedService {
    * @returns Promise<boolean> Indica se a API está saudável
    */
   async checkAPIHealth(): Promise<boolean> {
+    let isHealthy = false;
+    const initTimeout = 15000; // 15 segundos
+    
     try {
-      logger.info('Verificando saúde da API...');
+      console.log('[RouletteFeedService] Verificando saúde da API...');
       
-      // Inicializar a conexão SSE
-      this.initializeSSE();
-      
-      // Aguardar até que a conexão seja estabelecida ou atinja o timeout
-      const connectionResult = await Promise.race([
-        // Promise que resolve quando a conexão for estabelecida
-        new Promise<boolean>((resolve) => {
-          const checkInterval = setInterval(() => {
-            if (this.isConnected) {
-              clearInterval(checkInterval);
-              resolve(true);
-            }
-          }, 500);
-        }),
-        
-        // Promise que rejeita após o timeout
-        new Promise<boolean>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error('Timeout ao verificar conexão SSE'));
-          }, 10000); // 10 segundos de timeout
-        })
-      ]).catch((error) => {
-        logger.warn(`⚠️ Timeout ao verificar conexão SSE: ${error.message}`);
-        return false;
+      // Criar um timeout para evitar bloqueio prolongado
+      const timeoutPromise = new Promise<boolean>((resolve) => {
+        setTimeout(() => {
+          console.warn('[RouletteFeedService] ⚠️ Timeout ao verificar conexão SSE: Timeout ao verificar conexão SSE');
+          resolve(false);
+        }, initTimeout);
       });
       
-      if (connectionResult) {
-        logger.info('✅ Conexão SSE estabelecida com sucesso');
+      // Verificar a conexão SSE de forma centralizada
+      const unifiedClient = UnifiedRouletteClient.getInstance();
+      const connectionStatus = unifiedClient.diagnoseConnectionState();
+      
+      if (connectionStatus.isStreamConnected) {
+        console.log('[RouletteFeedService] ✅ Cliente SSE centralizado já está conectado');
         return true;
-          } else {
-        logger.warn('⚠️ Falha ao estabelecer conexão SSE, operando com dados em cache');
-        
-        // Emitir evento de falha na conexão
-        EventBus.emit('roulette:connection-failed', {
-          timestamp: new Date().toISOString(),
-          url: SSE_STREAM_URL,
-          error: 'Timeout ao verificar conexão'
-        });
-        
-        return false;
       }
+      
+      // Inicializar a conexão SSE via UnifiedRouletteClient, que já implementa deduplicação
+      const ssePromise = this.initializeSSE();
+      
+      // Usar Promise.race para evitar bloqueio prolongado
+      isHealthy = await Promise.race([ssePromise, timeoutPromise]);
+      
+      if (!isHealthy) {
+        console.warn('[RouletteFeedService] ⚠️ Falha ao estabelecer conexão SSE, operando com dados em cache');
+      }
+      
+      this.isError = !isHealthy;
+      this.errorMessage = isHealthy ? '' : 'Falha na conexão SSE';
+      
+      return isHealthy;
     } catch (error) {
-      logger.error('❌ Erro ao verificar saúde da API:', error);
-      
-      // Emitir evento de erro
-      EventBus.emit('roulette:api-health-error', {
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error)
-      });
-      
+      console.error('[RouletteFeedService] ❌ Erro ao verificar saúde da API:', error);
+      this.isError = true;
+      this.errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       return false;
     }
   }
 
   /**
-   * Inicializa a conexão SSE com suporte a reconexão automática
+   * Inicializa a conexão SSE de forma centralizada
    */
-  private initializeSSE(): void {
-    try {
-      // Importar e usar o RouletteStreamClient como cliente único
-      import('../utils/RouletteStreamClient').then(async (module) => {
-        const RouletteStreamClient = module.default;
+  private initializeSSE(): Promise<boolean> {
+    return new Promise<boolean>(async (resolve) => {
+      try {
+        const unifiedClient = UnifiedRouletteClient.getInstance();
+        const connectionStatus = unifiedClient.diagnoseConnectionState();
         
-        logger.info('🔄 Inicializando conexão SSE via RouletteStreamClient centralizado');
-        
-        // Verificar se a conexão já está ativa
-        if (RouletteStreamClient.isConnectionActive()) {
-          logger.info('✅ Cliente SSE centralizado já está ativo');
-          this.isConnected = true;
-          this.lastReceivedTime = Date.now();
-          
-          // Registrar para receber eventos
-          const client = RouletteStreamClient.getInstance();
-          
-          // Configurar handlers de eventos
-          client.on('update', (data) => {
-            this.handleRouletteData(data);
-            this.lastReceivedTime = Date.now();
-          });
-          
-          client.on('connect', () => {
-            logger.info('✅ Conexão SSE estabelecida via RouletteStreamClient');
-            this.isConnected = true;
-            this.lastReceivedTime = Date.now();
-            
-            // Reiniciar contagem de erros ao conectar com sucesso
-            this.sseErrorCount = 0;
-            this.sseErrorSilenced = false;
-            
-            // Notificar sobre conexão estabelecida
-            EventBus.emit('roulette:sse-connected', {
-              timestamp: new Date().toISOString(),
-              source: 'RouletteStreamClient'
-            });
-          });
-          
-          client.on('error', (error) => {
-            this.handleSSEError(error);
-          });
-          
+        if (connectionStatus.isStreamConnected) {
+          console.log('[RouletteFeedService] ✅ Cliente SSE centralizado já está conectado');
+          resolve(true);
           return;
         }
         
-        // Aguardar pela conexão centralizada
-        logger.info('🔄 Aguardando inicialização do cliente SSE centralizado...');
-        const isConnected = await RouletteStreamClient.waitForConnection();
-        
-        if (isConnected) {
-          logger.info('✅ Cliente SSE centralizado conectado com sucesso');
-          this.isConnected = true;
-          
-          // Reiniciar contagem de erros ao conectar com sucesso
-          this.sseErrorCount = 0;
-          this.sseErrorSilenced = false;
-          
-          // Registrar eventos para o cliente já conectado
-          const client = RouletteStreamClient.getInstance();
-          
-          client.on('update', (data) => {
-            this.handleRouletteData(data);
-            this.lastReceivedTime = Date.now();
-          });
-          
-          client.on('connect', () => {
-            logger.info('✅ Conexão SSE reestabelecida');
-            this.isConnected = true;
-            
-            // Reiniciar contagem de erros ao conectar com sucesso
-            this.sseErrorCount = 0;
-            this.sseErrorSilenced = false;
-          });
-          
-          client.on('error', (error) => {
-            this.handleSSEError(error);
-          });
-        } else {
-          logger.warn('⚠️ Falha na inicialização do cliente SSE centralizado');
-          this.isConnected = false;
+        // Aguardar pela conexão do cliente centralizado
+        const modulePromise = import('../utils/RouletteStreamClient');
+        const { default: RouletteStreamClient } = await modulePromise;
+
+        // Verificar se o cliente já está ativo
+        if (RouletteStreamClient.isConnectionActive()) {
+          console.log('[RouletteFeedService] ✅ Cliente SSE centralizado conectado com sucesso');
+          resolve(true);
+          return;
         }
-      }).catch(error => {
-        logger.error('❌ Erro ao importar RouletteStreamClient:', error);
-        this.isConnected = false;
-      });
-    } catch (error) {
-      logger.error('❌ Erro ao inicializar conexão SSE:', error);
-      this.isConnected = false;
-    }
+        
+        // Tentar estabelecer conexão única
+        const streamClient = RouletteStreamClient.getInstance();
+        const connected = await streamClient.connect();
+        
+        if (connected) {
+          console.log('[RouletteFeedService] ✅ Conexão SSE estabelecida com sucesso');
+          resolve(true);
+          return;
+        }
+        
+        console.warn('[RouletteFeedService] ⚠️ Falha na inicialização do cliente SSE centralizado');
+        resolve(false);
+      } catch (error) {
+        console.error('[RouletteFeedService] ❌ Erro ao inicializar SSE:', error);
+        resolve(false);
+      }
+    });
   }
   
   /**
