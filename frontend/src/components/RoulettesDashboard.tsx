@@ -216,7 +216,7 @@ const RoulettesDashboard = () => {
   // Filtrar roletas baseado no termo de busca e no filtro de provedor
   const filteredRoulettes = roulettes.filter(roulette => {
     const name = roulette.nome || roulette.name || '';
-    const provider = (roulette.provider || '').toLowerCase();
+    const provider = (roulette.provider || roulette.roleta_provider || '').toLowerCase();
     
     const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesProvider = 
@@ -288,22 +288,8 @@ const RoulettesDashboard = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <div className="flex items-center gap-2">
-          <StatusIndicator status={connectionStatus} />
-          <Button 
-            onClick={handleReconnect} 
-            variant="outline" 
-            size="sm"
-            disabled={reconnecting}
-            className="flex gap-1 items-center"
-          >
-            <RefreshCw className={cn("h-4 w-4", { "animate-spin": reconnecting })} />
-            {reconnecting ? 'Reconectando...' : 'Reconectar'}
-          </Button>
-        </div>
-        
-        <div className="flex gap-3 w-full sm:w-auto">
+      <div className="flex flex-col sm:flex-row justify-start items-start sm:items-center mb-6 gap-4">
+        <div className="flex gap-3 w-full sm:w-auto order-2 sm:order-1">
           <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
             <Input
@@ -324,6 +310,20 @@ const RoulettesDashboard = () => {
               <SelectItem value="pragmatic">Pragmatic</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        
+        <div className="flex items-center gap-2 ml-auto order-1 sm:order-2">
+          <StatusIndicator status={connectionStatus} />
+          <Button 
+            onClick={handleReconnect} 
+            variant="outline" 
+            size="sm"
+            disabled={reconnecting}
+            className="flex gap-1 items-center"
+          >
+            <RefreshCw className={cn("h-4 w-4", { "animate-spin": reconnecting })} />
+            {reconnecting ? 'Reconectando...' : 'Reconectar'}
+          </Button>
         </div>
       </div>
       

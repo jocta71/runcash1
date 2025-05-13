@@ -14,11 +14,7 @@ export default {
 			center: true,
 			padding: '1rem',
 			screens: {
-				'sm': '2048px',
-				'md': '2048px',
-				'lg': '2048px',
-				'xl': '2048px',
-				'2xl': '2048px',
+				// Removendo o limite de 1700px
 			}
 		},
 		extend: {
