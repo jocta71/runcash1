@@ -209,6 +209,35 @@ export function getNumberColor(num: number): string {
 }
 
 /**
+ * Mapeamento de IDs de roletas para seus nomes e provedores
+ */
+export const rouletteIdMap: Record<string, { name: string, provider: string }> = {
+  // Evolution Gaming
+  "2010045": { name: "aaaaaaaaaaaaa "Evolution" },
+  "LightningTable01": { name: "Lightning Roulette", provider: "Evolution" },
+  "XxxtremeLigh0001": { name: "XXXtreme Lightning Roulette", provider: "Evolution" },
+  "7x0b1tgh7agmf6hv": { name: "Immersive Roulette", provider: "Evolution" },
+  "48z5pjps3ntvqc1b": { name: "Auto-Roulette", provider: "Evolution" },
+  "vctlz20yfnmp1ylr": { name: "Roulette", provider: "Evolution" },
+  "InstantRo0000001": { name: "Instant Roulette", provider: "Evolution" },
+  "pphrgptjgstmjhmg": { name: "Lightning Roulette", provider: "Evolution" },
+  
+  // Pragmatic Play
+  "226a7": { name: "Speed Auto Roulette", provider: "Pragmatic Play" },
+  "210a57": { name: "Auto Mega Roulette", provider: "Pragmatic Play" },
+  "227": { name: "Roulette 1", provider: "Pragmatic Play" },
+  "240": { name: "Power Up Roulette", provider: "Pragmatic Play" },
+  "211a1": { name: "Lucky 6 Roulette", provider: "Pragmatic Play" },
+  "203": { name: "Speed Roulette 1", provider: "Pragmatic Play" },
+  "206": { name: "Roulette Macao", provider: "Pragmatic Play" },
+  "230": { name: "Roulette 10", provider: "Pragmatic Play" },
+  "225a7": { name: "Auto Roulette", provider: "Pragmatic Play" },
+  "205a11": { name: "Speed Roulette", provider: "Pragmatic Play" },
+  "204": { name: "Mega Roulette", provider: "Pragmatic Play" },
+  "270": { name: "Fortune Roulette", provider: "Pragmatic Play" }
+};
+
+/**
  * Processa dados brutos da roleta para um formato padronizado
  * @param roulette Dados brutos da roleta
  * @returns Dados processados ou null se inválidos
@@ -225,7 +254,30 @@ export function processRouletteData(roulette: any): any {
   }
 
   const currentId = roulette.id || roulette.roleta_id;
-  const currentName = roulette.roleta_nome || roulette.nome || roulette.name || `Roleta ${currentId}`;
+  
+  // Tentar encontrar o nome e provedor pelo ID no mapeamento
+  let mappedRoulette = null;
+  let extractedId = currentId;
+  
+  // Tenta extrair apenas o ID se estiver no formato "roulette_TABLE-ID@evolution"
+  if (currentId.includes('-') && currentId.includes('@')) {
+    const parts = currentId.split('-');
+    if (parts.length > 1) {
+      const idPart = parts[1].split('@')[0];
+      extractedId = idPart;
+      console.log(`ID extraído do formato completo: ${extractedId} (original: ${currentId})`);
+    }
+  }
+  
+  // Verifica se o ID está no mapeamento
+  if (rouletteIdMap[extractedId]) {
+    mappedRoulette = rouletteIdMap[extractedId];
+    console.log(`Encontrado mapeamento para ID ${extractedId}: ${mappedRoulette.name} (${mappedRoulette.provider})`);
+  }
+  
+  // Define o nome da roleta, priorizando dados fornecidos
+  const currentName = roulette.roleta_nome || roulette.nome || roulette.name || 
+                     (mappedRoulette ? mappedRoulette.name : `Roleta ${currentId}`);
 
   // 1. Identificar a fonte primária dos números
   let potentialSources = [
@@ -314,7 +366,7 @@ export function processRouletteData(roulette: any): any {
   const finalUpdateTime = roulette.lastUpdateTime || roulette.timestamp ? new Date(roulette.lastUpdateTime || roulette.timestamp).getTime() : Date.now();
   
   // Identificar o provedor com base no nome da roleta se não estiver explícito
-  let currentProvider = roulette.provider || 'Desconhecido';
+  let currentProvider = roulette.provider || (mappedRoulette ? mappedRoulette.provider : 'Desconhecido');
   if (currentProvider === 'Desconhecido') {
     currentProvider = mapRouletteProvider(currentName);
   }
