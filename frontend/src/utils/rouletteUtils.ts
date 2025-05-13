@@ -183,7 +183,27 @@ export function processRouletteData(roulette: any): any {
   }
 
   const currentId = roulette.id || roulette.roleta_id;
-  const currentName = roulette.roleta_nome || roulette.nome || roulette.name || `Roleta ${currentId}`;
+  
+  // Modificado: Verifica se o nome está presente, caso contrário, tenta obter de um mapeamento conhecido
+  // Evita usar 'Roleta ID' se tivermos alguma outra opção válida
+  let currentName = roulette.roleta_nome || roulette.nome || roulette.name;
+  
+  // Se o nome ainda não estiver disponível, tenta identificar pelo ID (para casos específicos)
+  if (!currentName) {
+    // Mapeamento de IDs conhecidos para nomes mais descritivos
+    const idToNameMap: Record<string, string> = {
+    
+      '2010045': 'Ruleta en Vivoooooooooo'
+    };
+    
+    // Verificar se o ID está no mapeamento
+    if (idToNameMap[currentId]) {
+      currentName = idToNameMap[currentId];
+    } else {
+      // Último recurso: usar 'Roleta' + ID
+      currentName = `Roleta ${currentId}`;
+    }
+  }
 
   // 1. Identificar a fonte primária dos números
   let potentialSources = [
