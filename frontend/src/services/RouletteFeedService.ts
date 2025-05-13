@@ -1,173 +1,137 @@
 import UnifiedRouletteClient from './UnifiedRouletteClient';
-import { getLogger } from './utils/logger';
-
-// Criar uma única instância do logger
-const logger = getLogger('RouletteFeedService');
+import { EventEmitter } from 'events';
 
 /**
- * Versão simplificada do RouletteFeedService que delega todas as operações
- * para o UnifiedRouletteClient para evitar duplicação de conexões e chamadas
+ * RouletteFeedService - Serviço simplificado que delega todas as operações ao UnifiedRouletteClient
+ * 
+ * Esta versão otimizada do serviço evita duplicidade de conexões e callbacks, funcionando
+ * como um proxy transparente para o UnifiedRouletteClient, garantindo o uso de uma única
+ * instância para a aplicação inteira.
  */
 export default class RouletteFeedService {
-  private static instance: RouletteFeedService | null = null;
+  private static instance: RouletteFeedService;
   private unifiedClient: UnifiedRouletteClient;
-  private initialized: boolean = false;
-
+  private events: EventEmitter;
+  private serviceName: string;
+  private componentId: string;
+  
   /**
-   * Construtor privado para garantir padrão singleton
+   * Construtor privado para implementar o padrão singleton
    */
   private constructor() {
     console.log('[RouletteFeedService] Criando instância simplificada do RouletteFeedService');
+    
+    // Obter a instância única do UnifiedRouletteClient
     this.unifiedClient = UnifiedRouletteClient.getInstance();
+    
+    // Criar um ID único para este serviço
+    this.serviceName = 'RouletteFeedService';
+    this.componentId = `service-roulette-feed-${Date.now()}`;
+    
+    // Inicializar o emissor de eventos
+    this.events = new EventEmitter();
+    
+    // Registrar no cliente unificado para eventos relevantes
+    this.unifiedClient.subscribe('update', this.handleUpdate.bind(this), this.componentId);
+    this.unifiedClient.subscribe('historical-data-ready', this.handleHistoricalDataReady.bind(this), this.componentId);
+    
+    console.log('[RouletteFeedService] SocketService registrado no RouletteFeedService');
   }
-
+  
   /**
    * Obtém a instância única do serviço
    */
   public static getInstance(): RouletteFeedService {
     if (!RouletteFeedService.instance) {
-      console.log('[RouletteFeedService] Criando nova instância do RouletteFeedService (proxy)');
       RouletteFeedService.instance = new RouletteFeedService();
     }
     return RouletteFeedService.instance;
   }
-
+  
   /**
-   * Inicializa o serviço - apenas proxy para o UnifiedRouletteClient
+   * Inicializa o serviço
    */
-  public initialize(): Promise<any> {
-    if (this.initialized) {
-      console.log('[RouletteFeedService] Serviço já inicializado');
-      return Promise.resolve(this.getAllRoulettes());
-    }
-
+  public init(): void {
     console.log('[RouletteFeedService] Inicializando RouletteFeedService (proxy para UnifiedClient)');
     
-    // Forçar inicialização do UnifiedClient
-    this.unifiedClient.forceUpdate();
-    
-            this.initialized = true;
-    return Promise.resolve(this.getAllRoulettes());
+    // Não fazemos mais nada aqui, apenas delegamos ao UnifiedClient
+    this.fetchInitialData();
   }
-
+  
   /**
-   * Registra serviço Socket - mantido para compatibilidade
-   */
-  public registerSocketService(socketService: any): void {
-    console.log('[RouletteFeedService] SocketService registrado no RouletteFeedService');
-    // Não faz nada, mantido para compatibilidade
-  }
-
-  /**
-   * Inicia polling - redireciona para UnifiedClient
+   * Inicia o polling
    */
   public startPolling(): void {
     console.log('[RouletteFeedService] Iniciando polling via UnifiedClient');
     this.unifiedClient.forceUpdate();
   }
-
+  
   /**
-   * Busca dados iniciais - redireciona para UnifiedClient
+   * Busca dados iniciais
    */
-  public async fetchInitialData(): Promise<{ [key: string]: any }> {
-    console.log('[RouletteFeedService] Buscando dados iniciais via UnifiedClient');
-    const data = await this.unifiedClient.forceUpdate();
-    
-    // Transformar array em objeto por ID para compatibilidade
-    const result: { [key: string]: any } = {};
-    data.forEach(item => {
-      if (item && (item.id || item.roleta_id)) {
-        const id = item.id || item.roleta_id;
-        result[id] = item;
-      }
-    });
-    
-    return result;
-  }
-
-  /**
-   * Busca dados mais recentes - redireciona para UnifiedClient
-   */
-  public async fetchLatestData(): Promise<any> {
+  public async fetchInitialData(): Promise<any> {
+    console.log('[RouletteFeedService] Busca inicial de dados via UnifiedClient');
     return this.unifiedClient.forceUpdate();
   }
-
+  
   /**
-   * Obtém dados de uma roleta específica
+   * Busca os dados mais recentes
    */
-  public getRouletteData(roletaId: string): any {
-    return this.unifiedClient.getRouletteById(roletaId);
+  public async fetchLatestData(): Promise<any> {
+    console.log('[RouletteFeedService] Busca de dados recentes via UnifiedClient');
+    return this.unifiedClient.forceUpdate();
+  }
+  
+  /**
+   * Registra callback para novos eventos
+   */
+  public on(event: string, callback: (data: any) => void): () => void {
+    // Adicionamos ao nosso emissor de eventos
+    this.events.on(event, callback);
+    
+    // Retornamos uma função para remover o listener
+    return () => {
+      this.events.removeListener(event, callback);
+    };
+  }
+  
+  /**
+   * Handler para eventos de atualização
+   */
+  private handleUpdate(data: any): void {
+    console.log(`[RouletteFeedService] Recebida atualização via UnifiedClient (${this.componentId})`);
+    this.events.emit('update', data);
+  }
+  
+  /**
+   * Handler para eventos de dados históricos
+   */
+  private handleHistoricalDataReady(data: any): void {
+    console.log(`[RouletteFeedService] Recebidos dados históricos via UnifiedClient (${this.componentId})`);
+    this.events.emit('historical-data-ready', data);
   }
   
   /**
    * Obtém todas as roletas
    */
   public getAllRoulettes(): any[] {
+    console.log('[RouletteFeedService] Obtendo todas as roletas via UnifiedClient');
     return this.unifiedClient.getAllRoulettes();
   }
   
   /**
-   * Verifica se o cache é válido
+   * Obtém uma roleta pelo ID
    */
-  public isCacheValid(): boolean {
-    return this.unifiedClient.getStatus().isCacheValid;
+  public getRouletteById(id: string): any {
+    return this.unifiedClient.getRouletteById(id);
   }
   
   /**
-   * Atualiza cache forçadamente
+   * Libera recursos
    */
-  public async refreshCache(): Promise<any> {
-    return this.unifiedClient.forceUpdate();
-  }
-  
-  /**
-   * Obtém estatísticas de requisições
-   */
-  public getRequestStats(): any {
-    return {
-      totalRequests: 0,
-      successfulRequests: 0,
-      failedRequests: 0,
-      lastMinuteRequests: [],
-      avgResponseTime: 0,
-      lastResponseTime: 0
-    };
-  }
-  
-  /**
-   * Força atualização de dados
-   */
-  public forceUpdate(): Promise<any> {
-    return this.unifiedClient.forceUpdate();
-  }
-
-  /**
-   * Para o serviço
-   */
-  public stop(): void {
-    console.log('[RouletteFeedService] Parando RouletteFeedService');
-    // Não para o UnifiedClient para não afetar outros componentes
-  }
-
-  /**
-   * Registra callback para atualizações
-   */
-  public subscribe(callback: (data: any) => void): void {
-    this.unifiedClient.subscribe('update', callback);
-  }
-
-  /**
-   * Remove registro de callback
-   */
-  public unsubscribe(callback: (data: any) => void): void {
-    this.unifiedClient.unsubscribe('update', callback);
-  }
-
-  /**
-   * Verifica saúde da API - apenas compatibilidade
-   */
-  public async checkAPIHealth(): Promise<boolean> {
-    const status = this.unifiedClient.diagnoseConnectionState();
-    return status.isStreamConnected || status.isPollingActive;
+  public dispose(): void {
+    console.log(`[RouletteFeedService] Liberando recursos (${this.componentId})`);
+    this.unifiedClient.unregisterComponent(this.componentId);
+    this.events.removeAllListeners();
   }
 } 

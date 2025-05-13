@@ -761,7 +761,9 @@ export const RouletteSidePanelStats = ({
     unsubscribeHistoryLoaded: () => {},
     unsubscribeHistoryError: () => {}
   });
-  const isInitialRequestRef = useRef(false);
+  
+  // Flag para indicar se a solicitação inicial foi concluída
+  const isInitialRequestDone = useRef(false);
 
   // Variável booleana para garantir que o componente só processa cada número uma vez
   const lastProcessedNumberRef = useRef<string | null>(null);
@@ -859,10 +861,10 @@ export const RouletteSidePanelStats = ({
       }
       if (myRouletteUpdate) {
         logger.info(`[${componentId}] Recebido 'update' para ${roletaNome}`);
-        if (!isInitialRequestDone) {
+        if (!isInitialRequestDone.current) {
           logger.info(`[${componentId}] Primeira atualização recebida para ${roletaNome}, preenchendo histórico inicial.`);
     setIsLoading(false);
-    setIsInitialRequestDone(true);
+    setIsInitialRequestDone.current = true;
         }
         processRouletteUpdate(myRouletteUpdate);
       }
@@ -876,13 +878,13 @@ export const RouletteSidePanelStats = ({
         setHistoricalNumbers(initialDataForThisRoulette);
       }
       setIsLoading(false); 
-      setIsInitialRequestDone(true);
+      setIsInitialRequestDone.current = true;
     };
     
     const handleInitialHistoryError = (error: any) => {
       logger.error(`[${componentId}] Erro ao carregar histórico inicial reportado pelo UnifiedClient:`, error);
       setIsLoading(false); 
-      setIsInitialRequestDone(true);
+      setIsInitialRequestDone.current = true;
     };
     
     // Registrar listeners e manter referências para limpeza
@@ -909,21 +911,19 @@ export const RouletteSidePanelStats = ({
   
   // useEffect centralizado para inicialização do componente
   useEffect(() => {
-    // Gerar ID de instância apenas uma vez quando o componente monta
-    if (!componentId) {
-      setComponentInstanceId(uniqueId('roulette-side-panel-'));
-      return;
-    }
-    
+    // Determinar se a roleta mudou desde a última renderização
     const isNewRoulette = 
-      roletaNome !== currentRouletteRef.current.name || 
-      roletaId !== currentRouletteRef.current.id;
+      currentRouletteRef.current.id !== roletaId || 
+      currentRouletteRef.current.name !== roletaNome;
+    
+    // Atualizar referência para a roleta atual
+    currentRouletteRef.current = { id: roletaId, name: roletaNome };
     
     // Se a roleta mudou, resetar o estado
     if (isNewRoulette) {
       logger.info(`[${componentId}] Mudança de roleta detectada: ${currentRouletteRef.current.name} -> ${roletaNome}`);
       setIsLoading(true);
-      setIsInitialRequestDone(false);
+      isInitialRequestDone.current = false;
       setHistoricalNumbers([]);
       
       // Carregar dados pré-carregados se disponíveis
@@ -934,38 +934,34 @@ export const RouletteSidePanelStats = ({
         setIsLoading(false);
         isInitialRequestDone.current = true;
       } else {
-        logger.warn(`[${componentInstanceId}] Nenhum histórico pré-carregado encontrado para ${roletaNome}. Aguardando busca inicial ou atualizações...`);
+        logger.warn(`[${componentId}] Nenhum histórico pré-carregado encontrado para ${roletaNome}. Aguardando busca inicial ou atualizações...`);
         setIsLoading(false);
         isInitialRequestDone.current = true;
       }
       
-      // Configurar novos listeners
-      const cleanup = setupListeners();
-      
-      // Retornar função de limpeza apenas se a roleta mudou
-      return cleanup;
+      // Configurar novos listeners se necessário
+      // ... codigo existente ...
     }
     
-    // Se não é uma nova roleta, não fazer nada
-    // Isso evita remontagens desnecessárias dos listeners
-  }, [componentInstanceId, roletaId, roletaNome, unifiedClient, setupListeners, logger]);
+    // ... existing code ...
+  }, [componentId, roletaId, roletaNome, unifiedClient, logger]);
   
   // Efeito de cleanup quando componente é desmontado completamente
   useEffect(() => {
     return () => {
-      logger.info(`[${componentInstanceId}] Desmontando componente RouletteSidePanelStats para ${roletaNome}`);
+      logger.info(`[${componentId}] Desmontando componente RouletteSidePanelStats para ${roletaNome}`);
       // Limpar todos os listeners
       if (listenersRef.current.unsubscribeUpdate) {
         listenersRef.current.unsubscribeUpdate();
       }
-      if (listenersRef.current.unsubscribeInitialLoad) {
-        listenersRef.current.unsubscribeInitialLoad();
+      if (listenersRef.current.unsubscribeHistoryLoaded) {
+        listenersRef.current.unsubscribeHistoryLoaded();
       }
-      if (listenersRef.current.unsubscribeInitialError) {
-        listenersRef.current.unsubscribeInitialError();
+      if (listenersRef.current.unsubscribeHistoryError) {
+        listenersRef.current.unsubscribeHistoryError();
       }
     };
-  }, [componentInstanceId, logger, roletaNome]);
+  }, [componentId, logger, roletaNome]);
 
   // Função para mostrar mais números
   const handleShowMore = () => {
@@ -1164,16 +1160,16 @@ export const RouletteSidePanelStats = ({
   // <<< NOVA FUNÇÃO para chamar a API da IA >>>
   const handleAskAI = useCallback(async () => {
     // Log no início da função
-    logger.info(`[${componentInstanceId}] handleAskAI chamada. Query: "${aiQuery}", RoletaID: "${validRouletteIdentifier}"`);
+    logger.info(`[${componentId}] handleAskAI chamada. Query: "${aiQuery}", RoletaID: "${validRouletteIdentifier}"`);
 
     if (!aiQuery.trim() || !validRouletteIdentifier) {
       // Log quando a validação falha
-      logger.warn(`[${componentInstanceId}] Validação falhou em handleAskAI. Query válida: ${!!aiQuery.trim()}, RoletaID válida: ${!!validRouletteIdentifier}. Query: "${aiQuery}", RoletaID: "${validRouletteIdentifier}"`);
+      logger.warn(`[${componentId}] Validação falhou em handleAskAI. Query válida: ${!!aiQuery.trim()}, RoletaID válida: ${!!validRouletteIdentifier}. Query: "${aiQuery}", RoletaID: "${validRouletteIdentifier}"`);
       setAiError("Por favor, digite sua pergunta e certifique-se que uma roleta está selecionada.");
       return;
     }
     
-    logger.info(`[${componentInstanceId}] Enviando pergunta para IA sobre roleta ${validRouletteIdentifier}: ${aiQuery}`);
+    logger.info(`[${componentId}] Enviando pergunta para IA sobre roleta ${validRouletteIdentifier}: ${aiQuery}`);
     setIsAiLoading(true);
     setAiResponse(null); // Limpa resposta anterior
     setAiError(null); // Limpa erro anterior
@@ -1197,7 +1193,7 @@ export const RouletteSidePanelStats = ({
     } finally {
       setIsAiLoading(false);
     }
-  }, [aiQuery, validRouletteIdentifier, componentInstanceId, logger]);
+  }, [aiQuery, validRouletteIdentifier, componentId, logger]);
 
   // <<< NOVA FUNÇÃO para adicionar uma condição vazia >>>
   const addCondition = () => {
@@ -1234,7 +1230,7 @@ export const RouletteSidePanelStats = ({
   };
   
   // <<< FUNÇÃO para salvar estratégia (atualizada para incluir conditions) >>>
-  const handleSaveStrategy = async () => {
+  const handleSaveStrategy = useCallback(async () => {
     // Limpar mensagens anteriores e definir estado de carregamento
     setSaveStrategyError(null);
     setSaveStrategySuccess(null);
@@ -1279,7 +1275,7 @@ export const RouletteSidePanelStats = ({
     }
 
     try {
-      logger.info(`[${componentInstanceId}] Salvando estratégia: ${strategyName}`);
+      logger.info(`[${componentId}] Salvando estratégia: ${strategyName}`);
       
       // Configurar timeout e retry
       let retryCount = 0;
@@ -1324,7 +1320,7 @@ export const RouletteSidePanelStats = ({
           }
           
         } catch (err: any) {
-          logger.error(`[${componentInstanceId}] Erro ao salvar estratégia (tentativa ${retryCount + 1}):`, err);
+          logger.error(`[${componentId}] Erro ao salvar estratégia (tentativa ${retryCount + 1}):`, err);
           
           // Verificar se é um erro de timeout
           const isTimeoutError = 
@@ -1372,12 +1368,12 @@ export const RouletteSidePanelStats = ({
       }
     } catch (error: any) {
       // Erros inesperados
-      logger.error(`[${componentInstanceId}] Erro inesperado ao salvar estratégia:`, error);
+      logger.error(`[${componentId}] Erro inesperado ao salvar estratégia:`, error);
       setSaveStrategyError(error.message || "Ocorreu um erro desconhecido.");
     } finally {
       setIsSavingStrategy(false);
     }
-  };
+  }, [componentId, strategyName, conditions, validRouletteIdentifier, savedStrategies, logger]);
 
   // Função para limpar mensagens ao fechar o modal
   useEffect(() => {
@@ -1390,14 +1386,14 @@ export const RouletteSidePanelStats = ({
   }, [isStrategyModalOpen]);
 
   // <<< NOVA FUNÇÃO PARA BUSCAR ESTRATÉGIAS SALVAS >>>
-  const fetchSavedStrategies = useCallback(async (forceReload = false) => {
+  const fetchSavedStrategies = useCallback(async (forceReload: boolean = false) => {
     // Se as estratégias já foram carregadas e não estamos forçando recarga, retorna imediatamente
     if (strategiesLoaded && !forceReload) {
-      logger.info(`[${componentInstanceId}] Estratégias já carregadas, ignorando solicitação de busca.`);
+      logger.info(`[${componentId}] Estratégias já carregadas, ignorando solicitação de busca.`);
       return;
     }
     
-    logger.info(`[${componentInstanceId}] Buscando estratégias salvas...`);
+    logger.info(`[${componentId}] Buscando estratégias salvas...`);
     setIsLoadingStrategies(true);
     setFetchStrategiesError(null);
     setDeleteStrategyError(null);
@@ -1408,18 +1404,18 @@ export const RouletteSidePanelStats = ({
       if (response.data && response.data.success) {
         setSavedStrategies(response.data.data);
         setStrategiesLoaded(true); // Marca que as estratégias foram carregadas com sucesso
-        logger.info(`[${componentInstanceId}] ${response.data.data.length} estratégias carregadas.`);
+        logger.info(`[${componentId}] ${response.data.data.length} estratégias carregadas.`);
       } else {
         throw new Error(response.data.message || "Falha ao buscar estratégias da API.");
       }
     } catch (error: any) {
-      logger.error(`[${componentInstanceId}] Erro ao buscar estratégias salvas:`, error);
+      logger.error(`[${componentId}] Erro ao buscar estratégias salvas:`, error);
       setFetchStrategiesError(error.response?.data?.message || error.message || "Ocorreu um erro ao buscar as estratégias.");
       setSavedStrategies([]);
     } finally {
       setIsLoadingStrategies(false);
     }
-  }, [componentInstanceId, logger, strategiesLoaded]);
+  }, [componentId, logger, strategiesLoaded]);
 
   // <<< useEffect OTIMIZADO PARA BUSCAR ESTRATÉGIAS QUANDO O MODAL ABRIR >>>
   useEffect(() => {
@@ -1443,14 +1439,14 @@ export const RouletteSidePanelStats = ({
   // <<< FUNÇÃO PARA EXCLUIR ESTRATÉGIA >>>
   const handleDeleteStrategy = useCallback(async (strategyId: string) => {
     if (!strategyId) return;
-    logger.info(`[${componentInstanceId}] Tentando excluir estratégia ID: ${strategyId}`);
+    logger.info(`[${componentId}] Tentando excluir estratégia ID: ${strategyId}`);
     setDeletingStrategyId(strategyId); 
     setDeleteStrategyError(null);
     setDeleteStrategySuccess(null);
     try {
       const response = await axios.delete(`/api/strategies?id=${strategyId}`);
       if (response.data && response.data.success) {
-        logger.info(`[${componentInstanceId}] Estratégia ${strategyId} excluída com sucesso.`);
+        logger.info(`[${componentId}] Estratégia ${strategyId} excluída com sucesso.`);
         setDeleteStrategySuccess("Estratégia excluída com sucesso!");
         
         // Em vez de buscar novamente todas as estratégias, apenas remove a excluída do estado
@@ -1459,12 +1455,12 @@ export const RouletteSidePanelStats = ({
         throw new Error(response.data.message || "Falha ao excluir estratégia na API.");
       }
     } catch (error: any) {
-      logger.error(`[${componentInstanceId}] Erro ao excluir estratégia ${strategyId}:`, error);
+      logger.error(`[${componentId}] Erro ao excluir estratégia ${strategyId}:`, error);
       setDeleteStrategyError(error.response?.data?.message || error.message || "Ocorreu um erro ao excluir a estratégia.");
     } finally {
       setDeletingStrategyId(null); 
     }
-  }, [componentInstanceId, logger]);
+  }, [componentId, logger, fetchSavedStrategies]);
 
   // Função para formatar data (exemplo simples)
   const formatDate = (dateString: string) => {

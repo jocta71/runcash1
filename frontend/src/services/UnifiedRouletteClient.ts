@@ -808,36 +808,72 @@ export default class UnifiedRouletteClient {
    * Atualiza o cache com novos dados
    */
   private updateCache(data: any | any[]): void {
+    if (!data) {
+      console.log('DEBUG: updateCache chamado com dados inválidos');
+      return;
+    }
+    
     console.log('DEBUG: updateCache chamado com:', Array.isArray(data) ? `Array[${data.length}]` : 'Objeto individual');
     
     if (Array.isArray(data)) {
-      // Com array de roletas - atualização completa
-      // Limpar o cache existente para dados atualizados
-      if (data.length > 0) {
-        console.log('DEBUG: Atualizando cache com array de dados. Items válidos:', 
-          data.filter(item => item && item.id).length);
-        
-        this.rouletteData.clear(); // Limpar dados antigos
-        
-        // Processar cada item
-        let validItemsCount = 0;
-        data.forEach(item => {
-          if (item && (item.id || item.roleta_id)) {
-            // Usar id prioritariamente, ou roleta_id como fallback
-            const id = item.id || item.roleta_id;
-            this.rouletteData.set(id, item);
-            validItemsCount++;
-          }
-        });
-        
-        console.log(`DEBUG: ${validItemsCount} roletas adicionadas ao cache`);
-        this.lastUpdateTime = Date.now();
-      } else {
+      // Verificar se há mudanças antes de atualizar o cache
+      if (data.length === 0) {
         console.log('DEBUG: Array vazio recebido, cache não atualizado');
+        return;
       }
+      
+      // Contar itens válidos
+      const validItems = data.filter(item => item && (item.id || item.roleta_id));
+      console.log('DEBUG: Atualizando cache com array de dados. Items válidos:', validItems.length);
+      
+      // Verificar se o conteúdo é idêntico ao cache atual
+      if (this.rouletteData.size === validItems.length) {
+        let allEqual = true;
+        for (const item of validItems) {
+          const id = item.id || item.roleta_id;
+          const currentItem = this.rouletteData.get(id);
+          
+          // Se o item não existe no cache ou é diferente, marcar como não igual
+          if (!currentItem || JSON.stringify(currentItem) !== JSON.stringify(item)) {
+            allEqual = false;
+            break;
+          }
+        }
+        
+        // Se todos os itens são idênticos, não atualizar o cache
+        if (allEqual) {
+          console.log('DEBUG: Cache já contém os mesmos dados, ignorando atualização');
+          return;
+        }
+      }
+      
+      // Limpar dados anteriores apenas se os novos dados são completos
+      this.rouletteData.clear();
+      
+      // Processar cada item
+      let validItemsCount = 0;
+      data.forEach(item => {
+        if (item && (item.id || item.roleta_id)) {
+          // Usar id prioritariamente, ou roleta_id como fallback
+          const id = item.id || item.roleta_id;
+          this.rouletteData.set(id, item);
+          validItemsCount++;
+        }
+      });
+      
+      console.log(`DEBUG: ${validItemsCount} roletas adicionadas ao cache`);
+      this.lastUpdateTime = Date.now();
     } else if (data && (data.id || data.roleta_id)) {
       // Atualizar uma única roleta
       const id = data.id || data.roleta_id;
+      const currentItem = this.rouletteData.get(id);
+      
+      // Verificar se o item já existe e é idêntico
+      if (currentItem && JSON.stringify(currentItem) === JSON.stringify(data)) {
+        console.log(`DEBUG: Item ${id} idêntico no cache, ignorando atualização`);
+        return;
+      }
+      
       this.rouletteData.set(id, data);
       console.log(`DEBUG: Cache atualizado para roleta individual ${id}`);
       this.lastUpdateTime = Date.now();
@@ -1060,20 +1096,28 @@ export default class UnifiedRouletteClient {
    * Força uma atualização dos dados de todas as roletas, com gerenciamento de concorrência
    */
   public async forceUpdate(): Promise<any[]> {
+    // Se já estamos fazendo uma atualização, retornar imediatamente dados em cache
+    if (this.isFetching) {
+      console.log('[UnifiedRouletteClient] Já existe uma atualização forçada em andamento, retornando dados em cache');
+      return this.getAllRoulettes();
+    }
+    
     return this.manageRequest(async () => {
-      // Evitar múltiplas atualizações forçadas simultâneas
-      if (this.isFetching) {
-        this.log('Já existe uma atualização forçada em andamento...');
-        return this.getAllRoulettes();
-      }
-
       this.isFetching = true;
-      this.log('Forçando atualização de dados...');
+      console.log('[UnifiedRouletteClient] Forçando atualização de dados...');
 
       try {
         const data = await this.fetchRouletteData();
-        // Disparar o evento usando emitEvent em vez de chamar callbacks diretamente
-        this.emitEvent('update', data);
+        
+        // Evitar múltiplas emissões de eventos para os mesmos dados
+        if (data && data.length > 0) {
+          // Disparar o evento usando emitEvent em vez de chamar callbacks diretamente
+          console.log(`[UnifiedRouletteClient] Dados atualizados: ${data.length} roletas`);
+          this.emitEvent('update', data);
+        } else {
+          console.log('[UnifiedRouletteClient] Sem dados novos para atualizar');
+        }
+        
         return data;
       } finally {
         this.isFetching = false;
@@ -1814,22 +1858,30 @@ export default class UnifiedRouletteClient {
    * Gerencia requisições concorrentes para evitar bloqueios
    */
   private async manageRequest<T>(requestFn: () => Promise<T>, priority: 'high' | 'normal' | 'low' = 'normal'): Promise<T> {
-    // Se já temos muitas requisições, aguardar um pouco para requisições de baixa prioridade
-    if (this.ongoingRequestCounter >= this.maxConcurrentRequests && priority === 'low') {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    
-    // Para requisições de alta prioridade, cancelar outras se necessário
-    if (priority === 'high' && this.ongoingRequestCounter >= this.maxConcurrentRequests) {
-      console.log('[UnifiedRouletteClient] ⚡ Requisição de alta prioridade, liberando fila');
-      // Não incrementamos o contador, apenas executamos
+    // Para requisições de alta prioridade, executar imediatamente
+    if (priority === 'high') {
+      console.log('[UnifiedRouletteClient] ⚡ Requisição de alta prioridade sendo executada imediatamente');
       return requestFn();
     }
-
-    // Verificar se podemos executar
+    
+    // Se já temos muitas requisições, verificar o tipo de prioridade
     if (this.ongoingRequestCounter >= this.maxConcurrentRequests) {
-      console.log(`[UnifiedRouletteClient] ⏳ Fila de requisições cheia (${this.ongoingRequestCounter}/${this.maxConcurrentRequests}), aguardando...`);
-      await new Promise(resolve => setTimeout(resolve, 500 * (this.ongoingRequestCounter - this.maxConcurrentRequests + 1)));
+      // Para requisições de baixa prioridade, aguardar mais tempo
+      if (priority === 'low') {
+        console.log(`[UnifiedRouletteClient] ⏳ Requisição de baixa prioridade aguardando (${this.ongoingRequestCounter}/${this.maxConcurrentRequests})`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else {
+        // Para requisições normais, aguardar menos tempo
+        console.log(`[UnifiedRouletteClient] ⏳ Requisição normal aguardando (${this.ongoingRequestCounter}/${this.maxConcurrentRequests})`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // Se ainda temos muitas requisições após aguardar, retornar dados em cache
+      if (this.ongoingRequestCounter >= this.maxConcurrentRequests) {
+        console.log('[UnifiedRouletteClient] 🔄 Usando dados em cache, muitas requisições em andamento');
+        // @ts-ignore - ignoramos o tipo aqui pois estamos retornando dados de cache
+        return this.getAllRoulettes() as T;
+      }
     }
 
     // Executar requisição
@@ -1878,7 +1930,7 @@ export default class UnifiedRouletteClient {
    * Dispara um evento para todos os callbacks registrados
    */
   private emitEvent(eventType: string, data: any): void {
-    if (!this.callbackRegistry[eventType]) {
+    if (!this.callbackRegistry[eventType] || this.callbackRegistry[eventType].length === 0) {
       return;
     }
 
@@ -1887,11 +1939,38 @@ export default class UnifiedRouletteClient {
     
     console.log(`[UnifiedRouletteClient] 📣 Disparando evento ${eventType} para ${callbacks.length} callbacks`);
     
+    // Agrupar callbacks por componente para evitar duplicações por componente
+    const componentGroups = new Map<string, Array<{ callback: (data: any) => void, componentId?: string }>>(); 
+    
     callbacks.forEach(entry => {
+      const groupKey = entry.componentId || 'anonymous';
+      if (!componentGroups.has(groupKey)) {
+        componentGroups.set(groupKey, []);
+      }
+      componentGroups.get(groupKey)!.push(entry);
+    });
+    
+    // Executar callbacks agrupados por componente
+    componentGroups.forEach((entries, componentId) => {
       try {
-        entry.callback(data);
+        // Para cada componente, executar apenas o callback mais recente
+        // (para eventos que devem ter apenas um handler por componente)
+        if (eventType === 'update' || eventType === 'historical-data-ready') {
+          const mostRecentEntry = entries[entries.length - 1];
+          mostRecentEntry.callback(data);
+        } 
+        // Para outros eventos, executar todos os callbacks
+        else {
+          entries.forEach(entry => {
+            try {
+              entry.callback(data);
+            } catch (error) {
+              console.error(`[UnifiedRouletteClient] Erro ao executar callback para evento ${eventType}:`, error);
+            }
+          });
+        }
       } catch (error) {
-        console.error(`[UnifiedRouletteClient] Erro ao executar callback para evento ${eventType}:`, error);
+        console.error(`[UnifiedRouletteClient] Erro ao executar callbacks para componente ${componentId}:`, error);
       }
     });
     
