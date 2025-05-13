@@ -68,6 +68,7 @@ export function getRouletteImage(rouletteName: string, provider: string): string
   else if (provider.toLowerCase().includes('evolution')) {
     // Imagens da Evolution com URLs reais
     const evolutionImageMap: Record<string, string> = {
+      
       "lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
       "immersive roulette": "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg",
       "xxxtreme lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
@@ -124,7 +125,8 @@ export function mapRouletteProvider(rouletteName: string): string {
   console.log(`Mapeando provedor para: "${normalizedName}"`);
   
   // Verificações específicas por nome exato para casos mais comuns
-  if (normalizedName.includes('romanian') || 
+  if (normalizedName.includes('immersive roulette deluxe') ||
+      normalizedName.includes('romanian') || 
       normalizedName.includes('mega') || 
       normalizedName.includes('russian') || 
       normalizedName.includes('fortune') ||
@@ -161,13 +163,14 @@ export function mapRouletteProvider(rouletteName: string): string {
     'deutsches roulette',
     'ruletka live',
     'türkçe lightning rulet',
-    'football studio roulette'
+    'football studio roulette',
+    'roulette'
   ];
   
   // Mapeamento de roletas da Pragmatic Play
   const pragmaticRoulettes = [
-    'fortune roulette',
     'immersive roulette deluxe',
+    'fortune roulette',
     'vip auto roulette',
     'mega roulette',
     'roulette 1',
@@ -181,18 +184,17 @@ export function mapRouletteProvider(rouletteName: string): string {
     'turkish roulette'
   ];
   
-  // Verifica se o nome está nas listas
-  for (const name of evolutionRoulettes) {
-    if (normalizedName.includes(name.toLowerCase())) {
-      console.log(`Roleta identificada como Evolution: ${normalizedName} (via ${name})`);
-      return 'Evolution';
-    }
-  }
+  // Combinar as duas listas e ordenar do nome mais específico para o mais genérico
+  const allRoulettes = [
+    ...pragmaticRoulettes.map(name => ({ name, provider: 'Pragmatic Play' })),
+    ...evolutionRoulettes.map(name => ({ name, provider: 'Evolution' }))
+  ].sort((a, b) => b.name.length - a.name.length);
   
-  for (const name of pragmaticRoulettes) {
-    if (normalizedName.includes(name.toLowerCase())) {
-      console.log(`Roleta identificada como Pragmatic Play: ${normalizedName} (via ${name})`);
-      return 'Pragmatic Play';
+  // Verifica o nome da roleta contra a lista ordenada
+  for (const item of allRoulettes) {
+    if (normalizedName.includes(item.name.toLowerCase())) {
+      console.log(`Roleta identificada como ${item.provider}: ${normalizedName} (via ${item.name})`);
+      return item.provider;
     }
   }
   
