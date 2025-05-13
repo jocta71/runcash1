@@ -24,10 +24,10 @@ const logger = getLogger('UnifiedRouletteClient');
 const API_URL = import.meta.env.VITE_API_URL || 'https://starfish-app-fubxw.ondigitalocean.app';
 
 // URL do stream SSE
-const STREAM_URL = `${API_URL}/api/stream/roulettes`;
+const STREAM_URL = `${API_URL}/stream/roulettes`;
 
 // URL para obter histórico de todas as roletas
-const HISTORICAL_URL = `${API_URL}/api/historical/all-roulettes`;
+const HISTORICAL_URL = `${API_URL}/historical/all-roulettes`;
 
 // Intervalo de polling em ms (10 segundos)
 const pollingInterval = 10000;
