@@ -35,20 +35,24 @@ export function getRouletteImage(rouletteName: string, provider: string): string
       "turkish roulette": "https://bshots.egcvi.com/thumbnail/ezugi_221000_med_L.jpg"
     };
 
-    // Busca pelo nome exato em pragmaticImageMap
-    for (const [key, imageUrl] of Object.entries(pragmaticImageMap)) {
+    // Ordena as chaves do mais específico (mais longo) para o mais genérico (mais curto)
+    const orderedKeys = Object.keys(pragmaticImageMap).sort((a, b) => b.length - a.length);
+    
+    // Busca pelo nome mais específico primeiro
+    for (const key of orderedKeys) {
       if (normalizedName.includes(key.toLowerCase())) {
-        console.log(`Imagem encontrada para ${normalizedName}: ${imageUrl}`);
-        return imageUrl;
+        console.log(`Imagem encontrada para ${normalizedName}: ${pragmaticImageMap[key]}`);
+        return pragmaticImageMap[key];
       }
     }
     
- 
+    // Fallback para Pragmatic Play
+    console.log(`Usando imagem padrão da Pragmatic para ${normalizedName}`);
+    return "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg?v=0.9804522165134438";
   } 
   else if (provider.toLowerCase().includes('evolution')) {
     // Imagens da Evolution com URLs reais
     const evolutionImageMap: Record<string, string> = {
-      "roulette": "https://bshots.egcvi.com/thumbnail/green_imr_med_L.jpg",
       "lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
       "immersive roulette": "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg",
       "xxxtreme lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
@@ -70,20 +74,29 @@ export function getRouletteImage(rouletteName: string, provider: string): string
       "deutsches roulette": "https://bshots.egcvi.com/thumbnail/deu_vir_med_L.jpg",
       "ruletka live": "https://bshots.egcvi.com/thumbnail/rugent1_imr_med_L.jpg",
       "türkçe lightning rulet": "https://bshots.egcvi.com/thumbnail/lightt1_imr_med_L.jpg",
-      "football studio roulette": "https://bshots.egcvi.com/thumbnail/lrm1_imr_med_L.jpg"
+      "football studio roulette": "https://bshots.egcvi.com/thumbnail/lrm1_imr_med_L.jpg",
+      "roulette": "https://bshots.egcvi.com/thumbnail/green_imr_med_L.jpg"
     };
 
-    // Busca pelo nome exato no evolutionImageMap
-    for (const [key, imageUrl] of Object.entries(evolutionImageMap)) {
+    // Ordena as chaves do mais específico (mais longo) para o mais genérico (mais curto)
+    const orderedKeys = Object.keys(evolutionImageMap).sort((a, b) => b.length - a.length);
+    
+    // Busca pelo nome mais específico primeiro
+    for (const key of orderedKeys) {
       if (normalizedName.includes(key.toLowerCase())) {
-        console.log(`Imagem encontrada para ${normalizedName}: ${imageUrl}`);
-        return imageUrl;
+        console.log(`Imagem encontrada para ${normalizedName}: ${evolutionImageMap[key]}`);
+        return evolutionImageMap[key];
       }
     }
-   
+    
+    // Fallback para Evolution
+    console.log(`Usando imagem padrão da Evolution para ${normalizedName}`);
+    return "https://bshots.egcvi.com/thumbnail/green_imr_med_L.jpg";
   }
   
-  
+  // Imagem padrão se o provedor não for reconhecido
+  console.log(`Usando imagem padrão global para ${normalizedName} (provedor: ${provider})`);
+  return "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg";
 }
 
 /**
@@ -96,7 +109,18 @@ export function mapRouletteProvider(rouletteName: string): string {
   const normalizedName = rouletteName.toLowerCase().trim();
   
   console.log(`Mapeando provedor para: "${normalizedName}"`);
-  </edit>
+  
+  // Verificações específicas por nome exato para casos mais comuns
+  if (normalizedName.includes('romanian') || 
+      normalizedName.includes('mega') || 
+      normalizedName.includes('russian') || 
+      normalizedName.includes('fortune') ||
+      normalizedName.includes('speed roulette 1') ||
+      normalizedName.includes('roulette macao') ||
+      normalizedName.includes('roulette 1') ||
+      normalizedName.includes('german') && !normalizedName.includes('deutsches')) {
+    console.log(`Roleta identificada como Pragmatic Play por padrão específico: ${normalizedName}`);
+    return 'Pragmatic Play';
   }
   
   // Mapeamento de roletas da Evolution
