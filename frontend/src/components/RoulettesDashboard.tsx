@@ -219,11 +219,17 @@ const RoulettesDashboard = () => {
     const provider = (roulette.provider || roulette.roleta_provider || '').toLowerCase();
     
     const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesProvider = 
-      providerFilter === 'all' || 
-      (providerFilter === 'evolution' && provider.includes('evolution')) ||
-      (providerFilter === 'pragmatic' && provider.includes('pragmatic'));
-      
+    
+    // Lógica de filtro de provedor melhorada
+    let matchesProvider = false;
+    if (providerFilter === 'all') {
+      matchesProvider = true;
+    } else if (providerFilter === 'evolution') {
+      matchesProvider = provider.includes('evolution');
+    } else if (providerFilter === 'pragmatic') {
+      matchesProvider = provider.includes('pragmatic');
+    }
+    
     return matchesSearch && matchesProvider;
   });
 
