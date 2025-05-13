@@ -18,44 +18,56 @@ export function getRouletteImage(rouletteName: string, provider: string): string
   if (provider.toLowerCase().includes('pragmatic')) {
     // Mapeamento específico para roletas Pragmatic Play
     const pragmaticImageMap: Record<string, string> = {
-      "fortune roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg",
-      "immersive roulette deluxe": "https://client.pragmaticplaylive.net/desktop/assets/snaps/25irclas25imrcrw/poster.jpg",
-      "vip auto roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/ar25vipautorw251/poster.jpg",
-      "mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg",
-      "roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg",
-      "romanian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/romania233rwl291/poster.jpg",
-      "brazilian mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg",
-      "speed roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg",
-      "roulette macao": "https://client.pragmaticplaylive.net/desktop/assets/snaps/yqpz3ichst2xg439/poster.jpg",
-      "german roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/s2x6b4jdeqza2ge2/poster.jpg",
-      "russian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/t4jzencinod6iqwi/poster.jpg",
-      "roulette italia tricolore": "https://client.pragmaticplaylive.net/desktop/assets/snaps/v1c52fgw7yy02upz/poster.jpg",
+      "fortune roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg?v=0.9804522165134438",
+      "immersive roulette deluxe": "https://client.pragmaticplaylive.net/desktop/assets/snaps/25irclas25imrcrw/poster.jpg?v=0.9804522165134438",
+      "vip auto roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/ar25vipautorw251/poster.jpg?v=0.9804522165134438",
+      "mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg?v=0.9804522165134438",
+      "roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg?v=0.9804522165134438",
+      "romanian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/romania233rwl291/poster.jpg?v=0.9804522165134438",
+      "brazilian mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg?v=0.9804522165134438",
+      "speed roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg?v=0.9804522165134438",
+      "roulette macao": "https://client.pragmaticplaylive.net/desktop/assets/snaps/yqpz3ichst2xg439/poster.jpg?v=0.9804522165134438",
+      "german roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/s2x6b4jdeqza2ge2/poster.jpg?v=0.9804522165134438",
+      "russian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/t4jzencinod6iqwi/poster.jpg?v=0.9804522165134438",
+      "roulette italia tricolore": "https://client.pragmaticplaylive.net/desktop/assets/snaps/v1c52fgw7yy02upz/poster.jpg?v=0.9804522165134438",
       "turkish roulette": "https://bshots.egcvi.com/thumbnail/ezugi_221000_med_L.jpg"
-    };
-
-    // Fallback URLs para roletas específicas que estão com problemas
-    const fallbackUrls: Record<string, string> = {
-    
     };
 
     // Busca pelo nome exato em pragmaticImageMap
     for (const [key, imageUrl] of Object.entries(pragmaticImageMap)) {
       if (normalizedName.includes(key.toLowerCase())) {
-        // Verificar se há um fallback para esta roleta
-        if (fallbackUrls[key]) {
-          return fallbackUrls[key];
-        }
         return imageUrl;
       }
     }
     
-    // Fallback para Pragmatic Play
-   
+ 
   } 
   else if (provider.toLowerCase().includes('evolution')) {
     // Imagens da Evolution com URLs reais
     const evolutionImageMap: Record<string, string> = {
-    
+   
+      "lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
+      "immersive roulette": "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg",
+      "xxxtreme lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
+      "gold vault roulette": "https://bshots.egcvi.com/thumbnail/goldvk1_imr_med_L.jpg",
+      "dansk roulette": "https://bshots.egcvi.com/thumbnail/dgenm1_imr_med_L.jpg",
+      "vip roulette": "https://bshots.egcvi.com/thumbnail/vipk1_imr_med_L.jpg",
+      "ruleta relámpago en vivo": "https://bshots.egcvi.com/thumbnail/lightrs1_imrs_med_L.jpg",
+      "speed auto roulette": "https://bshots.egcvi.com/thumbnail/ezugi_221002_med_L.jpg",
+      "bucharest auto-roulette": "https://bshots.egcvi.com/thumbnail/buc1_ss_thumb_med_L.jpg",
+      "bucharest roulette": "https://bshots.egcvi.com/thumbnail/buc1_ss_thumb_med_L.jpg",
+      "dragonara roulette": "https://bshots.egcvi.com/thumbnail/dgnm1_imr_med_L.jpg",
+      "lightning roulette italia": "https://bshots.egcvi.com/thumbnail/lightm1_imrs_med_L.jpg",
+      "venezia roulette": "https://bshots.egcvi.com/thumbnail/itm1_imrs_med_L.jpg",
+      "auto-roulette vip": "https://bshots.egcvi.com/thumbnail/vip1_ss_thumb_med_L.jpg",
+      "american roulette": "https://bshots.egcvi.com/thumbnail/dzerot1_imrs_med_L.jpg",
+      "hippodrome grand casino": "https://bshots.egcvi.com/thumbnail/hippo2_imr_med_L.jpg",
+      "jawhara roulette": "https://bshots.egcvi.com/thumbnail/arabicm1_imrs_med_L.jpg",
+      "türkçe rulet": "https://bshots.egcvi.com/thumbnail/tkm1_imr_med_L.jpg",
+      "deutsches roulette": "https://bshots.egcvi.com/thumbnail/deu_vir_med_L.jpg",
+      "ruletka live": "https://bshots.egcvi.com/thumbnail/rugent1_imr_med_L.jpg",
+      "türkçe lightning rulet": "https://bshots.egcvi.com/thumbnail/lightt1_imr_med_L.jpg",
+      "football studio roulette": "https://bshots.egcvi.com/thumbnail/lrm1_imr_med_L.jpg"
     };
 
     // Busca pelo nome exato no evolutionImageMap
@@ -64,11 +76,10 @@ export function getRouletteImage(rouletteName: string, provider: string): string
         return imageUrl;
       }
     }
-    
    
   }
   
-
+  
 }
 
 /**
