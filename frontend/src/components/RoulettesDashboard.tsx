@@ -216,7 +216,29 @@ const RoulettesDashboard = () => {
   // Filtrar roletas baseado no termo de busca e no filtro de provedor
   const filteredRoulettes = roulettes.filter(roulette => {
     const name = roulette.nome || roulette.name || '';
-    const provider = (roulette.provider || roulette.roleta_provider || '').toLowerCase();
+    
+    // Detectar provedor de várias formas possíveis
+    const possibleProviders = [
+      roulette.provider,
+      roulette.roleta_provider,
+      roulette.provedor,
+      roulette.fornecedor
+    ].filter(Boolean).map(p => p.toString().toLowerCase());
+    
+    // Se não encontrou nenhum provedor, tentar inferir pelo nome ou ID
+    if (possibleProviders.length === 0) {
+      const roletaId = (roulette.id || roulette.roleta_id || '').toLowerCase();
+      const roletaNome = (name || '').toLowerCase();
+      
+      if (roletaId.includes('evolution') || roletaNome.includes('evolution')) {
+        possibleProviders.push('evolution');
+      }
+      if (roletaId.includes('pragmatic') || roletaNome.includes('pragmatic')) {
+        possibleProviders.push('pragmatic');
+      }
+    }
+    
+    console.log('Roleta:', name, 'Provedores detectados:', possibleProviders);
     
     const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -225,13 +247,15 @@ const RoulettesDashboard = () => {
     if (providerFilter === 'all') {
       matchesProvider = true;
     } else if (providerFilter === 'evolution') {
-      matchesProvider = provider.includes('evolution');
+      matchesProvider = possibleProviders.some(p => p.includes('evolution') || p.includes('evo'));
     } else if (providerFilter === 'pragmatic') {
-      matchesProvider = provider.includes('pragmatic');
+      matchesProvider = possibleProviders.some(p => p.includes('pragmatic') || p.includes('prag'));
     }
     
     return matchesSearch && matchesProvider;
   });
+  
+  console.log(`Filtro: ${providerFilter} - ${filteredRoulettes.length} roletas de ${roulettes.length} totais`);
 
   // Render loading state
   if (loading && roulettes.length === 0) {
