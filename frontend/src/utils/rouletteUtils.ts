@@ -75,7 +75,7 @@ export function getRouletteImage(rouletteName: string, provider: string): string
       "dansk roulette": "https://bshots.egcvi.com/thumbnail/dgenm1_imr_med_L.jpg",
       "vip roulette": "https://bshots.egcvi.com/thumbnail/vipk1_imr_med_L.jpg",
       "ruleta relámpago en vivo": "https://bshots.egcvi.com/thumbnail/lightrs1_imrs_med_L.jpg",
-      "ruleta en vivo": "https://bshots.egcvi.com/thumbnail/lightrs1_imrs_med_L.jpg",
+      "ruleta en vivo": "https://bshots.egcvi.com/thumbnail/revmu1_imrs_med_L.jpg",
       "speed auto roulette": "https://bshots.egcvi.com/thumbnail/ezugi_221002_med_L.jpg",
       "bucharest auto-roulette": "https://bshots.egcvi.com/thumbnail/buc1_ss_thumb_med_L.jpg",
       "bucharest roulette": "https://bshots.egcvi.com/thumbnail/buc1_ss_thumb_med_L.jpg",
@@ -105,14 +105,11 @@ export function getRouletteImage(rouletteName: string, provider: string): string
       }
     }
     
-    // Fallback para Evolution
-    console.log(`Usando imagem padrão da Evolution para ${normalizedName}`);
-    return "https://bshots.egcvi.com/thumbnail/green_imr_med_L.jpg";
+   
   }
   
   // Imagem padrão se o provedor não for reconhecido
-  console.log(`Usando imagem padrão global para ${normalizedName} (provedor: ${provider})`);
-  return "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg";
+
 }
 
 /**
