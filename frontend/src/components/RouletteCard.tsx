@@ -135,7 +135,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
           processed.strategyPerformance = [
             { name: 'Martingale', score: Math.floor(Math.random() * 10) + 1, trend: ['up', 'down', 'stable'][Math.floor(Math.random() * 3)] as 'up' | 'down' | 'stable' },
             { name: 'Fibonacci', score: Math.floor(Math.random() * 10) + 1, trend: ['up', 'down', 'stable'][Math.floor(Math.random() * 3)] as 'up' | 'down' | 'stable' },
-            { name: 'D'Alembert', score: Math.floor(Math.random() * 10) + 1, trend: ['up', 'down', 'stable'][Math.floor(Math.random() * 3)] as 'up' | 'down' | 'stable' }
+            { name: "D'Alembert", score: Math.floor(Math.random() * 10) + 1, trend: ['up', 'down', 'stable'][Math.floor(Math.random() * 3)] as 'up' | 'down' | 'stable' }
           ];
           processed.sectorAnalysis = {
             hotSectors: [1, 5, 12, 19, 23, 30],
