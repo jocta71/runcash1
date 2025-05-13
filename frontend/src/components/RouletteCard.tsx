@@ -140,11 +140,12 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
           processed.sectorAnalysis = {
             hotSectors: [1, 5, 12, 19, 23, 30],
             coldSectors: [0, 8, 11, 17, 26, 35],
-            heatMapData: Array.from({ length: 37 }, (_, i) => i).reduce((acc: Record<number, number>, num) => {
-              acc[num] = Math.random();
-              return acc;
-            }, {})
+            heatMapData: {} // Simplificado para evitar erros
           };
+          // Preencher o heatMapData
+          for (let i = 0; i < 37; i++) {
+            processed.sectorAnalysis.heatMapData[i] = Math.random();
+          }
           processed.comments = processed.comments || [];
           processed.isLikedByUser = processed.isLikedByUser || false;
           
