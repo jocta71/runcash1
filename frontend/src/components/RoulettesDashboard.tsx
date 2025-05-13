@@ -3,8 +3,16 @@ import RouletteCard from './RouletteCard';
 import RouletteSidePanelStats from './RouletteSidePanelStats';
 import UnifiedRouletteClient from '../services/UnifiedRouletteClient';
 import { Button } from './ui/button';
-import { AlertCircle, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle, RefreshCw, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Input } from './ui/input';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 
 const RoulettesDashboard = () => {
   const [roulettes, setRoulettes] = useState<any[]>([]);
@@ -13,6 +21,8 @@ const RoulettesDashboard = () => {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
   const [reconnecting, setReconnecting] = useState(false);
   const [selectedRoulette, setSelectedRoulette] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [providerFilter, setProviderFilter] = useState<string>('all');
 
   // Instância de UnifiedRouletteClient
   const unifiedClient = UnifiedRouletteClient.getInstance();
@@ -203,12 +213,25 @@ const RoulettesDashboard = () => {
     }
   };
 
+  // Filtrar roletas baseado no termo de busca e no filtro de provedor
+  const filteredRoulettes = roulettes.filter(roulette => {
+    const name = roulette.nome || roulette.name || '';
+    const provider = (roulette.provider || '').toLowerCase();
+    
+    const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesProvider = 
+      providerFilter === 'all' || 
+      (providerFilter === 'evolution' && provider.includes('evolution')) ||
+      (providerFilter === 'pragmatic' && provider.includes('pragmatic'));
+      
+    return matchesSearch && matchesProvider;
+  });
+
   // Render loading state
   if (loading && roulettes.length === 0) {
     return (
       <div className="container mx-auto p-4">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Roletas Disponíveis</h1>
           <div className="flex items-center gap-2">
             <StatusIndicator status={connectionStatus} />
             <Button 
@@ -238,7 +261,6 @@ const RoulettesDashboard = () => {
     return (
       <div className="container mx-auto p-4">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Roletas Disponíveis</h1>
           <div className="flex items-center gap-2">
             <StatusIndicator status={connectionStatus} />
             <Button 
@@ -265,9 +287,8 @@ const RoulettesDashboard = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 pb-20">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Roletas Disponíveis</h1>
+    <div className="container mx-auto p-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div className="flex items-center gap-2">
           <StatusIndicator status={connectionStatus} />
           <Button 
@@ -280,6 +301,29 @@ const RoulettesDashboard = () => {
             <RefreshCw className={cn("h-4 w-4", { "animate-spin": reconnecting })} />
             {reconnecting ? 'Reconectando...' : 'Reconectar'}
           </Button>
+        </div>
+        
+        <div className="flex gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Input
+              placeholder="Buscar roleta..."
+              className="pl-9"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          
+          <Select value={providerFilter} onValueChange={setProviderFilter}>
+            <SelectTrigger className="w-full sm:w-40">
+              <SelectValue placeholder="Provedor" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="evolution">Evolution</SelectItem>
+              <SelectItem value="pragmatic">Pragmatic</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
       
@@ -296,7 +340,7 @@ const RoulettesDashboard = () => {
           {/* Lista de roletas à esquerda - 50% em desktop */}
           <div className="lg:w-1/2 lg:pr-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2">
-              {roulettes.map((roulette: any) => {
+              {filteredRoulettes.map((roulette: any) => {
                 const rouletteId = roulette.id || roulette.roleta_id;
                 const isSelected = selectedRoulette && 
                   (selectedRoulette.id === rouletteId || selectedRoulette.roleta_id === rouletteId);
