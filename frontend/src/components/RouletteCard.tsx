@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Card, CardContent, CardDescription, CardFooter, 
@@ -25,36 +25,8 @@ const debugLog = (...args: any[]) => {
 // Obter uma única instância do UnifiedClient para reutilização global
 const unifiedClient = UnifiedRouletteClient.getInstance();
 
-// Manter um registro global de callbacks para evitar duplicação
-const callbackRegistry = new Map<string, {callback: Function, componentId: string}>();
-
 // Criar um contexto global para gerenciar o estado de carregamento
 const loadingTimeoutActive = new Set<string>();
-
-// Função auxiliar para obter histórico por nome (fallback caso o método não exista)
-const getRouletteHistoryByName = (name: string): any[] => {
-  try {
-    // Tentar usar o método dedicado se existir
-    if (typeof unifiedClient.getPreloadedHistory === 'function') {
-      return unifiedClient.getPreloadedHistory(name);
-    }
-    
-    // Fallback: buscar manualmente no histórico
-    const allRoulettes = unifiedClient.getAllRoulettes();
-    const roulette = allRoulettes.find(r => 
-      (r.nome === name || r.name === name || r.roleta_nome === name)
-    );
-    
-    if (roulette && roulette.id) {
-      return unifiedClient.getRouletteHistory(roulette.id) || [];
-    }
-    
-    return [];
-  } catch (error) {
-    console.error('Erro ao buscar histórico por nome:', name, error);
-    return [];
-  }
-};
 
 const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetailView = false, onSelect, isSelected }) => {
   // Estados
@@ -90,74 +62,9 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   // ID único para este componente
   const componentId = useRef(`roulette-${safeData.id}-${Math.random().toString(36).substring(2, 9)}`).current;
   
-  // Criar callbacks memoizados para evitar recriações
-  const handleUpdate = useCallback((updateData: any) => {
-    debugLog(`handleUpdate chamado para ID: ${safeData.id}`);
-    
-    // Extrair dados da roleta do objeto de evento
-    let myData: any = null;
-    
-    // Verificar se os dados já são um objeto de roleta para este ID
-    if (updateData && typeof updateData === 'object') {
-      // Verificar se é a nossa roleta
-      if (updateData.id === safeData.id || updateData.roleta_id === safeData.id) {
-        myData = updateData;
-      }
-      // É um array ou contém um array de roletas
-      else {
-        const rouletteArray = Array.isArray(updateData) 
-          ? updateData 
-          : (updateData.roulettes || updateData.data || []);
-          
-        if (Array.isArray(rouletteArray)) {
-          myData = rouletteArray.find((r: any) => 
-            (r.id === safeData.id || r.roleta_id === safeData.id)
-          );
-        }
-      }
-    }
-    
-    if (myData) {
-      debugLog(`Dados encontrados para ID: ${safeData.id}`);
-      const processed = processRouletteData(myData);
-      if (processed) {
-        setRouletteData(processed);
-        setIsLoading(false);
-        setError(null);
-        setLoadingTimeout(false);
-        loadingTimeoutActive.delete(safeData.id);
-      }
-    }
-  }, [safeData.id]);
-  
-  const historyReadyHandler = useCallback((allHistory: Map<string, any[]>) => {
-    // Verificar se temos dados para esta roleta
-    const historicalData = getRouletteHistoryByName(safeData.name);
-    
-    if (historicalData && historicalData.length > 0) {
-      debugLog(`Histórico encontrado para: ${safeData.name}`);
-        
-      // Criar objeto sintético
-      const syntheticRoulette = {
-        id: safeData.id,
-        roleta_id: safeData.id,
-        nome: safeData.name,
-        roleta_nome: safeData.name,
-        provider: "Desconhecido",
-        status: "offline",
-        numeros: historicalData.slice(0, 10),
-        ultimoNumero: historicalData[0]?.numero,
-        timestamp: Date.now(),
-        isHistorical: true
-      };
-        
-      handleUpdate(syntheticRoulette);
-    }
-  }, [safeData.id, safeData.name, handleUpdate]);
-  
   // Efeito para iniciar a busca de dados
   useEffect(() => {
-    debugLog(`useEffect executado. ID: ${safeData.id}`);
+    debugLog(`useEffect executado. ID: ${safeData.id}, ComponentID: ${componentId}`);
 
     // Adicionar um timeout de segurança para sempre mostrar algo ao usuário
     // Verificar se já existe um timeout global ativo para este ID
@@ -183,20 +90,59 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
       timeoutRef.current = safetyTimeoutId;
     }
 
+    const handleUpdate = (updateData: any) => {
+      debugLog(`handleUpdate chamado para ID: ${safeData.id}, ComponentID: ${componentId}`);
+        
+      // Extrair dados da roleta do objeto de evento
+      let myData: any = null;
+        
+      // Verificar se os dados já são um objeto de roleta para este ID
+      if (updateData && typeof updateData === 'object') {
+        // Verificar se é a nossa roleta
+        if (updateData.id === safeData.id || updateData.roleta_id === safeData.id) {
+          myData = updateData;
+        }
+        // É um array ou contém um array de roletas
+        else {
+          const rouletteArray = Array.isArray(updateData) 
+            ? updateData 
+            : (updateData.roulettes || updateData.data || []);
+            
+          if (Array.isArray(rouletteArray)) {
+            myData = rouletteArray.find((r: any) => 
+              (r.id === safeData.id || r.roleta_id === safeData.id)
+            );
+          }
+        }
+      }
+        
+      if (myData) {
+        debugLog(`Dados encontrados para ID: ${safeData.id}, ComponentID: ${componentId}`);
+        const processed = processRouletteData(myData);
+        if (processed) {
+          setRouletteData(processed);
+          setIsLoading(false);
+          setError(null);
+          setLoadingTimeout(false);
+          loadingTimeoutActive.delete(safeData.id);
+        }
+      }
+    };
+
     // Busca inicial usando dados em cache sempre que possível
-    debugLog(`Verificando dados em cache para ID: ${safeData.id}`);
+    debugLog(`Verificando dados em cache para ID: ${safeData.id}, ComponentID: ${componentId}`);
     const currentDataFromClient = unifiedClient.getRouletteById(safeData.id);
     
     if (currentDataFromClient) {
-      debugLog(`Dados em cache encontrados para ID: ${safeData.id}`);
+      debugLog(`Dados em cache encontrados para ID: ${safeData.id}, ComponentID: ${componentId}`);
       handleUpdate(currentDataFromClient);
       setIsLoading(false);
     } else {
       // Tentar usar o histórico como fallback
-      const historicalData = getRouletteHistoryByName(safeData.name);
+      const historicalData = unifiedClient.getPreloadedHistory(safeData.name);
         
       if (historicalData && historicalData.length > 0) {
-        debugLog(`Histórico encontrado para: ${safeData.name}`);
+        debugLog(`Histórico encontrado para: ${safeData.name}, ComponentID: ${componentId}`);
           
         // Criar objeto sintético
         const syntheticRoulette = {
@@ -215,70 +161,62 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         handleUpdate(syntheticRoulette);
       } else if (isLoading) {
         // Registrar para ser notificado quando os dados históricos estiverem disponíveis
-        
-        // Evitar registro duplicado de callbacks usando o Map global
-        const historyCallbackId = `historical-data-ready_${safeData.id}`;
-        
-        if (!callbackRegistry.has(historyCallbackId) || 
-            callbackRegistry.get(historyCallbackId)?.componentId !== componentId) {
-          // Armazenar callback e ID do componente
-          callbackRegistry.set(historyCallbackId, {
-            callback: historyReadyHandler,
-            componentId
-          });
-          
-          // Registrar no cliente apenas uma vez
-          unifiedClient.subscribe('historical-data-ready', historyReadyHandler);
-        }
+        const historyReadyHandler = (availableNames: string[]) => {
+          if (availableNames.includes(safeData.name)) {
+            const historicalData = unifiedClient.getPreloadedHistory(safeData.name);
+            if (historicalData && historicalData.length > 0) {
+              const syntheticRoulette = {
+                id: safeData.id,
+                roleta_id: safeData.id,
+                nome: safeData.name,
+                roleta_nome: safeData.name,
+                provider: "Desconhecido",
+                status: "offline",
+                numeros: historicalData.slice(0, 10),
+                ultimoNumero: historicalData[0]?.numero,
+                timestamp: Date.now(),
+                isHistorical: true
+              };
+              handleUpdate(syntheticRoulette);
+            }
+          }
+        };
+
+        // Usar o novo sistema de gerenciamento de callbacks com ID de componente
+        unifiedClient.subscribe('historical-data-ready', historyReadyHandler, componentId);
       }
     }
     
-    // Evitar registros duplicados de callbacks usando o Map global
-    const updateCallbackId = `update_${safeData.id}`;
+    // Registrar para atualizações usando o ID do componente para evitar duplicação
+    unifiedClient.subscribe('update', handleUpdate, componentId);
     
-    if (!callbackRegistry.has(updateCallbackId) || 
-        callbackRegistry.get(updateCallbackId)?.componentId !== componentId) {
-      // Armazenar callback e ID do componente
-      callbackRegistry.set(updateCallbackId, {
-        callback: handleUpdate,
-        componentId
-      });
-      
-      // Registrar no cliente apenas uma vez
-      unifiedClient.subscribe('update', handleUpdate);
-    }
-
+    // Cleanup na desmontagem
     return () => {
-      debugLog(`Limpando recursos para ID: ${safeData.id}`);
+      debugLog(`Limpando recursos do componente ${componentId}`);
       
-      // Limpar timeout de segurança
+      // Cancelar timeouts
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
       
-      // Remover somente os callbacks registrados por este componente específico
-      const updateCallbackId = `update_${safeData.id}`;
-      const historyCallbackId = `historical-data-ready_${safeData.id}`;
-      
-      if (callbackRegistry.has(updateCallbackId) && 
-          callbackRegistry.get(updateCallbackId)?.componentId === componentId) {
-        // Desinscrever do cliente
-        unifiedClient.unsubscribe('update', handleUpdate);
-        callbackRegistry.delete(updateCallbackId);
+      // Cancelar temporizadores
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
       
-      if (callbackRegistry.has(historyCallbackId) && 
-          callbackRegistry.get(historyCallbackId)?.componentId === componentId) {
-        // Desinscrever do cliente
-        unifiedClient.unsubscribe('historical-data-ready', historyReadyHandler);
-        callbackRegistry.delete(historyCallbackId);
+      // Cancelar requests pendentes
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
       
-      // Limpar o timeout global
+      // Desregistrar TODOS os callbacks deste componente de uma vez
+      unifiedClient.unregisterComponent(componentId);
       loadingTimeoutActive.delete(safeData.id);
     };
-  }, [safeData.id, safeData.name, isLoading, componentId, handleUpdate, historyReadyHandler]);
+  }, [safeData.id, safeData.name, componentId, isLoading]); // Dependências explícitas
   
   // Formatar tempo relativo
   const getTimeAgo = () => {
@@ -288,7 +226,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s atrás`;
   };
 
-  // Renderização de estado de carregamento
   if (isLoading) {
     return (
       <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden bg-card text-card-foreground animate-pulse">
@@ -314,7 +251,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     );
   }
 
-  // Renderização de estado de erro
   if (error) {
     return (
       <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden border-destructive bg-destructive/10 text-destructive-foreground">
@@ -330,7 +266,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     );
   }
 
-  // Renderização quando não há dados
   if (!rouletteData) {
     return (
       <Card className="w-full max-w-sm mx-auto shadow-lg rounded-lg overflow-hidden border-muted bg-muted/10 text-muted-foreground">
@@ -445,4 +380,4 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   );
 };
 
-export default React.memo(RouletteCard);
+export default RouletteCard;

@@ -551,44 +551,6 @@ class RouletteStreamClient {
       cacheSize: this.rouletteData.size
     };
   }
-
-  /**
-   * Registra um callback para o evento de conexão
-   */
-  public onConnect(callback: () => void): void {
-    this.on('connected', callback);
-  }
-
-  /**
-   * Registra um callback para o evento de desconexão
-   */
-  public onDisconnect(callback: () => void): void {
-    this.on('disconnected', callback);
-  }
-
-  /**
-   * Registra um callback para o evento de dados
-   */
-  public onData(callback: (data: any) => void): void {
-    this.on('update', callback);
-  }
-
-  /**
-   * Registra um callback para o evento de reconexão
-   */
-  public onReconnect(callback: () => void): void {
-    this.on('reconnecting', callback);
-  }
-
-  /**
-   * Obtem o tempo de conexão ativa em milisegundos
-   */
-  public getConnectionTime(): number {
-    if (!this.isConnected || !this.lastReceivedAt) {
-      return 0;
-    }
-    return Date.now() - this.lastReceivedAt;
-  }
 }
 
 // Exportar instância singleton

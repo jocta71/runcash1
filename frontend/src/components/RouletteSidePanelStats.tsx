@@ -598,6 +598,130 @@ export const RouletteSidePanelStats = ({
   losses,
   providers = [] 
 }: RouletteSidePanelStatsProps): JSX.Element => {
+  // Estados principais
+  const [numeros, setNumeros] = useState<number[]>(lastNumbers || generateFallbackNumbers());
+  const [historicalNumbers, setHistoricalNumbers] = useState<RouletteNumber[]>([]);
+  const [moreHistory, setMoreHistory] = useState<boolean>(false);
+  const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
+  const [colorFilter, setColorFilter] = useState<ColorFilter>('todos');
+  const [selectedNumber, setSelectedNumber] = useState<SelectedNumberState>(null);
+  const [numberFrequency, setNumberFrequency] = useState<{number: number, frequency: number}[]>([]);
+  const [groupDistribution, setGroupDistribution] = useState<{name: string, value: number, color: string}[]>([]);
+  const [hotCold, setHotCold] = useState<{hot: any[], cold: any[]}>({hot: [], cold: []});
+  const [isHeatmapVisible, setIsHeatmapVisible] = useState<boolean>(false);
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  
+  // ID único para este componente
+  const componentId = useRef(`roulette-stats-${roletaId}-${Math.random().toString(36).substring(2, 9)}`).current;
+  
+  // Variáveis de estratégia
+  const [conditions, setConditions] = useState<StrategyCondition[]>([]);
+  const [strategyName, setStrategyName] = useState<string>("");
+  const [savedStrategies, setSavedStrategies] = useState<SavedStrategy[]>([]);
+  
+  // Estados de filtro
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedNumberFilter, setSelectedNumberFilter] = useState<number | null>(null);
+  const [selectedParityFilter, setSelectedParityFilter] = useState<string | null>(null);
+  const [selectedTimeFilter, setSelectedTimeFilter] = useState<number | null>(null);
+  const [selectedProviderFilter, setSelectedProviderFilter] = useState<string | null>(null);
+  
+  // Client unified
+  const unifiedClient = UnifiedRouletteClient.getInstance();
+  
+  // Calcular dados para gráficos
+  useEffect(() => {
+    if (numeros.length > 0) {
+      // Gerar dados para gráficos
+      const frequencyData = generateFrequencyData(numeros);
+      setNumberFrequency(frequencyData);
+      
+      // Gerar dados de cores
+      const colorData = generateGroupDistribution(numeros);
+      setGroupDistribution(colorData);
+      
+      // Calcular números quentes e frios
+      const hotColdData = getHotColdNumbers(frequencyData);
+      setHotCold(hotColdData);
+      
+      // Definir contagem total
+      setTotalCount(numeros.length);
+    }
+  }, [numeros]);
+  
+  // Efeito para carregar o histórico completo
+  useEffect(() => {
+    logger.debug(`[RouletteSidePanelStats] Inicializando para roleta ${roletaId} (${componentId})`);
+    
+    // Verificar se temos histórico precarregado
+    if (unifiedClient) {
+      // Registrar para atualizações
+      const handleUpdate = (updatedData: any) => {
+        logger.debug(`[RouletteSidePanelStats] Atualizando para roleta ${roletaId}`);
+        
+        // Verificar se a atualização é para esta roleta
+        if (
+          updatedData && 
+          (updatedData.id === roletaId || updatedData.roleta_id === roletaId)
+        ) {
+          // Atualizar números
+          if (updatedData.numeros && Array.isArray(updatedData.numeros)) {
+            const newNumbers = updatedData.numeros
+              .map((n: any) => Number(n.numero))
+              .filter((n: number) => !isNaN(n));
+              
+            if (newNumbers.length > 0) {
+              setNumeros(newNumbers);
+            }
+          }
+        }
+      };
+      
+      // Registrar para histórico inicial carregado
+      const handleInitialHistoryLoaded = (allHistoryData: Map<string, RouletteNumber[]>) => {
+        logger.debug(`[RouletteSidePanelStats] Histórico inicial carregado para ${roletaId}`);
+        
+        // Buscar histórico pelo nome da roleta
+        if (allHistoryData.has(roletaNome)) {
+          const roletaHistory = allHistoryData.get(roletaNome);
+          if (roletaHistory && roletaHistory.length > 0) {
+            setHistoricalNumbers(roletaHistory);
+            
+            // Atualizar números atuais também se for necessário
+            if (numeros.length === 0) {
+              const newNumbers = roletaHistory
+                .slice(0, 50)
+                .map(h => Number(h.numero))
+                .filter(n => !isNaN(n));
+                
+              if (newNumbers.length > 0) {
+                setNumeros(newNumbers);
+              }
+            }
+          }
+        }
+      };
+      
+      // Registrar para erros no histórico
+      const handleInitialHistoryError = (error: any) => {
+        logger.error(`[RouletteSidePanelStats] Erro ao carregar histórico: ${error}`);
+        // Não fazer nada, continuar usando números atuais
+      };
+      
+      // Registrar com identificação de componente para evitar duplicação
+      unifiedClient.subscribe('update', handleUpdate, componentId);
+      unifiedClient.subscribe('historical-data-ready', handleInitialHistoryLoaded, componentId);
+      unifiedClient.subscribe('historical-data-error', handleInitialHistoryError, componentId);
+      
+      // Cleanup
+      return () => {
+        logger.debug(`[RouletteSidePanelStats] Limpando recursos para ${roletaId} (${componentId})`);
+        unifiedClient.unregisterComponent(componentId);
+      };
+    }
+  }, [roletaId, roletaNome, componentId]);
+
   // Validar e logar quando roletaId está indefinido
   const validRouletteIdentifier = useMemo(() => {
     if (!roletaId) {
@@ -608,15 +732,9 @@ export const RouletteSidePanelStats = ({
     return roletaId;
   }, [roletaId, roletaNome]);
   
-  const [historicalNumbers, setHistoricalNumbers] = useState<RouletteNumber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [visibleNumbersCount, setVisibleNumbersCount] = useState(44);
-  const [colorFilter, setColorFilter] = useState<ColorFilter>('todos');
-  const isInitialRequestDone = useRef(false);
-  const unifiedClient = UnifiedRouletteClient.getInstance();
   const [hasActiveFilters, setHasActiveFilters] = useState(false);
-  const [selectedColor, setSelectedColor] = useState('todas');
-  const [selectedNumber, setSelectedNumber] = useState<SelectedNumberState>(null);
   const [selectedParity, setSelectedParity] = useState('todas');
   const [selectedTime, setSelectedTime] = useState('todas');
   const [selectedProvider, setSelectedProvider] = useState('todas');
@@ -626,33 +744,32 @@ export const RouletteSidePanelStats = ({
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [componentInstanceId, setComponentInstanceId] = useState(uniqueId('roulette-side-panel-'));
-  
-  // Referências para controlar ciclo de vida e evitar múltiplas remontagens
-  const currentRouletteRef = useRef<{ id: string; name: string }>({ id: '', name: '' });
-  const listenersRef = useRef<{
-    unsubscribeUpdate?: () => void;
-    unsubscribeInitialLoad?: () => void;
-    unsubscribeInitialError?: () => void;
-  }>({});
-  
-  // Estados para o formulário de criação de estratégia
-  const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
-  const [strategyName, setStrategyName] = useState('');
-  const [strategyConditions, setStrategyConditions] = useState<StrategyCondition[]>([]);
-  const [isSavingStrategy, setIsSavingStrategy] = useState(false);
+  const [isInitialRequestDone, setIsInitialRequestDone] = useState(false);
   const [saveStrategyError, setSaveStrategyError] = useState<string | null>(null);
   const [saveStrategySuccess, setSaveStrategySuccess] = useState<string | null>(null);
-
-  // <<< NOVOS ESTADOS PARA GERENCIAR ESTRATÉGIAS SALVAS >>>
-  const [savedStrategies, setSavedStrategies] = useState<SavedStrategy[]>([]);
-  const [isLoadingStrategies, setIsLoadingStrategies] = useState(false);
+  const [isSavingStrategy, setIsSavingStrategy] = useState(false);
   const [fetchStrategiesError, setFetchStrategiesError] = useState<string | null>(null);
   const [deleteStrategyError, setDeleteStrategyError] = useState<string | null>(null);
   const [deleteStrategySuccess, setDeleteStrategySuccess] = useState<string | null>(null);
   const [deletingStrategyId, setDeletingStrategyId] = useState<string | null>(null);
   const [strategiesLoaded, setStrategiesLoaded] = useState(false);
+  
+  // Referências para controlar ciclo de vida e evitar múltiplas remontagens
+  const currentRouletteRef = useRef({ id: roletaId, name: roletaNome });
+  const listenersRef = useRef({
+    unsubscribeUpdate: () => {},
+    unsubscribeHistoryLoaded: () => {},
+    unsubscribeHistoryError: () => {}
+  });
+  const isInitialRequestRef = useRef(false);
 
+  // Variável booleana para garantir que o componente só processa cada número uma vez
+  const lastProcessedNumberRef = useRef<string | null>(null);
+  
+  // Estados para o formulário de criação de estratégia
+  const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
+  const [strategyConditions, setStrategyConditions] = useState<StrategyCondition[]>([]);
+  
   // Esta função será chamada pelo listener do 'update' do UnifiedClient
   const processRouletteUpdate = useCallback((updatedRouletteData: any) => {
     if (!updatedRouletteData || !Array.isArray(updatedRouletteData.numero)) {
@@ -721,14 +838,14 @@ export const RouletteSidePanelStats = ({
     if (listenersRef.current.unsubscribeUpdate) {
       listenersRef.current.unsubscribeUpdate();
     }
-    if (listenersRef.current.unsubscribeInitialLoad) {
-      listenersRef.current.unsubscribeInitialLoad();
+    if (listenersRef.current.unsubscribeHistoryLoaded) {
+      listenersRef.current.unsubscribeHistoryLoaded();
     }
-    if (listenersRef.current.unsubscribeInitialError) {
-      listenersRef.current.unsubscribeInitialError();
+    if (listenersRef.current.unsubscribeHistoryError) {
+      listenersRef.current.unsubscribeHistoryError();
     }
     
-    logger.info(`[${componentInstanceId}] Configurando listeners para ${roletaNome} (Roleta ID: ${roletaId || 'undefined'})`);
+    logger.info(`[${componentId}] Configurando listeners para ${roletaNome} (Roleta ID: ${roletaId || 'undefined'})`);
     
     const handleUpdate = (updatedData: any) => {
       let myRouletteUpdate: any = null;
@@ -741,43 +858,43 @@ export const RouletteSidePanelStats = ({
         }
       }
       if (myRouletteUpdate) {
-        logger.info(`[${componentInstanceId}] Recebido 'update' para ${roletaNome}`);
-        if (!isInitialRequestDone.current) {
-          logger.info(`[${componentInstanceId}] Primeira atualização recebida para ${roletaNome}, preenchendo histórico inicial.`);
+        logger.info(`[${componentId}] Recebido 'update' para ${roletaNome}`);
+        if (!isInitialRequestDone) {
+          logger.info(`[${componentId}] Primeira atualização recebida para ${roletaNome}, preenchendo histórico inicial.`);
     setIsLoading(false);
-    isInitialRequestDone.current = true;
+    setIsInitialRequestDone(true);
         }
         processRouletteUpdate(myRouletteUpdate);
       }
     };
     
     const handleInitialHistoryLoaded = (allHistoryData: Map<string, RouletteNumber[]>) => {
-      logger.info(`[${componentInstanceId}] Evento 'initialHistoryLoaded' recebido.`);
+      logger.info(`[${componentId}] Evento 'initialHistoryLoaded' recebido.`);
       const initialDataForThisRoulette = allHistoryData.get(roletaNome);
       if (initialDataForThisRoulette && historicalNumbers.length === 0) { 
-        logger.info(`[${componentInstanceId}] Preenchendo histórico com dados de 'initialHistoryLoaded' para ${roletaNome}`);
+        logger.info(`[${componentId}] Preenchendo histórico com dados de 'initialHistoryLoaded' para ${roletaNome}`);
         setHistoricalNumbers(initialDataForThisRoulette);
       }
       setIsLoading(false); 
-      isInitialRequestDone.current = true;
+      setIsInitialRequestDone(true);
     };
     
     const handleInitialHistoryError = (error: any) => {
-      logger.error(`[${componentInstanceId}] Erro ao carregar histórico inicial reportado pelo UnifiedClient:`, error);
+      logger.error(`[${componentId}] Erro ao carregar histórico inicial reportado pelo UnifiedClient:`, error);
       setIsLoading(false); 
-      isInitialRequestDone.current = true;
+      setIsInitialRequestDone(true);
     };
     
     // Registrar listeners e manter referências para limpeza
     listenersRef.current.unsubscribeUpdate = unifiedClient.on('update', handleUpdate);
-    listenersRef.current.unsubscribeInitialLoad = unifiedClient.on('initialHistoryLoaded', handleInitialHistoryLoaded);
-    listenersRef.current.unsubscribeInitialError = unifiedClient.on('initialHistoryError', handleInitialHistoryError);
+    listenersRef.current.unsubscribeHistoryLoaded = unifiedClient.on('historical-data-ready', handleInitialHistoryLoaded);
+    listenersRef.current.unsubscribeHistoryError = unifiedClient.on('historical-data-error', handleInitialHistoryError);
     
     // Atualizar referência da roleta atual
     currentRouletteRef.current = { id: roletaId || '', name: roletaNome };
     
     return () => {
-      logger.info(`[${componentInstanceId}] Limpando listeners para ${roletaNome}`);
+      logger.info(`[${componentId}] Limpando listeners para ${roletaNome}`);
       if (listenersRef.current.unsubscribeUpdate) {
         listenersRef.current.unsubscribeUpdate();
       }
@@ -788,12 +905,12 @@ export const RouletteSidePanelStats = ({
         listenersRef.current.unsubscribeInitialError();
       }
     };
-  }, [componentInstanceId, roletaNome, roletaId, unifiedClient, processRouletteUpdate, logger, historicalNumbers.length]);
+  }, [componentId, roletaNome, roletaId, unifiedClient, processRouletteUpdate, logger, historicalNumbers.length]);
   
   // useEffect centralizado para inicialização do componente
   useEffect(() => {
     // Gerar ID de instância apenas uma vez quando o componente monta
-    if (!componentInstanceId) {
+    if (!componentId) {
       setComponentInstanceId(uniqueId('roulette-side-panel-'));
       return;
     }
@@ -804,15 +921,15 @@ export const RouletteSidePanelStats = ({
     
     // Se a roleta mudou, resetar o estado
     if (isNewRoulette) {
-      logger.info(`[${componentInstanceId}] Mudança de roleta detectada: ${currentRouletteRef.current.name} -> ${roletaNome}`);
+      logger.info(`[${componentId}] Mudança de roleta detectada: ${currentRouletteRef.current.name} -> ${roletaNome}`);
       setIsLoading(true);
-      isInitialRequestDone.current = false;
+      setIsInitialRequestDone(false);
       setHistoricalNumbers([]);
       
       // Carregar dados pré-carregados se disponíveis
       const preloadedData = unifiedClient.getPreloadedHistory(roletaNome);
       if (preloadedData && preloadedData.length > 0) {
-        logger.info(`[${componentInstanceId}] Usando ${preloadedData.length} números pré-carregados para ${roletaNome}`);
+        logger.info(`[${componentId}] Usando ${preloadedData.length} números pré-carregados para ${roletaNome}`);
         setHistoricalNumbers(preloadedData);
         setIsLoading(false);
         isInitialRequestDone.current = true;
