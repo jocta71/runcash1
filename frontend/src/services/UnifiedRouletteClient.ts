@@ -134,6 +134,15 @@ export default class UnifiedRouletteClient {
   private ongoingRequestCounter = 0;
   private maxConcurrentRequests = 3;
   
+  // Novas propriedades para cache de dados
+  private cache: any[] = [];
+  private cacheTimestamp: number = 0;
+  private isInitialDataLoaded = false;
+  private lastCacheLogTime: number | null = null;
+  private historicalData: Map<string, any[]> = new Map();
+  private requestQueue: { priority: string; execute: () => Promise<void> }[] = [];
+  private connectionAttempts: number = 0;
+  
   /**
    * Construtor privado para garantir singleton
    */
@@ -805,81 +814,109 @@ export default class UnifiedRouletteClient {
   }
   
   /**
-   * Atualiza o cache com novos dados
+   * Atualiza o cache interno com novos dados, garantindo a integridade e evitando atualizações desnecessárias
    */
-  private updateCache(data: any | any[]): void {
+  private updateCache(data: any): boolean {
     if (!data) {
-      console.log('DEBUG: updateCache chamado com dados inválidos');
-      return;
+      console.warn('[UnifiedRouletteClient] Tentativa de atualizar cache com dados inválidos');
+      return false;
     }
-    
-    console.log('DEBUG: updateCache chamado com:', Array.isArray(data) ? `Array[${data.length}]` : 'Objeto individual');
-    
+
+    // Controle de logs para evitar spam no console
+    const SHOULD_LOG_DEBUG = false; // Apenas ativar em desenvolvimento quando necessário
+    let lastCacheLogTime = this.lastCacheLogTime || 0;
+    const now = Date.now();
+    const LOG_INTERVAL = 5000; // Apenas registra logs a cada 5 segundos
+    const shouldLogNow = now - lastCacheLogTime > LOG_INTERVAL;
+    this.lastCacheLogTime = shouldLogNow ? now : lastCacheLogTime;
+
+    if (SHOULD_LOG_DEBUG && shouldLogNow) {
+      console.debug(`DEBUG: updateCache chamado com:`, data);
+    }
+
+    // Cache de dados por array (múltiplas roletas)
     if (Array.isArray(data)) {
-      // Verificar se há mudanças antes de atualizar o cache
-      if (data.length === 0) {
-        console.log('DEBUG: Array vazio recebido, cache não atualizado');
-        return;
+      const validRoulettes = data.filter(item => 
+        item && 
+        (item.id || item.roleta_id || item.roulette_id) && 
+        (item.nome || item.name) && 
+        item.numero
+      );
+
+      if (SHOULD_LOG_DEBUG && shouldLogNow) {
+        console.debug(`DEBUG: Atualizando cache com array de dados. Items válidos: ${validRoulettes.length}`);
       }
-      
-      // Contar itens válidos
-      const validItems = data.filter(item => item && (item.id || item.roleta_id));
-      console.log('DEBUG: Atualizando cache com array de dados. Items válidos:', validItems.length);
-      
-      // Verificar se o conteúdo é idêntico ao cache atual
-      if (this.rouletteData.size === validItems.length) {
-        let allEqual = true;
-        for (const item of validItems) {
-          const id = item.id || item.roleta_id;
-          const currentItem = this.rouletteData.get(id);
-          
-          // Se o item não existe no cache ou é diferente, marcar como não igual
-          if (!currentItem || JSON.stringify(currentItem) !== JSON.stringify(item)) {
-            allEqual = false;
-            break;
-          }
-        }
+
+      if (validRoulettes.length === 0) {
+        return false;
+      }
+
+      // Verificar se temos os mesmos dados que já estão no cache
+      if (this.cache.length > 0 && validRoulettes.length === this.cache.length) {
+        const cacheStr = JSON.stringify(this.cache);
+        const newDataStr = JSON.stringify(validRoulettes);
         
-        // Se todos os itens são idênticos, não atualizar o cache
-        if (allEqual) {
-          console.log('DEBUG: Cache já contém os mesmos dados, ignorando atualização');
-          return;
+        if (cacheStr === newDataStr) {
+          if (SHOULD_LOG_DEBUG && shouldLogNow) {
+            console.debug(`DEBUG: Cache já contém os mesmos dados, ignorando atualização`);
+          }
+          return false;
         }
       }
+
+      // Atualizar cache apenas se tiver dados novos
+      this.cache = [...validRoulettes];
+      this.cacheTimestamp = Date.now();
+      this.isInitialDataLoaded = true;
       
-      // Limpar dados anteriores apenas se os novos dados são completos
-      this.rouletteData.clear();
-        
-        // Processar cada item
-        let validItemsCount = 0;
-        data.forEach(item => {
-          if (item && (item.id || item.roleta_id)) {
-            // Usar id prioritariamente, ou roleta_id como fallback
-            const id = item.id || item.roleta_id;
-            this.rouletteData.set(id, item);
-            validItemsCount++;
-          }
-        });
-        
-        console.log(`DEBUG: ${validItemsCount} roletas adicionadas ao cache`);
-        this.lastUpdateTime = Date.now();
-    } else if (data && (data.id || data.roleta_id)) {
-      // Atualizar uma única roleta
-      const id = data.id || data.roleta_id;
-      const currentItem = this.rouletteData.get(id);
-      
-      // Verificar se o item já existe e é idêntico
-      if (currentItem && JSON.stringify(currentItem) === JSON.stringify(data)) {
-        console.log(`DEBUG: Item ${id} idêntico no cache, ignorando atualização`);
-        return;
+      if (SHOULD_LOG_DEBUG && shouldLogNow) {
+        console.debug(`DEBUG: ${validRoulettes.length} roletas adicionadas ao cache`);
       }
       
-      this.rouletteData.set(id, data);
-      console.log(`DEBUG: Cache atualizado para roleta individual ${id}`);
-      this.lastUpdateTime = Date.now();
-    } else {
-      console.log('DEBUG: Dados inválidos recebidos em updateCache, nada atualizado');
+      return true;
+    } 
+    // Cache de dados para uma única roleta
+    else if (data && typeof data === 'object') {
+      const id = data.id || data.roleta_id || data.roulette_id;
+      const name = data.nome || data.name;
+      
+      if (!id || !name) {
+        if (SHOULD_LOG_DEBUG) {
+          console.debug(`DEBUG: Dados de roleta inválidos: ID ou nome ausentes`);
+        }
+        return false;
+      }
+      
+      // Verificar se já temos esta roleta no cache
+      const existingRouletteIndex = this.cache.findIndex(r => 
+        (r.id === id || r.roleta_id === id || r.roulette_id === id)
+      );
+      
+      if (existingRouletteIndex >= 0) {
+        const existingRoulette = this.cache[existingRouletteIndex];
+        const existingStr = JSON.stringify(existingRoulette);
+        const newStr = JSON.stringify(data);
+        
+        if (existingStr === newStr) {
+          if (SHOULD_LOG_DEBUG && shouldLogNow) {
+            console.debug(`DEBUG: Roleta ${name} já tem os mesmos dados no cache, ignorando atualização`);
+          }
+          return false;
+        }
+        
+        // Atualizar roleta existente
+        this.cache[existingRouletteIndex] = data;
+      } else {
+        // Adicionar nova roleta
+        this.cache.push(data);
+      }
+      
+      this.cacheTimestamp = Date.now();
+      this.isInitialDataLoaded = true;
+      return true;
     }
+    
+    return false;
   }
   
   /**
@@ -1052,7 +1089,14 @@ export default class UnifiedRouletteClient {
    * Obtém dados de uma roleta específica
    */
   public getRouletteById(id: string): any {
-    return this.rouletteData.get(id) || null;
+    if (!id) {
+      return null;
+    }
+    
+    // Procurar no array de cache
+    return this.cache.find(item => 
+      item.id === id || item.roleta_id === id || item.roulette_id === id
+    ) || null;
   }
   
   /**
@@ -1069,26 +1113,34 @@ export default class UnifiedRouletteClient {
   }
   
   /**
-   * Obtém todos os dados de roletas
+   * Obtém todas as roletas disponíveis
    */
   public getAllRoulettes(): any[] {
-    return Array.from(this.rouletteData.values());
+    return [...this.cache];
   }
   
   /**
-   * Obtém o status atual do serviço
+   * Obtém o histórico pré-carregado para uma roleta específica
+   */
+  public getPreloadedHistory(rouletteName: string): any[] {
+    if (!rouletteName || typeof rouletteName !== 'string' || !this.historicalData) {
+      return [];
+    }
+    
+    return this.historicalData.get(rouletteName.toLowerCase()) || [];
+  }
+  
+  /**
+   * Obtém o status atual do cliente
    */
   public getStatus(): any {
     return {
-      isStreamConnected: this.isStreamConnected,
-      isStreamConnecting: this.isStreamConnecting,
-      streamReconnectAttempts: this.streamReconnectAttempts,
-      isPollingActive: !!this.pollingTimer,
-      lastEventId: this.lastEventId,
-      lastReceivedAt: this.lastReceivedAt,
-      lastUpdateTime: this.lastUpdateTime,
-      cacheSize: this.rouletteData.size,
-      isCacheValid: this.isCacheValid()
+      isConnected: this.isStreamConnected,
+      isCacheValid: this.cache.length > 0 && (Date.now() - this.cacheTimestamp) < 60000,
+      lastUpdateTime: this.cacheTimestamp,
+      connectionsAttempts: this.connectionAttempts,
+      ongoingRequests: this.ongoingRequestCounter,
+      queuedRequests: this.requestQueue.length
     };
   }
   
@@ -1571,83 +1623,106 @@ export default class UnifiedRouletteClient {
 
   // --- Função para Buscar e Cachear Histórico Inicial ---
   private async fetchAndCacheInitialHistory(): Promise<void> {
-    if (this.isFetchingInitialHistory || this.initialHistoryFetchPromise) {
-      this.log('Já existe uma busca de histórico em andamento, aguardando...');
-        return this.initialHistoryFetchPromise;
+    // Se já estiver buscando, apenas retornar a promessa existente
+    if (this.isFetchingInitialHistory && this.initialHistoryFetchPromise) {
+      return this.initialHistoryFetchPromise;
     }
-
-    this.log('Iniciando busca do histórico inicial para todas as roletas...');
+    
     this.isFetchingInitialHistory = true;
     
-    const historicalApiUrl = getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
-    
+    // Criar uma promessa que será resolvida quando os dados forem carregados
     this.initialHistoryFetchPromise = new Promise<void>(async (resolve) => {
-      // Adicionar timeout para evitar bloqueio prolongado
-      const timeoutPromise = new Promise<void>((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout ao buscar histórico inicial')), 15000);
-      });
-      
       try {
-        this.log(`Buscando histórico inicial de: ${historicalApiUrl}`);
+        this.log('Buscando histórico inicial de:', getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES));
         
-        // Usar Promise.race para evitar bloqueio prolongado
-        const response = await Promise.race([
-          axios.get(historicalApiUrl),
-          timeoutPromise
-        ]) as any; // Usar any temporariamente para evitar erro de tipo
+        const response = await axios.get(getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES));
         
-        const data = response.data;
-        
-        if (!data || !Array.isArray(data)) {
-          this.warn('Formato de resposta de histórico inválido');
-          this.isFetchingInitialHistory = false;
-          this.initialHistoryFetchPromise = null;
-          resolve();
-          return;
-        }
-        
-        // Processamento progressivo para evitar bloqueio da UI
-        await new Promise(r => setTimeout(r, 0)); // Liberar thread principal
-        
-        let count = 0;
-        // Processar em lotes para não bloquear UI
-        for (let i = 0; i < data.length; i++) {
-          const roulette = data[i];
-          if (roulette && roulette.nome && Array.isArray(roulette.numeros)) {
-            this.initialHistoricalDataCache.set(roulette.nome, roulette.numeros);
-            count++;
-            
-            // A cada 10 roletas, liberar thread principal
-            if (i % 10 === 0 && i > 0) {
-              await new Promise(r => setTimeout(r, 0));
-            }
-          }
-        }
-        
-        this.log(`Histórico inicial carregado e cacheado para ${count} roletas.`);
-        
-        // Notificar que os dados históricos estão disponíveis
-        this.emit('historical-data-ready', Array.from(this.initialHistoricalDataCache.keys()));
-        
-      } catch (error: any) {
-        if (error.message === 'Timeout ao buscar histórico inicial') {
-          this.warn('Timeout ao buscar histórico inicial, continuando com dados parciais');
+        if (response && response.data) {
+          // Verificar o formato da resposta
+          let historicalData: any;
           
-          // Mesmo com timeout, emitir evento com dados parciais disponíveis
-          if (this.initialHistoricalDataCache.size > 0) {
-            this.emit('historical-data-ready', Array.from(this.initialHistoricalDataCache.keys()));
+          if (response.data.success && response.data.data) {
+            // Formato { success: true, data: [...] }
+            historicalData = response.data.data;
+          } else if (Array.isArray(response.data)) {
+            // Formato de array direto
+            historicalData = response.data;
+          } else if (typeof response.data === 'object') {
+            // Formato de objeto com roletas como propriedades
+            historicalData = response.data;
+          } else {
+            throw new Error('Formato de resposta de histórico inválido');
           }
-        } else {
-          this.error('Erro ao buscar histórico inicial:', error);
+          
+          // Processar os dados conforme o formato
+          if (Array.isArray(historicalData)) {
+            // Array de roletas, cada uma com seu histórico
+            historicalData.forEach(roulette => {
+              const name = roulette.name || roulette.nome;
+              if (name && Array.isArray(roulette.historico || roulette.history || roulette.numero)) {
+                const history = roulette.historico || roulette.history || roulette.numero;
+                this.historicalData.set(name.toLowerCase(), this.formatHistoricalNumbers(history));
+              }
+            });
+          } else if (typeof historicalData === 'object') {
+            // Objeto com nomes de roletas como chaves
+            Object.keys(historicalData).forEach(rouletteName => {
+              if (Array.isArray(historicalData[rouletteName])) {
+                this.historicalData.set(rouletteName.toLowerCase(), 
+                  this.formatHistoricalNumbers(historicalData[rouletteName]));
+              }
+            });
+          }
+          
+          // Notificar componentes interessados que os dados históricos estão prontos
+          this.emit('historical-data-ready', this.historicalData);
         }
+      } catch (error) {
+        this.error('Erro ao buscar histórico inicial:', error);
+        this.emit('historical-data-error', error);
       } finally {
         this.isFetchingInitialHistory = false;
-        this.initialHistoryFetchPromise = null;
         resolve();
       }
     });
-
+    
     return this.initialHistoryFetchPromise;
+  }
+    
+  /**
+   * Formata números históricos para o padrão interno
+   */
+  private formatHistoricalNumbers(numbers: any[]): RouletteNumber[] {
+    if (!Array.isArray(numbers)) return [];
+    
+    return numbers.map(item => {
+      // Se já for do formato correto, apenas retornar
+      if (typeof item === 'object' && 'numero' in item && 'timestamp' in item) {
+        return item as RouletteNumber;
+      }
+      
+      // Se for apenas o número
+      if (typeof item === 'number') {
+        return {
+          numero: item,
+          timestamp: new Date().toISOString()
+        };
+      }
+      
+      // Se for um objeto com formato diferente
+      if (typeof item === 'object') {
+        return {
+          numero: item.numero || item.number || 0,
+          timestamp: item.timestamp || item.time || new Date().toISOString()
+        };
+      }
+      
+      // Caso padrão
+      return {
+        numero: Number(item) || 0,
+        timestamp: new Date().toISOString()
+      };
+    });
   }
 
   // --- Novo Método Público para Acessar o Cache ---

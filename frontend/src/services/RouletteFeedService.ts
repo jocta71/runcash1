@@ -79,7 +79,7 @@ export default class RouletteFeedService {
     }
     return RouletteFeedService.instance;
   }
-
+  
   /**
    * Inicializa o serviço
    */
@@ -89,7 +89,17 @@ export default class RouletteFeedService {
     // Não fazemos mais nada aqui, apenas delegamos ao UnifiedClient
     this.fetchInitialData();
   }
-
+  
+  /**
+   * Método de retrocompatibilidade - esta função é chamada pelo código antigo
+   * e precisa existir para evitar erros, embora não faça nada no novo sistema
+   */
+  public registerSocketService(socketService: any): void {
+    console.log('[RouletteFeedService] Método registerSocketService chamado (mantido para retrocompatibilidade)');
+    // Este método não faz nada no novo sistema, pois a gestão de conexões
+    // é feita diretamente pelo UnifiedRouletteClient
+  }
+  
   /**
    * Inicia o polling
    */
@@ -160,5 +170,27 @@ export default class RouletteFeedService {
     console.log(`[RouletteFeedService] Liberando recursos (${this.componentId})`);
     this.unifiedClient.unregisterComponent(this.componentId);
     this.events.removeAllListeners();
+  }
+  
+  /**
+   * Método de retrocompatibilidade: Verificação de cache
+   */
+  public isCacheValid(): boolean {
+    return this.unifiedClient.getStatus().isCacheValid;
+  }
+
+  /**
+   * Método de retrocompatibilidade: Verificação de saúde da API
+   */
+  public async checkAPIHealth(): Promise<boolean> {
+    const status = this.unifiedClient.diagnoseConnectionState();
+    return status.isStreamConnected || status.isPollingActive;
+  }
+  
+  /**
+   * Método de retrocompatibilidade: Obtenção de dados da roleta
+   */
+  public getRouletteData(roletaId: string): any {
+    return this.getRouletteById(roletaId);
   }
 } 
