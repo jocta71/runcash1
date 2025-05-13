@@ -1630,32 +1630,35 @@ export const RouletteSidePanelStats = ({
 
   // Efeito para calcular estatísticas inteligentes sempre que os números mudarem
   useEffect(() => {
-    if (historyData.length > 0) {
+    if (filteredNumbers.length > 0) {
+      // Extrair apenas os números das RouletteNumber para as funções que esperam number[]
+      const numbersList = filteredNumbers.map(item => item.numero);
+      
       // Aplicar modelos preditivos
-      const predictions = generateNeuralPredictions(historyData.map(item => item.numero));
+      const predictions = generateNeuralPredictions(numbersList);
       setNeuralPredictions(predictions);
       
       // Calcular números devidos
-      const due = calculateDueNumbers(historyData.map(item => item.numero));
+      const due = calculateDueNumbers(numbersList);
       setDueNumbers(due);
       
       // Calcular padrões temporais
-      const patterns = calculateTimePatterns(historyData);
+      const patterns = calculateTimePatterns(filteredNumbers);
       setTimePatterns(patterns);
       
       // Calcular momentum
-      const momentum = calculateMomentum(historyData.map(item => item.numero));
+      const momentum = calculateMomentum(numbersList);
       setMomentumData(momentum);
       
       // Detectar anomalias
-      const anomaliesFound = detectAnomalies(historyData.map(item => item.numero));
+      const anomaliesFound = detectAnomalies(numbersList);
       setAnomalies(anomaliesFound);
       
       // Calcular matriz de Markov
-      const markov = calculateMarkovTransitions(historyData.map(item => item.numero));
+      const markov = calculateMarkovTransitions(numbersList);
       setMarkovTransitions(markov);
     }
-  }, [historyData]);
+  }, [filteredNumbers]);
 
   // Renderização dos novos componentes de estatísticas inteligentes
   const renderNeuralPredictions = () => (
@@ -1706,7 +1709,7 @@ export const RouletteSidePanelStats = ({
               <NumberDisplay 
                 number={item.number} 
                 size="tiny" 
-                customClassName={item.isStatisticallySignificant ? "ring-2 ring-amber-500" : ""}
+                highlight={item.isStatisticallySignificant}
               />
               <span 
                 className={`text-xs font-bold mt-1 ${
@@ -1856,13 +1859,13 @@ export const RouletteSidePanelStats = ({
           <div className="space-y-2">
             <div className="flex justify-center items-center gap-2 mb-1">
               <span className="text-xs">Após</span>
-              <NumberDisplay number={filteredNumbers[0]} size="tiny" />
+              <NumberDisplay number={filteredNumbers[0].numero} size="tiny" />
               <span className="text-xs">provavelmente virá:</span>
             </div>
             
             <div className="flex justify-center gap-1">
               {markovTransitions
-                .filter(t => t.from === filteredNumbers[0])
+                .filter(t => t.from === filteredNumbers[0].numero)
                 .slice(0, 4)
                 .map(t => (
                   <div key={`markov-${t.from}-${t.to}`} className="flex flex-col items-center">
@@ -1871,7 +1874,7 @@ export const RouletteSidePanelStats = ({
                   </div>
                 ))}
               
-              {markovTransitions.filter(t => t.from === filteredNumbers[0]).length === 0 && (
+              {markovTransitions.filter(t => t.from === filteredNumbers[0].numero).length === 0 && (
                 <span className="text-xs text-muted-foreground">Dados insuficientes</span>
               )}
             </div>
