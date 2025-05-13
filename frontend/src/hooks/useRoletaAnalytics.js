@@ -87,7 +87,7 @@ export function useRoletaAnalytics(roletaNome, refreshInterval = 15000) {
         .select('cor, paridade, dezena, numero')
         .eq('roleta_nome', roletaNome)
         .order('timestamp', { ascending: false })
-        .limit(20);
+        .limit(1);
       
       if (error) throw error;
       if (!data || data.length === 0) return { type: null, count: 0 };
