@@ -409,7 +409,7 @@ const RoulettesDashboard = () => {
           </div>
           
           {/* Estatísticas da roleta à direita - 50% em desktop, fixo em scroll */}
-          <div className="lg:w-1/2 mt-4 lg:mt-0 lg:sticky lg:top-2 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
+          <div className="lg:w-1/2 mt-4 lg:mt-0 lg:h-[calc(100vh-8rem)] overflow-hidden">
             <div className="h-full">
               {selectedRoulette ? (
                 <RouletteSidePanelStats

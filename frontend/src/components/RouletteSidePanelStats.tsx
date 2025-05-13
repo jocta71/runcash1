@@ -1885,7 +1885,7 @@ export const RouletteSidePanelStats = ({
   );
 
   return (
-    <div className="w-[400px] h-full fixed right-0 top-0 bg-[#141318] border-l border-[#2a2a2e] overflow-y-auto">
+    <div className="w-full h-full bg-[#141318] border-l border-[#2a2a2e] overflow-y-auto rounded-lg">
       <div className="p-5 border-b border-gray-800 bg-opacity-40 flex justify-between items-center">
         <div>
           <h2 className="text-white flex items-center text-xl font-bold mb-1">
