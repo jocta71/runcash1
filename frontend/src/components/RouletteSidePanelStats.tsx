@@ -744,7 +744,6 @@ export const RouletteSidePanelStats = ({
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [isInitialRequestDone, setIsInitialRequestDone] = useState(false);
   const [saveStrategyError, setSaveStrategyError] = useState<string | null>(null);
   const [saveStrategySuccess, setSaveStrategySuccess] = useState<string | null>(null);
   const [isSavingStrategy, setIsSavingStrategy] = useState(false);
@@ -753,6 +752,7 @@ export const RouletteSidePanelStats = ({
   const [deleteStrategySuccess, setDeleteStrategySuccess] = useState<string | null>(null);
   const [deletingStrategyId, setDeletingStrategyId] = useState<string | null>(null);
   const [strategiesLoaded, setStrategiesLoaded] = useState(false);
+  const [isLoadingStrategies, setIsLoadingStrategies] = useState(false);
   
   // Referências para controlar ciclo de vida e evitar múltiplas remontagens
   const currentRouletteRef = useRef({ id: roletaId, name: roletaNome });
@@ -763,7 +763,7 @@ export const RouletteSidePanelStats = ({
   });
   
   // Flag para indicar se a solicitação inicial foi concluída
-  const isInitialRequestDone = useRef(false);
+  const isInitialRequestDoneRef = useRef(false);
 
   // Variável booleana para garantir que o componente só processa cada número uma vez
   const lastProcessedNumberRef = useRef<string | null>(null);
@@ -861,10 +861,10 @@ export const RouletteSidePanelStats = ({
       }
       if (myRouletteUpdate) {
         logger.info(`[${componentId}] Recebido 'update' para ${roletaNome}`);
-        if (!isInitialRequestDone.current) {
+        if (!isInitialRequestDoneRef.current) {
           logger.info(`[${componentId}] Primeira atualização recebida para ${roletaNome}, preenchendo histórico inicial.`);
-    setIsLoading(false);
-    setIsInitialRequestDone.current = true;
+          setIsLoading(false);
+          isInitialRequestDoneRef.current = true;
         }
         processRouletteUpdate(myRouletteUpdate);
       }
@@ -878,13 +878,13 @@ export const RouletteSidePanelStats = ({
         setHistoricalNumbers(initialDataForThisRoulette);
       }
       setIsLoading(false); 
-      setIsInitialRequestDone.current = true;
+      isInitialRequestDoneRef.current = true;
     };
     
     const handleInitialHistoryError = (error: any) => {
       logger.error(`[${componentId}] Erro ao carregar histórico inicial reportado pelo UnifiedClient:`, error);
       setIsLoading(false); 
-      setIsInitialRequestDone.current = true;
+      isInitialRequestDoneRef.current = true;
     };
     
     // Registrar listeners e manter referências para limpeza
@@ -900,11 +900,11 @@ export const RouletteSidePanelStats = ({
       if (listenersRef.current.unsubscribeUpdate) {
         listenersRef.current.unsubscribeUpdate();
       }
-      if (listenersRef.current.unsubscribeInitialLoad) {
-        listenersRef.current.unsubscribeInitialLoad();
+      if (listenersRef.current.unsubscribeHistoryLoaded) {
+        listenersRef.current.unsubscribeHistoryLoaded();
       }
-      if (listenersRef.current.unsubscribeInitialError) {
-        listenersRef.current.unsubscribeInitialError();
+      if (listenersRef.current.unsubscribeHistoryError) {
+        listenersRef.current.unsubscribeHistoryError();
       }
     };
   }, [componentId, roletaNome, roletaId, unifiedClient, processRouletteUpdate, logger, historicalNumbers.length]);
@@ -923,7 +923,7 @@ export const RouletteSidePanelStats = ({
     if (isNewRoulette) {
       logger.info(`[${componentId}] Mudança de roleta detectada: ${currentRouletteRef.current.name} -> ${roletaNome}`);
       setIsLoading(true);
-      isInitialRequestDone.current = false;
+      isInitialRequestDoneRef.current = false;
       setHistoricalNumbers([]);
       
       // Carregar dados pré-carregados se disponíveis
@@ -932,19 +932,17 @@ export const RouletteSidePanelStats = ({
         logger.info(`[${componentId}] Usando ${preloadedData.length} números pré-carregados para ${roletaNome}`);
         setHistoricalNumbers(preloadedData);
         setIsLoading(false);
-        isInitialRequestDone.current = true;
+        isInitialRequestDoneRef.current = true;
       } else {
         logger.warn(`[${componentId}] Nenhum histórico pré-carregado encontrado para ${roletaNome}. Aguardando busca inicial ou atualizações...`);
         setIsLoading(false);
-        isInitialRequestDone.current = true;
+        isInitialRequestDoneRef.current = true;
       }
       
-      // Configurar novos listeners se necessário
-      // ... codigo existente ...
+      // Configurar novos listeners
+      setupListeners();
     }
-    
-    // ... existing code ...
-  }, [componentId, roletaId, roletaNome, unifiedClient, logger]);
+  }, [componentId, roletaId, roletaNome, unifiedClient, logger, setupListeners]);
   
   // Efeito de cleanup quando componente é desmontado completamente
   useEffect(() => {
