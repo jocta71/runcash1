@@ -53,12 +53,8 @@ interface RouletteNumber {
 /**
  * Cliente unificado para dados de roletas
  */
-export default class UnifiedRouletteClient {
+class UnifiedRouletteClient {
   private static instance: UnifiedRouletteClient;
-  
-  // Adicionar controle global de callbacks para evitar duplicação
-  private static globalCallbacks: Map<string, Set<EventCallback>> = new Map();
-  private static connectionInProgress: boolean = false;
   
   // Estado
   private isInitialized = false;
@@ -78,8 +74,8 @@ export default class UnifiedRouletteClient {
   // Configuração
   private streamingEnabled = true;
   private pollingEnabled = true;
-  private pollingInterval = 100; // 10 segundos
-  private cacheTTL = 300; // 30 segundos
+  private pollingInterval = 10000; // 10 segundos
+  private cacheTTL = 30000; // 30 segundos
   private logEnabled = true;
   
   // Streaming
@@ -121,28 +117,6 @@ export default class UnifiedRouletteClient {
   private readonly ERROR_THRESHOLD: number = 3; // Número de erros antes de silenciar
   private readonly ERROR_COOLDOWN: number = 30000; // 30 segundos de cooldown entre logs completos
   
-  // Novo sistema de rastreamento de callbacks para evitar duplicações
-  private callbackRegistry: { 
-    [eventType: string]: { 
-      callback: (data: any) => void, 
-      componentId?: string,
-      registeredAt: Date 
-    }[] 
-  } = {};
-  
-  // Controle de requisições em andamento
-  private ongoingRequestCounter = 0;
-  private maxConcurrentRequests = 3;
-  
-  // Novas propriedades para cache de dados
-  private cache: any[] = [];
-  private cacheTimestamp: number = 0;
-  private isInitialDataLoaded = false;
-  private lastCacheLogTime: number | null = null;
-  private historicalData: Map<string, any[]> = new Map();
-  private requestQueue: { priority: string; execute: () => Promise<void> }[] = [];
-  private connectionAttempts: number = 0;
-  
   /**
    * Construtor privado para garantir singleton
    */
@@ -152,7 +126,7 @@ export default class UnifiedRouletteClient {
     // Aplicar opções
     this.streamingEnabled = options.streamingEnabled !== false;
     this.pollingEnabled = options.enablePolling !== false;
-    this.pollingInterval = options.pollingInterval || 100;
+    this.pollingInterval = options.pollingInterval || 10000;
     this.cacheTTL = options.cacheTTL || 30000;
     this.logEnabled = options.enableLogging !== false;
     this.streamReconnectInterval = options.reconnectInterval || 5000;
@@ -185,25 +159,15 @@ export default class UnifiedRouletteClient {
    */
   public static getInstance(options: RouletteClientOptions = {}): UnifiedRouletteClient {
     if (!UnifiedRouletteClient.instance) {
-      // Garantir que apenas uma instância é criada, mesmo com chamadas concorrentes
       UnifiedRouletteClient.instance = new UnifiedRouletteClient(options);
-      console.log('[UnifiedRouletteClient] Nova instância criada');
     }
     return UnifiedRouletteClient.instance;
   }
   
   /**
-   * Conecta ao stream de dados evitando múltiplas conexões simultâneas
+   * Conecta ao stream de dados
    */
   public connectStream(): void {
-    // Evitar múltiplas tentativas de conexão simultâneas
-    if (UnifiedRouletteClient.connectionInProgress) {
-      this.log('Conexão já em andamento, aguardando...');
-      return;
-    }
-    
-    UnifiedRouletteClient.connectionInProgress = true;
-    
     try {
       // Importar o módulo RouletteStreamClient e usar a instância centralizada
       import('../utils/RouletteStreamClient').then(async (module) => {
@@ -262,16 +226,14 @@ export default class UnifiedRouletteClient {
         }
       }).catch(error => {
         this.error('❌ Erro ao importar RouletteStreamClient:', error);
-        UnifiedRouletteClient.connectionInProgress = false;
       });
     } catch (error) {
       this.error('❌ Erro ao conectar ao stream:', error);
-      UnifiedRouletteClient.connectionInProgress = false;
     }
   }
   
   /**
-   * Desconecta do stream SSE de forma segura
+   * Desconecta do stream SSE
    */
   public disconnectStream(): void {
     if (!this.isStreamConnected && !this.isStreamConnecting) {
@@ -289,17 +251,31 @@ export default class UnifiedRouletteClient {
         }
       });
       
+      // Fechar a conexão
       this.eventSource.close();
       this.eventSource = null;
-      this.isStreamConnected = false;
-      this.isStreamConnecting = false;
-      UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
-      UnifiedRouletteClient.connectionInProgress = false;
     }
     
     if (this.streamReconnectTimer) {
-      clearTimeout(this.streamReconnectTimer);
+      window.clearTimeout(this.streamReconnectTimer);
       this.streamReconnectTimer = null;
+    }
+    
+    this.isStreamConnected = false;
+    this.isStreamConnecting = false;
+    this.streamReconnectAttempts = 0;
+    UnifiedRouletteClient.GLOBAL_CONNECTION_ATTEMPT = false;
+    UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+    UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+    
+    // Notificar sobre a desconexão
+    this.emit('disconnect', { timestamp: Date.now() });
+    EventBus.emit('roulette:stream-disconnected', { timestamp: new Date().toISOString() });
+    
+    // Iniciar polling como fallback se estiver habilitado
+    if (this.pollingEnabled && !this.pollingTimer) {
+      this.log('Iniciando polling após desconexão do stream');
+      this.startPolling();
     }
   }
   
@@ -814,109 +790,45 @@ export default class UnifiedRouletteClient {
   }
   
   /**
-   * Atualiza o cache interno com novos dados, garantindo a integridade e evitando atualizações desnecessárias
+   * Atualiza o cache com novos dados
    */
-  private updateCache(data: any): boolean {
-    if (!data) {
-      console.warn('[UnifiedRouletteClient] Tentativa de atualizar cache com dados inválidos');
-      return false;
-    }
-
-    // Controle de logs para evitar spam no console
-    const SHOULD_LOG_DEBUG = false; // Apenas ativar em desenvolvimento quando necessário
-    let lastCacheLogTime = this.lastCacheLogTime || 0;
-    const now = Date.now();
-    const LOG_INTERVAL = 5000; // Apenas registra logs a cada 5 segundos
-    const shouldLogNow = now - lastCacheLogTime > LOG_INTERVAL;
-    this.lastCacheLogTime = shouldLogNow ? now : lastCacheLogTime;
-
-    if (SHOULD_LOG_DEBUG && shouldLogNow) {
-      console.debug(`DEBUG: updateCache chamado com:`, data);
-    }
-
-    // Cache de dados por array (múltiplas roletas)
-    if (Array.isArray(data)) {
-      const validRoulettes = data.filter(item => 
-        item && 
-        (item.id || item.roleta_id || item.roulette_id) && 
-        (item.nome || item.name) && 
-        item.numero
-      );
-
-      if (SHOULD_LOG_DEBUG && shouldLogNow) {
-        console.debug(`DEBUG: Atualizando cache com array de dados. Items válidos: ${validRoulettes.length}`);
-      }
-
-      if (validRoulettes.length === 0) {
-        return false;
-      }
-
-      // Verificar se temos os mesmos dados que já estão no cache
-      if (this.cache.length > 0 && validRoulettes.length === this.cache.length) {
-        const cacheStr = JSON.stringify(this.cache);
-        const newDataStr = JSON.stringify(validRoulettes);
-        
-        if (cacheStr === newDataStr) {
-          if (SHOULD_LOG_DEBUG && shouldLogNow) {
-            console.debug(`DEBUG: Cache já contém os mesmos dados, ignorando atualização`);
-          }
-          return false;
-        }
-      }
-
-      // Atualizar cache apenas se tiver dados novos
-      this.cache = [...validRoulettes];
-      this.cacheTimestamp = Date.now();
-      this.isInitialDataLoaded = true;
-      
-      if (SHOULD_LOG_DEBUG && shouldLogNow) {
-        console.debug(`DEBUG: ${validRoulettes.length} roletas adicionadas ao cache`);
-      }
-      
-      return true;
-    } 
-    // Cache de dados para uma única roleta
-    else if (data && typeof data === 'object') {
-      const id = data.id || data.roleta_id || data.roulette_id;
-      const name = data.nome || data.name;
-      
-      if (!id || !name) {
-        if (SHOULD_LOG_DEBUG) {
-          console.debug(`DEBUG: Dados de roleta inválidos: ID ou nome ausentes`);
-        }
-        return false;
-      }
-      
-      // Verificar se já temos esta roleta no cache
-      const existingRouletteIndex = this.cache.findIndex(r => 
-        (r.id === id || r.roleta_id === id || r.roulette_id === id)
-      );
-      
-      if (existingRouletteIndex >= 0) {
-        const existingRoulette = this.cache[existingRouletteIndex];
-        const existingStr = JSON.stringify(existingRoulette);
-        const newStr = JSON.stringify(data);
-        
-        if (existingStr === newStr) {
-          if (SHOULD_LOG_DEBUG && shouldLogNow) {
-            console.debug(`DEBUG: Roleta ${name} já tem os mesmos dados no cache, ignorando atualização`);
-          }
-          return false;
-        }
-        
-        // Atualizar roleta existente
-        this.cache[existingRouletteIndex] = data;
-      } else {
-        // Adicionar nova roleta
-        this.cache.push(data);
-      }
-      
-      this.cacheTimestamp = Date.now();
-      this.isInitialDataLoaded = true;
-      return true;
-    }
+  private updateCache(data: any | any[]): void {
+    console.log('DEBUG: updateCache chamado com:', Array.isArray(data) ? `Array[${data.length}]` : 'Objeto individual');
     
-    return false;
+    if (Array.isArray(data)) {
+      // Com array de roletas - atualização completa
+      // Limpar o cache existente para dados atualizados
+      if (data.length > 0) {
+        console.log('DEBUG: Atualizando cache com array de dados. Items válidos:', 
+          data.filter(item => item && item.id).length);
+        
+        this.rouletteData.clear(); // Limpar dados antigos
+        
+        // Processar cada item
+        let validItemsCount = 0;
+        data.forEach(item => {
+          if (item && (item.id || item.roleta_id)) {
+            // Usar id prioritariamente, ou roleta_id como fallback
+            const id = item.id || item.roleta_id;
+            this.rouletteData.set(id, item);
+            validItemsCount++;
+          }
+        });
+        
+        console.log(`DEBUG: ${validItemsCount} roletas adicionadas ao cache`);
+        this.lastUpdateTime = Date.now();
+      } else {
+        console.log('DEBUG: Array vazio recebido, cache não atualizado');
+      }
+    } else if (data && (data.id || data.roleta_id)) {
+      // Atualizar uma única roleta
+      const id = data.id || data.roleta_id;
+      this.rouletteData.set(id, data);
+      console.log(`DEBUG: Cache atualizado para roleta individual ${id}`);
+      this.lastUpdateTime = Date.now();
+    } else {
+      console.log('DEBUG: Dados inválidos recebidos em updateCache, nada atualizado');
+    }
   }
   
   /**
@@ -932,85 +844,109 @@ export default class UnifiedRouletteClient {
   }
   
   /**
-   * Remove um callback para um tipo de evento específico
+   * Remove um callback de eventos (alias para unsubscribe)
    */
-  public unsubscribe(eventType: string, callback?: (data: any) => void, componentId?: string): void {
-    if (!this.callbackRegistry[eventType]) {
+  public off(event: string, callback: (data: any) => void): void {
+    this.unsubscribe(event, callback);
+  }
+  
+  /**
+   * Remove um callback de eventos
+   */
+  public unsubscribe(event: string, callback: (data: any) => void): void {
+    if (typeof callback !== 'function') {
+      this.error('❌ Tentativa de remover callback inválido');
       return;
     }
-
-    if (callback && !componentId) {
-      // Remover por função de callback
-      this.callbackRegistry[eventType] = this.callbackRegistry[eventType].filter(
-        entry => entry.callback.toString() !== callback.toString()
-      );
-    } else if (componentId) {
-      // Remover todos os callbacks deste componente
-      this.callbackRegistry[eventType] = this.callbackRegistry[eventType].filter(
-        entry => entry.componentId !== componentId
-      );
-      console.log(`[UnifiedRouletteClient] 🗑️ Removidos callbacks do componente ${componentId} para evento ${eventType}`);
-    }
     
-    // Manter compatibilidade com sistema antigo de callbacks
-    if (callback) {
-      // Remover do registro global
-      if (UnifiedRouletteClient.globalCallbacks.has(eventType)) {
-        const callbacks = UnifiedRouletteClient.globalCallbacks.get(eventType);
-        callbacks?.delete(callback);
+    try {
+      if (this.eventCallbacks.has(event)) {
+        const callbacks = this.eventCallbacks.get(event)!;
+        const initialSize = callbacks.size;
+        
+        // Problema: O callback passado pode não ser a mesma referência que foi usada no subscribe
+        // Solução: Procurar pelo callback inspecionando o código fonte das funções
+        let removed = false;
+        
+        // Primeiro tentar remover diretamente (caso seja a mesma referência)
+        callbacks.delete(callback);
+        
+        // Se não conseguir remover diretamente, comparar o código fonte das funções
+        if (callbacks.size === initialSize) {
+          // Obter a string do callback original
+          const originalCallbackString = callback.toString();
+          
+          // Criar uma nova coleção para não modificar a original durante a iteração
+          const callbacksArray = Array.from(callbacks);
+          
+          for (const registeredCallback of callbacksArray) {
+            // Verificar se é uma função anônima com o mesmo corpo
+            if (registeredCallback.toString() === originalCallbackString) {
+              callbacks.delete(registeredCallback);
+              removed = true;
+              this.log(`➖ Callback removido do evento ${event} por comparação de string`);
+              break;
+            }
+          }
+        } else {
+          removed = true;
+        }
+        
+        if (removed || callbacks.size < initialSize) {
+          this.log(`➖ Callback removido do evento: ${event}`);
+        } else {
+          this.warn('⚠️ Callback não encontrado para remoção');
+        }
       }
-      
-      // Remover do registro local
-      if (this.eventCallbacks.has(eventType)) {
-        this.eventCallbacks.get(eventType)?.delete(callback);
-      }
+    } catch (error) {
+      this.error('❌ Erro ao remover callback:', error);
     }
   }
   
   /**
    * Adiciona um callback para eventos
    */
-  public subscribe(event: string, callback: (data: any) => void, componentId?: string): void {
-    if (!this.callbackRegistry[event]) {
-      this.callbackRegistry[event] = [];
-    }
-
-    // Verificar se esse callback já está registrado para este componente
-    const isDuplicate = this.callbackRegistry[event].some(entry => {
-      if (componentId && entry.componentId === componentId) {
-        console.log(`[UnifiedRouletteClient] 🔄 Callback já registrado para componente ${componentId}, ignorando`);
-        return true;
-      }
-      
-      // Também verificar se é a mesma função (modo rigoroso)
-      return entry.callback.toString() === callback.toString();
-    });
-
-    if (isDuplicate) {
+  public subscribe(event: string, callback: (data: any) => void): void {
+    if (typeof callback !== 'function') {
+      this.error('❌ Tentativa de adicionar callback inválido:', {
+        type: typeof callback,
+        value: callback,
+        stack: new Error().stack
+      });
       return;
     }
 
-    // Verificar se há muitos callbacks do mesmo tipo (mais de 3 para o mesmo evento é suspeito)
-    if (this.callbackRegistry[event].length >= 3 && !componentId) {
-      console.warn(`[UnifiedRouletteClient] ⚠️ Muitos callbacks (${this.callbackRegistry[event].length}) registrados para evento ${event}`);
+    if (!this.eventCallbacks.has(event)) {
+      this.eventCallbacks.set(event, new Set());
+    }
+    
+    // Verificar se o callback já está registrado
+    if (this.eventCallbacks.get(event)!.has(callback)) {
+      this.warn('⚠️ Callback já registrado para evento:', event);
+      return;
     }
 
-    // Registrar novo callback com metadados
-    this.callbackRegistry[event].push({
-      callback,
-      componentId,
-      registeredAt: new Date()
-    });
+    try {
+      // Adicionar callback com validação adicional
+      const validatedCallback = (data: any) => {
+        try {
+          if (typeof callback === 'function') {
+            callback(data);
+          } else {
+            this.error('⚠️ Callback se tornou inválido durante execução');
+            this.unsubscribe(event, callback);
+          }
+        } catch (error) {
+          this.error('❌ Erro ao executar callback:', error);
+          this.unsubscribe(event, callback);
+        }
+      };
 
-    console.log(`[UnifiedRouletteClient] ➕ Novo callback registrado para evento: ${event}${componentId ? ` (componente: ${componentId})` : ''}`);
-  }
-  
-  /**
-   * Calcula um hash simples para uma função callback
-   */
-  private getCallbackHash(callback: Function): string {
-    // Uma abordagem simples para identificar funções similares
-    return callback.toString().substring(0, 50);
+      this.eventCallbacks.get(event)!.add(validatedCallback);
+      this.log(`➕ Novo callback registrado para evento: ${event}`);
+    } catch (error) {
+      this.error('❌ Erro ao registrar callback:', error);
+    }
   }
   
   /**
@@ -1089,14 +1025,7 @@ export default class UnifiedRouletteClient {
    * Obtém dados de uma roleta específica
    */
   public getRouletteById(id: string): any {
-    if (!id) {
-      return null;
-    }
-    
-    // Procurar no array de cache
-    return this.cache.find(item => 
-      item.id === id || item.roleta_id === id || item.roulette_id === id
-    ) || null;
+    return this.rouletteData.get(id) || null;
   }
   
   /**
@@ -1113,115 +1042,120 @@ export default class UnifiedRouletteClient {
   }
   
   /**
-   * Obtém todas as roletas disponíveis
+   * Obtém todos os dados de roletas
    */
   public getAllRoulettes(): any[] {
-    return [...this.cache];
+    return Array.from(this.rouletteData.values());
   }
   
   /**
-   * Obtém o histórico pré-carregado para uma roleta específica
-   */
-  public getPreloadedHistory(rouletteName: string): any[] {
-    if (!rouletteName || typeof rouletteName !== 'string' || !this.historicalData) {
-      return [];
-    }
-    
-    return this.historicalData.get(rouletteName.toLowerCase()) || [];
-  }
-  
-  /**
-   * Obtém o status atual do cliente
+   * Obtém o status atual do serviço
    */
   public getStatus(): any {
     return {
-      isConnected: this.isStreamConnected,
-      isCacheValid: this.cache.length > 0 && (Date.now() - this.cacheTimestamp) < 60000,
-      lastUpdateTime: this.cacheTimestamp,
-      connectionsAttempts: this.connectionAttempts,
-      ongoingRequests: this.ongoingRequestCounter,
-      queuedRequests: this.requestQueue.length
+      isStreamConnected: this.isStreamConnected,
+      isStreamConnecting: this.isStreamConnecting,
+      streamReconnectAttempts: this.streamReconnectAttempts,
+      isPollingActive: !!this.pollingTimer,
+      lastEventId: this.lastEventId,
+      lastReceivedAt: this.lastReceivedAt,
+      lastUpdateTime: this.lastUpdateTime,
+      cacheSize: this.rouletteData.size,
+      isCacheValid: this.isCacheValid()
     };
   }
   
   /**
-   * Força uma atualização dos dados de todas as roletas, com gerenciamento de concorrência
+   * Força uma atualização imediata dos dados
+   * Tenta reconectar o streaming se não estiver conectado
    */
-  public async forceUpdate(): Promise<any[]> {
-    // Se já estamos fazendo uma atualização, retornar imediatamente dados em cache
-    if (this.isFetching) {
-      console.log('[UnifiedRouletteClient] Já existe uma atualização forçada em andamento, retornando dados em cache');
-      return this.getAllRoulettes();
+  public forceUpdate(): Promise<any[]> {
+    // Se streaming não estiver conectado, tenta reconectar
+    if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
+      this.log('Forçando reconexão do stream');
+      this.connectStream();
+      return Promise.resolve(Array.from(this.rouletteData.values()));
     }
     
-    return this.manageRequest(async () => {
-      this.isFetching = true;
-      console.log('[UnifiedRouletteClient] Forçando atualização de dados...');
-
-      try {
-        const data = await this.fetchRouletteData();
-        
-        // Evitar múltiplas emissões de eventos para os mesmos dados
-        if (data && data.length > 0) {
-          // Disparar o evento usando emitEvent em vez de chamar callbacks diretamente
-          console.log(`[UnifiedRouletteClient] Dados atualizados: ${data.length} roletas`);
-          this.emitEvent('update', data);
-        } else {
-          console.log('[UnifiedRouletteClient] Sem dados novos para atualizar');
-        }
-        
-        return data;
-      } finally {
-        this.isFetching = false;
-      }
-    }, 'high');
+    // Caso contrário, busca dados via REST
+    return this.fetchRouletteData();
   }
   
   /**
-   * Limpa todos os recursos usados pelo cliente
+   * Limpa recursos ao desmontar
    */
   public dispose(): void {
-    // Desconectar qualquer EventSource ativo
-    this.disconnectStream();
+    this.log('Limpando recursos e fechando conexões');
     
-    // Limpar timers
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
-    }
-    
-    if (this.streamReconnectTimer) {
-      clearTimeout(this.streamReconnectTimer);
-      this.streamReconnectTimer = null;
-    }
-    
-    // Limpar callbacks
-    this.eventCallbacks.clear();
-    
-    // Desconectar WebSocket
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
-    }
-    
-    // Limpar o estado da instância
-    this.isInitialized = false;
-    this.isFetching = false;
-    this.isStreamConnected = false;
-    this.isStreamConnecting = false;
-    this.webSocketConnected = false;
-    
-    // Remover ouvintes de eventos
+    // Remover listeners de eventos
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.handleVisibilityChange);
       window.removeEventListener('focus', this.handleFocus);
       window.removeEventListener('blur', this.handleBlur);
     }
     
-    // Resetar configurações estáticas
+    // Parar polling
+    this.stopPolling();
+    
+    // Fechar conexão SSE associada a esta instância
+    if (this.eventSource) {
+      this.log('Fechando conexão EventSource');
+      
+      // Remover do registro global apenas a conexão desta instância
+      UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.forEach((eventSource, url) => {
+        if (eventSource === this.eventSource) {
+          this.log(`Removendo conexão para ${url} do registro global`);
+          UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.delete(url);
+        }
+      });
+      
+      this.eventSource.close();
+      this.eventSource = null;
+      this.isStreamConnected = false;
+      this.isStreamConnecting = false;
+    }
+    
+    // Limpar timers
+    if (this.streamReconnectTimer) {
+      window.clearTimeout(this.streamReconnectTimer);
+      this.streamReconnectTimer = null;
+    }
+    
+    // Fechar WebSocket
+    if (this.socket) {
+      this.log('Fechando conexão WebSocket');
+      this.socket.close();
+      this.socket = null;
+      this.webSocketConnected = false;
+    }
+    
+    if (this.webSocketReconnectTimer) {
+      window.clearTimeout(this.webSocketReconnectTimer);
+      this.webSocketReconnectTimer = null;
+    }
+    
+    // Limpar caches
+    this.rouletteData.clear();
+    this.initialHistoricalDataCache.clear();
+    
+    // Resetar estado
+    this.isInitialized = false;
+    
+    // Limpar callbacks de eventos
+    this.eventCallbacks.clear();
+    
+    // Se esta for a instância singleton, limpá-la e atualizar flags globais
+    if (UnifiedRouletteClient.instance === this) {
+      // Se não houver mais conexões SSE ativas, resetar as flags globais
+      if (UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size === 0) {
         UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
         UnifiedRouletteClient.SSE_CONNECTION_ID = null;
-    UnifiedRouletteClient.connectionInProgress = false;
+      }
+      
+      UnifiedRouletteClient.instance = null as any;
+    }
+    
+    this.log('Limpeza completa');
   }
   
   /**
@@ -1623,106 +1557,67 @@ export default class UnifiedRouletteClient {
 
   // --- Função para Buscar e Cachear Histórico Inicial ---
   private async fetchAndCacheInitialHistory(): Promise<void> {
-    // Se já estiver buscando, apenas retornar a promessa existente
-    if (this.isFetchingInitialHistory && this.initialHistoryFetchPromise) {
-      return this.initialHistoryFetchPromise;
+    // Evitar múltiplas buscas simultâneas ou repetidas
+    if (this.isFetchingInitialHistory || this.initialHistoricalDataCache.size > 0) {
+      this.log('Busca de histórico inicial já em andamento ou concluída.');
+      // Se já estiver buscando, retorna a promise existente
+      if (this.initialHistoryFetchPromise) {
+        return this.initialHistoryFetchPromise;
+      }
+      return Promise.resolve();
     }
-    
+
     this.isFetchingInitialHistory = true;
-    
-    // Criar uma promessa que será resolvida quando os dados forem carregados
-    this.initialHistoryFetchPromise = new Promise<void>(async (resolve) => {
+    this.log('Iniciando busca do histórico inicial para todas as roletas...');
+
+    this.initialHistoryFetchPromise = (async () => {
+      let apiUrl = ''; // Declarar fora para estar acessível no catch/finally
       try {
-        this.log('Buscando histórico inicial de:', getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES));
-        
-        const response = await axios.get(getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES));
-        
-        if (response && response.data) {
-          // Verificar o formato da resposta
-          let historicalData: any;
+        // <<< Usar getFullUrl para construir a URL completa >>>
+        apiUrl = getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
+        this.log(`Buscando histórico inicial de: ${apiUrl}`); // Log para depuração
+        const response = await axios.get<{ success: boolean; data: Record<string, RouletteNumber[]>; message?: string }>(apiUrl);
+
+        if (response.data && response.data.success && response.data.data) {
+          const historicalData = response.data.data;
+          const rouletteNames = Object.keys(historicalData);
+
+          // Limpar cache antigo antes de popular
+          this.initialHistoricalDataCache.clear();
+
+          // Popular o cache
+          rouletteNames.forEach(name => {
+            if (Array.isArray(historicalData[name])) {
+              this.initialHistoricalDataCache.set(name, historicalData[name]);
+            }
+          });
+
+          this.log(`Histórico inicial carregado e cacheado para ${rouletteNames.length} roletas.`);
           
-          if (response.data.success && response.data.data) {
-            // Formato { success: true, data: [...] }
-            historicalData = response.data.data;
-          } else if (Array.isArray(response.data)) {
-            // Formato de array direto
-            historicalData = response.data;
-          } else if (typeof response.data === 'object') {
-            // Formato de objeto com roletas como propriedades
-            historicalData = response.data;
-          } else {
-            throw new Error('Formato de resposta de histórico inválido');
-          }
-          
-          // Processar os dados conforme o formato
-          if (Array.isArray(historicalData)) {
-            // Array de roletas, cada uma com seu histórico
-            historicalData.forEach(roulette => {
-              const name = roulette.name || roulette.nome;
-              if (name && Array.isArray(roulette.historico || roulette.history || roulette.numero)) {
-                const history = roulette.historico || roulette.history || roulette.numero;
-                this.historicalData.set(name.toLowerCase(), this.formatHistoricalNumbers(history));
-              }
-            });
-          } else if (typeof historicalData === 'object') {
-            // Objeto com nomes de roletas como chaves
-            Object.keys(historicalData).forEach(rouletteName => {
-              if (Array.isArray(historicalData[rouletteName])) {
-                this.historicalData.set(rouletteName.toLowerCase(), 
-                  this.formatHistoricalNumbers(historicalData[rouletteName]));
-              }
-            });
-          }
-          
-          // Notificar componentes interessados que os dados históricos estão prontos
-          this.emit('historical-data-ready', this.historicalData);
+          // Emitir evento (opcional)
+          this.emit('initialHistoryLoaded', this.initialHistoricalDataCache);
+
+        } else {
+          throw new Error(response.data?.message || 'Falha ao buscar dados históricos iniciais: resposta inválida');
         }
-      } catch (error) {
-        this.error('Erro ao buscar histórico inicial:', error);
-        this.emit('historical-data-error', error);
+
+      } catch (error: any) {
+         // Usar apiUrl se disponível, senão o endpoint relativo
+         const endpointDesc = apiUrl || ENDPOINTS.HISTORICAL.ALL_ROULETTES;
+         this.error(`Erro ao buscar histórico de ${endpointDesc}:`, error.message || error);
+        // Limpar cache em caso de erro para permitir nova tentativa
+        this.initialHistoricalDataCache.clear();
+        // Emitir evento de erro (opcional)
+        this.emit('initialHistoryError', error);
+        // Rejeitar a promise para que quem estiver aguardando saiba do erro
+        throw error;
       } finally {
         this.isFetchingInitialHistory = false;
-        resolve();
+        // Não limpar initialHistoryFetchPromise aqui, para que futuras chamadas saibam que já foi tentado
       }
-    });
-    
+    })();
+
     return this.initialHistoryFetchPromise;
-  }
-    
-  /**
-   * Formata números históricos para o padrão interno
-   */
-  private formatHistoricalNumbers(numbers: any[]): RouletteNumber[] {
-    if (!Array.isArray(numbers)) return [];
-    
-    return numbers.map(item => {
-      // Se já for do formato correto, apenas retornar
-      if (typeof item === 'object' && 'numero' in item && 'timestamp' in item) {
-        return item as RouletteNumber;
-      }
-      
-      // Se for apenas o número
-      if (typeof item === 'number') {
-        return {
-          numero: item,
-          timestamp: new Date().toISOString()
-        };
-      }
-      
-      // Se for um objeto com formato diferente
-      if (typeof item === 'object') {
-        return {
-          numero: item.numero || item.number || 0,
-          timestamp: item.timestamp || item.time || new Date().toISOString()
-        };
-      }
-      
-      // Caso padrão
-      return {
-        numero: Number(item) || 0,
-        timestamp: new Date().toISOString()
-      };
-    });
   }
 
   // --- Novo Método Público para Acessar o Cache ---
@@ -1928,157 +1823,7 @@ export default class UnifiedRouletteClient {
       this.error('Erro ao notificar subscribers:', error);
     }
   }
+}
 
-  /**
-   * Gerencia requisições concorrentes para evitar bloqueios
-   */
-  private async manageRequest<T>(requestFn: () => Promise<T>, priority: 'high' | 'normal' | 'low' = 'normal'): Promise<T> {
-    // Para requisições de alta prioridade, executar imediatamente
-    if (priority === 'high') {
-      console.log('[UnifiedRouletteClient] ⚡ Requisição de alta prioridade sendo executada imediatamente');
-      return requestFn();
-    }
-    
-    // Se já temos muitas requisições, verificar o tipo de prioridade
-    if (this.ongoingRequestCounter >= this.maxConcurrentRequests) {
-      // Para requisições de baixa prioridade, aguardar mais tempo
-      if (priority === 'low') {
-        console.log(`[UnifiedRouletteClient] ⏳ Requisição de baixa prioridade aguardando (${this.ongoingRequestCounter}/${this.maxConcurrentRequests})`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } else {
-        // Para requisições normais, aguardar menos tempo
-        console.log(`[UnifiedRouletteClient] ⏳ Requisição normal aguardando (${this.ongoingRequestCounter}/${this.maxConcurrentRequests})`);
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      
-      // Se ainda temos muitas requisições após aguardar, retornar dados em cache
-      if (this.ongoingRequestCounter >= this.maxConcurrentRequests) {
-        console.log('[UnifiedRouletteClient] 🔄 Usando dados em cache, muitas requisições em andamento');
-        // @ts-ignore - ignoramos o tipo aqui pois estamos retornando dados de cache
-        return this.getAllRoulettes() as T;
-      }
-    }
-
-    // Executar requisição
-    this.ongoingRequestCounter++;
-    try {
-      return await requestFn();
-    } finally {
-      this.ongoingRequestCounter--;
-    }
-  }
-
-  /**
-   * Limpa todos os callbacks registrados para um componente específico
-   */
-  public unregisterComponent(componentId: string): void {
-    Object.keys(this.callbackRegistry).forEach(eventType => {
-      this.unsubscribe(eventType, undefined, componentId);
-    });
-    console.log(`[UnifiedRouletteClient] 🧹 Componente ${componentId} completamente desregistrado`);
-  }
-
-  /**
-   * Diagnóstico do estado dos callbacks registrados
-   */
-  public getRegisteredCallbacksStats(): any {
-    const stats: any = {};
-    Object.keys(this.callbackRegistry).forEach(eventType => {
-      stats[eventType] = {
-        total: this.callbackRegistry[eventType].length,
-        byComponent: {}
-      };
-      
-      this.callbackRegistry[eventType].forEach(entry => {
-        const componentId = entry.componentId || 'anonymous';
-        if (!stats[eventType].byComponent[componentId]) {
-          stats[eventType].byComponent[componentId] = 0;
-        }
-        stats[eventType].byComponent[componentId]++;
-      });
-    });
-    
-    return stats;
-  }
-
-  /**
-   * Dispara um evento para todos os callbacks registrados
-   */
-  private emitEvent(eventType: string, data: any): void {
-    if (!this.callbackRegistry[eventType] || this.callbackRegistry[eventType].length === 0) {
-      return;
-    }
-
-    // Criamos uma cópia para evitar problemas se um callback modificar a lista durante a iteração
-    const callbacks = [...this.callbackRegistry[eventType]];
-    
-    console.log(`[UnifiedRouletteClient] 📣 Disparando evento ${eventType} para ${callbacks.length} callbacks`);
-    
-    // Agrupar callbacks por componente para evitar duplicações por componente
-    const componentGroups = new Map<string, Array<{ callback: (data: any) => void, componentId?: string }>>(); 
-    
-    callbacks.forEach(entry => {
-      const groupKey = entry.componentId || 'anonymous';
-      if (!componentGroups.has(groupKey)) {
-        componentGroups.set(groupKey, []);
-      }
-      componentGroups.get(groupKey)!.push(entry);
-    });
-    
-    // Executar callbacks agrupados por componente
-    componentGroups.forEach((entries, componentId) => {
-      try {
-        // Para cada componente, executar apenas o callback mais recente
-        // (para eventos que devem ter apenas um handler por componente)
-        if (eventType === 'update' || eventType === 'historical-data-ready') {
-          const mostRecentEntry = entries[entries.length - 1];
-          mostRecentEntry.callback(data);
-        } 
-        // Para outros eventos, executar todos os callbacks
-        else {
-          entries.forEach(entry => {
-            try {
-              entry.callback(data);
-            } catch (error) {
-              console.error(`[UnifiedRouletteClient] Erro ao executar callback para evento ${eventType}:`, error);
-            }
-          });
-        }
-      } catch (error) {
-        console.error(`[UnifiedRouletteClient] Erro ao executar callbacks para componente ${componentId}:`, error);
-      }
-    });
-    
-    // Manter compatibilidade com o sistema antigo
-    this.notifyCallbacks(eventType, data);
-  }
-
-  /**
-   * Notifica os callbacks registrados (sistema antigo)
-   */
-  private notifyCallbacks(event: string, data: any): void {
-    // Notificar callbacks globais
-    if (UnifiedRouletteClient.globalCallbacks.has(event)) {
-      const callbacks = UnifiedRouletteClient.globalCallbacks.get(event);
-      callbacks?.forEach(callback => {
-        try {
-          callback(data);
-        } catch (err) {
-          console.error(`[UnifiedRouletteClient] Erro ao executar callback global:`, err);
-        }
-      });
-    }
-    
-    // Notificar callbacks locais
-    if (this.eventCallbacks.has(event)) {
-      const callbacks = this.eventCallbacks.get(event);
-      callbacks?.forEach(callback => {
-        try {
-          callback(data);
-        } catch (err) {
-          console.error(`[UnifiedRouletteClient] Erro ao executar callback local:`, err);
-        }
-      });
-    }
-  }
-} 
+// Exportar singleton
+export default UnifiedRouletteClient; 
