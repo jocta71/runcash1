@@ -23,13 +23,48 @@ export const UUID_TO_NUMERIC = {
  * Nomes amigáveis para roletas
  */
 export const ROULETTE_NAMES = {
+  // Roletas Evolution Gaming
+  "2010011": "Deutsches Roulette",
+  "2010012": "American Roulette",
   "2010016": "Immersive Roulette",
-  "2380335": "Brazilian Mega Roulette",
+  "2010017": "Ruleta Automática",
+  "2010031": "Jawhara Roulette",
+  "2010033": "Lightning Roulette",
+  "2010045": "Lightning Roulette",
+  "2010048": "Dansk Roulette",
+  "2010049": "Ruletka Live",
+  "2010059": "Bucharest Roulette",
   "2010065": "Bucharest Auto-Roulette",
   "2010096": "Speed Auto Roulette",
-  "2010017": "Ruleta Automática",
+  "2010097": "Instant Roulette",
   "2010098": "Auto-Roulette VIP",
-  "2010045": "Lightning Roulette"
+  "2010099": "Football Studio Roulette",
+  "2010100": "Venezia Roulette",
+  "2010106": "Türkçe Rulet",
+  "2010108": "Dragonara Roulette",
+  "2010110": "Hippodrome Grand Casino",
+  "2010143": "Ruleta Relámpago en Vivo",
+  "2010165": "Roulette",
+  "2010170": "Lightning Roulette Italia",
+  "2010336": "Türkçe Lightning Rulet",
+  "2010440": "XXXtreme Lightning Roulette",
+  "2010565": "Gold Vault Roulette",
+  
+  // Roletas Pragmatic
+  "2380010": "Speed Roulette 1",
+  "2380032": "Russian Roulette",
+  "2380033": "German Roulette",
+  "2380034": "Roulette Italia Tricolore",
+  "2380038": "Roulette Macao",
+  "2380039": "Turkish Roulette",
+  "2380049": "Mega Roulette",
+  "2380064": "Roulette 1",
+  "2380117": "VIP Roulette",
+  "2380159": "Romanian Roulette",
+  "2380335": "Brazilian Mega Roulette",
+  "2380346": "VIP Auto Roulette",
+  "2380373": "Fortune Roulette",
+  "2380390": "Immersive Roulette Deluxe"
 };
 
 /**
@@ -159,7 +194,16 @@ export function transformRouletteData(rawData: any) {
     }
     
     // Nome preservado da fonte original
-    const name = rawData.nome || rawData.name || `Roleta ${originalId}`;
+    // Verificar se existe um nome amigável no mapeamento para este ID
+    let name = rawData.nome || rawData.name || '';
+    
+    // Se o nome ainda estiver vazio, tentar usar o mapeamento
+    if (!name && originalId && ROULETTE_NAMES[originalId]) {
+      name = ROULETTE_NAMES[originalId];
+    } else if (!name) {
+      // Se não encontrou no mapeamento, usar ID como fallback
+      name = `Roleta ${originalId}`;
+    }
     
     console.log(`[Transformer] Processando roleta: ${name} (ID: ${originalId}), Números: ${processedNumbers.length}`);
     
