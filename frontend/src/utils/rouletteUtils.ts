@@ -48,6 +48,7 @@ export function getRouletteImage(rouletteName: string, provider: string): string
   else if (provider.toLowerCase().includes('evolution')) {
     // Imagens da Evolution com URLs reais
     const evolutionImageMap: Record<string, string> = {
+      "roulette": "https://bshots.egcvi.com/thumbnail/green_imr_med_L.jpg",
       "lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
       "immersive roulette": "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg",
       "xxxtreme lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
@@ -111,6 +112,7 @@ export function mapRouletteProvider(rouletteName: string): string {
   
   // Mapeamento de roletas da Evolution
   const evolutionRoulettes = [
+    'roulette',
     'lightning roulette',
     'immersive roulette',
     'xxxtreme lightning roulette',
