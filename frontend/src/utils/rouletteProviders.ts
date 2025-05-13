@@ -9,65 +9,9 @@ export interface RouletteProvider {
 // Mapeamento de identificadores nos nomes para provedores
 const providerMapping: Record<string, string> = {
   // Evolution Gaming
-  'evolution': 'Evolution',
-  'lightning': 'Evolution',
-  'immersive': 'Evolution',
-  'xxxtreme': 'Evolution',
-  'red door': 'Evolution',
-  'instant': 'Evolution',
-  
-  // Pragmatic Play
-  'pragmatic': 'Pragmatic Play',
-  'mega roulette': 'Pragmatic Play',
-  'powerup': 'Pragmatic Play',
-  'power up': 'Pragmatic Play',
-  'azure': 'Pragmatic Play',
-  'ruby': 'Pragmatic Play',
-  'lucky 6': 'Pragmatic Play',
-  'speed auto': 'Pragmatic Play',
-  'macao': 'Pragmatic Play',
-  
-  // Playtech
-  'playtech': 'Playtech',
-  'age of the gods': 'Playtech',
-  'quantum': 'Playtech',
-  'prestige': 'Playtech',
-  'premium': 'Playtech',
-  
-  // Authentic Gaming
-  'authentic': 'Authentic Gaming',
-  'blaze': 'Authentic Gaming',
-  'viva las vegas': 'Authentic Gaming',
-  'grand': 'Authentic Gaming',
-  
-  // Ezugi
-  'ezugi': 'Ezugi',
-  'salsa': 'Ezugi',
-  'portomaso': 'Ezugi',
-  'oracle': 'Ezugi',
-  
-  // NetEnt
-  'netent': 'NetEnt',
-  'advanced': 'NetEnt',
-  'professional': 'NetEnt',
-  
-  // Microgaming
-  'microgaming': 'Microgaming',
-  'european gold': 'Microgaming',
-  
-  // BetGames
-  'betgames': 'BetGames',
-  
-  // Vivo Gaming
-  'vivo': 'Vivo Gaming',
-  'chroma': 'Vivo Gaming',
-  
-  // Stakelogic
-  'stakelogic': 'Stakelogic',
-  'vegas drops': 'Stakelogic',
-  
-  // Para nomes de "card"
-  'card': 'Casino Cards'
+   
+
+
 };
 
 // Mapeamento explícito de roletas para cada provedor
@@ -130,16 +74,6 @@ export const providerRoulettesMap: Record<string, string[]> = {
     'European Roulette',
     'Chroma Roulette'
   ],
-  'Stakelogic': [
-    'Vegas Drops Roulette',
-    'Stakelogic Roulette'
-  ],
-  'Casino Cards': [
-    'Card Roulette',
-    'Cards Roulette',
-    'Card Game',
-    'Card Table'
-  ],
   'Outro': []
 };
 
@@ -173,6 +107,8 @@ export function identifyProvider(rouletteName: string): string {
       return provider;
     }
   }
+
+
   
   // Se não encontrou, retorna "Outro"
   return 'Outro';

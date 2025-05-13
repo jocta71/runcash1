@@ -5,6 +5,71 @@
 import { RouletteNumber } from '../types/roulette';
 
 /**
+ * Mapeia os nomes das roletas para seus respectivos provedores
+ * @param rouletteName Nome da roleta
+ * @returns Nome do provedor (Evolution ou Pragmatic Play)
+ */
+export function mapRouletteProvider(rouletteName: string): string {
+  // Normaliza o nome da roleta para comparação (minúsculas, sem espaços extras)
+  const normalizedName = rouletteName.toLowerCase().trim();
+  
+  // Mapeamento de roletas da Evolution
+  const evolutionRoulettes = [
+    'lightning roulette',
+    'immersive roulette',
+    'xxxtreme lightning roulette',
+    'gold vault roulette',
+    'dansk roulette',
+    'vip roulette',
+    'ruleta relámpago en vivo',
+    'speed auto roulette',
+    'bucharest auto-roulette',
+    'bucharest roulette',
+    'dragonara roulette',
+    'lightning roulette italia',
+    'venezia roulette',
+    'auto-roulette vip',
+    'american roulette',
+    'hippodrome grand casino',
+    'jawhara roulette',
+    'türkçe rulet',
+    'deutsches roulette',
+    'ruletka live',
+    'türkçe lightning rulet',
+    'football studio roulette'
+  ];
+  
+  // Mapeamento de roletas da Pragmatic Play
+  const pragmaticRoulettes = [
+    'fortune roulette',
+    'immersive roulette deluxe',
+    'vip auto roulette',
+    'mega roulette',
+    'roulette 1',
+    'romanian roulette',
+    'brazilian mega roulette',
+    'speed roulette 1',
+    'roulette macao',
+    'german roulette',
+    'russian roulette',
+    'roulette italia tricolore',
+    'turkish roulette'
+  ];
+  
+  // Verifica se o nome está nas listas
+  if (evolutionRoulettes.some(name => normalizedName.includes(name.toLowerCase()))) {
+    return 'Evolution';
+  }
+  
+  if (pragmaticRoulettes.some(name => normalizedName.includes(name.toLowerCase()))) {
+    return 'Pragmatic Play';
+  }
+  
+  // Se não encontrar correspondência, retorna o valor padrão
+  return 'Desconhecido';
+}
+
+/**
  * Determina a cor do número da roleta
  * @param num Número da roleta
  * @returns Cor correspondente (verde, vermelho, preto)
@@ -122,7 +187,13 @@ export function processRouletteData(roulette: any): any {
   const winRate = roulette.winRate !== undefined ? roulette.winRate : Math.random() * 100;
   const streak = roulette.streak !== undefined ? roulette.streak : Math.floor(Math.random() * 5);
   const finalUpdateTime = roulette.lastUpdateTime || roulette.timestamp ? new Date(roulette.lastUpdateTime || roulette.timestamp).getTime() : Date.now();
-  const currentProvider = roulette.provider || 'Desconhecido';
+  
+  // Identificar o provedor com base no nome da roleta se não estiver explícito
+  let currentProvider = roulette.provider || 'Desconhecido';
+  if (currentProvider === 'Desconhecido') {
+    currentProvider = mapRouletteProvider(currentName);
+  }
+  
   const currentStatus = roulette.status || (numerosComTimestamp.length > 0 ? 'online' : 'offline');
   const isHistorical = roulette.isHistorical || false;
 
