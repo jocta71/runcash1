@@ -38,7 +38,7 @@ export function getRouletteImage(rouletteName: string, provider: string): string
       "fortune roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg?v=0.9804522165134438",
       "immersive roulette deluxe": "https://client.pragmaticplaylive.net/desktop/assets/snaps/25irclas25imrcrw/poster.jpg?v=0.9804522165134438",
       "vip auto roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/ar25vipautorw251/poster.jpg?v=0.9804522165134438",
-      "mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg?v=0.9804522165134438",
+      "mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/1hl65ce1lxuqdrkr/poster.jpg?v=0.41359314296801764
       "roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg?v=0.9804522165134438",
       "romanian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/romania233rwl291/poster.jpg?v=0.9804522165134438",
       "brazilian mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg?v=0.9804522165134438",
