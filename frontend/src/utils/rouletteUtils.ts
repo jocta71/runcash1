@@ -40,8 +40,7 @@ export function getRouletteImage(rouletteName: string, provider: string): string
       }
     }
     
-    // Fallback para Pragmatic Play
-    return "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg?v=0.9804522165134438";
+ 
   } 
   else if (provider.toLowerCase().includes('evolution')) {
     // Imagens da Evolution com URLs reais
@@ -77,13 +76,10 @@ export function getRouletteImage(rouletteName: string, provider: string): string
         return imageUrl;
       }
     }
-    
-    // Fallback para Evolution
-    return "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg";
+   
   }
   
-  // Imagem padrão se o provedor não for reconhecido
-  return "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg";
+  
 }
 
 /**
