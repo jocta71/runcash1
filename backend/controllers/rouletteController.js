@@ -111,7 +111,7 @@ const getBasicRouletteData = async (req, res) => {
     const recentNumbers = await db.collection('roulette_numbers')
       .find({ rouletteId: roulette._id.toString() })
       .sort({ timestamp: -1 })
-      .limit(5)
+      .limit(20)
       .toArray();
     
     return res.json({
@@ -545,7 +545,7 @@ const getFreePreview = async (req, res) => {
     const recentNumbers = await db.collection('roulette_numbers')
       .find({ rouletteId: roulette._id.toString() })
       .sort({ timestamp: -1 })
-      .limit(5)
+      .limit(20)
       .toArray();
     
     // Exemplo simplificado de estatísticas para modo preview
