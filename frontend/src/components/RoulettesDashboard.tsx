@@ -217,40 +217,50 @@ const RoulettesDashboard = () => {
   const filteredRoulettes = roulettes.filter(roulette => {
     const name = roulette.nome || roulette.name || '';
     
-    // Detectar provedor de várias formas possíveis
-    const possibleProviders = [
-      roulette.provider,
-      roulette.roleta_provider,
-      roulette.provedor,
-      roulette.fornecedor
-    ].filter(Boolean).map(p => p.toString().toLowerCase());
+    // Listas de nomes conhecidos por provedor
+    const evolutionRoulettes = [
+      'lightning roulette', 'immersive roulette', 'xxxtreme lightning', 
+      'gold vault roulette', 'vip auto roulette', 'speed roulette',
+      'speed auto roulette', 'auto roulette', 'roulette 1', 'ruleta relámpago',
+      'lightning', 'immersive', 'vip roulette', 'fortune roulette',
+      'romanian roulette', 'dansk roulette', 'bucharest'
+    ];
     
-    // Se não encontrou nenhum provedor, tentar inferir pelo nome ou ID
-    if (possibleProviders.length === 0) {
-      const roletaId = (roulette.id || roulette.roleta_id || '').toLowerCase();
-      const roletaNome = (name || '').toLowerCase();
-      
-      if (roletaId.includes('evolution') || roletaNome.includes('evolution')) {
-        possibleProviders.push('evolution');
-      }
-      if (roletaId.includes('pragmatic') || roletaNome.includes('pragmatic')) {
-        possibleProviders.push('pragmatic');
-      }
+    const pragmaticRoulettes = [
+      'mega roulette', 'brazilian mega roulette', 'roulette macao',
+      'speed roulette', 'auto roulette', 'roulette'
+    ];
+    
+    // Detectar provedor baseado nas listas de nomes conhecidos
+    let provider = 'desconhecido';
+    const lowerName = name.toLowerCase();
+    
+    // Verifique primeiro a partir de campos explícitos
+    if (roulette.provider?.toLowerCase().includes('evolution') || 
+        roulette.roleta_provider?.toLowerCase().includes('evolution')) {
+      provider = 'evolution';
+    } 
+    else if (roulette.provider?.toLowerCase().includes('pragmatic') || 
+             roulette.roleta_provider?.toLowerCase().includes('pragmatic')) {
+      provider = 'pragmatic';
+    }
+    // Então tente inferir pelo nome
+    else if (evolutionRoulettes.some(pattern => lowerName.includes(pattern))) {
+      provider = 'evolution';
+    }
+    else if (pragmaticRoulettes.some(pattern => lowerName.includes(pattern))) {
+      provider = 'pragmatic';
     }
     
-    console.log('Roleta:', name, 'Provedores detectados:', possibleProviders);
+    console.log(`Roleta: ${name} | Provedor: ${provider}`);
     
     const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Lógica de filtro de provedor melhorada
-    let matchesProvider = false;
-    if (providerFilter === 'all') {
-      matchesProvider = true;
-    } else if (providerFilter === 'evolution') {
-      matchesProvider = possibleProviders.some(p => p.includes('evolution') || p.includes('evo'));
-    } else if (providerFilter === 'pragmatic') {
-      matchesProvider = possibleProviders.some(p => p.includes('pragmatic') || p.includes('prag'));
-    }
+    // Lógica de filtro de provedor simplificada
+    const matchesProvider = 
+      providerFilter === 'all' || 
+      (providerFilter === 'evolution' && provider === 'evolution') ||
+      (providerFilter === 'pragmatic' && provider === 'pragmatic');
     
     return matchesSearch && matchesProvider;
   });
