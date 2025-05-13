@@ -74,8 +74,8 @@ class UnifiedRouletteClient {
   // Configuração
   private streamingEnabled = true;
   private pollingEnabled = true;
-  private pollingInterval = 1000; // 10 segundos
-  private cacheTTL = 30000; // 30 segundos
+  private pollingInterval = 100; // 10 segundos
+  private cacheTTL = 300; // 30 segundos
   private logEnabled = true;
   
   // Streaming
@@ -126,7 +126,7 @@ class UnifiedRouletteClient {
     // Aplicar opções
     this.streamingEnabled = options.streamingEnabled !== false;
     this.pollingEnabled = options.enablePolling !== false;
-    this.pollingInterval = options.pollingInterval || 10000;
+    this.pollingInterval = options.pollingInterval || 100;
     this.cacheTTL = options.cacheTTL || 30000;
     this.logEnabled = options.enableLogging !== false;
     this.streamReconnectInterval = options.reconnectInterval || 5000;
