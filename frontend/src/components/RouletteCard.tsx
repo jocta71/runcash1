@@ -262,7 +262,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         {/* Background com a imagem da roleta */}
         {rouletteData?.imageUrl && (
           <div 
-            className="absolute inset-0 w-full h-full bg-cover bg-center opacity-20 z-0"
+            className="absolute inset-0 w-full h-full bg-cover bg-center z-0"
             style={{ backgroundImage: `url(${rouletteData.imageUrl})` }}
           />
         )}
@@ -271,7 +271,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         <div 
           className="absolute inset-0 w-full h-full z-[1]"
           style={{ 
-            background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.7) 100%)' 
+            background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.9) 100%)' 
           }}
         />
         
