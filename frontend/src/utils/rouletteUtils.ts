@@ -34,28 +34,7 @@ export function getRouletteImage(rouletteName: string, provider: string): string
     // Imagens da Evolution com URLs reais
     const evolutionImageMap: Record<string, string> = {
    
-      "lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
-      "immersive roulette": "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg",
-      "xxxtreme lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
-      "gold vault roulette": "https://bshots.egcvi.com/thumbnail/goldvk1_imr_med_L.jpg",
-      "dansk roulette": "https://bshots.egcvi.com/thumbnail/dgenm1_imr_med_L.jpg",
-      "vip roulette": "https://bshots.egcvi.com/thumbnail/vipk1_imr_med_L.jpg",
-      "ruleta relámpago en vivo": "https://bshots.egcvi.com/thumbnail/lightrs1_imrs_med_L.jpg",
-      "speed auto roulette": "https://bshots.egcvi.com/thumbnail/ezugi_221002_med_L.jpg",
-      "bucharest auto-roulette": "https://bshots.egcvi.com/thumbnail/buc1_ss_thumb_med_L.jpg",
-      "bucharest roulette": "https://bshots.egcvi.com/thumbnail/buc1_ss_thumb_med_L.jpg",
-      "dragonara roulette": "https://bshots.egcvi.com/thumbnail/dgnm1_imr_med_L.jpg",
-      "lightning roulette italia": "https://bshots.egcvi.com/thumbnail/lightm1_imrs_med_L.jpg",
-      "venezia roulette": "https://bshots.egcvi.com/thumbnail/itm1_imrs_med_L.jpg",
-      "auto-roulette vip": "https://bshots.egcvi.com/thumbnail/vip1_ss_thumb_med_L.jpg",
-      "american roulette": "https://bshots.egcvi.com/thumbnail/dzerot1_imrs_med_L.jpg",
-      "hippodrome grand casino": "https://bshots.egcvi.com/thumbnail/hippo2_imr_med_L.jpg",
-      "jawhara roulette": "https://bshots.egcvi.com/thumbnail/arabicm1_imrs_med_L.jpg",
-      "türkçe rulet": "https://bshots.egcvi.com/thumbnail/tkm1_imr_med_L.jpg",
-      "deutsches roulette": "https://bshots.egcvi.com/thumbnail/deu_vir_med_L.jpg",
-      "ruletka live": "https://bshots.egcvi.com/thumbnail/rugent1_imr_med_L.jpg",
-      "türkçe lightning rulet": "https://bshots.egcvi.com/thumbnail/lightt1_imr_med_L.jpg",
-      "football studio roulette": "https://bshots.egcvi.com/thumbnail/lrm1_imr_med_L.jpg"
+    
     };
 
     // Busca pelo nome exato no evolutionImageMap
