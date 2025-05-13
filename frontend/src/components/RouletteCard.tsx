@@ -267,6 +267,14 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
           />
         )}
         
+        {/* Gradiente que fica transparente em cima e escuro embaixo */}
+        <div 
+          className="absolute inset-0 w-full h-full z-[1]"
+          style={{ 
+            background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.7) 100%)' 
+          }}
+        />
+        
         {rouletteData?.isHistorical && (
           <div className="absolute top-0 right-0 bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-bl z-10">
             Histórico
