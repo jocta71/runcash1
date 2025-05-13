@@ -31,73 +31,46 @@ const UUID_PARA_ID_NUMERICO = {
   "a11fd7c4-3ce0-9115-fe95-e761637969ad": "2010012", // American Roulette
   "1fa13bd8-47f4-eaeb-1540-f203da568290": "2010165", // Roulette
   "ec79f914-5261-e90b-45cc-ebe65b0c96a2": "2330057", // Ruleta Relámpago en Vivo
-  "eabd279d-90cf-74f7-c080-a2240dca6517": "2010565", // Gold Vault Roulette
-  "c4b2e581-2699-3705-490d-9b89fe85c16a": "2010045", // Ruleta en Vivo
+  "eabd279d-90cf-74f7-c080-a2240dca6517": "2010186", // Gold Vault Roulette
+  "c4b2e581-2699-3705-490d-9b89fe85c16a": "2330057", // Ruleta en Vivo
   "18bdc4ea-d884-c47a-d33f-27a268a4eead": "2010096", // Speed Auto Roulette
-  "a0f21bd0-6156-1c4e-b05c-b630ce563fbb": "2380038", // Roulette Macao
-  "1dfb0fcd-76dd-2fe9-27fe-fe35c87cd4a4": "2010059", // Bucharest Roulette
-  "e3345af9-e387-9412-209c-e793fe73e520": "2010065", // Bucharest Auto-Roulette
-  "4cf27e48-2b9d-b58e-7dcc-48264c51d639": "2010016", // Immersive Roulette
-  "1c34d1e0-6d96-6f5b-3c53-bc6852bf9fd8": "2010170", // Lightning Roulette Italia
-  "96a31ffc-7c6e-3980-395c-aa163c6d5759": "2380032", // Russian Roulette
-  "419aa56c-bcff-67d2-f424-a6501bac4a36": "2010098", // Auto-Roulette VIP
-  "278b90ba-c190-f5ac-e214-c40b1474e9f7": "2010033", // Lightning Roulette
-  "a92e8f3b-665f-aec7-5e07-a8ef91818cda": "2380346", // VIP Auto Roulette
-  "bc007d81-eb92-96a5-573c-2a2ee28c2fd7": "2380064", // Roulette 1
-  "1b4131a6-307a-6a64-974d-d03b2d107002": "2380373", // Fortune Roulette
-  "206f0db9-84b9-888a-8b4c-f3b1b2b5c4da": "2380049", // Mega Roulette
-  "fe79694c-6212-6ae6-47ad-0593c35ded71": "2380034", // Roulette Italia Tricolore
-  "1920129d-760a-1755-c393-03d05c9de118": "2010336", // Türkçe Lightning Rulet
-  "8663c411-e6af-e341-3854-b163e3d349a3": "2380039", // Turkish Roulette
-  "afc07eb8-a37c-48af-c6ff-5de999e1871b": "2380159", // Romanian Roulette
-  "14f70979-2311-5460-1fec-b722322d353e": "2380010", // Speed Roulette 1
-  "2cc41e23-fb04-2926-77d5-d55831e97bab": "2010048", // Dansk Roulette
-  "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2380335", // Brazilian Mega Roulette
-  "f27dd03e-5282-fc78-961c-6375cef91565": "2010017", // Ruleta Automática
-  "5403e259-2f6c-cd2d-324c-63f0a00dee05": "2010031", // Jawhara Roulette
+  "a0f21bd0-6156-1c4e-b05c-b630ce563fbb": "2330053", // Roulette Macao
+  "1dfb0fcd-76dd-2fe9-27fe-fe35c87cd4a4": "2330049", // Bucharest Roulette
+  "e3345af9-e387-9412-209c-e793fe73e520": "2330049", // Bucharest Auto-Roulette
+  "4cf27e48-2b9d-b58e-7dcc-48264c51d639": "2330047", // Immersive Roulette
+  "1c34d1e0-6d96-6f5b-3c53-bc6852bf9fd8": "2010201", // Lightning Roulette Italia
+  "96a31ffc-7c6e-3980-395c-aa163c6d5759": "2010179", // Russian Roulette
+  "419aa56c-bcff-67d2-f424-a6501bac4a36": "2330051", // Auto-Roulette VIP
+  "278b90ba-c190-f5ac-e214-c40b1474e9f7": "2010118", // Lightning Roulette
+  "a92e8f3b-665f-aec7-5e07-a8ef91818cda": "2010097", // VIP Auto Roulette
+  "bc007d81-eb92-96a5-573c-2a2ee28c2fd7": "2010141", // Roulette 1
+  "1b4131a6-307a-6a64-974d-d03b2d107002": "2010178", // Fortune Roulette
+  "206f0db9-84b9-888a-8b4c-f3b1b2b5c4da": "2010091", // Mega Roulette
+  "fe79694c-6212-6ae6-47ad-0593c35ded71": "2010202", // Roulette Italia Tricolore
+  "1920129d-760a-1755-c393-03d05c9de118": "2010200", // Türkçe Lightning Rulet
+  "8663c411-e6af-e341-3854-b163e3d349a3": "2010176", // Turkish Roulette
+  "afc07eb8-a37c-48af-c6ff-5de999e1871b": "2010177", // Romanian Roulette
+  "14f70979-2311-5460-1fec-b722322d353e": "2330054", // Speed Roulette 1
+  "2cc41e23-fb04-2926-77d5-d55831e97bab": "2010180", // Dansk Roulette
+  "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2330048", // Brazilian Mega Roulette
+  "f27dd03e-5282-fc78-961c-6375cef91565": "2010183", // Ruleta Automática
+  "5403e259-2f6c-cd2d-324c-63f0a00dee05": "2010184", // Jawhara Roulette
 };
 
 // Mapeamento de nomes para IDs numéricos (backup)
 const NOME_PARA_ID_NUMERICO = {
-  "Deutsches Roulette": "2010011",
-  "American Roulette": "2010012",
-  "Immersive Roulette": "2010016",
-  "Ruleta Automática": "2010017",
-  "Jawhara Roulette": "2010031",
-  "Lightning Roulette": "2010033",
-  "Ruleta en Vivo": "2010045",
-  "Dansk Roulette": "2010048",
-  "Ruletka Live": "2010049",
-  "Bucharest Roulette": "2010059",
-  "Bucharest Auto-Roulette": "2010065",
-  "Speed Auto Roulette": "2010096",
-  "VIP Roulette": "2010097",
-  "Auto-Roulette VIP": "2010098",
-  "Football Studio Roulette": "2010099",
-  "Venezia Roulette": "2010100",
-  "Türkçe Rulet": "2010106",
-  "Dragonara Roulette": "2010108",
-  "Hippodrome Grand Casino": "2010110",
-  "Ruleta Relámpago en Vivo": "2010143",
-  "Roulette": "2010165",
-  "Lightning Roulette Italia": "2010170",
-  "Türkçe Lightning Rulet": "2010336",
-  "XXXtreme Lightning Roulette": "2010440",
-  "Gold Vault Roulette": "2010565",
-  "Speed Roulette 1": "2380010",
-  "Russian Roulette": "2380032",
-  "German Roulette": "2380033",
-  "Roulette Italia Tricolore": "2380034",
-  "Roulette Macao": "2380038",
-  "Turkish Roulette": "2380039",
-  "Mega Roulette": "2380049",
-  "Roulette 1": "2380064",
-  "VIP Roulette": "2380117",
-  "Romanian Roulette": "2380159",
-  "Brazilian Mega Roulette": "2380335",
-  "VIP Auto Roulette": "2380346",
-  "Fortune Roulette": "2380373",
-  "Immersive Roulette Deluxe": "2380390"
+  "Speed Roulette": "2330046",
+  "Immersive Roulette": "2330047",
+  "Brazilian Mega Roulette": "2330048",
+  "Bucharest Auto-Roulette": "2330049",
+  "Auto-Roulette": "2330050",
+  "Auto-Roulette VIP": "2330051",
+  "VIP Roulette": "2330052",
+  "Roulette Macao": "2330053",
+  "Speed Roulette 1": "2330054",
+  "Hippodrome Grand Casino": "2330055",
+  "Ruleta Bola Rapida en Vivo": "2330056",
+  "Ruleta en Vivo": "2330057"
 };
 
 class RouletteDataService {
