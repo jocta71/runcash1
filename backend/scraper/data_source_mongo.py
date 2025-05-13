@@ -47,13 +47,14 @@ class MongoDataSource(DataSourceInterface):
             logger.error(f"Erro ao inicializar fonte de dados MongoDB: {str(e)}")
             raise
     
-    def garantir_roleta_existe(self, roleta_id: str, roleta_nome: str) -> str:
+    def garantir_roleta_existe(self, roleta_id: str, roleta_nome: str, table_image: str = None) -> str:
         """
         Verifica se a roleta existe, e a insere caso não exista
         
         Args:
             roleta_id (str): ID da roleta
             roleta_nome (str): Nome da roleta
+            table_image (str, optional): URL da imagem da mesa. Defaults to None.
             
         Returns:
             str: ID da roleta no MongoDB
@@ -79,12 +80,23 @@ class MongoDataSource(DataSourceInterface):
                             "roleta_nome": roleta_nome,
                             "colecao": roleta_id,
                             "ativa": True,
+                            "table_image": table_image,
                             "atualizado_em": datetime.now()
                         }},
                         upsert=True
                     )
                 
                 logger.info(f"Coleção específica para roleta {roleta_nome} (ID: {roleta_id}) criada")
+            else:
+                # Atualizar metadados com a imagem da mesa se disponível
+                if table_image and "metadados" in self.db.list_collection_names():
+                    self.db.metadados.update_one(
+                        {"roleta_id": roleta_id},
+                        {"$set": {
+                            "table_image": table_image,
+                            "atualizado_em": datetime.now()
+                        }}
+                    )
             
             logger.info(f"Garantida coleção específica para roleta {roleta_nome} (ID: {roleta_id})")
             return roleta_id
@@ -109,7 +121,8 @@ class MongoDataSource(DataSourceInterface):
                 resultado.append({
                     "id": roleta.get("roleta_id"),
                     "nome": roleta.get("roleta_nome"),
-                    "ativa": roleta.get("ativa", True)
+                    "ativa": roleta.get("ativa", True),
+                    "table_image": roleta.get("table_image")
                 })
             
             return resultado

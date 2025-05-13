@@ -132,6 +132,11 @@ class Casino888API:
                 result = response.json()
                 
                 if 'LiveTables' in result:
+                    # Verificar se existem imagens nas mesas
+                    for table_id, table_info in list(result['LiveTables'].items())[:3]:
+                        if 'TableImage' in table_info:
+                            print(f"[API] Mesa {table_info.get('Name', 'Unknown')} tem imagem: {table_info['TableImage']}")
+                    
                     return result['LiveTables']
                 else:
                     print(f"API não retornou 'LiveTables' para regulation_id={regulation_id}")
@@ -164,6 +169,7 @@ class Casino888API:
                     table_name = table_info.get('Name', '')
                     last_numbers = table_info.get('RouletteLast5Numbers', [])
                     game_type = table_info.get('GameType', '')
+                    table_image = table_info.get('TableImage', '')
                     
                     # Verificar se é uma roleta
                     is_roulette = False
@@ -180,7 +186,8 @@ class Casino888API:
                             'dealer': table_info.get('Dealer', 'Auto'),
                             'is_open': table_info.get('IsOpen', False),
                             'last_numbers': last_numbers,
-                            'game_type': game_type
+                            'game_type': game_type,
+                            'table_image': table_image
                         }
                 
                 print(f"Encontradas {len(all_tables)} mesas de roleta até o momento")
@@ -202,7 +209,7 @@ def cor_numero(num):
     vermelhos = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
     return 'vermelho' if num in vermelhos else 'preto'
 
-def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
+def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None, table_image=None):
     """Registra um novo número"""
     try:
         # Garantir que id_roleta_para_db seja um ID numérico
@@ -229,7 +236,7 @@ def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
         
         # Interação com o banco de dados usando o ID da roleta
         if hasattr(db, 'garantir_roleta_existe'):
-            db.garantir_roleta_existe(id_roleta_para_db, roleta_nome)
+            db.garantir_roleta_existe(id_roleta_para_db, roleta_nome, table_image)
         if hasattr(db, 'inserir_numero'):
             db.inserir_numero(id_roleta_para_db, roleta_nome, num_int, cor, ts)
         
@@ -242,7 +249,8 @@ def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
             "roleta_id": id_roleta_para_db,
             "roleta_nome": roleta_nome, 
             "numero": num_int,
-            "timestamp": ts
+            "timestamp": ts,
+            "table_image": table_image
         }
         if hasattr(event_manager, 'notify_clients'):
             event_manager.notify_clients(event_data, silent=True)
@@ -259,7 +267,7 @@ def novo_numero(db, id_roleta_para_db, roleta_nome, numero, numero_hook=None):
         print(f"Erro ao processar novo número para {roleta_nome} (DB ID: {id_roleta_para_db}): {str(e)}")
         return False
 
-def processar_numeros(db, api_table_id, roleta_nome, numeros_novos, numero_hook=None):
+def processar_numeros(db, api_table_id, roleta_nome, numeros_novos, numero_hook=None, table_image=None):
     """Processa números com validação para evitar duplicações falsas, mas permitindo números repetidos reais"""
     global ultimo_numero_por_roleta, ultimo_timestamp_por_roleta, assinaturas_roletas
     global historico_numeros_por_roleta, sequencias_por_roleta
@@ -337,7 +345,7 @@ def processar_numeros(db, api_table_id, roleta_nome, numeros_novos, numero_hook=
                     continue
             
             # Se passou pelas validações, registrar o número (passando db_roulette_id para novo_numero)
-            if novo_numero(db, db_roulette_id, roleta_nome, n, numero_hook):
+            if novo_numero(db, db_roulette_id, roleta_nome, n, numero_hook, table_image):
                 # Atualizar controles locais (usando api_table_id como chave)
                 ultimo_numero_por_roleta[api_table_id] = n
                 ultimo_timestamp_por_roleta[api_table_id] = tempo_atual
@@ -448,13 +456,15 @@ def scrape_roletas_api(db, numero_hook=None):
                     
                     roleta_nome = table_info['name']
                     last_numbers = table_info.get('last_numbers', [])
+                    table_image = table_info.get('table_image', '')  # Obter a URL da imagem da mesa
                     
                     # Criar uma assinatura dos dados completos desta mesa para detectar mudanças
                     mesa_atual = {
                         'id': table_id,
                         'nome': roleta_nome,
                         'numeros': last_numbers if last_numbers else [],
-                        'ultimos_5_numeros': last_numbers[:5] if last_numbers else []  # Armazenar os últimos 5 números
+                        'ultimos_5_numeros': last_numbers[:5] if last_numbers else [],  # Armazenar os últimos 5 números
+                        'table_image': table_image  # Armazenar a URL da imagem
                     }
                     
                     # Verificar se os dados são idênticos ao ciclo anterior
@@ -521,7 +531,7 @@ def scrape_roletas_api(db, numero_hook=None):
                             continue
                         
                         print(f"[API] Novo número detectado para {roleta_nome}: {numero_recente}")
-                        if processar_numeros(db, table_id, roleta_nome, [numero_recente], numero_hook):
+                        if processar_numeros(db, table_id, roleta_nome, [numero_recente], numero_hook, table_image):
                             roletas_com_numeros += 1
                             # O log de sucesso agora está dentro de processar_numeros
                     else:
@@ -580,6 +590,7 @@ if __name__ == "__main__":
             print(f"  ID: {table_id}")
             print(f"  Dealer: {table_info.get('Dealer', 'Auto')}")
             print(f"  Últimos números: {table_info.get('RouletteLast5Numbers', [])}")
+            print(f"  Imagem da mesa: {table_info.get('TableImage', 'Não disponível')}")
     
     except Exception as e:
         print(f"ERRO no teste: {str(e)}")

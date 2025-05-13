@@ -145,7 +145,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
   }
   
   // Extrair dados
-  const { name, numbers, active, strategyState, wins, losses } = rouletteData;
+  const { name, numbers, active, strategyState, wins, losses, tableImage } = rouletteData;
   const latestNumber = numbers?.[0];
   
   // Renderizar roleta
@@ -160,6 +160,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ rouletteId, onError }) => {
           {loading && <span className="loading-indicator-small" />}
         </div>
       </div>
+      
+      {tableImage && (
+        <div className="table-image-container">
+          <img 
+            src={tableImage} 
+            alt={`Mesa ${name}`}
+            className="table-image"
+            onError={(e) => {(e.target as HTMLImageElement).style.display = 'none'}}
+          />
+        </div>
+      )}
       
       {latestNumber && (
         <div className="latest-number">

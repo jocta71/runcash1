@@ -322,18 +322,6 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
             {lastNumbersToDisplay.length === 0 && <span className="text-xs text-muted-foreground">Nenhum número recente</span>}
           </div>
         </CardContent>
-
-        <CardFooter className="p-4 bg-muted/50 flex justify-between items-center text-xs text-muted-foreground">
-          <span>{provider}</span>
-          <Tooltip>
-            <TooltipTrigger>
-              <span>Atualizado: {new Date(lastUpdateTime).toLocaleTimeString()}</span>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{new Date(lastUpdateTime).toLocaleString()}</p>
-            </TooltipContent>
-          </Tooltip>
-        </CardFooter>
       </Card>
     </>
   );

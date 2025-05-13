@@ -196,6 +196,7 @@ export function processRouletteData(roulette: any): any {
   
   const currentStatus = roulette.status || (numerosComTimestamp.length > 0 ? 'online' : 'offline');
   const isHistorical = roulette.isHistorical || false;
+  const tableImage = roulette.table_image || null;
 
   return {
     id: currentId,
@@ -207,7 +208,8 @@ export function processRouletteData(roulette: any): any {
     winRate: winRate,
     streak: streak,
     lastUpdateTime: finalUpdateTime,
-    isHistorical: isHistorical
+    isHistorical: isHistorical,
+    tableImage: tableImage
   };
 }
 
