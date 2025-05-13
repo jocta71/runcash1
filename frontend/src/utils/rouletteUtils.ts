@@ -14,6 +14,8 @@ export function getRouletteImage(rouletteName: string, provider: string): string
   // Normaliza o nome da roleta para comparação
   const normalizedName = rouletteName.toLowerCase().trim();
   
+  console.log(`Buscando imagem para roleta: "${normalizedName}", provedor: "${provider}"`);
+  
   // URLs baseadas no provedor
   if (provider.toLowerCase().includes('pragmatic')) {
     // Mapeamento específico para roletas Pragmatic Play
@@ -36,6 +38,7 @@ export function getRouletteImage(rouletteName: string, provider: string): string
     // Busca pelo nome exato em pragmaticImageMap
     for (const [key, imageUrl] of Object.entries(pragmaticImageMap)) {
       if (normalizedName.includes(key.toLowerCase())) {
+        console.log(`Imagem encontrada para ${normalizedName}: ${imageUrl}`);
         return imageUrl;
       }
     }
@@ -45,7 +48,6 @@ export function getRouletteImage(rouletteName: string, provider: string): string
   else if (provider.toLowerCase().includes('evolution')) {
     // Imagens da Evolution com URLs reais
     const evolutionImageMap: Record<string, string> = {
-   
       "lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
       "immersive roulette": "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg",
       "xxxtreme lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
@@ -73,6 +75,7 @@ export function getRouletteImage(rouletteName: string, provider: string): string
     // Busca pelo nome exato no evolutionImageMap
     for (const [key, imageUrl] of Object.entries(evolutionImageMap)) {
       if (normalizedName.includes(key.toLowerCase())) {
+        console.log(`Imagem encontrada para ${normalizedName}: ${imageUrl}`);
         return imageUrl;
       }
     }
@@ -91,9 +94,23 @@ export function mapRouletteProvider(rouletteName: string): string {
   // Normaliza o nome da roleta para comparação (minúsculas, sem espaços extras)
   const normalizedName = rouletteName.toLowerCase().trim();
   
+  console.log(`Mapeando provedor para: "${normalizedName}"`);
+  
+  // Verificações específicas por nome exato para casos mais comuns
+  if (normalizedName.includes('romanian') || 
+      normalizedName.includes('mega') || 
+      normalizedName.includes('russian') || 
+      normalizedName.includes('fortune') ||
+      normalizedName.includes('speed roulette 1') ||
+      normalizedName.includes('roulette macao') ||
+      normalizedName.includes('roulette 1') ||
+      normalizedName.includes('german') && !normalizedName.includes('deutsches')) {
+    console.log(`Roleta identificada como Pragmatic Play por padrão específico: ${normalizedName}`);
+    return 'Pragmatic Play';
+  }
+  
   // Mapeamento de roletas da Evolution
   const evolutionRoulettes = [
-    'roulette',
     'lightning roulette',
     'immersive roulette',
     'xxxtreme lightning roulette',
@@ -136,15 +153,29 @@ export function mapRouletteProvider(rouletteName: string): string {
   ];
   
   // Verifica se o nome está nas listas
-  if (evolutionRoulettes.some(name => normalizedName.includes(name.toLowerCase()))) {
+  for (const name of evolutionRoulettes) {
+    if (normalizedName.includes(name.toLowerCase())) {
+      console.log(`Roleta identificada como Evolution: ${normalizedName} (via ${name})`);
+      return 'Evolution';
+    }
+  }
+  
+  for (const name of pragmaticRoulettes) {
+    if (normalizedName.includes(name.toLowerCase())) {
+      console.log(`Roleta identificada como Pragmatic Play: ${normalizedName} (via ${name})`);
+      return 'Pragmatic Play';
+    }
+  }
+  
+  // Verificação adicional para roletas genéricas
+  if (normalizedName.includes('roulette') && !normalizedName.includes('auto') && !normalizedName.includes('speed')) {
+    // Se for apenas "Roulette" sem qualificadores específicos, é mais provável ser Evolution
+    console.log(`Roleta genérica identificada como Evolution: ${normalizedName}`);
     return 'Evolution';
   }
   
-  if (pragmaticRoulettes.some(name => normalizedName.includes(name.toLowerCase()))) {
-    return 'Pragmatic Play';
-  }
-  
   // Se não encontrar correspondência, retorna o valor padrão
+  console.log(`Nenhum provedor identificado para: ${normalizedName}`);
   return 'Desconhecido';
 }
 
