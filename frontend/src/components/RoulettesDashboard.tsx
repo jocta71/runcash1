@@ -185,22 +185,6 @@ const RoulettesDashboard = () => {
     setSelectedRoulette(roulette);
   };
 
-  // Funções para comentários e curtidas
-  const handleAddComment = (id: string, comment: string) => {
-    console.log(`Comentário adicionado à roleta ${id}: ${comment}`);
-    // Implementar integração real com backend se necessário
-  };
-
-  const handleToggleLike = (id: string) => {
-    console.log(`Like toggled para roleta ${id}`);
-    // Implementar integração real com backend se necessário
-  };
-
-  const handleSetAlert = (id: string, pattern: string) => {
-    console.log(`Alerta configurado para roleta ${id}: ${pattern}`);
-    // Implementar integração real com backend se necessário
-  };
-
   // Função para forçar reconexão de todos os serviços
   const handleReconnect = async () => {
     setReconnecting(true);
@@ -415,11 +399,7 @@ const RoulettesDashboard = () => {
                     )}>
                       <RouletteCard 
                         data={roulette}
-                        onSelect={() => handleSelectRoulette(roulette)}
-                        isSelected={isSelected}
-                        onAddComment={handleAddComment}
-                        onToggleLike={handleToggleLike}
-                        onSetAlert={handleSetAlert}
+                        // Não passamos isSelected para o RouletteCard para evitar duplicação
                       />
                     </div>
                   </div>
