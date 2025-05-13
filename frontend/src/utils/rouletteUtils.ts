@@ -18,19 +18,7 @@ export function getRouletteImage(rouletteName: string, provider: string): string
   if (provider.toLowerCase().includes('pragmatic')) {
     // Mapeamento específico para roletas Pragmatic Play
     const pragmaticImageMap: Record<string, string> = {
-      "fortune roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg?v=0.9804522165134438",
-      "immersive roulette deluxe": "https://client.pragmaticplaylive.net/desktop/assets/snaps/25irclas25imrcrw/poster.jpg?v=0.9804522165134438",
-      "vip auto roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/ar25vipautorw251/poster.jpg?v=0.9804522165134438",
-      "mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg?v=0.9804522165134438",
-      "roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg?v=0.9804522165134438",
-      "romanian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/romania233rwl291/poster.jpg?v=0.9804522165134438",
-      "brazilian mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg?v=0.9804522165134438",
-      "speed roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg?v=0.9804522165134438",
-      "roulette macao": "https://client.pragmaticplaylive.net/desktop/assets/snaps/yqpz3ichst2xg439/poster.jpg?v=0.9804522165134438",
-      "german roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/s2x6b4jdeqza2ge2/poster.jpg?v=0.9804522165134438",
-      "russian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/t4jzencinod6iqwi/poster.jpg?v=0.9804522165134438",
-      "roulette italia tricolore": "https://client.pragmaticplaylive.net/desktop/assets/snaps/v1c52fgw7yy02upz/poster.jpg?v=0.9804522165134438",
-      "turkish roulette": "https://bshots.egcvi.com/thumbnail/ezugi_221000_med_L.jpg"
+     
     };
 
     // Busca pelo nome exato em pragmaticImageMap
