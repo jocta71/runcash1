@@ -96,18 +96,7 @@ export function mapRouletteProvider(rouletteName: string): string {
   const normalizedName = rouletteName.toLowerCase().trim();
   
   console.log(`Mapeando provedor para: "${normalizedName}"`);
-  
-  // Verificações específicas por nome exato para casos mais comuns
-  if (normalizedName.includes('romanian') || 
-      normalizedName.includes('mega') || 
-      normalizedName.includes('russian') || 
-      normalizedName.includes('fortune') ||
-      normalizedName.includes('speed roulette 1') ||
-      normalizedName.includes('roulette macao') ||
-      normalizedName.includes('roulette 1') ||
-      normalizedName.includes('german') && !normalizedName.includes('deutsches')) {
-    console.log(`Roleta identificada como Pragmatic Play por padrão específico: ${normalizedName}`);
-    return 'Pragmatic Play';
+  </edit>
   }
   
   // Mapeamento de roletas da Evolution
