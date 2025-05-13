@@ -295,7 +295,7 @@ const RoulettesDashboard = () => {
         <div className="lg:flex">
           {/* Lista de roletas à esquerda - 50% em desktop */}
           <div className="lg:w-1/2 lg:pr-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2">
               {roulettes.map((roulette: any) => {
                 const rouletteId = roulette.id || roulette.roleta_id;
                 const isSelected = selectedRoulette && 
