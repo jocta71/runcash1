@@ -5,6 +5,71 @@
 import { RouletteNumber } from '../types/roulette';
 
 /**
+ * Mapeia os nomes das roletas para URLs de imagens correspondentes
+ * @param rouletteName Nome da roleta
+ * @param provider Nome do provedor (Evolution ou Pragmatic Play)
+ * @returns URL da imagem para a roleta
+ */
+export function getRouletteImage(rouletteName: string, provider: string): string {
+  // Normaliza o nome da roleta para comparação
+  const normalizedName = rouletteName.toLowerCase().trim();
+  
+  // URLs baseadas no provedor
+  if (provider.toLowerCase().includes('pragmatic')) {
+    // Mapeamento específico para roletas Pragmatic Play
+    const pragmaticImageMap: Record<string, string> = {
+      "fortune roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg",
+      "mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg",
+      "immersive roulette deluxe": "https://client.pragmaticplaylive.net/desktop/assets/snaps/1hl323e1lxuqdrkr/ppcdg00000003966/poster.jpg",
+      "vip auto roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/5bzl2835s5ruvweg/ppcdg00000003966/poster.jpg",
+      "roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/g03y1t9vvuhrfytl/poster.jpg",
+      "romanian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/romania233rwl291/poster.jpg",
+      "brazilian mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg",
+      "speed roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg",
+      "roulette macao": "https://client.pragmaticplaylive.net/desktop/assets/snaps/yqpz3ichst2xg439/poster.jpg",
+      "german roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/chroma229rwltr22/ppcdg00000003966/poster.jpg",
+      "russian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/r20speedrtwo201s/ppcdk00000004643/poster.jpg",
+      "roulette italia tricolore": "https://client.pragmaticplaylive.net/desktop/assets/snaps/chroma229rwltr22/ppcdg00000003966/poster.jpg",
+      "turkish roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/chroma229rwltr22/ppcdg00000003966/poster.jpg"
+    };
+
+    // Busca pelo nome exato em pragmaticImageMap
+    for (const [key, imageUrl] of Object.entries(pragmaticImageMap)) {
+      if (normalizedName.includes(key.toLowerCase())) {
+        return imageUrl;
+      }
+    }
+    
+    // Fallback para Pragmatic Play
+    return "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg";
+  } 
+  else if (provider.toLowerCase().includes('evolution')) {
+    // Imagens da Evolution - aqui usaremos URLs fictícias pois não encontramos nos registros
+    const evolutionImageMap: Record<string, string> = {
+      "lightning roulette": "https://evolution-live.com/images/lightning-roulette.jpg",
+      "immersive roulette": "https://evolution-live.com/images/immersive-roulette.jpg",
+      "xxxtreme lightning roulette": "https://evolution-live.com/images/xxxtreme-lightning-roulette.jpg",
+      "gold vault roulette": "https://evolution-live.com/images/gold-vault-roulette.jpg",
+      "speed auto roulette": "https://evolution-live.com/images/speed-auto-roulette.jpg",
+      "american roulette": "https://evolution-live.com/images/american-roulette.jpg"
+    };
+
+    // Busca pelo nome exato no evolutionImageMap
+    for (const [key, imageUrl] of Object.entries(evolutionImageMap)) {
+      if (normalizedName.includes(key.toLowerCase())) {
+        return imageUrl;
+      }
+    }
+    
+    // Fallback para Evolution
+    return "https://evolution-live.com/images/default-roulette.jpg";
+  }
+  
+  // Imagem padrão se o provedor não for reconhecido
+  return "https://assets.runcashh.com/images/default-roulette.jpg";
+}
+
+/**
  * Mapeia os nomes das roletas para seus respectivos provedores
  * @param rouletteName Nome da roleta
  * @returns Nome do provedor (Evolution ou Pragmatic Play)
@@ -67,66 +132,6 @@ export function mapRouletteProvider(rouletteName: string): string {
   
   // Se não encontrar correspondência, retorna o valor padrão
   return 'Desconhecido';
-}
-
-/**
- * Retorna a URL da imagem para uma roleta específica
- * @param rouletteName Nome da roleta
- * @param provider Provedor da roleta (Evolution ou Pragmatic Play)
- * @returns URL da imagem da roleta
- */
-export function getRouletteImageUrl(rouletteName: string, provider: string): string {
-  // Normaliza o nome e o provedor para comparação
-  const normalizedName = rouletteName.toLowerCase().trim();
-  const normalizedProvider = provider.toLowerCase().trim();
-  
-  // Mapas de imagens por provedor
-  const evolutionImages: { [key: string]: string } = {
-    'lightning roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Lightning-Roulette-thumb-2.jpg',
-    'immersive roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Immersive-Roulette-thumb.jpg',
-    'xxxtreme lightning roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/XXXtreme-Lightning-Roulette-thumb.jpg',
-    'gold vault roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/12/Gold-Vault-Roulette-thumb.jpg',
-    'speed auto roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Speed-Auto-Roulette-thumb.jpg',
-    'american roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/American-Roulette-thumb.jpg',
-    'football studio roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/11/Football-Studio-Roulette-thumb.jpg',
-    // Imagens padrões para outras roletas da Evolution
-    'default': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Roulette-thumb.jpg'
-  };
-  
-  const pragmaticImages: { [key: string]: string } = {
-    'fortune roulette': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/fortuneroulette/ppcdk00000006343/poster.jpg',
-    'mega roulette': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulette/ppcdk00000007202/poster.jpg',
-    'roulette 1': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulette/ppcdk00000004645/poster.jpg',
-    'speed roulette 1': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/speedroulette1/ppcdk00000004644/poster.jpg',
-    'roulette macao': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulettemacao/ppcdk00000004637/poster.jpg',
-    // Imagens padrões para outras roletas da Pragmatic
-    'default': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulette1/ppcdk00000004605/poster.jpg'
-  };
-  
-  // Seleciona o mapa de acordo com o provedor
-  let imageMap: { [key: string]: string } = {};
-  let defaultImage = '';
-  
-  if (normalizedProvider.includes('evolution')) {
-    imageMap = evolutionImages;
-    defaultImage = evolutionImages.default;
-  } else if (normalizedProvider.includes('pragmatic')) {
-    imageMap = pragmaticImages;
-    defaultImage = pragmaticImages.default;
-  } else {
-    // Imagem genérica para provedores desconhecidos
-    return 'https://via.placeholder.com/300x200?text=Roleta';
-  }
-  
-  // Busca por correspondência parcial no nome normalizado
-  for (const [key, url] of Object.entries(imageMap)) {
-    if (normalizedName.includes(key)) {
-      return url;
-    }
-  }
-  
-  // Se não encontrar correspondência específica, retorna a imagem padrão do provedor
-  return defaultImage;
 }
 
 /**
@@ -254,8 +259,8 @@ export function processRouletteData(roulette: any): any {
     currentProvider = mapRouletteProvider(currentName);
   }
   
-  // Obter URL da imagem da roleta
-  const imageUrl = roulette.imageUrl || getRouletteImageUrl(currentName, currentProvider);
+  // Obter a URL da imagem da roleta (usar a fornecida ou gerar com base no nome)
+  const imageUrl = roulette.imageUrl || getRouletteImage(currentName, currentProvider);
   
   const currentStatus = roulette.status || (numerosComTimestamp.length > 0 ? 'online' : 'offline');
   const isHistorical = roulette.isHistorical || false;
