@@ -18,7 +18,6 @@ export interface ProcessedRouletteData {
   id: string;
   nome: string;
   provider: string;
-  imageUrl: string;
   status: string;
   ultimoNumero: number | null;
   numeros: RouletteNumber[];
@@ -26,6 +25,7 @@ export interface ProcessedRouletteData {
   streak: number;
   lastUpdateTime: number;
   isHistorical?: boolean;
+  imageUrl?: string;
 }
 
 /**

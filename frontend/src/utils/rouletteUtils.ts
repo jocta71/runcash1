@@ -5,82 +5,6 @@
 import { RouletteNumber } from '../types/roulette';
 
 /**
- * Mapeia os nomes das roletas para suas respectivas URLs de imagem
- * @param rouletteName Nome da roleta
- * @returns URL da imagem da roleta
- */
-export function mapRouletteImage(rouletteName: string): string {
-  // Normaliza o nome da roleta para comparação (minúsculas, sem espaços extras)
-  const normalizedName = rouletteName.toLowerCase().trim();
-  
-  // URLs base para cada provedor
-  const evolutionBaseUrl = "https://evolution.com/images/games/";
-  const pragmaticBaseUrl = "https://pragmaticplay.com/images/games/";
-  
-  // Mapeamento de roletas para imagens
-  const imageMap: Record<string, string> = {
-    // Evolution
-    'lightning roulette': `${evolutionBaseUrl}lightning-roulette.jpg`,
-    'immersive roulette': `${evolutionBaseUrl}immersive-roulette.jpg`,
-    'xxxtreme lightning roulette': `${evolutionBaseUrl}xxxtreme-lightning-roulette.jpg`,
-    'gold vault roulette': `${evolutionBaseUrl}gold-vault-roulette.jpg`,
-    'dansk roulette': `${evolutionBaseUrl}dansk-roulette.jpg`, 
-    'vip roulette': `${evolutionBaseUrl}vip-roulette.jpg`,
-    'ruleta relámpago en vivo': `${evolutionBaseUrl}ruleta-relampago.jpg`,
-    'speed auto roulette': `${evolutionBaseUrl}speed-auto-roulette.jpg`,
-    'bucharest auto-roulette': `${evolutionBaseUrl}bucharest-auto-roulette.jpg`,
-    'bucharest roulette': `${evolutionBaseUrl}bucharest-roulette.jpg`,
-    'dragonara roulette': `${evolutionBaseUrl}dragonara-roulette.jpg`,
-    'lightning roulette italia': `${evolutionBaseUrl}lightning-roulette-italia.jpg`,
-    'venezia roulette': `${evolutionBaseUrl}venezia-roulette.jpg`,
-    'auto-roulette vip': `${evolutionBaseUrl}auto-roulette-vip.jpg`,
-    'american roulette': `${evolutionBaseUrl}american-roulette.jpg`,
-    'hippodrome grand casino': `${evolutionBaseUrl}hippodrome-grand-casino.jpg`,
-    'jawhara roulette': `${evolutionBaseUrl}jawhara-roulette.jpg`,
-    'türkçe rulet': `${evolutionBaseUrl}turkce-rulet.jpg`,
-    'deutsches roulette': `${evolutionBaseUrl}deutsches-roulette.jpg`,
-    'ruletka live': `${evolutionBaseUrl}ruletka-live.jpg`,
-    'türkçe lightning rulet': `${evolutionBaseUrl}turkce-lightning-rulet.jpg`,
-    'football studio roulette': `${evolutionBaseUrl}football-studio-roulette.jpg`,
-    
-    // Pragmatic Play
-    'fortune roulette': `${pragmaticBaseUrl}fortune-roulette.jpg`,
-    'immersive roulette deluxe': `${pragmaticBaseUrl}immersive-roulette-deluxe.jpg`,
-    'vip auto roulette': `${pragmaticBaseUrl}vip-auto-roulette.jpg`,
-    'mega roulette': `${pragmaticBaseUrl}mega-roulette.jpg`,
-    'roulette 1': `${pragmaticBaseUrl}roulette-1.jpg`,
-    'romanian roulette': `${pragmaticBaseUrl}romanian-roulette.jpg`,
-    'brazilian mega roulette': `${pragmaticBaseUrl}brazilian-mega-roulette.jpg`,
-    'speed roulette 1': `${pragmaticBaseUrl}speed-roulette-1.jpg`,
-    'roulette macao': `${pragmaticBaseUrl}roulette-macao.jpg`,
-    'german roulette': `${pragmaticBaseUrl}german-roulette.jpg`,
-    'russian roulette': `${pragmaticBaseUrl}russian-roulette.jpg`,
-    'roulette italia tricolore': `${pragmaticBaseUrl}roulette-italia-tricolore.jpg`,
-    'turkish roulette': `${pragmaticBaseUrl}turkish-roulette.jpg`
-  };
-  
-  // Procurar correspondência parcial
-  for (const [key, url] of Object.entries(imageMap)) {
-    if (normalizedName.includes(key.toLowerCase())) {
-      return url;
-    }
-  }
-  
-  // Imagem genérica se não encontrar correspondência
-  if (normalizedName.includes('roulette') || normalizedName.includes('roleta')) {
-    const provider = mapRouletteProvider(rouletteName);
-    if (provider === 'Evolution') {
-      return `${evolutionBaseUrl}generic-roulette.jpg`;
-    } else if (provider === 'Pragmatic Play') {
-      return `${pragmaticBaseUrl}generic-roulette.jpg`;
-    }
-  }
-  
-  // Fallback para imagem padrão
-  return '/images/default-roulette.jpg';
-}
-
-/**
  * Mapeia os nomes das roletas para seus respectivos provedores
  * @param rouletteName Nome da roleta
  * @returns Nome do provedor (Evolution ou Pragmatic Play)
@@ -143,6 +67,66 @@ export function mapRouletteProvider(rouletteName: string): string {
   
   // Se não encontrar correspondência, retorna o valor padrão
   return 'Desconhecido';
+}
+
+/**
+ * Retorna a URL da imagem para uma roleta específica
+ * @param rouletteName Nome da roleta
+ * @param provider Provedor da roleta (Evolution ou Pragmatic Play)
+ * @returns URL da imagem da roleta
+ */
+export function getRouletteImageUrl(rouletteName: string, provider: string): string {
+  // Normaliza o nome e o provedor para comparação
+  const normalizedName = rouletteName.toLowerCase().trim();
+  const normalizedProvider = provider.toLowerCase().trim();
+  
+  // Mapas de imagens por provedor
+  const evolutionImages: { [key: string]: string } = {
+    'lightning roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Lightning-Roulette-thumb-2.jpg',
+    'immersive roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Immersive-Roulette-thumb.jpg',
+    'xxxtreme lightning roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/XXXtreme-Lightning-Roulette-thumb.jpg',
+    'gold vault roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/12/Gold-Vault-Roulette-thumb.jpg',
+    'speed auto roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Speed-Auto-Roulette-thumb.jpg',
+    'american roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/American-Roulette-thumb.jpg',
+    'football studio roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/11/Football-Studio-Roulette-thumb.jpg',
+    // Imagens padrões para outras roletas da Evolution
+    'default': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Roulette-thumb.jpg'
+  };
+  
+  const pragmaticImages: { [key: string]: string } = {
+    'fortune roulette': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/fortuneroulette/ppcdk00000006343/poster.jpg',
+    'mega roulette': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulette/ppcdk00000007202/poster.jpg',
+    'roulette 1': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulette/ppcdk00000004645/poster.jpg',
+    'speed roulette 1': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/speedroulette1/ppcdk00000004644/poster.jpg',
+    'roulette macao': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulettemacao/ppcdk00000004637/poster.jpg',
+    // Imagens padrões para outras roletas da Pragmatic
+    'default': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulette1/ppcdk00000004605/poster.jpg'
+  };
+  
+  // Seleciona o mapa de acordo com o provedor
+  let imageMap: { [key: string]: string } = {};
+  let defaultImage = '';
+  
+  if (normalizedProvider.includes('evolution')) {
+    imageMap = evolutionImages;
+    defaultImage = evolutionImages.default;
+  } else if (normalizedProvider.includes('pragmatic')) {
+    imageMap = pragmaticImages;
+    defaultImage = pragmaticImages.default;
+  } else {
+    // Imagem genérica para provedores desconhecidos
+    return 'https://via.placeholder.com/300x200?text=Roleta';
+  }
+  
+  // Busca por correspondência parcial no nome normalizado
+  for (const [key, url] of Object.entries(imageMap)) {
+    if (normalizedName.includes(key)) {
+      return url;
+    }
+  }
+  
+  // Se não encontrar correspondência específica, retorna a imagem padrão do provedor
+  return defaultImage;
 }
 
 /**
@@ -270,8 +254,8 @@ export function processRouletteData(roulette: any): any {
     currentProvider = mapRouletteProvider(currentName);
   }
   
-  // Obter a URL da imagem baseada no nome da roleta
-  const imageUrl = roulette.imageUrl || mapRouletteImage(currentName);
+  // Obter URL da imagem da roleta
+  const imageUrl = roulette.imageUrl || getRouletteImageUrl(currentName, currentProvider);
   
   const currentStatus = roulette.status || (numerosComTimestamp.length > 0 ? 'online' : 'offline');
   const isHistorical = roulette.isHistorical || false;
@@ -280,14 +264,14 @@ export function processRouletteData(roulette: any): any {
     id: currentId,
     nome: currentName,
     provider: currentProvider,
-    imageUrl: imageUrl,
     status: currentStatus,
     ultimoNumero: ultimoNumero,
     numeros: numerosComTimestamp,
     winRate: winRate,
     streak: streak,
     lastUpdateTime: finalUpdateTime,
-    isHistorical: isHistorical
+    isHistorical: isHistorical,
+    imageUrl: imageUrl
   };
 }
 

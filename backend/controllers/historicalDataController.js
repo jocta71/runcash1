@@ -52,6 +52,65 @@ const NOME_PARA_ID_NUMERICO = {
   "Ruleta en Vivo": "2330057"
 };
 
+// Mapeamento de provedores por nome de roleta
+const MAPEAMENTO_PROVEDORES = {
+    'Lightning Roulette': 'Evolution',
+    'Immersive Roulette': 'Evolution',
+    'XXXtreme Lightning Roulette': 'Evolution',
+    'Gold Vault Roulette': 'Evolution',
+    'Dansk Roulette': 'Evolution',
+    'VIP Roulette': 'Evolution',
+    'Ruleta Relámpago en Vivo': 'Evolution',
+    'Speed Auto Roulette': 'Evolution',
+    'Bucharest Auto-Roulette': 'Evolution',
+    'Bucharest Roulette': 'Evolution',
+    'Dragonara Roulette': 'Evolution',
+    'Lightning Roulette Italia': 'Evolution',
+    'Venezia Roulette': 'Evolution',
+    'Auto-Roulette VIP': 'Evolution',
+    'American Roulette': 'Evolution',
+    'Hippodrome Grand Casino': 'Evolution',
+    'Jawhara Roulette': 'Evolution',
+    'Türkçe Rulet': 'Evolution',
+    'Deutsches Roulette': 'Evolution',
+    'Ruletka Live': 'Evolution',
+    'Türkçe Lightning Rulet': 'Evolution',
+    'Football Studio Roulette': 'Evolution',
+    
+    'Fortune Roulette': 'Pragmatic Play',
+    'Immersive Roulette Deluxe': 'Pragmatic Play',
+    'VIP Auto Roulette': 'Pragmatic Play',
+    'Mega Roulette': 'Pragmatic Play',
+    'Roulette 1': 'Pragmatic Play',
+    'Romanian Roulette': 'Pragmatic Play',
+    'Brazilian Mega Roulette': 'Pragmatic Play',
+    'Speed Roulette 1': 'Pragmatic Play',
+    'Roulette Macao': 'Pragmatic Play',
+    'German Roulette': 'Pragmatic Play',
+    'Russian Roulette': 'Pragmatic Play',
+    'Roulette Italia Tricolore': 'Pragmatic Play',
+    'Turkish Roulette': 'Pragmatic Play'
+};
+
+// Mapeamento de URLs de imagens por nome de roleta
+const MAPEAMENTO_IMAGENS = {
+    // Evolution
+    'Lightning Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Lightning-Roulette-thumb-2.jpg',
+    'Immersive Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Immersive-Roulette-thumb.jpg',
+    'XXXtreme Lightning Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/XXXtreme-Lightning-Roulette-thumb.jpg',
+    'Gold Vault Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/12/Gold-Vault-Roulette-thumb.jpg',
+    'Speed Auto Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Speed-Auto-Roulette-thumb.jpg',
+    'American Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/American-Roulette-thumb.jpg',
+    'Football Studio Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/11/Football-Studio-Roulette-thumb.jpg',
+    
+    // Pragmatic Play
+    'Fortune Roulette': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/fortuneroulette/ppcdk00000006343/poster.jpg',
+    'Mega Roulette': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulette/ppcdk00000007202/poster.jpg',
+    'Roulette 1': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulette/ppcdk00000004645/poster.jpg',
+    'Speed Roulette 1': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/speedroulette1/ppcdk00000004644/poster.jpg',
+    'Roulette Macao': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulettemacao/ppcdk00000004637/poster.jpg'
+};
+
 /**
  * Obtém o ID numérico conhecido para um UUID de roleta
  * @param {string} uuid - UUID da roleta
@@ -83,6 +142,60 @@ const getIdNumericoPorUUID = (uuid, nome) => {
   }
   
   return null;
+};
+
+/**
+ * Determina o provedor da roleta com base no nome
+ * @param {string} nome Nome da roleta
+ * @returns {string} Nome do provedor ou 'Desconhecido'
+ */
+const getProviderFromName = (nome) => {
+    // Busca direta no mapeamento
+    if (MAPEAMENTO_PROVEDORES[nome]) {
+        return MAPEAMENTO_PROVEDORES[nome];
+    }
+    
+    // Busca por correspondência parcial
+    const normalizedName = nome.toLowerCase().trim();
+    
+    for (const [key, provider] of Object.entries(MAPEAMENTO_PROVEDORES)) {
+        if (normalizedName.includes(key.toLowerCase())) {
+            return provider;
+        }
+    }
+    
+    return 'Desconhecido';
+};
+
+/**
+ * Obtém a URL da imagem da roleta com base no nome
+ * @param {string} nome Nome da roleta
+ * @param {string} provider Provedor da roleta
+ * @returns {string|null} URL da imagem ou null
+ */
+const getImageUrlFromName = (nome, provider) => {
+    // Busca direta no mapeamento
+    if (MAPEAMENTO_IMAGENS[nome]) {
+        return MAPEAMENTO_IMAGENS[nome];
+    }
+    
+    // Busca por correspondência parcial
+    const normalizedName = nome.toLowerCase().trim();
+    
+    for (const [key, url] of Object.entries(MAPEAMENTO_IMAGENS)) {
+        if (normalizedName.includes(key.toLowerCase())) {
+            return url;
+        }
+    }
+    
+    // Imagens padrão por provedor
+    if (provider === 'Evolution') {
+        return 'https://evolutiongaming.com/wp-content/uploads/2022/05/Roulette-thumb.jpg';
+    } else if (provider === 'Pragmatic Play') {
+        return 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulette1/ppcdk00000004605/poster.jpg';
+    }
+    
+    return null;
 };
 
 // Função auxiliar para buscar histórico de uma roleta
@@ -336,21 +449,31 @@ const getAllRoulettesInitialHistory = async (req, res) => {
             }
             
             // 2. Para cada roleta encontrada, buscar seu histórico em paralelo
-            const historyPromises = allRoulettes.map(roulette =>
-                fetchHistoryForRoulette(db, roletasDb, roulette._id, HISTORY_LIMIT)
+            const historyPromises = allRoulettes.map(roulette => {
+                const rouletteName = roulette.name || `Roleta ${roulette._id}`;
+                const provider = getProviderFromName(rouletteName);
+                const imageUrl = getImageUrlFromName(rouletteName, provider);
+                
+                return fetchHistoryForRoulette(db, roletasDb, roulette._id, HISTORY_LIMIT)
                     .then(history => ({
-                        name: roulette.name,
+                        name: rouletteName,
+                        provider: provider,
+                        imageUrl: imageUrl,
                         history: history
-                    }))
-            );
+                    }));
+            });
             
             // 3. Aguardar todas as buscas de histórico
             const results = await Promise.all(historyPromises);
             
-            // 4. Estruturar a resposta final { rouletteName: historyArray }
+            // 4. Estruturar a resposta final { rouletteName: historyObject }
             const responseData = results.reduce((acc, current) => {
                 if (current.name) {
-                    acc[current.name] = current.history;
+                    acc[current.name] = {
+                        provider: current.provider,
+                        imageUrl: current.imageUrl, 
+                        history: current.history
+                    };
                 }
                 return acc;
             }, {});
@@ -365,21 +488,31 @@ const getAllRoulettesInitialHistory = async (req, res) => {
         }
         
         // 2. Para cada roleta encontrada, buscar seu histórico em paralelo
-        const historyPromises = roletasEncontradas.map(roleta =>
-            fetchHistoryForRoulette(db, roletasDb, roleta.roleta_id || roleta.colecao, HISTORY_LIMIT)
+        const historyPromises = roletasEncontradas.map(roleta => {
+            const rouletteName = roleta.roleta_nome || roleta.nome || `Roleta ${roleta.roleta_id || roleta.colecao}`;
+            const provider = getProviderFromName(rouletteName);
+            const imageUrl = getImageUrlFromName(rouletteName, provider);
+            
+            return fetchHistoryForRoulette(db, roletasDb, roleta.roleta_id || roleta.colecao, HISTORY_LIMIT)
                 .then(history => ({
-                    name: roleta.roleta_nome || roleta.nome || `Roleta ${roleta.roleta_id || roleta.colecao}`,
+                    name: rouletteName,
+                    provider: provider,
+                    imageUrl: imageUrl,
                     history: history
-                }))
-        );
+                }));
+        });
         
         // 3. Aguardar todas as buscas de histórico
         const results = await Promise.all(historyPromises);
         
-        // 4. Estruturar a resposta final { rouletteName: historyArray }
+        // 4. Estruturar a resposta final { rouletteName: historyObject }
         const responseData = results.reduce((acc, current) => {
             if (current.name) {
-                acc[current.name] = current.history;
+                acc[current.name] = {
+                    provider: current.provider,
+                    imageUrl: current.imageUrl,
+                    history: current.history
+                };
             }
             return acc;
         }, {});

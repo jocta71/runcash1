@@ -259,21 +259,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         )}
         onClick={() => onSelect && onSelect(rouletteData.id)}
       >
-        {/* Imagem de fundo com overlay escuro */}
-        {rouletteData?.imageUrl && (
-          <div 
-            className="absolute inset-0 z-0 opacity-30 bg-cover bg-center rounded-lg overflow-hidden"
-            style={{ 
-              backgroundImage: `url(${rouletteData.imageUrl})`, 
-              backgroundSize: 'cover' 
-            }}
-          >
-            <div className="absolute inset-0 bg-black opacity-50"></div>
-          </div>
-        )}
-
         {rouletteData?.isHistorical && (
-          <div className="absolute top-0 right-0 bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-bl z-10">
+          <div className="absolute top-0 right-0 bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-bl">
             Histórico
           </div>
         )}
@@ -285,7 +272,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
           </div>
         )}
 
-        <CardHeader className="p-3 pb-0 relative z-10">
+        <CardHeader className="p-3 pb-0">
           {rouletteData && <CardTitle className="text-lg font-semibold flex items-center justify-between">
             <span className="truncate">{rouletteData.nome}</span>
             <div className="flex items-center gap-2">
@@ -322,13 +309,17 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         </CardHeader>
 
         <CardContent className="py-4 px-[0.20rem] relative z-10">
-          {/* Exibe a imagem da roleta em tamanho pequeno se não for exibida como fundo */}
-          {!isDetailView && rouletteData?.imageUrl && false && (
-            <div className="mb-2 flex justify-center">
+          {/* Imagem da roleta */}
+          {rouletteData?.imageUrl && (
+            <div className="mb-4 rounded-md overflow-hidden">
               <img 
                 src={rouletteData.imageUrl} 
-                alt={rouletteData.nome}
-                className="w-16 h-16 rounded-full object-cover border-2 border-muted"
+                alt={`Mesa de ${rouletteData.nome}`} 
+                className="w-full h-32 object-cover"
+                onError={(e) => {
+                  // Caso a imagem não carregue, usar imagem genérica
+                  (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=Roleta';
+                }}
               />
             </div>
           )}
