@@ -79,7 +79,7 @@ export function getRouletteImage(rouletteName: string, provider: string): string
       "ruleta en vivo": "https://bshots.egcvi.com/thumbnail/revmu1_imrs_med_L.jpg",
       "speed auto roulette": "https://bshots.egcvi.com/thumbnail/ezugi_221002_med_L.jpg",
       "bucharest auto-roulette": "https://bshots.egcvi.com/thumbnail/buc1_ss_thumb_med_L.jpg",
-      "bucharest roulette": "https://bshots.egcvi.com/thumbnail/buc1_ss_thumb_med_L.jpg",
+      "bucharest roulette": "https://cdn-lobby-img.live-hub.net/lobbyImage_386.jpg
       "dragonara roulette": "https://bshots.egcvi.com/thumbnail/dgnm1_imr_med_L.jpg",
       "lightning roulette italia": "https://bshots.egcvi.com/thumbnail/lightm1_imrs_med_L.jpg",
       "venezia roulette": "https://bshots.egcvi.com/thumbnail/itm1_imrs_med_L.jpg",
