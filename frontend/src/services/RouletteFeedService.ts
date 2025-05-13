@@ -1,5 +1,37 @@
 import UnifiedRouletteClient from './UnifiedRouletteClient';
-import { EventEmitter } from 'events';
+
+/**
+ * Implementação simples de EventEmitter compatível com browser
+ */
+class BrowserEventEmitter {
+  private events: Record<string, Array<(data: any) => void>> = {};
+
+  public on(event: string, callback: (data: any) => void): () => void {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    this.events[event].push(callback);
+    
+    // Retorna uma função para remover o listener
+    return () => {
+      this.removeListener(event, callback);
+    };
+  }
+
+  public emit(event: string, data?: any): void {
+    if (!this.events[event]) return;
+    this.events[event].forEach(callback => callback(data));
+  }
+
+  public removeListener(event: string, callbackToRemove: (data: any) => void): void {
+    if (!this.events[event]) return;
+    this.events[event] = this.events[event].filter(callback => callback !== callbackToRemove);
+  }
+
+  public removeAllListeners(): void {
+    this.events = {};
+  }
+}
 
 /**
  * RouletteFeedService - Serviço simplificado que delega todas as operações ao UnifiedRouletteClient
@@ -11,7 +43,7 @@ import { EventEmitter } from 'events';
 export default class RouletteFeedService {
   private static instance: RouletteFeedService;
   private unifiedClient: UnifiedRouletteClient;
-  private events: EventEmitter;
+  private events: BrowserEventEmitter;
   private serviceName: string;
   private componentId: string;
   
@@ -29,7 +61,7 @@ export default class RouletteFeedService {
     this.componentId = `service-roulette-feed-${Date.now()}`;
     
     // Inicializar o emissor de eventos
-    this.events = new EventEmitter();
+    this.events = new BrowserEventEmitter();
     
     // Registrar no cliente unificado para eventos relevantes
     this.unifiedClient.subscribe('update', this.handleUpdate.bind(this), this.componentId);
@@ -47,7 +79,7 @@ export default class RouletteFeedService {
     }
     return RouletteFeedService.instance;
   }
-  
+
   /**
    * Inicializa o serviço
    */
@@ -57,7 +89,7 @@ export default class RouletteFeedService {
     // Não fazemos mais nada aqui, apenas delegamos ao UnifiedClient
     this.fetchInitialData();
   }
-  
+
   /**
    * Inicia o polling
    */
@@ -87,12 +119,7 @@ export default class RouletteFeedService {
    */
   public on(event: string, callback: (data: any) => void): () => void {
     // Adicionamos ao nosso emissor de eventos
-    this.events.on(event, callback);
-    
-    // Retornamos uma função para remover o listener
-    return () => {
-      this.events.removeListener(event, callback);
-    };
+    return this.events.on(event, callback);
   }
   
   /**

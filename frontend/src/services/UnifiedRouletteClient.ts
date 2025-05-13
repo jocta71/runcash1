@@ -849,20 +849,20 @@ export default class UnifiedRouletteClient {
       
       // Limpar dados anteriores apenas se os novos dados são completos
       this.rouletteData.clear();
-      
-      // Processar cada item
-      let validItemsCount = 0;
-      data.forEach(item => {
-        if (item && (item.id || item.roleta_id)) {
-          // Usar id prioritariamente, ou roleta_id como fallback
-          const id = item.id || item.roleta_id;
-          this.rouletteData.set(id, item);
-          validItemsCount++;
-        }
-      });
-      
-      console.log(`DEBUG: ${validItemsCount} roletas adicionadas ao cache`);
-      this.lastUpdateTime = Date.now();
+        
+        // Processar cada item
+        let validItemsCount = 0;
+        data.forEach(item => {
+          if (item && (item.id || item.roleta_id)) {
+            // Usar id prioritariamente, ou roleta_id como fallback
+            const id = item.id || item.roleta_id;
+            this.rouletteData.set(id, item);
+            validItemsCount++;
+          }
+        });
+        
+        console.log(`DEBUG: ${validItemsCount} roletas adicionadas ao cache`);
+        this.lastUpdateTime = Date.now();
     } else if (data && (data.id || data.roleta_id)) {
       // Atualizar uma única roleta
       const id = data.id || data.roleta_id;
@@ -1167,8 +1167,8 @@ export default class UnifiedRouletteClient {
     }
     
     // Resetar configurações estáticas
-    UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
-    UnifiedRouletteClient.SSE_CONNECTION_ID = null;
+        UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
+        UnifiedRouletteClient.SSE_CONNECTION_ID = null;
     UnifiedRouletteClient.connectionInProgress = false;
   }
   
@@ -1573,9 +1573,9 @@ export default class UnifiedRouletteClient {
   private async fetchAndCacheInitialHistory(): Promise<void> {
     if (this.isFetchingInitialHistory || this.initialHistoryFetchPromise) {
       this.log('Já existe uma busca de histórico em andamento, aguardando...');
-      return this.initialHistoryFetchPromise;
+        return this.initialHistoryFetchPromise;
     }
-    
+
     this.log('Iniciando busca do histórico inicial para todas as roletas...');
     this.isFetchingInitialHistory = true;
     
@@ -1646,7 +1646,7 @@ export default class UnifiedRouletteClient {
         resolve();
       }
     });
-    
+
     return this.initialHistoryFetchPromise;
   }
 
