@@ -1557,66 +1557,82 @@ class UnifiedRouletteClient {
 
   // --- Função para Buscar e Cachear Histórico Inicial ---
   private async fetchAndCacheInitialHistory(): Promise<void> {
-    // Evitar múltiplas buscas simultâneas ou repetidas
-    if (this.isFetchingInitialHistory || this.initialHistoricalDataCache.size > 0) {
-      this.log('Busca de histórico inicial já em andamento ou concluída.');
-      // Se já estiver buscando, retorna a promise existente
-      if (this.initialHistoryFetchPromise) {
-        return this.initialHistoryFetchPromise;
-      }
-      return Promise.resolve();
+    if (this.isFetchingInitialHistory || this.initialHistoryFetchPromise) {
+      this.log('Já existe uma busca de histórico em andamento, aguardando...');
+      return this.initialHistoryFetchPromise;
     }
-
-    this.isFetchingInitialHistory = true;
+    
     this.log('Iniciando busca do histórico inicial para todas as roletas...');
-
-    this.initialHistoryFetchPromise = (async () => {
-      let apiUrl = ''; // Declarar fora para estar acessível no catch/finally
+    this.isFetchingInitialHistory = true;
+    
+    const historicalApiUrl = getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
+    
+    this.initialHistoryFetchPromise = new Promise<void>(async (resolve) => {
+      // Adicionar timeout para evitar bloqueio prolongado
+      const timeoutPromise = new Promise<void>((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout ao buscar histórico inicial')), 15000);
+      });
+      
       try {
-        // <<< Usar getFullUrl para construir a URL completa >>>
-        apiUrl = getFullUrl(ENDPOINTS.HISTORICAL.ALL_ROULETTES);
-        this.log(`Buscando histórico inicial de: ${apiUrl}`); // Log para depuração
-        const response = await axios.get<{ success: boolean; data: Record<string, RouletteNumber[]>; message?: string }>(apiUrl);
-
-        if (response.data && response.data.success && response.data.data) {
-          const historicalData = response.data.data;
-          const rouletteNames = Object.keys(historicalData);
-
-          // Limpar cache antigo antes de popular
-          this.initialHistoricalDataCache.clear();
-
-          // Popular o cache
-          rouletteNames.forEach(name => {
-            if (Array.isArray(historicalData[name])) {
-              this.initialHistoricalDataCache.set(name, historicalData[name]);
-            }
-          });
-
-          this.log(`Histórico inicial carregado e cacheado para ${rouletteNames.length} roletas.`);
-          
-          // Emitir evento (opcional)
-          this.emit('initialHistoryLoaded', this.initialHistoricalDataCache);
-
-        } else {
-          throw new Error(response.data?.message || 'Falha ao buscar dados históricos iniciais: resposta inválida');
+        this.log(`Buscando histórico inicial de: ${historicalApiUrl}`);
+        
+        // Usar Promise.race para evitar bloqueio prolongado
+        const response = await Promise.race([
+          axios.get(historicalApiUrl),
+          timeoutPromise
+        ]) as any; // Usar any temporariamente para evitar erro de tipo
+        
+        const data = response.data;
+        
+        if (!data || !Array.isArray(data)) {
+          this.warn('Formato de resposta de histórico inválido');
+          this.isFetchingInitialHistory = false;
+          this.initialHistoryFetchPromise = null;
+          resolve();
+          return;
         }
-
+        
+        // Processamento progressivo para evitar bloqueio da UI
+        await new Promise(r => setTimeout(r, 0)); // Liberar thread principal
+        
+        let count = 0;
+        // Processar em lotes para não bloquear UI
+        for (let i = 0; i < data.length; i++) {
+          const roulette = data[i];
+          if (roulette && roulette.nome && Array.isArray(roulette.numeros)) {
+            this.initialHistoricalDataCache.set(roulette.nome, roulette.numeros);
+            count++;
+            
+            // A cada 10 roletas, liberar thread principal
+            if (i % 10 === 0 && i > 0) {
+              await new Promise(r => setTimeout(r, 0));
+            }
+          }
+        }
+        
+        this.log(`Histórico inicial carregado e cacheado para ${count} roletas.`);
+        
+        // Notificar que os dados históricos estão disponíveis
+        this.emit('historical-data-ready', Array.from(this.initialHistoricalDataCache.keys()));
+        
       } catch (error: any) {
-         // Usar apiUrl se disponível, senão o endpoint relativo
-         const endpointDesc = apiUrl || ENDPOINTS.HISTORICAL.ALL_ROULETTES;
-         this.error(`Erro ao buscar histórico de ${endpointDesc}:`, error.message || error);
-        // Limpar cache em caso de erro para permitir nova tentativa
-        this.initialHistoricalDataCache.clear();
-        // Emitir evento de erro (opcional)
-        this.emit('initialHistoryError', error);
-        // Rejeitar a promise para que quem estiver aguardando saiba do erro
-        throw error;
+        if (error.message === 'Timeout ao buscar histórico inicial') {
+          this.warn('Timeout ao buscar histórico inicial, continuando com dados parciais');
+          
+          // Mesmo com timeout, emitir evento com dados parciais disponíveis
+          if (this.initialHistoricalDataCache.size > 0) {
+            this.emit('historical-data-ready', Array.from(this.initialHistoricalDataCache.keys()));
+          }
+        } else {
+          this.error('Erro ao buscar histórico inicial:', error);
+        }
       } finally {
         this.isFetchingInitialHistory = false;
-        // Não limpar initialHistoryFetchPromise aqui, para que futuras chamadas saibam que já foi tentado
+        this.initialHistoryFetchPromise = null;
+        resolve();
       }
-    })();
-
+    });
+    
     return this.initialHistoryFetchPromise;
   }
 

@@ -69,6 +69,20 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
   useEffect(() => {
     debugLog(`useEffect executado. ID: ${safeData.id}`);
 
+    // Adicionar um timeout de segurança para sempre mostrar algo ao usuário
+    const displayTimeoutMs = 5000; // 5 segundos
+    const safetyTimeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.log('Timeout de segurança acionado - liberando interface');
+        setLoadingTimeout(true);
+        
+        // Após mais 3 segundos, liberar o componente mesmo sem dados
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 3000);
+      }
+    }, displayTimeoutMs);
+
     const handleUpdate = (updateData: any) => {
       debugLog(`handleUpdate chamado. Evento 'update' recebido`);
         
@@ -112,6 +126,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
           setRouletteData(processed);
           setIsLoading(false);
           setError(null);
+          setLoadingTimeout(false);
         }
       } else {
         debugLog(`Nenhum dado para ID ${safeData.id} encontrado na atualização.`);
@@ -156,11 +171,37 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
         debugLog(`Nenhum histórico encontrado para ${safeData.name}. Aguardando evento 'update'...`);
         // Mantém isLoading true apenas se não houver dados iniciais
         setIsLoading(true);
+        
+        // Tentar forçar uma atualização para carregar os dados mais rapidamente
+        unifiedClient.forceUpdate();
       }
     }
 
     debugLog(`Assinando evento 'update' do UnifiedClient.`);
     unifiedClient.subscribe('update', handleUpdate);
+    
+    // Adicionar subscription para o evento de dados históricos carregados
+    unifiedClient.subscribe('historical-data-ready', () => {
+      // Tentar novamente obter dados históricos quando ficarem disponíveis
+      if (isLoading) {
+        const historicalData = unifiedClient.getPreloadedHistory(safeData.name);
+        if (historicalData && historicalData.length > 0) {
+          const syntheticRoulette = {
+            id: safeData.id,
+            roleta_id: safeData.id,
+            nome: safeData.name,
+            roleta_nome: safeData.name,
+            provider: "Desconhecido",
+            status: "offline",
+            numeros: historicalData.slice(0, 10),
+            ultimoNumero: historicalData[0]?.numero,
+            timestamp: Date.now(),
+            isHistorical: true
+          };
+          handleUpdate(syntheticRoulette);
+        }
+      }
+    });
 
     // VERIFICAÇÃO DE FONTE ÚNICA
     console.log('[VERIFICAÇÃO DE FONTE ÚNICA] O componente RouletteCard usa apenas UnifiedRouletteClient para obter dados da API.');
@@ -168,9 +209,13 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
     return () => {
       debugLog(`Desmontando e cancelando assinatura do evento 'update'.`);
       unifiedClient.unsubscribe('update', handleUpdate);
+      unifiedClient.unsubscribe('historical-data-ready', () => {});
+      
+      // Limpar timeout de segurança
+      clearTimeout(safetyTimeoutId);
     };
   // Dependências revisadas: safeData.id e unifiedClient são suficientes para setup/cleanup.
-  }, [safeData.id, unifiedClient]);
+  }, [safeData.id, unifiedClient, isLoading]);
   
   // Formatar tempo relativo
   const getTimeAgo = () => {
