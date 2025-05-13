@@ -18,6 +18,7 @@ export interface ProcessedRouletteData {
   id: string;
   nome: string;
   provider: string;
+  imageUrl: string;
   status: string;
   ultimoNumero: number | null;
   numeros: RouletteNumber[];
