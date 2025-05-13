@@ -18,34 +18,45 @@ export function getRouletteImage(rouletteName: string, provider: string): string
   if (provider.toLowerCase().includes('pragmatic')) {
     // Mapeamento específico para roletas Pragmatic Play
     const pragmaticImageMap: Record<string, string> = {
-      "fortune roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg?v=0.9804522165134438",
-      "immersive roulette deluxe": "https://client.pragmaticplaylive.net/desktop/assets/snaps/25irclas25imrcrw/poster.jpg?v=0.9804522165134438",
-      "vip auto roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/ar25vipautorw251/poster.jpg?v=0.9804522165134438",
-      "mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg?v=0.9804522165134438",
-      "roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg?v=0.9804522165134438",
-      "romanian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/romania233rwl291/poster.jpg?v=0.9804522165134438",
-      "brazilian mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg?v=0.9804522165134438",
-      "speed roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg?v=0.9804522165134438",
-      "roulette macao": "https://client.pragmaticplaylive.net/desktop/assets/snaps/yqpz3ichst2xg439/poster.jpg?v=0.9804522165134438",
-      "german roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/s2x6b4jdeqza2ge2/poster.jpg?v=0.9804522165134438",
-      "russian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/t4jzencinod6iqwi/poster.jpg?v=0.9804522165134438",
-      "roulette italia tricolore": "https://client.pragmaticplaylive.net/desktop/assets/snaps/v1c52fgw7yy02upz/poster.jpg?v=0.9804522165134438",
+      "fortune roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulettbba91/poster.jpg",
+      "immersive roulette deluxe": "https://client.pragmaticplaylive.net/desktop/assets/snaps/25irclas25imrcrw/poster.jpg",
+      "vip auto roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/ar25vipautorw251/poster.jpg",
+      "mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg",
+      "roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg",
+      "romanian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/romania233rwl291/poster.jpg",
+      "brazilian mega roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/mrbras531mrbr532/poster.jpg",
+      "speed roulette 1": "https://client.pragmaticplaylive.net/desktop/assets/snaps/fl9knouu0yjez2wi/poster.jpg",
+      "roulette macao": "https://client.pragmaticplaylive.net/desktop/assets/snaps/yqpz3ichst2xg439/poster.jpg",
+      "german roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/s2x6b4jdeqza2ge2/poster.jpg",
+      "russian roulette": "https://client.pragmaticplaylive.net/desktop/assets/snaps/t4jzencinod6iqwi/poster.jpg",
+      "roulette italia tricolore": "https://client.pragmaticplaylive.net/desktop/assets/snaps/v1c52fgw7yy02upz/poster.jpg",
       "turkish roulette": "https://bshots.egcvi.com/thumbnail/ezugi_221000_med_L.jpg"
+    };
+
+    // Fallback URLs para roletas específicas que estão com problemas
+    const fallbackUrls: Record<string, string> = {
+      "romanian roulette": "https://bshots.egcvi.com/thumbnail/ezugi_221002_med_L.jpg",
+      "mega roulette": "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg",
+      "russian roulette": "https://bshots.egcvi.com/thumbnail/rugent1_imr_med_L.jpg"
     };
 
     // Busca pelo nome exato em pragmaticImageMap
     for (const [key, imageUrl] of Object.entries(pragmaticImageMap)) {
       if (normalizedName.includes(key.toLowerCase())) {
+        // Verificar se há um fallback para esta roleta
+        if (fallbackUrls[key]) {
+          return fallbackUrls[key];
+        }
         return imageUrl;
       }
     }
     
- 
+    // Fallback para Pragmatic Play
+    return "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg";
   } 
   else if (provider.toLowerCase().includes('evolution')) {
     // Imagens da Evolution com URLs reais
     const evolutionImageMap: Record<string, string> = {
-   
       "lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
       "immersive roulette": "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg",
       "xxxtreme lightning roulette": "https://bshots.egcvi.com/thumbnail/xfrt1_imr_med_L.jpg",
@@ -76,10 +87,13 @@ export function getRouletteImage(rouletteName: string, provider: string): string
         return imageUrl;
       }
     }
-   
+    
+    // Fallback para Evolution
+    return "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg";
   }
   
-  
+  // Imagem padrão se o provedor não for reconhecido
+  return "https://bshots.egcvi.com/thumbnail/immersive_med_L.jpg";
 }
 
 /**
