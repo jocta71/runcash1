@@ -317,8 +317,8 @@ const RouletteCard: React.FC<RouletteCardProps> = ({ data: initialData, isDetail
                 alt={`Mesa de ${rouletteData.nome}`} 
                 className="w-full h-32 object-cover"
                 onError={(e) => {
-                  // Caso a imagem não carregue, usar imagem genérica
-                  (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=Roleta';
+                  // Caso a imagem não carregue, usar base64 genérica em vez de CDN externo
+                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMzAwIDIwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSIgZmlsbD0iIzU1NSI+Um9sZXRhPC90ZXh0Pjwvc3ZnPg==';
                 }}
               />
             </div>

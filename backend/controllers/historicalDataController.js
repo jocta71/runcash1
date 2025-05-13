@@ -95,20 +95,20 @@ const MAPEAMENTO_PROVEDORES = {
 // Mapeamento de URLs de imagens por nome de roleta
 const MAPEAMENTO_IMAGENS = {
     // Evolution
-    'Lightning Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Lightning-Roulette-thumb-2.jpg',
-    'Immersive Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Immersive-Roulette-thumb.jpg',
-    'XXXtreme Lightning Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/XXXtreme-Lightning-Roulette-thumb.jpg',
-    'Gold Vault Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/12/Gold-Vault-Roulette-thumb.jpg',
-    'Speed Auto Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Speed-Auto-Roulette-thumb.jpg',
-    'American Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/American-Roulette-thumb.jpg',
-    'Football Studio Roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/11/Football-Studio-Roulette-thumb.jpg',
+    'Lightning Roulette': 'https://casinopro.com.br/wp-content/uploads/2021/06/lightning-roulette-evolution-1.jpg',
+    'Immersive Roulette': 'https://www.jogodobicho.com/wp-content/uploads/2021/01/immersive-roulette-evolution-gaming.jpg',
+    'XXXtreme Lightning Roulette': 'https://betrnk.com/wp-content/uploads/2021/11/xxxtreme-lightning-roulette.jpg',
+    'Gold Vault Roulette': 'https://cdn.neonslots.com/content/f0472096e3acf97ef5cd44126b8af5ae.jpg',
+    'Speed Auto Roulette': 'https://www.meucassinoonline.com/wp-content/uploads/2023/04/Speed-Auto-Roulette.jpg',
+    'American Roulette': 'https://www.casinoportugal.pt/sites/default/files/images/games/americanroulette_mobil.jpg',
+    'Football Studio Roulette': 'https://aviatorcasino.org/wp-content/uploads/2023/08/football-studio-scaled.jpg',
     
     // Pragmatic Play
-    'Fortune Roulette': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/fortuneroulette/ppcdk00000006343/poster.jpg',
-    'Mega Roulette': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulette/ppcdk00000007202/poster.jpg',
-    'Roulette 1': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulette/ppcdk00000004645/poster.jpg',
-    'Speed Roulette 1': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/speedroulette1/ppcdk00000004644/poster.jpg',
-    'Roulette Macao': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulettemacao/ppcdk00000004637/poster.jpg'
+    'Fortune Roulette': 'https://www.vegasslotsonline.com/themes/vegasslotsonline.com/assets/images/live-casino/pragmatic-play/fortune-roulette.jpg',
+    'Mega Roulette': 'https://www.ninjacasino.com/img/live/320x180/PragmaticPlay_MegaRoulette.jpg',
+    'Roulette 1': 'https://apuestasonlinecolombia.co/wp-content/uploads/2022/10/Roleta-1-pragmatic-play-1.jpg',
+    'Speed Roulette 1': 'https://pbs.twimg.com/media/FDw6q-IWUAY9gDy?format=jpg',
+    'Roulette Macao': 'https://www.vegasmaster.com/wp-content/uploads/2022/06/roulette-macao.jpg'
 };
 
 /**
@@ -190,12 +190,13 @@ const getImageUrlFromName = (nome, provider) => {
     
     // Imagens padrão por provedor
     if (provider === 'Evolution') {
-        return 'https://evolutiongaming.com/wp-content/uploads/2022/05/Roulette-thumb.jpg';
+        return 'https://casinopro.com.br/wp-content/uploads/2021/03/roleta-ao-vivo-evolution.jpg';
     } else if (provider === 'Pragmatic Play') {
-        return 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulette1/ppcdk00000004605/poster.jpg';
+        return 'https://www.livedealer.org/wp-content/uploads/2017/10/pragmatic-play-roulette-wheel.jpg';
     }
     
-    return null;
+    // Imagem genérica para outros provedores
+    return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMzAwIDIwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSIgZmlsbD0iIzU1NSI+Um9sZXRhPC90ZXh0Pjwvc3ZnPg==';
 };
 
 // Função auxiliar para buscar histórico de uma roleta

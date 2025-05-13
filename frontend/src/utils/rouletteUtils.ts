@@ -82,25 +82,25 @@ export function getRouletteImageUrl(rouletteName: string, provider: string): str
   
   // Mapas de imagens por provedor
   const evolutionImages: { [key: string]: string } = {
-    'lightning roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Lightning-Roulette-thumb-2.jpg',
-    'immersive roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Immersive-Roulette-thumb.jpg',
-    'xxxtreme lightning roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/XXXtreme-Lightning-Roulette-thumb.jpg',
-    'gold vault roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/12/Gold-Vault-Roulette-thumb.jpg',
-    'speed auto roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Speed-Auto-Roulette-thumb.jpg',
-    'american roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/05/American-Roulette-thumb.jpg',
-    'football studio roulette': 'https://evolutiongaming.com/wp-content/uploads/2022/11/Football-Studio-Roulette-thumb.jpg',
+    'lightning roulette': 'https://casinopro.com.br/wp-content/uploads/2021/06/lightning-roulette-evolution-1.jpg',
+    'immersive roulette': 'https://www.jogodobicho.com/wp-content/uploads/2021/01/immersive-roulette-evolution-gaming.jpg',
+    'xxxtreme lightning roulette': 'https://betrnk.com/wp-content/uploads/2021/11/xxxtreme-lightning-roulette.jpg',
+    'gold vault roulette': 'https://cdn.neonslots.com/content/f0472096e3acf97ef5cd44126b8af5ae.jpg',
+    'speed auto roulette': 'https://www.meucassinoonline.com/wp-content/uploads/2023/04/Speed-Auto-Roulette.jpg',
+    'american roulette': 'https://www.casinoportugal.pt/sites/default/files/images/games/americanroulette_mobil.jpg',
+    'football studio roulette': 'https://aviatorcasino.org/wp-content/uploads/2023/08/football-studio-scaled.jpg',
     // Imagens padrões para outras roletas da Evolution
-    'default': 'https://evolutiongaming.com/wp-content/uploads/2022/05/Roulette-thumb.jpg'
+    'default': 'https://casinopro.com.br/wp-content/uploads/2021/03/roleta-ao-vivo-evolution.jpg'
   };
   
   const pragmaticImages: { [key: string]: string } = {
-    'fortune roulette': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/fortuneroulette/ppcdk00000006343/poster.jpg',
-    'mega roulette': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/megaroulette/ppcdk00000007202/poster.jpg',
-    'roulette 1': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulette/ppcdk00000004645/poster.jpg',
-    'speed roulette 1': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/speedroulette1/ppcdk00000004644/poster.jpg',
-    'roulette macao': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulettemacao/ppcdk00000004637/poster.jpg',
+    'fortune roulette': 'https://www.vegasslotsonline.com/themes/vegasslotsonline.com/assets/images/live-casino/pragmatic-play/fortune-roulette.jpg',
+    'mega roulette': 'https://www.ninjacasino.com/img/live/320x180/PragmaticPlay_MegaRoulette.jpg',
+    'roulette 1': 'https://apuestasonlinecolombia.co/wp-content/uploads/2022/10/Roleta-1-pragmatic-play-1.jpg',
+    'speed roulette 1': 'https://pbs.twimg.com/media/FDw6q-IWUAY9gDy?format=jpg',
+    'roulette macao': 'https://www.vegasmaster.com/wp-content/uploads/2022/06/roulette-macao.jpg',
     // Imagens padrões para outras roletas da Pragmatic
-    'default': 'https://client.pragmaticplaylive.net/desktop/assets/snaps/roulette1/ppcdk00000004605/poster.jpg'
+    'default': 'https://www.livedealer.org/wp-content/uploads/2017/10/pragmatic-play-roulette-wheel.jpg'
   };
   
   // Seleciona o mapa de acordo com o provedor
