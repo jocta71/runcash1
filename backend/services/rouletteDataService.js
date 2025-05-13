@@ -297,7 +297,7 @@ class RouletteDataService {
             numerosEncontrados = await db.collection(colecao_id)
               .find({})
               .sort({ timestamp: -1 })
-              .limit(5)
+              .limit(20)
               .toArray();
               
             if (numerosEncontrados && numerosEncontrados.length > 0) {
@@ -360,7 +360,7 @@ class RouletteDataService {
               const numerosQuery = await db.collection('roleta_numeros')
                 .find(query)
                 .sort({ timestamp: -1 })
-                .limit(5)
+                .limit(20)
                 .toArray();
                 
               if (numerosQuery && numerosQuery.length > 0) {
