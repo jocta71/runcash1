@@ -1,6 +1,6 @@
 /**
- * Serviço para buscar dados em tempo real via polling como fallback
- * quando a conexão WebSocket falha
+ * Serviço para buscar dados em tempo real via eventos SSE
+ * (Polling foi removido para otimização)
  */
 
 import EventService from './EventService';
@@ -13,7 +13,6 @@ import { ROLETAS_PERMITIDAS } from '@/config/allowedRoulettes';
 const logger = getLogger('FetchService');
 
 // Configurações
-const POLLING_INTERVAL = 5000; // 5 segundos entre cada verificação
 const MAX_RETRIES = 3; // Número máximo de tentativas antes de desistir
 const ALLOWED_ROULETTES = ROLETAS_PERMITIDAS;
 
@@ -36,11 +35,8 @@ interface FetchOptions extends RequestInit {
 
 class FetchService {
   private static instance: FetchService;
-  private pollingIntervalId: number | null = null;
   private lastFetchedNumbers: Map<string, { timestamp: number, numbers: number[] }> = new Map();
-  private isPolling: boolean = false;
   private apiBaseUrl: string;
-  private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
   
   constructor() {
     this.apiBaseUrl = config.apiBaseUrl;
@@ -55,43 +51,26 @@ class FetchService {
   }
   
   /**
-   * Inicia polling regular para buscar dados de roletas
+   * Método mantido para compatibilidade, mas implementado para não fazer nada
+   * @deprecated Polling foi desativado para melhorar o desempenho
    */
   public startPolling(): void {
-    if (this.isPolling) {
-      logger.info('Polling já está em execução');
-      return;
-    }
-    
-    logger.info('Iniciando polling regular de dados');
-    this.isPolling = true;
-    
-    // Executar imediatamente a primeira vez
-    this.fetchAllRouletteData();
-    
-    // Configurar intervalo para execuções periódicas
-    this.pollingIntervalId = window.setInterval(() => {
-      this.fetchAllRouletteData();
-    }, POLLING_INTERVAL);
+    logger.info('⚠️ Polling foi desativado para melhorar performance');
   }
   
   /**
-   * Para o polling de dados
+   * Método mantido para compatibilidade, mas implementado para não fazer nada
+   * @deprecated Polling foi desativado para melhorar o desempenho
    */
   public stopPolling(): void {
-    if (this.pollingIntervalId !== null) {
-      window.clearInterval(this.pollingIntervalId);
-      this.pollingIntervalId = null;
-    }
-    this.isPolling = false;
-    logger.info('Polling parado');
+    logger.info('⚠️ Polling já está desativado');
   }
   
   /**
-   * Busca dados de todas as roletas permitidas
+   * Busca dados de todas as roletas permitidas sob demanda
    */
-  private async fetchAllRouletteData(): Promise<void> {
-    logger.debug('Buscando dados das roletas...');
+  public async fetchAllRouletteData(): Promise<void> {
+    logger.debug('Buscando dados das roletas (sob demanda)...');
     
     try {
       // Primeira etapa: buscar todas as roletas para obter informações básicas
@@ -250,187 +229,172 @@ class FetchService {
       
       this.lastFetchedNumbers.set(roletaId, {
         timestamp: Date.now(),
-        numbers: [...numbers]
+        numbers: numbers
       });
       
-      // Emitir o número mais recente como evento
-      const lastNumber = numbers[0];
-      if (lastNumber !== undefined && lastNumber !== null) {
-        this.emitNumberEvent(roletaId, roletaNome, lastNumber);
-      }
-      
+      // Não disparar evento se é o primeiro conjunto de números
       return;
     }
     
-    // Verificar se temos números novos comparando com os últimos salvos
-    const oldNumbers = lastData.numbers || [];
+    // Verificar se há novos números
+    const lastNumbers = lastData.numbers;
+    const newNumbers = this.findNewNumbers(lastNumbers, numbers);
     
-    // Verificar se temos números para comparar
-    if (oldNumbers.length === 0 || numbers.length === 0) {
-      this.lastFetchedNumbers.set(roletaId, {
-        timestamp: Date.now(),
-        numbers: [...numbers]
-      });
-      return;
-    }
-    
-    const firstNewNumber = numbers[0];
-    const firstOldNumber = oldNumbers[0];
-    
-    if (firstNewNumber !== firstOldNumber) {
-      logger.info(`Novo número detectado para ${roletaNome}: ${firstNewNumber} (anterior: ${firstOldNumber})`);
+    if (newNumbers.length > 0) {
+      logger.info(`${newNumbers.length} novos números para ${roletaNome}: [${newNumbers.join(', ')}]`);
       
-      // Atualizar a lista de números
+      // Atualizar o registro de últimos números
       this.lastFetchedNumbers.set(roletaId, {
         timestamp: Date.now(),
-        numbers: [...numbers]
+        numbers: numbers
       });
       
-      // Emitir o novo número como evento
-      this.emitNumberEvent(roletaId, roletaNome, firstNewNumber);
-    } else {
-      // Apenas atualizar o timestamp sem emitir evento
-      logger.debug(`Nenhum número novo para ${roletaNome}, último: ${firstNewNumber}`);
-      this.lastFetchedNumbers.set(roletaId, {
-        timestamp: Date.now(),
-        numbers: oldNumbers
+      // Emitir evento para cada novo número, do mais antigo ao mais recente
+      // para manter a ordem cronológica
+      newNumbers.forEach(numero => {
+        this.emitNumberEvent(roletaId, roletaNome, numero);
       });
     }
   }
   
   /**
-   * Emite um evento com o novo número para o sistema
+   * Encontra números novos comparando dois arrays
+   */
+  private findNewNumbers(oldNumbers: number[], newNumbers: number[]): number[] {
+    if (!oldNumbers || !Array.isArray(oldNumbers) || !newNumbers || !Array.isArray(newNumbers)) {
+      return [];
+    }
+    
+    const result: number[] = [];
+    
+    // Verificar quais números são novos
+    // Considerar apenas os primeiros números de newNumbers que não estão em oldNumbers
+    // respeitando a ordem e sem repetições
+    
+    let i = 0;
+    while (i < newNumbers.length) {
+      const numero = newNumbers[i];
+      
+      // Se o número atual já está no resultado, pular
+      if (result.includes(numero)) {
+        i++;
+        continue;
+      }
+      
+      // Se o número atual não está nos números antigos
+      // e é o primeiro ou diferente do anterior, adicionar
+      if (!oldNumbers.includes(numero) && 
+          (result.length === 0 || numero !== result[result.length - 1])) {
+        result.push(numero);
+      }
+      
+      i++;
+    }
+    
+    return result;
+  }
+  
+  /**
+   * Emite um evento de novo número via EventService
    */
   private emitNumberEvent(roletaId: string, roletaNome: string, numero: number): void {
     // Verificar se o número é válido
     if (numero === undefined || numero === null || isNaN(numero)) {
-      logger.warn(`Tentativa de emitir número inválido para ${roletaNome}: ${numero}`);
+      logger.warn(`Tentativa de emitir evento com número inválido para ${roletaNome}: ${numero}`);
       return;
     }
     
-    // Criar o evento
+    // Determinar a cor do número
+    const cor = this.determinarCorNumero(numero);
+    
+    // Criar objeto de evento
     const event: RouletteNumberEvent = {
       type: 'new_number',
-      roleta_id: roletaId || '',
-      roleta_nome: roletaNome || 'Roleta Desconhecida',
+      roleta_id: roletaId,
+      roleta_nome: roletaNome,
       numero: numero,
-      timestamp: new Date().toISOString(),
-      // Adicionar flag para indicar que este evento NÃO deve substituir dados existentes
-      preserve_existing: true
+      timestamp: new Date().toISOString()
     };
     
-    logger.info(`Emitindo evento de novo número para ${roletaNome}: ${numero}`);
-    
-    // Emitir utilizando o EventService
+    // Emitir evento
     const eventService = EventService.getInstance();
-    
-    // Tentar todas as formas possíveis de emitir o evento
-    if (typeof eventService.dispatchEvent === 'function') {
-      eventService.dispatchEvent(event);
-    }
-    
-    EventService.emitGlobalEvent('new_number', event);
+    eventService.dispatchEvent(event);
+    logger.debug(`Evento emitido: Número ${numero} (${cor}) para ${roletaNome}`);
   }
   
   /**
-   * Obtém o ID canônico para uma roleta, usando o nome como fallback
+   * Obtém o ID canônico para uma roleta
    */
   private getCanonicalId(id: string = '', nome?: string): string {
-    // Garantir que id seja uma string
-    const safeId = id || '';
-    
-    // Se o ID já é canônico, retorná-lo
-    if (ALLOWED_ROULETTES.includes(safeId)) {
-      return safeId;
+    // Primeiro verificar se temos um ID direto
+    if (id && typeof id === 'string' && id.trim() !== '') {
+      return id.trim();
     }
     
-    // Tentar mapear pelo nome, verificando se o nome está definido e existe no mapa
-    if (nome && typeof nome === 'string' && NAME_TO_ID_MAP[nome]) {
-      return NAME_TO_ID_MAP[nome];
+    // Se temos um nome, verificar se existe no mapeamento
+    if (nome && typeof nome === 'string' && nome.trim() !== '') {
+      const normalizedNome = nome.trim();
+      
+      if (normalizedNome in NAME_TO_ID_MAP) {
+        return NAME_TO_ID_MAP[normalizedNome];
+      }
     }
     
-    // Retornar o ID original como último recurso
-    return safeId;
+    // Fallback para ID desconhecido com timestamp
+    return `unknown_${Date.now()}`;
   }
   
   /**
-   * Força uma atualização única das roletas
+   * Força uma atualização imediata
    */
   public forceUpdate(): void {
-    logger.info('Forçando atualização imediata das roletas');
     this.fetchAllRouletteData();
-  }
-
-  /**
-   * Realiza uma requisição GET com controle de taxa
-   */
-  async get<T>(url: string, options: FetchOptions = {}): Promise<T | null> {
-    const throttleKey = options.throttleKey || `GET_${url}`;
-    
-    return RequestThrottler.scheduleRequest<T>(
-      throttleKey,
-      async () => {
-        const headers = RequestThrottler.getDefaultHeaders(options.headers as Record<string, string> || {});
-        
-        logger.debug(`Fazendo requisição GET para ${url}`);
-        const response = await fetch(url, {
-          method: 'GET',
-          ...options,
-          headers
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
-        }
-        
-        return await response.json();
-      },
-      !!options.forceRefresh,
-      !!options.skipCache,
-      options.cacheTime
-    );
   }
   
   /**
-   * Realiza uma requisição POST com controle de taxa
+   * Realiza uma requisição GET
+   */
+  async get<T>(url: string, options: FetchOptions = {}): Promise<T | null> {
+    try {
+      const response = await this.fetchData<T>(url, {
+        method: 'GET',
+        ...options
+      });
+      
+      return response;
+    } catch (error) {
+      logger.error(`Erro na requisição GET para ${url}:`, error);
+      return null;
+    }
+  }
+  
+  /**
+   * Realiza uma requisição POST
    */
   async post<T>(url: string, data: any, options: FetchOptions = {}): Promise<T | null> {
-    const throttleKey = options.throttleKey || `POST_${url}`;
-    
-    return RequestThrottler.scheduleRequest<T>(
-      throttleKey,
-      async () => {
-        const headers = RequestThrottler.getDefaultHeaders({
+    try {
+      const response = await this.fetchData<T>(url, {
+        method: 'POST',
+        headers: {
           'Content-Type': 'application/json',
-          ...(options.headers as Record<string, string> || {})
-        });
-        
-        logger.debug(`Fazendo requisição POST para ${url}`);
-        const response = await fetch(url, {
-          method: 'POST',
-          body: JSON.stringify(data),
-          ...options,
-          headers
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
-        }
-        
-        return await response.json();
-      },
-      !!options.forceRefresh,
-      !!options.skipCache,
-      options.cacheTime
-    );
+          ...options.headers
+        },
+        body: JSON.stringify(data),
+        ...options
+      });
+      
+      return response;
+    } catch (error) {
+      logger.error(`Erro na requisição POST para ${url}:`, error);
+      return null;
+    }
   }
   
   /**
    * Limpa o cache para uma URL específica
    */
-  clearCache(url: string, method: string = 'GET'): void {
-    const key = `${method}_${url}`;
-    RequestThrottler.clearCache(key);
+  clearCache(url: string): void {
+    RequestThrottler.clearCache(url);
   }
   
   /**
@@ -439,199 +403,120 @@ class FetchService {
   clearAllCache(): void {
     RequestThrottler.clearCache();
   }
-
+  
   /**
-   * Obtém dados de uma URL com suporte a retry
+   * Método base para realizar requisições com controle de cache e throttling
    */
   public async fetchData<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const maxRetries = 3;
-    const RETRY_INTERVAL = 1000; // Definindo a constante que estava faltando
+    // Extrair opções adicionais de FetchOptions
+    const fetchOptions = options as FetchOptions;
+    const skipCache = fetchOptions?.skipCache || false;
+    const cacheTime = fetchOptions?.cacheTime || 10000; // 10 segundos padrão
+    const throttleKey = fetchOptions?.throttleKey || endpoint;
+    const forceRefresh = fetchOptions?.forceRefresh || false;
     
-    let retries = 0;
-
-    while (retries < maxRetries) {
-      try {
-        const response = await fetch(endpoint, {
-          ...options,
-          headers: {
+    // Criar novas options sem nossas opções customizadas
+    const requestOptions: RequestInit = { ...options };
+    delete (requestOptions as any).skipCache;
+    delete (requestOptions as any).cacheTime;
+    delete (requestOptions as any).throttleKey;
+    delete (requestOptions as any).forceRefresh;
+    
+    // Usar o ThrottleRequest para gerenciar requisições
+    try {
+      const response = await RequestThrottler.scheduleRequest<T>(
+        throttleKey,
+        async () => {
+          const headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            ...(options?.headers || {})
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        
-        // Emitir evento sinalizando que os dados foram carregados com sucesso
-        EventService.emitGlobalEvent('data_loaded', {
-          endpoint,
-          success: true,
-          timestamp: new Date().toISOString()
-        });
-        
-        return data as T;
-      } catch (error) {
-        retries++;
-        logger.warn(`Erro ao buscar dados de ${endpoint}. Tentativa ${retries}/${maxRetries}: ${error.message}`);
-        
-        if (retries >= maxRetries) {
-          logger.error(`Máximo de tentativas alcançado para ${endpoint}`);
-          throw error;
-        }
-        
-        // Aguardar antes da próxima tentativa
-        await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL));
-      }
-    }
-
-    throw new Error(`Não foi possível obter dados de ${endpoint} após ${maxRetries} tentativas`);
-  }
-
-  /**
-   * Processa um objeto de roleta para garantir formato consistente
-   */
-  private processRouletteData(roulette: any): any {
-    // Se não for um objeto válido, retornar como está
-    if (!roulette || typeof roulette !== 'object') {
-      return roulette;
-    }
-    
-    // Criar uma cópia do objeto para não modificar o original
-    const processed = { ...roulette };
-    
-    // Garantir que temos propriedades padronizadas
-    processed.id = processed.id || processed._id || processed.roleta_id;
-    processed.nome = processed.nome || processed.name || 'Roleta sem nome';
-    
-    // Normalizar array de números se existir
-    if (processed.numeros && Array.isArray(processed.numeros)) {
-      // Converter para números quando são strings
-      processed.numeros = processed.numeros.map((n: any) => 
-        typeof n === 'string' ? parseInt(n, 10) : n
-      );
-    }
-    
-    return processed;
-  }
-
-  /**
-   * Inicia polling para buscar dados da roleta com intervalo regular
-   */
-  public startPolling(roletaId: string, callback: (data: any) => void, interval = 5000): void {
-    if (this.pollingIntervals.has(roletaId)) {
-      logger.debug(`Polling já ativo para roleta ${roletaId}. Reiniciando.`);
-      this.stopPolling(roletaId);
-    }
-
-    logger.info(`Iniciando polling para roleta ${roletaId} a cada ${interval}ms`);
-    
-    // Função para buscar dados da roleta
-    const fetchRouletteData = async () => {
-      try {
-        logger.debug(`Buscando dados da roleta ${roletaId} via UnifiedRouletteClient`);
-        
-        // Importar UnifiedRouletteClient dinamicamente para evitar dependência circular
-        const UnifiedRouletteClientModule = await import('./UnifiedRouletteClient');
-        const UnifiedRouletteClient = UnifiedRouletteClientModule.default;
-        const unifiedClient = UnifiedRouletteClient.getInstance();
-        
-        // Garantir que o cliente está atualizado
-        await unifiedClient.forceUpdate();
-        
-        // Obter todas as roletas do cliente unificado
-        const allRoulettes = unifiedClient.getAllRoulettes();
-        
-        if (!Array.isArray(allRoulettes) || allRoulettes.length === 0) {
-          logger.warn(`Resposta inválida para roleta ${roletaId}: não é um array ou está vazio`);
-          return;
-        }
-        
-        // Encontrar a roleta específica
-        const roleta = allRoulettes.find(r => r.id === roletaId || r._id === roletaId);
-        
-        if (roleta) {
-          logger.debug(`Dados obtidos para roleta ${roleta.nome || roletaId} via UnifiedRouletteClient`);
+            ...(requestOptions?.headers || {})
+          };
           
-          // Emitir evento sinalizando que os dados foram carregados com sucesso
-          EventService.emitGlobalEvent('roulettes_loaded', {
-            success: true,
-            count: allRoulettes.length,
-            timestamp: new Date().toISOString(),
-            source: 'unified_client'
+          const response = await fetch(endpoint, {
+            ...requestOptions,
+            headers
           });
           
-          callback(roleta);
-        } else {
-          logger.warn(`Roleta ${roletaId} não encontrada na resposta`);
-        }
-      } catch (error) {
-        logger.error(`Erro ao buscar dados da roleta ${roletaId}: ${error.message}`);
-      }
-    };
-    
-    // Executar imediatamente na primeira vez
-    fetchRouletteData();
-    
-    // Agendar execuções periódicas
-    const timerId = setInterval(fetchRouletteData, interval);
-    this.pollingIntervals.set(roletaId, timerId);
-  }
-
-  /**
-   * Para o polling para uma roleta específica
-   */
-  public stopPolling(roletaId: string): void {
-    const timerId = this.pollingIntervals.get(roletaId);
-    if (timerId) {
-      logger.info(`Parando polling para roleta ${roletaId}`);
-      clearInterval(timerId);
-      this.pollingIntervals.delete(roletaId);
-    }
-  }
-
-  async getAllRoulettes() {
-    try {
-      logger.debug('Buscando todas as roletas disponíveis via UnifiedRouletteClient');
+          if (!response.ok) {
+            throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
+          }
+          
+          return await response.json();
+        },
+        forceRefresh,
+        skipCache,
+        cacheTime
+      );
       
-      // Importar UnifiedRouletteClient dinamicamente para evitar dependência circular
-      const UnifiedRouletteClientModule = await import('./UnifiedRouletteClient');
-      const UnifiedRouletteClient = UnifiedRouletteClientModule.default;
-      const unifiedClient = UnifiedRouletteClient.getInstance();
-      
-      // Garantir que o cliente está conectado
-      if (!unifiedClient.getStatus().isStreamConnected) {
-        unifiedClient.connectStream();
-      }
-      
-      // Obter todas as roletas do cliente unificado
-      const allRoulettes = await unifiedClient.forceUpdate();
-      
-      if (!Array.isArray(allRoulettes)) {
-        throw new Error('Resposta inválida: não é um array');
-      }
-      
-      // Processar dados com o transformador de objetos
-      const processedData = allRoulettes.map(this.processRouletteData);
-      
-      logger.info(`✅ Encontradas ${processedData.length} roletas via UnifiedRouletteClient`);
-      
-      // Emitir evento que os dados de roletas foram carregados completamente
-      EventService.emitGlobalEvent('roulettes_loaded', {
-        success: true,
-        count: processedData.length,
-        timestamp: new Date().toISOString(),
-        source: 'unified_client'
-      });
-      
-      return processedData;
+      return response;
     } catch (error) {
-      logger.error(`Erro ao buscar roletas: ${error.message}`);
+      logger.error(`Erro ao buscar dados de ${endpoint}:`, error);
       throw error;
     }
+  }
+  
+  /**
+   * Processa dados brutos de uma roleta para um formato padronizado
+   */
+  private processRouletteData(roulette: any): any {
+    if (!roulette) return null;
+    
+    // Garantir ID e nome
+    const id = roulette.id || `unknown_${Date.now()}`;
+    const nome = roulette.nome || roulette.name || 'Roleta Desconhecida';
+    
+    // Extrair números
+    let numeros: number[] = [];
+    
+    if (roulette.numeros && Array.isArray(roulette.numeros)) {
+      numeros = roulette.numeros;
+    } else if (roulette.numero && Array.isArray(roulette.numero)) {
+      numeros = roulette.numero;
+    }
+    
+    // Garantir que todos os valores são números
+    numeros = numeros.map(n => {
+      if (typeof n === 'number') return n;
+      if (typeof n === 'string') {
+        const parsed = parseInt(n, 10);
+        return isNaN(parsed) ? 0 : parsed;
+      }
+      return 0;
+    });
+    
+    return {
+      id,
+      nome,
+      numeros,
+      ultimoNumero: numeros.length > 0 ? numeros[0] : null,
+      ultimaAtualizacao: roulette.timestamp || new Date().toISOString()
+    };
+  }
+  
+  /**
+   * Busca todas as roletas
+   */
+  async getAllRoulettes() {
+    try {
+      const roulettes = await this.fetchAllRoulettes();
+      return roulettes.map(this.processRouletteData.bind(this));
+    } catch (error) {
+      logger.error('Erro ao buscar todas as roletas:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Determina a cor de um número de roleta
+   */
+  private determinarCorNumero(numero: number): string {
+    if (numero === 0) return 'verde';
+    
+    // Números vermelhos na roleta européia padrão
+    const numerosVermelhos = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+    
+    return numerosVermelhos.includes(numero) ? 'vermelho' : 'preto';
   }
 }
 

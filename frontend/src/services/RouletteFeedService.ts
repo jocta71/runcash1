@@ -387,19 +387,18 @@ export default class RouletteFeedService {
    * Inicia o polling
    */
   public startPolling(): void {
-    // Iniciar o polling se não estiver já ativo
-    if (!this.pollingTimer && !this.isPaused) {
-      logger.info('▶️ Iniciando polling de dados de roletas a cada 10 segundos');
-      this.pollingTimer = window.setInterval(() => {
-        this.fetchLatestData();
-      }, 10000);
-      
-      // Atualizar flags
-      this.isPollingActive = true;
-      window._roulettePollingActive = true;
-    } else {
-      logger.info('ℹ️ Polling já está ativo ou sistema está em pausa');
+    // O polling foi removido por questões de desempenho
+    logger.info('⚠️ Polling desativado: startPolling() foi chamado, mas o recurso foi desativado');
+    
+    // Limpar qualquer timer existente
+    if (this.pollingTimer) {
+      window.clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
     }
+    
+    // Atualizar flags
+    this.isPollingActive = false;
+    window._roulettePollingActive = false;
   }
 
   /**
@@ -407,21 +406,8 @@ export default class RouletteFeedService {
    * @param newInterval Novo intervalo em milissegundos
    */
   public setPollingInterval(newInterval: number): void {
-    if (newInterval < this.minInterval) {
-      logger.warn(`Intervalo ${newInterval}ms é muito baixo, usando mínimo de ${this.minInterval}ms`);
-      this.interval = this.minInterval;
-    } else if (newInterval > this.maxInterval) {
-      logger.warn(`Intervalo ${newInterval}ms é muito alto, usando máximo de ${this.maxInterval}ms`);
-      this.interval = this.maxInterval;
-    } else {
-      logger.info(`Alterando intervalo de polling para ${newInterval}ms`);
-      this.interval = newInterval;
-    }
-    
-    // Reiniciar o timer se estiver ativo
-    if (this.isPollingActive) {
-      this.restartPollingTimer();
-    }
+    // Método mantido apenas para compatibilidade
+    logger.warn('⚠️ setPollingInterval chamado, mas polling está desativado');
   }
 
   /**

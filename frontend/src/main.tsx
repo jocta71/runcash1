@@ -64,9 +64,8 @@ async function initializeRoulettesSystem() {
         }
       });
       
-      // Iniciar polling com intervalo de 10 segundos
-      rouletteFeedService.startPolling();
-      logger.info('Polling de roletas iniciado (intervalo de 10s)');
+      // Polling foi desativado por questões de desempenho
+      logger.info('Polling de roletas desativado por questões de desempenho');
     }).catch(error => {
       logger.error('Erro ao inicializar RouletteFeedService:', error);
     });

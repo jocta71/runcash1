@@ -26,10 +26,6 @@ interface RouletteClientOptions {
   reconnectInterval?: number;
   maxReconnectAttempts?: number;
   
-  // Opções para polling fallback
-  enablePolling?: boolean;
-  pollingInterval?: number;
-  
   // Opções gerais
   enableLogging?: boolean;
   cacheTTL?: number;
@@ -73,7 +69,7 @@ class UnifiedRouletteClient {
   
   // Configuração
   private streamingEnabled = true;
-  private pollingEnabled = true;
+  private pollingEnabled = false;
   private pollingInterval = 10000; // 10 segundos
   private cacheTTL = 30000; // 30 segundos
   private logEnabled = true;
@@ -125,8 +121,7 @@ class UnifiedRouletteClient {
     
     // Aplicar opções
     this.streamingEnabled = options.streamingEnabled !== false;
-    this.pollingEnabled = options.enablePolling !== false;
-    this.pollingInterval = options.pollingInterval || 10000;
+    this.pollingEnabled = false;
     this.cacheTTL = options.cacheTTL || 30000;
     this.logEnabled = options.enableLogging !== false;
     this.streamReconnectInterval = options.reconnectInterval || 5000;
@@ -143,9 +138,6 @@ class UnifiedRouletteClient {
     if (this.streamingEnabled && options.autoConnect !== false) {
       this.log('Iniciando com conexão SSE (prioridade)');
       this.connectStream();
-    } else if (this.pollingEnabled) {
-      // Iniciar polling apenas se streaming estiver desabilitado
-      this.startPolling();
     }
     
     // Garantir que o histórico inicial seja buscado apenas uma vez
@@ -177,7 +169,7 @@ class UnifiedRouletteClient {
         
         if (RouletteStreamClient.isConnectionActive()) {
           this.log('✅ Cliente SSE centralizado já está ativo, conectando aos eventos');
-          this.isStreamConnected = true;
+      this.isStreamConnected = true;
           
           // Se já estiver conectado, apenas registrar para eventos
           const client = RouletteStreamClient.getInstance();
@@ -187,19 +179,13 @@ class UnifiedRouletteClient {
           client.on('connect', this.handleStreamConnected.bind(this));
           client.on('error', this.handleStreamError.bind(this));
           
-          // Forçar atualização imediata para exibir dados rapidamente
-          this.fetchRouletteData().catch(err => this.error('Erro ao buscar dados iniciais:', err));
-          
-          return;
-        }
+      return;
+    }
     
-        // Enquanto aguarda a conexão SSE, fazer uma busca imediata de dados
-        this.fetchRouletteData().catch(err => this.error('Erro ao buscar dados iniciais:', err));
-        
         this.log('🔄 Aguardando inicialização do cliente SSE centralizado...');
         
-        // Reduzir timeout para conexão
-        const isConnected = await RouletteStreamClient.waitForConnection(5000);
+        // Aguardar pela conexão ou iniciar se necessário
+        const isConnected = await RouletteStreamClient.waitForConnection();
         
         if (isConnected) {
           this.log('✅ Cliente SSE centralizado conectado com sucesso');
@@ -228,20 +214,13 @@ class UnifiedRouletteClient {
           } else {
             this.error('❌ Falha na conexão direta');
             this.isStreamConnected = false;
-            
-            // Iniciar polling imediatamente como fallback para exibir dados
-            this.startPolling();
           }
         }
       }).catch(error => {
         this.error('❌ Erro ao importar RouletteStreamClient:', error);
-        // Iniciar polling como fallback em caso de erro
-        this.startPolling();
       });
     } catch (error) {
       this.error('❌ Erro ao conectar ao stream:', error);
-      // Iniciar polling como fallback em caso de erro
-      this.startPolling();
     }
   }
   
@@ -284,12 +263,6 @@ class UnifiedRouletteClient {
     // Notificar sobre a desconexão
     this.emit('disconnect', { timestamp: Date.now() });
     EventBus.emit('roulette:stream-disconnected', { timestamp: new Date().toISOString() });
-    
-    // Iniciar polling como fallback se estiver habilitado
-    if (this.pollingEnabled && !this.pollingTimer) {
-      this.log('Iniciando polling após desconexão do stream');
-      this.startPolling();
-    }
   }
   
   /**
@@ -303,20 +276,12 @@ class UnifiedRouletteClient {
     this.streamReconnectAttempts++;
     
     if (this.streamReconnectAttempts > this.maxStreamReconnectAttempts) {
-      this.error(`Máximo de tentativas de reconexão (${this.maxStreamReconnectAttempts}) atingido`);
-      
       // Emitir evento
       this.emit('max-reconnect', { attempts: this.streamReconnectAttempts });
       EventBus.emit('roulette:stream-max-reconnect', { 
         attempts: this.streamReconnectAttempts,
         timestamp: new Date().toISOString()
       });
-      
-      // Iniciar polling como fallback se não estiver ativo
-      if (this.pollingEnabled && !this.pollingTimer) {
-        this.log('Iniciando polling como fallback após falha nas reconexões');
-        this.startPolling();
-      }
       
       return;
     }
@@ -462,17 +427,13 @@ class UnifiedRouletteClient {
       } else {
         // Desistir e usar polling
         if (!this.errorSilenced) {
-          this.warn('Número máximo de tentativas de conexão atingido. Usando polling como fallback.');
+          this.warn('Número máximo de tentativas de conexão atingido.');
         }
         
         // Atualizar flag global apenas se não houver mais conexões ativas
         if (UnifiedRouletteClient.GLOBAL_SSE_CONNECTIONS.size === 0) {
           UnifiedRouletteClient.ACTIVE_SSE_CONNECTION = false;
           UnifiedRouletteClient.SSE_CONNECTION_ID = null;
-        }
-        
-        if (this.pollingEnabled && !this.pollingTimer) {
-          this.startPolling();
         }
       }
     }
@@ -673,43 +634,6 @@ class UnifiedRouletteClient {
           source: 'fallback-after-simulation-error'
         });
       });
-  }
-  
-  /**
-   * Inicia o polling como fallback
-   * Só deve ser usado quando o streaming não está disponível
-   */
-  private startPolling(): void {
-    if (!this.pollingEnabled) {
-      return;
-    }
-    
-    // Não iniciar polling se o streaming estiver conectado ou conectando
-    if (this.isStreamConnected || this.isStreamConnecting) {
-      this.log('Streaming conectado ou conectando, não iniciando polling');
-      return;
-    }
-    
-    if (this.pollingTimer) {
-      window.clearInterval(this.pollingTimer);
-    }
-    
-    this.log(`Iniciando polling como fallback (intervalo: ${this.pollingInterval}ms)`);
-    
-    // Buscar dados imediatamente
-    this.fetchRouletteData();
-    
-    // Configurar intervalo
-    this.pollingTimer = window.setInterval(() => {
-      // Verificar novamente se o streaming não foi conectado
-      if (this.isStreamConnected || this.isStreamConnecting) {
-        this.log('Streaming conectado, parando polling');
-        this.stopPolling();
-        return;
-      }
-      
-      this.fetchRouletteData();
-    }, this.pollingInterval) as unknown as number;
   }
   
   /**
@@ -993,24 +917,20 @@ class UnifiedRouletteClient {
    * Manipulador para mudança de visibilidade da página
    */
   private handleVisibilityChange = (): void => {
-    if (document.hidden) {
-      this.log('Página não visível, pausando serviços');
-      
-      // Pausar polling se ativo
-      if (this.pollingTimer) {
-        window.clearInterval(this.pollingTimer);
-        this.pollingTimer = null;
-      }
-    } else {
+    const isVisible = document.visibilityState === 'visible';
+    
+    if (isVisible) {
       this.log('Página visível, retomando serviços');
       
       // Priorizar streaming
       if (this.streamingEnabled && !this.isStreamConnected && !this.isStreamConnecting) {
         this.connectStream();
       }
-      // Usar polling apenas se streaming falhar
-      else if (this.pollingEnabled && !this.pollingTimer && !this.isStreamConnected) {
-        this.startPolling();
+    } else {
+      this.log('Página em segundo plano, pausando serviços');
+      
+      if (this.pollingTimer) {
+        this.stopPolling();
       }
     }
   }
