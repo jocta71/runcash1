@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import RouletteCard from './RouletteCard';
 import RouletteSidePanelStats from './RouletteSidePanelStats';
 import UnifiedRouletteClient from '../services/UnifiedRouletteClient';
@@ -19,10 +19,89 @@ const RoulettesDashboard = () => {
   
   // Referências para evitar múltiplas inicializações e registros de eventos
   const initialized = useRef(false);
-  const updateHandlerRef = useRef<((data: any) => void) | null>(null);
+  const componentMounted = useRef(true);
+  const dashboardId = useRef(`dashboard-${Math.random().toString(36).substring(2, 7)}`).current;
+  
+  // Criar handlers memoizados para evitar duplicações
+  const handleUpdate = useCallback((data: any) => {
+    if (!componentMounted.current) return;
+    
+    console.log('Atualização de roletas recebida:', data);
+    
+    // Verificar se os dados são um array diretamente ou estão em data.roulettes
+    let newRoulettes: any[] = [];
+    
+    if (data && data.roulettes && Array.isArray(data.roulettes)) {
+      console.log(`Atualizando com ${data.roulettes.length} roletas do evento.roulettes`);
+      newRoulettes = data.roulettes;
+    } 
+    // Verificar se temos dados diretamente no objeto all_roulettes_update
+    else if (data && data.type === 'all_roulettes_update' && Array.isArray(data.data)) {
+      console.log(`Atualizando com ${data.data.length} roletas do evento all_roulettes_update`);
+      newRoulettes = data.data;
+    }
+    // Se o evento não tem os dados, buscamos diretamente do cache do cliente
+    else {
+      console.log('Evento sem dados estruturados, buscando diretamente do UnifiedClient');
+      const allRoulettes = unifiedClient.getAllRoulettes();
+      if (allRoulettes && allRoulettes.length > 0) {
+        console.log(`Obtidas ${allRoulettes.length} roletas do cache do UnifiedClient`);
+        newRoulettes = allRoulettes;
+      }
+    }
+    
+    // Atualizar o estado apenas se encontramos dados
+    if (newRoulettes.length > 0) {
+      setRoulettes(prevRoulettes => {
+        // Se não tínhamos roletas antes, simplesmente atualizar
+        if (prevRoulettes.length === 0) {
+          return newRoulettes;
+        }
+        
+        // Preservar a seleção atual
+        setSelectedRoulette(prevSelected => {
+          if (!prevSelected) return newRoulettes[0];
+          
+          const currentSelectedId = prevSelected.id || prevSelected.roleta_id;
+          const updatedSelected = newRoulettes.find(
+            (r: any) => r.id === currentSelectedId || r.roleta_id === currentSelectedId
+          );
+          
+          // Se encontrarmos a roleta nos novos dados, retornar ela
+          // caso contrário, manter a seleção atual
+          return updatedSelected || prevSelected;
+        });
+        
+        return newRoulettes;
+      });
+      
+      setLoading(false);
+      setError(null);
+    }
+    
+    // Atualizar status de conexão
+    updateConnectionStatus();
+  }, []);
+  
+  // Atualizar status de conexão
+  const updateConnectionStatus = useCallback(() => {
+    if (!componentMounted.current) return;
+    
+    const status = unifiedClient.getStatus();
+    if (status.isStreamConnected) {
+      setConnectionStatus('connected');
+    } else if (status.isStreamConnecting) {
+      setConnectionStatus('connecting');
+    } else {
+      setConnectionStatus('disconnected');
+    }
+  }, []);
 
   // Obter dados de roletas e configurar atualizações
   useEffect(() => {
+    // Configurar referência de montagem
+    componentMounted.current = true;
+    
     // Evitar inicializações múltiplas
     if (initialized.current) {
       console.log('Dashboard já inicializado, pulando inicialização duplicada');
@@ -32,18 +111,6 @@ const RoulettesDashboard = () => {
     initialized.current = true;
     console.log('Inicializando painel de roletas...');
     setLoading(true);
-
-    // Atualizar status de conexão
-    const updateConnectionStatus = () => {
-      const status = unifiedClient.getStatus();
-      if (status.isStreamConnected) {
-        setConnectionStatus('connected');
-      } else if (status.isStreamConnecting) {
-        setConnectionStatus('connecting');
-      } else {
-        setConnectionStatus('disconnected');
-      }
-    };
 
     // Buscar roletas iniciais
     const fetchInitialRoulettes = async () => {
@@ -69,75 +136,16 @@ const RoulettesDashboard = () => {
         updateConnectionStatus();
       } catch (err) {
         console.error('Erro ao buscar roletas:', err);
-        setError('Falha ao obter dados das roletas');
-        setLoading(false);
-        setConnectionStatus('disconnected');
-      }
-    };
-
-    // Handler para atualizações
-    const handleRouletteUpdate = (data: any) => {
-      console.log('Atualização de roletas recebida:', data);
-      
-      // Verificar se os dados são um array diretamente ou estão em data.roulettes
-      let newRoulettes: any[] = [];
-      
-      if (data && data.roulettes && Array.isArray(data.roulettes)) {
-        console.log(`Atualizando com ${data.roulettes.length} roletas do evento.roulettes`);
-        newRoulettes = data.roulettes;
-      } 
-      // Verificar se temos dados diretamente no objeto all_roulettes_update
-      else if (data && data.type === 'all_roulettes_update' && Array.isArray(data.data)) {
-        console.log(`Atualizando com ${data.data.length} roletas do evento all_roulettes_update`);
-        newRoulettes = data.data;
-      }
-      // Se o evento não tem os dados, buscamos diretamente do cache do cliente
-      else {
-        console.log('Evento sem dados estruturados, buscando diretamente do UnifiedClient');
-        const allRoulettes = unifiedClient.getAllRoulettes();
-        if (allRoulettes && allRoulettes.length > 0) {
-          console.log(`Obtidas ${allRoulettes.length} roletas do cache do UnifiedClient`);
-          newRoulettes = allRoulettes;
+        if (componentMounted.current) {
+          setError('Falha ao obter dados das roletas');
+          setLoading(false);
+          setConnectionStatus('disconnected');
         }
       }
-      
-      // Atualizar o estado apenas se encontramos dados
-      if (newRoulettes.length > 0) {
-        setRoulettes(prevRoulettes => {
-          // Se não tínhamos roletas antes, simplesmente atualizar
-          if (prevRoulettes.length === 0) {
-            return newRoulettes;
-          }
-          
-          // Preservar a seleção atual
-          setSelectedRoulette(prevSelected => {
-            if (!prevSelected) return newRoulettes[0];
-            
-            const currentSelectedId = prevSelected.id || prevSelected.roleta_id;
-            const updatedSelected = newRoulettes.find(
-              (r: any) => r.id === currentSelectedId || r.roleta_id === currentSelectedId
-            );
-            
-            // Se encontrarmos a roleta nos novos dados, retornar ela
-            // caso contrário, manter a seleção atual
-            return updatedSelected || prevSelected;
-          });
-          
-          return newRoulettes;
-        });
-        
-        setLoading(false);
-        setError(null);
-      }
-      
-      updateConnectionStatus();
     };
-
-    // Salvar referência ao handler para limpeza
-    updateHandlerRef.current = handleRouletteUpdate;
     
-    // Registrar para atualizações apenas uma vez
-    unifiedClient.subscribe('update', handleRouletteUpdate);
+    // Registrar para atualizações apenas uma vez usando o ID único do componente
+    unifiedClient.subscribe('update', handleUpdate);
     
     // Buscar roletas iniciais imediatamente após o useEffect ser executado
     fetchInitialRoulettes();
@@ -152,9 +160,9 @@ const RoulettesDashboard = () => {
 
     // Cleanup
     return () => {
-      if (updateHandlerRef.current) {
-        unifiedClient.unsubscribe('update', updateHandlerRef.current);
-      }
+      console.log('Desmontando painel de roletas...');
+      componentMounted.current = false;
+      unifiedClient.unsubscribe('update', handleUpdate);
       clearInterval(statusInterval);
       initialized.current = false;
     };
@@ -186,16 +194,15 @@ const RoulettesDashboard = () => {
       await unifiedClient.forceUpdate();
       
       // Atualizar status
-      const status = unifiedClient.getStatus();
-      if (status.isStreamConnected) {
-        setConnectionStatus('connected');
-      } else {
-        setConnectionStatus('disconnected');
+      if (componentMounted.current) {
+        updateConnectionStatus();
       }
     } catch (err) {
       console.error('Erro ao reconectar:', err);
     } finally {
-      setReconnecting(false);
+      if (componentMounted.current) {
+        setReconnecting(false);
+      }
     }
   };
 
@@ -249,15 +256,10 @@ const RoulettesDashboard = () => {
             </Button>
           </div>
         </div>
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-center">
-          <AlertTriangle className="h-5 w-5 mr-2" />
-          <p>{error}</p>
-          <Button 
-            onClick={() => unifiedClient.forceUpdate()} 
-            variant="outline" 
-            size="sm" 
-            className="ml-4"
-          >
+        <div className="p-8 bg-destructive/10 rounded-lg border border-destructive text-center">
+          <AlertTriangle className="h-10 w-10 text-destructive mx-auto mb-4" />
+          <p className="text-destructive-foreground">{error}</p>
+          <Button onClick={handleReconnect} variant="outline" className="mt-4">
             Tentar novamente
           </Button>
         </div>
@@ -325,27 +327,34 @@ const RoulettesDashboard = () => {
   );
 };
 
-// Status indicator component
 const StatusIndicator = ({ status }: { status: 'connected' | 'connecting' | 'disconnected' }) => {
   return (
-    <div className="flex items-center">
+    <div className="flex items-center gap-2">
       {status === 'connected' && (
-        <div className="flex items-center text-green-600">
-          <CheckCircle className="h-4 w-4 mr-1" />
-          <span className="text-xs">Conectado</span>
-        </div>
+        <>
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+          </span>
+          <span className="text-xs text-muted-foreground">Conectado</span>
+        </>
       )}
       {status === 'connecting' && (
-        <div className="flex items-center text-amber-600">
-          <div className="animate-pulse h-4 w-4 rounded-full bg-amber-500 mr-1"></div>
-          <span className="text-xs">Conectando...</span>
-        </div>
+        <>
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
+          </span>
+          <span className="text-xs text-muted-foreground">Conectando...</span>
+        </>
       )}
       {status === 'disconnected' && (
-        <div className="flex items-center text-red-600">
-          <AlertCircle className="h-4 w-4 mr-1" />
-          <span className="text-xs">Desconectado</span>
-        </div>
+        <>
+          <span className="relative flex h-3 w-3">
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+          </span>
+          <span className="text-xs text-muted-foreground">Desconectado</span>
+        </>
       )}
     </div>
   );

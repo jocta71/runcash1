@@ -46,7 +46,7 @@ export default class RouletteFeedService {
     // Forçar inicialização do UnifiedClient
     this.unifiedClient.forceUpdate();
     
-    this.initialized = true;
+            this.initialized = true;
     return Promise.resolve(this.getAllRoulettes());
   }
 
@@ -98,28 +98,28 @@ export default class RouletteFeedService {
   public getRouletteData(roletaId: string): any {
     return this.unifiedClient.getRouletteById(roletaId);
   }
-
+  
   /**
    * Obtém todas as roletas
    */
   public getAllRoulettes(): any[] {
     return this.unifiedClient.getAllRoulettes();
   }
-
+  
   /**
    * Verifica se o cache é válido
    */
   public isCacheValid(): boolean {
     return this.unifiedClient.getStatus().isCacheValid;
   }
-
+  
   /**
    * Atualiza cache forçadamente
    */
   public async refreshCache(): Promise<any> {
     return this.unifiedClient.forceUpdate();
   }
-
+  
   /**
    * Obtém estatísticas de requisições
    */
@@ -133,7 +133,7 @@ export default class RouletteFeedService {
       lastResponseTime: 0
     };
   }
-
+  
   /**
    * Força atualização de dados
    */
