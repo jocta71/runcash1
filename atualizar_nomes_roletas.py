@@ -28,7 +28,6 @@ MAPEAMENTO_NOMES = {
     "2010011": "Deutsches Roulette",
     "2010012": "American Roulette",
     "2010016": "Immersive Roulette",
-    "2010017": "Ruleta Automática",
     "2010031": "Jawhara Roulette",
     "2010033": "Lightning Roulette",
     "2010048": "Dansk Roulette",
