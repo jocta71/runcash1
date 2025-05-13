@@ -53,7 +53,6 @@ const UUID_PARA_ID_NUMERICO = {
   "14f70979-2311-5460-1fec-b722322d353e": "2330054", // Speed Roulette 1
   "2cc41e23-fb04-2926-77d5-d55831e97bab": "2010180", // Dansk Roulette
   "7d3c2c9f-2850-f642-861f-5bb4daf1806a": "2330048", // Brazilian Mega Roulette
-  "f27dd03e-5282-fc78-961c-6375cef91565": "2010183", // Ruleta Automática
   "5403e259-2f6c-cd2d-324c-63f0a00dee05": "2010184", // Jawhara Roulette
 };
 
