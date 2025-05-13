@@ -19,6 +19,7 @@ import UnifiedRouletteClient from './services/UnifiedRouletteClient';
 import { Button } from "./components/ui/button";
 import { RefreshCw } from "lucide-react";
 import EventService from './services/EventService';
+import ViewportScaler from './components/ViewportScaler';
 // Importar o dashboard diretamente para debug
 const RoulettesDashboard = lazy(() => import("@/components/RoulettesDashboard"));
 
@@ -114,7 +115,6 @@ const DataLoadingProvider = ({ children }: { children: React.ReactNode }) => {
         const client = UnifiedRouletteClient.getInstance({
           autoConnect: true,
           streamingEnabled: true,
-          enablePolling: false, // Desativar polling, usar apenas SSE
         });
         
         clientRef.current = client;
@@ -352,23 +352,12 @@ const AuthStateManager = () => {
 
 // Componente principal da aplicação
 const App = () => {
-  // Criar uma única instância do QueryClient com useRef para mantê-la durante re-renders
   const queryClient = useRef(createQueryClient());
-
-  // Gerenciador de congelamento para ambientes de desenvolvimento
+  
   const handleFreeze = () => {
-    try {
-      // Verificar se há erros de renderização pendentes
-      if (document.body && document.getElementById('root')) {
-        const freezeOverlay = document.getElementById('freeze-overlay');
-        if (freezeOverlay) {
-          console.log('[FREEZE] Removendo overlay de congelamento');
-          document.body.removeChild(freezeOverlay);
-        }
-      }
-    } catch (error) {
-      console.error('[FREEZE] Erro ao lidar com congelamento:', error);
-    }
+    // Reiniciar o cliente de consulta se necessário
+    console.log('Reiniciando cliente de consulta para evitar congelamento...');
+    queryClient.current = createQueryClient();
   };
 
   // Executado apenas uma vez quando o App é montado
@@ -387,7 +376,7 @@ const App = () => {
   return (
     <ErrorBoundary FallbackComponent={ErrorPage}>
       <QueryClientProvider client={queryClient.current}>
-        <ThemeProvider defaultTheme="system" storageKey="runcash-theme">
+        <ThemeProvider defaultTheme="dark" storageKey="vegas-theme">
           <TooltipProvider>
             <AuthProvider>
               <SubscriptionProvider>
@@ -395,6 +384,7 @@ const App = () => {
                   <SoundManager>
                     <DataLoadingProvider>
                       <BrowserRouter>
+                        <ViewportScaler />
                         <GoogleAuthHandler />
                         <LoginModalProvider>
                           <AuthStateManager />

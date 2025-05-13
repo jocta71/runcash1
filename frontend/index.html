@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate icon" type="image/x-icon" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=2048, initial-scale=1.0" />
     <meta name="description" content="RunCash - Acompanhamento e análise de roletas em tempo real" />
     <title>RunCash - Acompanhamento e análise de roletas em tempo real</title>
     
@@ -25,5 +25,25 @@
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Script para ajustar a escala em telas menores que 2048px -->
+    <script>
+      function ajustarEscala() {
+        const larguraTela = window.innerWidth;
+        const viewportMeta = document.querySelector('meta[name="viewport"]');
+        
+        if (larguraTela < 2048) {
+          // Fixar largura em 2048px para manter escala em telas pequenas
+          viewportMeta.setAttribute('content', 'width=2048, initial-scale=' + (larguraTela / 2048));
+        } else {
+          // Em telas grandes, usar responsividade normal
+          viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0');
+        }
+      }
+      
+      // Executar ao carregar e quando a janela for redimensionada
+      window.addEventListener('load', ajustarEscala);
+      window.addEventListener('resize', ajustarEscala);
+    </script>
   </body>
 </html>
