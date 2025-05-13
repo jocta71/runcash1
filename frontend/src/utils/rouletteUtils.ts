@@ -97,6 +97,7 @@ export function mapRouletteProvider(rouletteName: string): string {
   
   // Mapeamento de roletas da Evolution
   const evolutionRoulettes = [
+    'roulette',
     'lightning roulette',
     'immersive roulette',
     'xxxtreme lightning roulette',
