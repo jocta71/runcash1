@@ -1,4 +1,4 @@
-import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle, Trash2, Settings2, AlertCircle, CheckCircle, BrainCircuit, TrendingUp, Clock, Flame, AlertTriangle, Grid3X3 } from "lucide-react";
+import { ChartBar, BarChart, ChevronDown, Filter, X, PlusCircle, Trash2, Settings2, AlertCircle, CheckCircle, BrainCircuit, TrendingUp, Clock, Flame, AlertTriangle, Grid3X3, Info } from "lucide-react";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   ResponsiveContainer,
@@ -46,6 +46,12 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { v4 as uuidv4 } from 'uuid';
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Criando um logger específico para este componente
 const logger = getLogger('RouletteSidePanelStats');
@@ -1667,6 +1673,16 @@ export const RouletteSidePanelStats = ({
         <CardTitle className="text-sm font-medium flex items-center">
           <BrainCircuit className="h-4 w-4 mr-2 text-primary" />
           Previsões do Modelo IA
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p>Probabilidades de ocorrência de cada número calculadas por um modelo de inteligência artificial treinado com dados históricos da roleta.</p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
         </CardTitle>
         <CardDescription className="text-xs">
           Probabilidades baseadas em análise de padrões
@@ -1694,6 +1710,16 @@ export const RouletteSidePanelStats = ({
         <CardTitle className="text-sm font-medium flex items-center">
           <TrendingUp className="h-4 w-4 mr-2 text-primary" />
           Regressão à Média
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p>Números que estatisticamente deveriam aparecer em breve por estarem abaixo da frequência esperada em uma distribuição aleatória.</p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
         </CardTitle>
         <CardDescription className="text-xs">
           Números estatisticamente "devidos"
@@ -1731,6 +1757,16 @@ export const RouletteSidePanelStats = ({
         <CardTitle className="text-sm font-medium flex items-center">
           <Clock className="h-4 w-4 mr-2 text-primary" />
           Correlações Temporais
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p>Análise dos números mais frequentes por horário do dia, identificando padrões relacionados à hora da jogada.</p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
         </CardTitle>
         <CardDescription className="text-xs">
           Números favoráveis no horário atual ({timePatterns.currentHour}:00)
@@ -1759,6 +1795,16 @@ export const RouletteSidePanelStats = ({
         <CardTitle className="text-sm font-medium flex items-center">
           <Flame className="h-4 w-4 mr-2 text-primary" />
           Momentum Estatístico
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p>Indicador da força e direção das tendências atuais para cores, paridade e números altos/baixos nos últimos giros.</p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
         </CardTitle>
         <CardDescription className="text-xs">
           Força e direção das tendências atuais
@@ -1811,6 +1857,16 @@ export const RouletteSidePanelStats = ({
         <CardTitle className="text-sm font-medium flex items-center">
           <AlertTriangle className="h-4 w-4 mr-2 text-amber-500" />
           Anomalias Detectadas
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p>Eventos estatisticamente improváveis detectados nos dados históricos, como sequências longas da mesma cor ou muitos zeros em curto período.</p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
         </CardTitle>
         <CardDescription className="text-xs">
           Eventos estatisticamente improváveis
@@ -1849,6 +1905,16 @@ export const RouletteSidePanelStats = ({
         <CardTitle className="text-sm font-medium flex items-center">
           <Grid3X3 className="h-4 w-4 mr-2 text-primary" />
           Matriz de Transição
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p>Probabilidades de transição entre números consecutivos, mostrando quais números são mais prováveis de aparecer após o número atual.</p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
         </CardTitle>
         <CardDescription className="text-xs">
           Probabilidade do próximo número baseado no atual
@@ -2055,6 +2121,16 @@ export const RouletteSidePanelStats = ({
           <div className="flex items-center gap-2">
             <Filter size={16} className="text-vegas-gold" />
             <h3 className="text-sm font-medium text-white">Filtros de roleta</h3>
+            <TooltipProvider>
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 ml-1 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <p>Personalize sua visualização aplicando filtros para analisar resultados específicos por cor, número, paridade, provedor ou minuto.</p>
+                </TooltipContent>
+              </UITooltip>
+            </TooltipProvider>
           </div>
           
           {hasActiveFilters && (
@@ -2176,6 +2252,16 @@ export const RouletteSidePanelStats = ({
             {/* Ícone de IA (exemplo, pode ser outro) */}
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-vegas-gold" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" /></svg>
             Perguntar à IA RunCash sobre {roletaNome}
+            <TooltipProvider>
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <p>Faça perguntas em linguagem natural sobre a roleta. A IA analisará padrões e responderá com base nos dados históricos específicos desta roleta.</p>
+                </TooltipContent>
+              </UITooltip>
+            </TooltipProvider>
           </CardTitle>
           <CardDescription className="text-xs">Faça perguntas sobre estatísticas, padrões ou probabilidades desta roleta.</CardDescription>
         </CardHeader>
@@ -2233,6 +2319,16 @@ export const RouletteSidePanelStats = ({
                 <CardTitle className="text-sm font-medium flex items-center">
                   <BarChart className="mr-1 h-4 w-4 text-[hsl(142.1,70.6%,45.3%)]" /> 
                   Histórico de Números
+                  <TooltipProvider>
+                    <UITooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        <p>Sequência dos últimos números sorteados na roleta, organizados do mais recente para o mais antigo, com horário de cada resultado.</p>
+                      </TooltipContent>
+                    </UITooltip>
+                  </TooltipProvider>
                 </CardTitle>
                 <CardDescription className="text-[10px] text-muted-foreground">
                   {visibleNumbers.length} de {filteredNumbers.length} números
@@ -2315,6 +2411,16 @@ export const RouletteSidePanelStats = ({
               <CardTitle className="text-sm font-medium flex items-center">
                 <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
                 Distribuição por Cor
+                <TooltipProvider>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p>Distribuição percentual das cores (vermelho, preto, verde/zero) nos resultados históricos da roleta.</p>
+                    </TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
               </CardTitle>
             </CardHeader>
             
@@ -2371,6 +2477,16 @@ export const RouletteSidePanelStats = ({
               <CardTitle className="text-sm font-medium flex items-center">
                 <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
                 Mapa de Calor da Roleta
+                <TooltipProvider>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p>Visualização da frequência de cada número na roleta, onde cores mais intensas indicam números que saíram mais vezes.</p>
+                    </TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
               </CardTitle>
               <CardDescription>
                 Distribuição de frequência na roleta
@@ -2648,6 +2764,16 @@ export const RouletteSidePanelStats = ({
               <CardTitle className="text-sm font-medium flex items-center">
                 <ChartBar size={18} className="text-[hsl(142.1,70.6%,45.3%)] mr-2" /> 
                 Números Quentes e Frios
+                <TooltipProvider>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 ml-1.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p>Os números quentes são aqueles que apareceram com maior frequência recentemente. Os números frios são os que menos apareceram no histórico.</p>
+                    </TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
               </CardTitle>
             </CardHeader>
             
@@ -2703,6 +2829,16 @@ export const RouletteSidePanelStats = ({
         <h2 className="text-white flex items-center text-base font-bold">
           <BrainCircuit className="mr-2 text-primary h-5 w-5" /> 
           Estatísticas Inteligentes
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-4 w-4 ml-2 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p>Análises avançadas usando modelos estatísticos e algoritmos de aprendizado de máquina para identificar padrões nos resultados da roleta.</p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
         </h2>
       </div>
       
