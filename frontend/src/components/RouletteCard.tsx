@@ -18,6 +18,11 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
+// Posições dos números na roleta europeia
+const ROULETTE_WHEEL_ORDER = [
+  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+];
+
 // Logging para debug controlado por variável de ambiente
 const debugLog = (...args: any[]) => {
   if (import.meta.env.DEV) {
@@ -554,7 +559,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
         {/* Overlay de mapa de calor quando ativado */}
         {showHeatMap && sectorAnalysis && (
           <div 
-            className="absolute inset-0 bg-black/80 z-20 flex items-center justify-center p-4"
+            className="absolute inset-0 bg-black/90 z-20 flex items-center justify-center p-4"
             onClick={(e) => {
               e.stopPropagation();
               setShowHeatMap(false);
@@ -562,12 +567,77 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
           >
             <div className="text-center">
               <h3 className="text-sm font-bold mb-2">Análise de Setores</h3>
+              
+              {/* Mini-mapa da roleta com últimos números */}
+              <div className="relative w-52 h-52 mx-auto mb-4">
+                <div className="absolute inset-0 rounded-full border-2 border-slate-600 bg-green-900/50"></div>
+                
+                {/* Números no formato de roleta real */}
+                {ROULETTE_WHEEL_ORDER.map((num, idx) => {
+                  const angle = (idx * (360 / 37)) * (Math.PI / 180);
+                  const radius = 70;
+                  const x = radius * Math.cos(angle) + 78;
+                  const y = radius * Math.sin(angle) + 78;
+                  
+                  // Calculando a intensidade de cor baseada nos dados
+                  let intensity = sectorAnalysis.heatMapData[num] || 0;
+                  
+                  // Verificando se este número está entre os últimos jogados
+                  const isInLastNumbers = lastNumbersToDisplay.includes(num);
+                  const isLastNumber = lastNumbersToDisplay[0] === num;
+                  
+                  // Determinar cor baseada no número e intensidade
+                  let bgColorClass = "bg-black text-white";
+                  if (num === 0) {
+                    bgColorClass = "bg-green-600 text-white";
+                  } else if ([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36].includes(num)) {
+                    // Números vermelhos na roleta
+                    if (intensity > 0.7) bgColorClass = "bg-red-700 text-white";
+                    else if (intensity > 0.5) bgColorClass = "bg-red-600 text-white";
+                    else if (intensity > 0.3) bgColorClass = "bg-red-500 text-white";
+                    else bgColorClass = "bg-red-400 text-white";
+                  }
+                  
+                  return (
+                    <div 
+                      key={`wheel-${num}`}
+                      className={cn(
+                        "absolute w-5 h-5 rounded-full flex items-center justify-center text-[10px] transform -translate-x-1/2 -translate-y-1/2 border",
+                        isLastNumber ? "border-2 border-yellow-300 text-black font-bold" : 
+                        isInLastNumbers ? "border border-white" : "border-transparent",
+                        bgColorClass
+                      )}
+                      style={{
+                        left: `${x}px`,
+                        top: `${y}px`,
+                        opacity: Math.max(0.7, intensity + 0.2)
+                      }}
+                    >
+                      {num}
+                    </div>
+                  );
+                })}
+                
+                {/* Legenda indicando últimos números */}
+                <div className="absolute -bottom-6 left-0 right-0 flex justify-center">
+                  <div className="flex items-center text-xs gap-2">
+                    <div className="w-3 h-3 border-2 border-yellow-300 rounded-full"></div>
+                    <span>Último número</span>
+                    <div className="w-3 h-3 border border-white rounded-full ml-2"></div>
+                    <span>Números recentes</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Distribuição em grid */}
+              <h4 className="text-xs font-semibold mb-2">Distribuição por Setores</h4>
               <div className="grid grid-cols-6 gap-1 mb-2">
                 {Array.from({length: 36}, (_, i) => i + 1).map(num => (
                   <div 
                     key={`heatmap-${num}`}
                     className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center text-xs",
+                      "w-6 h-6 rounded-full flex items-center justify-center text-xs border",
+                      lastNumbersToDisplay.includes(num) ? "border-white" : "border-transparent",
                       sectorAnalysis.hotSectors.includes(num) ? "bg-red-500/80 text-white" :
                       sectorAnalysis.coldSectors.includes(num) ? "bg-blue-500/80 text-white" :
                       "bg-slate-700/50"
@@ -577,6 +647,7 @@ const RouletteCard: React.FC<RouletteCardProps> = ({
                   </div>
                 ))}
               </div>
+              
               <div className="flex justify-center items-center gap-4 text-xs">
                 <div className="flex items-center">
                   <div className="w-3 h-3 bg-red-500/80 rounded-full mr-1"></div>
