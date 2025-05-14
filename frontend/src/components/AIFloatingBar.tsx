@@ -552,36 +552,84 @@ const AIFloatingBar: React.FC = () => {
             {showRoulettesDropdown && (
               <div 
                 ref={dropdownRef}
-                className="absolute left-0 bottom-full mb-2 w-64 max-h-80 overflow-y-auto bg-black/95 backdrop-blur-xl border border-white/20 rounded-lg shadow-2xl shadow-green-500/20 z-50"
+                className="absolute left-0 bottom-full mb-2 w-72 max-h-[60vh] overflow-y-auto bg-black/95 backdrop-blur-xl border border-white/20 rounded-lg shadow-2xl shadow-green-500/20 z-50"
               >
                 <div className="sticky top-0 bg-black/80 backdrop-blur-md p-2 border-b border-white/10">
+                  <div className="flex items-center gap-2 px-2 pb-2">
+                    <span className="text-xs text-green-400 font-medium">Selecionar roleta</span>
+                    <span className="text-[10px] text-gray-400">{availableRoulettes.length} disponíveis</span>
+                  </div>
                   <input
                     type="text"
                     placeholder="Buscar roleta..."
                     className="w-full bg-white/5 border border-white/10 focus:border-green-500/50 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none"
                     onClick={(e) => e.stopPropagation()}
                     onChange={(e) => {
-                      // Implementar busca local
+                      // Executar busca local no dropdown, sem precisar atualizar o estado
                       const searchTerm = e.target.value.toLowerCase();
-                      // Filtragem feita no render do dropdown
+                      
+                      // Encontrar todos os elementos de botão na lista
+                      const buttons = dropdownRef.current?.querySelectorAll('button[data-roulette-id]');
+                      
+                      if (buttons) {
+                        buttons.forEach(button => {
+                          const buttonText = button.textContent?.toLowerCase() || '';
+                          const rouletteId = button.getAttribute('data-roulette-id');
+                          
+                          // Sempre mostrar a opção "Todas roletas"
+                          if (rouletteId === 'all') {
+                            button.parentElement?.classList.remove('hidden');
+                            return;
+                          }
+                          
+                          // Verificar se o texto do botão contém o termo de busca
+                          if (buttonText.includes(searchTerm)) {
+                            button.parentElement?.classList.remove('hidden');
+                          } else {
+                            button.parentElement?.classList.add('hidden');
+                          }
+                        });
+                      }
                     }}
                   />
                 </div>
                 <div className="py-1">
                   {availableRoulettes.map((roulette) => (
-                    <button
-                      key={roulette.id}
-                      type="button"
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors ${
-                        selectedRoulette?.id === roulette.id ? 'text-green-400 bg-green-900/20' : 'text-gray-200'
-                      }`}
-                      onClick={() => handleRouletteSelect(roulette)}
-                    >
-                      {roulette.name}
-                      {selectedRoulette?.id === roulette.id && (
-                        <span className="float-right text-green-400">✓</span>
-                      )}
-                    </button>
+                    <div key={roulette.id} className={roulette.id === 'all' ? 'border-b border-white/10' : ''}>
+                      <button
+                        data-roulette-id={roulette.id}
+                        type="button"
+                        className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors ${
+                          selectedRoulette?.id === roulette.id ? 'text-green-400 bg-green-900/20' : 'text-gray-200'
+                        }`}
+                        onClick={() => handleRouletteSelect(roulette)}
+                      >
+                        <div className="flex items-center">
+                          {/* Ícone diferente para "Todas roletas" */}
+                          {roulette.id === 'all' ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
+                              <line x1="8" x2="16" y1="12" y2="12"></line>
+                              <line x1="8" x2="16" y1="8" y2="8"></line>
+                              <line x1="8" x2="16" y1="16" y2="16"></line>
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-green-400/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="10"/>
+                              <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                          )}
+                          <span>{roulette.name}</span>
+                          {selectedRoulette?.id === roulette.id && (
+                            <span className="ml-auto text-green-400">✓</span>
+                          )}
+                        </div>
+                        {/* Mostrar ID da roleta em texto menor, menos para "Todas roletas" */}
+                        {roulette.id !== 'all' && (
+                          <div className="text-xs text-gray-400 mt-0.5 ml-6">ID: {roulette.id}</div>
+                        )}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
