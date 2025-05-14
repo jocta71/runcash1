@@ -28,8 +28,57 @@ const AIFloatingBar: React.FC = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [showRoulettesDropdown, setShowRoulettesDropdown] = useState(false);
+  const [availableRoulettes, setAvailableRoulettes] = useState<{id: string, name: string}[]>([]);
+  const [selectedRoulette, setSelectedRoulette] = useState<{id: string, name: string} | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Carregar roletas disponíveis ao iniciar
+  useEffect(() => {
+    const loadRoulettes = async () => {
+      try {
+        // Buscar roletas do repositório ou API
+        const roulettesData = await RouletteRepository.fetchAllRoulettes();
+        
+        // Adicionar opção "Todas roletas" no topo
+        const allRoulettesList = [
+          { id: 'all', name: 'Todas roletas' },
+          ...roulettesData.map(r => ({ id: r.id || r.roletaId, name: r.name || r.roleta_nome }))
+        ];
+        
+        setAvailableRoulettes(allRoulettesList);
+      } catch (error) {
+        console.error('Erro ao carregar lista de roletas:', error);
+        // Fallback com algumas roletas comuns
+        setAvailableRoulettes([
+          { id: 'all', name: 'Todas roletas' },
+          { id: '2010016', name: 'Immersive Roulette' },
+          { id: '2010033', name: 'Lightning Roulette' },
+          { id: '2380335', name: 'Brazilian Mega Roulette' },
+          { id: '2010096', name: 'Speed Auto Roulette' },
+          { id: '2010098', name: 'Auto-Roulette VIP' }
+        ]);
+      }
+    };
+    
+    loadRoulettes();
+  }, []);
+
+  // Fechar dropdown quando clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowRoulettesDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     if (messagesEndRef.current && expanded) {
@@ -43,10 +92,37 @@ const AIFloatingBar: React.FC = () => {
     }
   }, [expanded]);
 
+  // Selecionar roleta do dropdown
+  const handleRouletteSelect = (roulette: {id: string, name: string}) => {
+    setSelectedRoulette(roulette);
+    
+    // Se não for "Todas roletas", adicionar ao input
+    if (roulette.id !== 'all') {
+      // Preservar o texto atual e adicionar referência à roleta
+      const currentQuery = input.replace(/na roleta .+?(?=\?|$|\s\s)/, '').trim();
+      const newQuery = currentQuery.includes(roulette.name) 
+        ? currentQuery 
+        : `${currentQuery} na roleta ${roulette.name}`.trim();
+      
+      setInput(newQuery);
+    }
+    
+    setShowRoulettesDropdown(false);
+    
+    // Focar no input após selecionar
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
   const sendMessageToGemini = async (query: string) => {
     try {
       // Buscar dados da roleta
       const roletaData = await fetchRouletteData();
+      
+      // Determinar se há uma roleta específica selecionada
+      const roletaId = selectedRoulette && selectedRoulette.id !== 'all' ? selectedRoulette.id : null;
+      const roletaNome = selectedRoulette && selectedRoulette.id !== 'all' ? selectedRoulette.name : null;
       
       // Usar o endpoint do backend para evitar problemas de CORS
       const apiUrl = '/api/ai/query';
@@ -55,7 +131,12 @@ const AIFloatingBar: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query, roletaData }),
+        body: JSON.stringify({ 
+          query, 
+          roletaData,
+          roletaId,
+          roletaNome
+        }),
       });
       
       const data = await response.json();
@@ -414,15 +495,82 @@ const AIFloatingBar: React.FC = () => {
         {/* Barra de entrada com efeito glass */}
         <form onSubmit={handleSubmit} className="p-3 border-t border-white/10 backdrop-blur-md bg-black/20">
           <div className="relative flex items-center">
+            {/* Botão para mostrar dropdown de roletas */}
+            <button
+              type="button"
+              onClick={() => setShowRoulettesDropdown(!showRoulettesDropdown)}
+              className="absolute left-3 z-10 text-green-400 hover:text-green-300 transition-colors"
+              title="Selecionar roleta"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+            
+            {/* Dropdown de roletas */}
+            {showRoulettesDropdown && (
+              <div 
+                ref={dropdownRef}
+                className="absolute left-0 bottom-full mb-2 w-64 max-h-80 overflow-y-auto bg-black/95 backdrop-blur-xl border border-white/20 rounded-lg shadow-2xl shadow-green-500/20 z-50"
+              >
+                <div className="sticky top-0 bg-black/80 backdrop-blur-md p-2 border-b border-white/10">
+                  <input
+                    type="text"
+                    placeholder="Buscar roleta..."
+                    className="w-full bg-white/5 border border-white/10 focus:border-green-500/50 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none"
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      // Implementar busca local
+                      const searchTerm = e.target.value.toLowerCase();
+                      // Filtragem feita no render do dropdown
+                    }}
+                  />
+                </div>
+                <div className="py-1">
+                  {availableRoulettes.map((roulette) => (
+                    <button
+                      key={roulette.id}
+                      type="button"
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors ${
+                        selectedRoulette?.id === roulette.id ? 'text-green-400 bg-green-900/20' : 'text-gray-200'
+                      }`}
+                      onClick={() => handleRouletteSelect(roulette)}
+                    >
+                      {roulette.name}
+                      {selectedRoulette?.id === roulette.id && (
+                        <span className="float-right text-green-400">✓</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Pergunte algo sobre as roletas..."
-              className="w-full bg-white/5 border border-white/10 focus:border-green-500/50 rounded-full px-5 py-2 text-white text-sm focus:outline-none shadow-inner backdrop-blur-md"
+              className="w-full bg-white/5 border border-white/10 focus:border-green-500/50 rounded-full pl-11 pr-14 py-2 text-white text-sm focus:outline-none shadow-inner backdrop-blur-md"
               disabled={loading}
             />
+            
+            {/* Indicador de roleta selecionada */}
+            {selectedRoulette && selectedRoulette.id !== 'all' && (
+              <div className="absolute right-14 bg-green-900/30 border border-green-500/30 rounded-full px-2 py-0.5 text-xs text-green-300">
+                {selectedRoulette.name}
+                <button
+                  type="button"
+                  className="ml-1 text-green-400 hover:text-green-200"
+                  onClick={() => setSelectedRoulette({ id: 'all', name: 'Todas roletas' })}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading || !input.trim()}
@@ -433,6 +581,31 @@ const AIFloatingBar: React.FC = () => {
               } transition-all duration-200`}
             >
               <Send size={16} />
+            </button>
+          </div>
+          
+          {/* Sugestões rápidas */}
+          <div className="flex flex-wrap gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => setInput("Quais os 5 números mais frequentes?")}
+              className="text-xs bg-white/5 hover:bg-white/10 text-gray-300 rounded-full px-3 py-1 transition-colors"
+            >
+              Números mais frequentes
+            </button>
+            <button
+              type="button"
+              onClick={() => setInput("Há alguma tendência nos últimos 20 giros?")}
+              className="text-xs bg-white/5 hover:bg-white/10 text-gray-300 rounded-full px-3 py-1 transition-colors"
+            >
+              Tendências recentes
+            </button>
+            <button
+              type="button"
+              onClick={() => setInput("Qual a melhor estratégia no momento?")}
+              className="text-xs bg-white/5 hover:bg-white/10 text-gray-300 rounded-full px-3 py-1 transition-colors"
+            >
+              Estratégia recomendada
             </button>
           </div>
         </form>

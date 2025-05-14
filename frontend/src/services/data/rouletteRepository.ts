@@ -43,6 +43,70 @@ export const RouletteRepository = {
   },
   
   /**
+   * Busca todas as roletas disponíveis sem números (apenas metadados)
+   * @returns Array de objetos de roleta com informações básicas
+   */
+  async fetchAllRoulettes(): Promise<{ id: string, name: string }[]> {
+    try {
+      const cacheKey = 'all_roulettes_metadata';
+      
+      // Verificar cache
+      if (cache.has(cacheKey)) {
+        const cacheEntry = cache.get(cacheKey)!;
+        if (Date.now() - cacheEntry.timestamp < CACHE_TTL) {
+          logger.debug('Usando dados em cache para metadados de roletas');
+          return cacheEntry.data;
+        }
+      }
+      
+      // Verificar se já existe uma requisição pendente
+      if (pendingRequests.has(cacheKey)) {
+        logger.debug('Reaproveitando requisição pendente para metadados de roletas');
+        return pendingRequests.get(cacheKey)!;
+      }
+      
+      logger.info('Buscando metadados de todas as roletas');
+      
+      // Criar nova requisição e armazenar a promessa
+      const requestPromise = new Promise<{ id: string, name: string }[]>(async (resolve, reject) => {
+        try {
+          // Buscar dados diretamente da função que já retorna dados processados
+          const roletasCompletas = await this.fetchAllRoulettesWithNumbers();
+          
+          // Extrair apenas id e nome
+          const metadados = roletasCompletas.map(roleta => ({
+            id: roleta.id,
+            name: roleta.name
+          }));
+          
+          // Salvar em cache
+          cache.set(cacheKey, {
+            data: metadados,
+            timestamp: Date.now()
+          });
+          
+          logger.info(`✅ Obtidos metadados de ${metadados.length} roletas`);
+          resolve(metadados);
+        } catch (error) {
+          logger.error('Erro ao buscar metadados de roletas:', error);
+          reject(error);
+        } finally {
+          // Remover do mapa de requisições pendentes após conclusão
+          pendingRequests.delete(cacheKey);
+        }
+      });
+      
+      // Salvar a promessa no mapa de requisições pendentes
+      pendingRequests.set(cacheKey, requestPromise);
+      
+      return requestPromise;
+    } catch (error) {
+      logger.error('Erro ao buscar metadados de roletas:', error);
+      throw error;
+    }
+  },
+  
+  /**
    * Busca todas as roletas disponíveis com seus números
    * @returns Array de objetos de roleta padronizados
    * @throws Error com mensagem formatada quando ocorre erro de autenticação ou assinatura
