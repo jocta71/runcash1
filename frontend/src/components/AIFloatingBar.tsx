@@ -39,27 +39,67 @@ const AIFloatingBar: React.FC = () => {
   useEffect(() => {
     const loadRoulettes = async () => {
       try {
-        // Buscar roletas do repositório ou API
+        console.log('Iniciando carregamento de roletas para dropdown...');
+        
+        // Tentar buscar roletas diretamente do endpoint
+        try {
+          const response = await fetch('/api/roletas');
+          const data = await response.json();
+          
+          if (data && Array.isArray(data) && data.length > 0) {
+            console.log('Roletas carregadas da API:', data);
+            
+            // Processar roletas
+            const processedRoulettes = [
+              { id: 'all', name: 'Todas roletas' },
+              ...data.map((r: any) => ({ 
+                id: r.id || r.roleta_id || r._id || '', 
+                name: r.name || r.nome || r.roleta_nome || `Roleta ${r.id || r.roleta_id || ''}`
+              }))
+            ];
+            
+            console.log('Lista de roletas processada da API:', processedRoulettes);
+            setAvailableRoulettes(processedRoulettes);
+            return;
+          }
+        } catch (apiError) {
+          console.warn('Falha ao carregar roletas da API, tentando repositório:', apiError);
+        }
+        
+        // Buscar roletas do repositório como fallback
         const roulettesData = await RouletteRepository.fetchAllRoulettes();
+        console.log('Roletas carregadas do repositório:', roulettesData);
         
-        // Adicionar opção "Todas roletas" no topo
-        const allRoulettesList = [
-          { id: 'all', name: 'Todas roletas' },
-          ...roulettesData.map(r => ({ id: r.id || r.roletaId, name: r.name || r.roleta_nome }))
-        ];
-        
-        setAvailableRoulettes(allRoulettesList);
+        if (roulettesData && roulettesData.length > 0) {
+          // Adicionar opção "Todas roletas" no topo e tratar como any para evitar erros de tipo
+          const allRoulettesList = [
+            { id: 'all', name: 'Todas roletas' },
+            ...roulettesData.map((r: any) => ({ 
+              id: r.id || '', 
+              name: r.name || `Roleta ${r.id || ''}`
+            }))
+          ];
+          
+          console.log('Lista de roletas processada do repositório:', allRoulettesList);
+          setAvailableRoulettes(allRoulettesList);
+        } else {
+          throw new Error('Nenhuma roleta retornada pelo repositório');
+        }
       } catch (error) {
         console.error('Erro ao carregar lista de roletas:', error);
+        
         // Fallback com algumas roletas comuns
-        setAvailableRoulettes([
+        const fallbackRoulettes = [
           { id: 'all', name: 'Todas roletas' },
           { id: '2010016', name: 'Immersive Roulette' },
           { id: '2010033', name: 'Lightning Roulette' },
           { id: '2380335', name: 'Brazilian Mega Roulette' },
           { id: '2010096', name: 'Speed Auto Roulette' },
           { id: '2010098', name: 'Auto-Roulette VIP' }
-        ]);
+        ];
+        
+        console.log('Usando lista de fallback:', fallbackRoulettes);
+        setAvailableRoulettes(fallbackRoulettes);
       }
     };
     
