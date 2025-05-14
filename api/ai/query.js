@@ -106,6 +106,63 @@ class RoletaService {
     return null;
   }
   
+  // Extrai nome da roleta do texto da consulta
+  extrairNomeDaConsulta(texto) {
+    if (!texto) return null;
+    
+    // Lista de roletas comuns
+    const nomesRoletas = [
+      // Evolution Gaming
+      "Immersive Roulette", "Lightning Roulette", "XXXtreme Lightning Roulette",
+      "Speed Auto Roulette", "Auto-Roulette", "Bucharest Auto-Roulette",
+      "Auto-Roulette VIP", "Gold Vault Roulette", "Deutsches Roulette",
+      "American Roulette", "Jawhara Roulette", "Dansk Roulette",
+      "Ruletka Live", "Bucharest Roulette", "Instant Roulette",
+      "Football Studio Roulette", "Venezia Roulette", "Türkçe Rulet",
+      "Dragonara Roulette", "Hippodrome Grand Casino", "Ruleta Relámpago en Vivo",
+      "Roulette", "Lightning Roulette Italia", "Türkçe Lightning Rulet",
+      
+      // Pragmatic
+      "Brazilian Mega Roulette", "Mega Roulette", "Speed Roulette 1",
+      "Russian Roulette", "German Roulette", "Roulette Italia Tricolore",
+      "Roulette Macao", "Turkish Roulette", "Roulette 1",
+      "VIP Roulette", "Romanian Roulette", "VIP Auto Roulette",
+      "Fortune Roulette", "Immersive Roulette Deluxe"
+    ];
+    
+    // Verificar se algum nome de roleta está presente na consulta
+    for (const nome of nomesRoletas) {
+      const regex = new RegExp(nome.replace(/\s+/g, '\\s+'), 'i');
+      if (regex.test(texto)) {
+        return nome;
+      }
+    }
+    
+    // Verificar por nomes parciais ou abreviados
+    const mapeamentoNomesParciais = {
+      "lightning": "Lightning Roulette",
+      "imersiva": "Immersive Roulette",
+      "brasileira": "Brazilian Mega Roulette",
+      "mega brasileira": "Brazilian Mega Roulette",
+      "speed auto": "Speed Auto Roulette",
+      "speed": "Speed Auto Roulette",
+      "auto vip": "Auto-Roulette VIP",
+      "auto": "Auto-Roulette",
+      "xxxtreme": "XXXtreme Lightning Roulette",
+      "gold vault": "Gold Vault Roulette",
+      "mega": "Mega Roulette"
+    };
+    
+    const textoLower = texto.toLowerCase();
+    for (const [parcial, nomeCompleto] of Object.entries(mapeamentoNomesParciais)) {
+      if (textoLower.includes(parcial)) {
+        return nomeCompleto;
+      }
+    }
+    
+    return null;
+  }
+  
   // Lista todas as coleções numéricas (roletas)
   async listarColecoesNumericas() {
     const collections = await this.db.listCollections().toArray();
@@ -117,21 +174,57 @@ class RoletaService {
   // Obtém metadados de todas as roletas
   async obterMetadados() {
     try {
-      return await this.db.collection(this.metadataCollection)
-        .find({})
-        .project({ roleta_id: 1, roleta_nome: 1, _id: 0 })
-        .toArray();
+      // Primeiro tenta buscar da coleção 'metadados_roletas'
+      if (await this.colecaoExiste(this.metadataCollection)) {
+        const metadados = await this.db.collection(this.metadataCollection)
+          .find({})
+          .project({ roleta_id: 1, roleta_nome: 1, _id: 0 })
+          .toArray();
+        
+        if (metadados && metadados.length > 0) {
+          return metadados;
+        }
+      }
+      
+      // Se não encontrar, tenta da coleção 'metadados'
+      if (await this.colecaoExiste("metadados")) {
+        return await this.db.collection("metadados")
+          .find({})
+          .project({ roleta_id: 1, roleta_nome: 1, _id: 0 })
+          .toArray();
+      }
+      
+      return [];
     } catch (erro) {
       console.error('Erro ao buscar metadados:', erro.message);
       return [];
     }
   }
   
+  // Verifica se uma coleção existe
+  async colecaoExiste(nomeColeção) {
+    const colecoes = await this.db.listCollections().toArray();
+    return colecoes.some(col => col.name === nomeColeção);
+  }
+  
   // Obtém metadados por ID
   async obterMetadadosPorId(id) {
     try {
-      return await this.db.collection(this.metadataCollection)
-        .findOne({ roleta_id: id });
+      // Primeiro tenta na coleção configurada
+      if (await this.colecaoExiste(this.metadataCollection)) {
+        const metadado = await this.db.collection(this.metadataCollection)
+          .findOne({ roleta_id: id });
+        
+        if (metadado) return metadado;
+      }
+      
+      // Se não encontrar, tenta na coleção 'metadados'
+      if (await this.colecaoExiste("metadados")) {
+        return await this.db.collection("metadados")
+          .findOne({ roleta_id: id });
+      }
+      
+      return null;
     } catch (erro) {
       console.error(`Erro ao buscar metadados por ID ${id}:`, erro.message);
       return null;
@@ -141,8 +234,33 @@ class RoletaService {
   // Obtém metadados por nome
   async obterMetadadosPorNome(nome) {
     try {
-      return await this.db.collection(this.metadataCollection)
-        .findOne({ roleta_nome: nome });
+      // Primeiro tenta na coleção configurada com correspondência exata
+      if (await this.colecaoExiste(this.metadataCollection)) {
+        const metadado = await this.db.collection(this.metadataCollection)
+          .findOne({ roleta_nome: nome });
+        
+        if (metadado) return metadado;
+        
+        // Se não encontrou com correspondência exata, tenta com regex para correspondência parcial
+        const metadadoRegex = await this.db.collection(this.metadataCollection)
+          .findOne({ roleta_nome: { $regex: nome, $options: 'i' } });
+        
+        if (metadadoRegex) return metadadoRegex;
+      }
+      
+      // Se não encontrar, tenta na coleção 'metadados'
+      if (await this.colecaoExiste("metadados")) {
+        const metadado = await this.db.collection("metadados")
+          .findOne({ roleta_nome: nome });
+        
+        if (metadado) return metadado;
+        
+        // Tenta com regex para correspondência parcial
+        return await this.db.collection("metadados")
+          .findOne({ roleta_nome: { $regex: nome, $options: 'i' } });
+      }
+      
+      return null;
     } catch (erro) {
       console.error(`Erro ao buscar metadados por nome "${nome}":`, erro.message);
       return null;
@@ -237,13 +355,9 @@ class RoletaService {
     let nomeRoleta = null;
     const isConsultaEspecifica = Boolean(roletaId || roletaNome);
     
-    // 1. Determinar qual roleta buscar (por ID ou nome)
-    if (roletaId) {
-      colecaoId = roletaId.toString().trim().replace(/^ID:/, '');
-      const metadados = await this.obterMetadadosPorId(colecaoId);
-      nomeRoleta = metadados?.roleta_nome;
-    } 
-    else if (roletaNome) {
+    // 1. Determinar qual roleta buscar (priorizar busca por nome)
+    if (roletaNome) {
+      console.log(`Buscando roleta por nome: "${roletaNome}"`);
       const metadados = await this.obterMetadadosPorNome(roletaNome);
       
       if (!metadados) {
@@ -253,23 +367,50 @@ class RoletaService {
         };
       }
       
-      colecaoId = metadados.roleta_id;
+      colecaoId = metadados.roleta_id || metadados.colecao;
       nomeRoleta = metadados.roleta_nome;
+      console.log(`Roleta encontrada por nome: ${nomeRoleta} (ID: ${colecaoId})`);
     }
-    else {
-      // Sem ID ou nome, pegar primeira coleção disponível
-      const colecoes = await this.listarColecoesNumericas();
-      
-      if (colecoes.length === 0) {
-        return {
-          identificador: 'geral',
-          erro: 'Nenhuma coleção de roleta encontrada'
-        };
-      }
-      
-      colecaoId = colecoes[0];
+    else if (roletaId) {
+      console.log(`Buscando roleta por ID: "${roletaId}"`);
+      colecaoId = roletaId.toString().trim().replace(/^ID:/, '');
       const metadados = await this.obterMetadadosPorId(colecaoId);
       nomeRoleta = metadados?.roleta_nome;
+      
+      if (metadados) {
+        console.log(`Roleta encontrada por ID: ${nomeRoleta || 'Sem nome'} (ID: ${colecaoId})`);
+      }
+    }
+    else {
+      // Sem ID ou nome, listar todas as coleções disponíveis
+      console.log(`Sem ID ou nome específico, buscando coleções disponíveis`);
+      
+      // Primeiro verificar os metadados
+      const metadados = await this.obterMetadados();
+      if (metadados && metadados.length > 0) {
+        // Usar a primeira roleta dos metadados
+        const primeiraRoleta = metadados[0];
+        colecaoId = primeiraRoleta.roleta_id || primeiraRoleta.colecao;
+        nomeRoleta = primeiraRoleta.roleta_nome;
+        console.log(`Usando primeira roleta dos metadados: ${nomeRoleta} (ID: ${colecaoId})`);
+      } else {
+        // Se não encontrou metadados, usar coleções numéricas
+        const colecoes = await this.listarColecoesNumericas();
+        
+        if (colecoes.length === 0) {
+          return {
+            identificador: 'geral',
+            erro: 'Nenhuma coleção de roleta encontrada'
+          };
+        }
+        
+        colecaoId = colecoes[0];
+        console.log(`Usando primeira coleção disponível: ${colecaoId}`);
+        
+        // Tentar obter metadados para esta coleção
+        const metadados = await this.obterMetadadosPorId(colecaoId);
+        nomeRoleta = metadados?.roleta_nome;
+      }
     }
     
     // 2. Identificador para a resposta
@@ -280,7 +421,7 @@ class RoletaService {
     // 3. Verificar se a coleção existe
     const colecoes = await this.listarColecoesNumericas();
     
-    if (!colecoes.includes(colecaoId)) {
+    if (!colecaoId || !colecoes.includes(colecaoId)) {
       return {
         identificador,
         erro: `Coleção de dados para ${identificador} não encontrada`
@@ -300,6 +441,8 @@ class RoletaService {
     
     // 6. Se não há números e não é consulta específica, buscar outra coleção
     if (!numeros && !isConsultaEspecifica) {
+      console.log(`Não foram encontrados dados para ${identificador}, tentando outras coleções`);
+      
       // Tentar outras coleções
       for (const outroId of colecoes) {
         if (outroId === colecaoId) continue;
@@ -349,23 +492,46 @@ class RoletaService {
   
   // Lista todas as roletas disponíveis
   async listarRoletas() {
+    // 1. Obter metadados
     const metadados = await this.obterMetadados();
+    
+    // 2. Obter coleções numéricas
     const colecoes = await this.listarColecoesNumericas();
     
-    if (metadados.length > 0) {
-      return {
-        tipo: 'metadados',
-        roletas: metadados.map(r => `${r.roleta_nome} (ID: ${r.roleta_id})`)
-      };
+    // 3. Se temos metadados, usá-los para informações completas
+    if (metadados && metadados.length > 0) {
+      // Verificar quais coleções realmente existem
+      const roletasAtivas = metadados.filter(r => {
+        const id = r.roleta_id || r.colecao;
+        return id && colecoes.includes(id);
+      });
+      
+      if (roletasAtivas.length > 0) {
+        return {
+          tipo: 'metadados',
+          roletas: roletasAtivas.map(r => `${r.roleta_nome || 'Sem nome'} (ID: ${r.roleta_id || r.colecao})`)
+        };
+      }
     }
     
-    if (colecoes.length > 0) {
+    // 4. Se não temos metadados ou nenhuma roleta ativa, usar coleções diretas
+    if (colecoes && colecoes.length > 0) {
+      // Para cada coleção, tentar encontrar seu nome nos metadados
+      const roletasInfo = await Promise.all(colecoes.map(async (colecaoId) => {
+        const metadado = await this.obterMetadadosPorId(colecaoId);
+        return {
+          id: colecaoId,
+          nome: metadado?.roleta_nome || `Roleta ${colecaoId}`
+        };
+      }));
+      
       return {
         tipo: 'colecoes',
-        roletas: colecoes
+        roletas: roletasInfo.map(r => `${r.nome} (ID: ${r.id})`)
       };
     }
     
+    // 5. Nenhuma roleta encontrada
     return {
       tipo: 'vazio',
       roletas: []
@@ -469,7 +635,7 @@ ${dadosRoleta.numerosRecentes ? `• Últimos números: ${dadosRoleta.numerosRec
 
 A pergunta do usuário é: "${pergunta}"
 
-Responda diretamente e objetivamente, sem introduções ou contextualizações.`;
+Responda diretamente e objetivamente, sem introduções ou contextualizações. Sempre informe ao usuário qual roleta está sendo analisada pelo nome no início da resposta.`;
   }
 }
 
@@ -502,12 +668,20 @@ export default async function handler(req, res) {
     const roletaService = new RoletaService(db);
     const iaService = new IAService();
     
-    // 4. Extrair ID da roleta do texto se não fornecido
+    // 4. Extrair ID e Nome da roleta do texto se não fornecido
     if (!roletaId && !roletaNome) {
-      const idExtraido = roletaService.extrairIdDaConsulta(query);
-      if (idExtraido) {
-        roletaId = idExtraido;
-        console.log(`ID da roleta extraído do texto: ${roletaId}`);
+      // Primeiro tenta extrair nome
+      const nomeExtraido = roletaService.extrairNomeDaConsulta(query);
+      if (nomeExtraido) {
+        roletaNome = nomeExtraido;
+        console.log(`Nome da roleta extraído do texto: ${roletaNome}`);
+      } else {
+        // Se não encontrou nome, tenta extrair ID
+        const idExtraido = roletaService.extrairIdDaConsulta(query);
+        if (idExtraido) {
+          roletaId = idExtraido;
+          console.log(`ID da roleta extraído do texto: ${roletaId}`);
+        }
       }
     }
     
